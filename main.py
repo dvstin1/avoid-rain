@@ -33,7 +33,7 @@ def handle_title_events(renderer, title_menu):
                     renderer.fade_to_black()
                     title_menu.clear_confirm()
                     return False, True
-            if selected == 'Quit':
+                if selected == 'Quit':
                     return False, False
     return True, True
 
