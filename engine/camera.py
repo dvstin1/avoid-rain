@@ -42,13 +42,15 @@ class Camera:
         return target_x, target_y
 
     def update(self, player_center: Tuple[float, float], dt: float) -> None:
-        """Move the internal offset toward the target using exponential/lerp.
+        """Move the internal offset toward the target using exponential damping.
 
-        Uses simple linear interpolation factor derived from lerp_speed*dt but
-        clamped to [0,1] to avoid overshooting on large dt.
+        This uses an exponential easing so the camera approaches the target
+        smoothly and frame-rate independently. The interpolation factor is
+        computed as (1 - exp(-lerp_speed * dt)).
         """
+        import math
         target_x, target_y = self.get_target_offset(player_center)
-        t = max(0.0, min(1.0, self.lerp_speed * dt))
+        t = 1.0 - math.exp(-self.lerp_speed * max(0.0, dt))
         # Move fraction t toward target
         self.offset_x += (target_x - self.offset_x) * t
         self.offset_y += (target_y - self.offset_y) * t

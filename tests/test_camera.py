@@ -33,8 +33,15 @@ def test_camera_smoothing_moves_toward_target():
     cam.update((1200, 900), 0.1)
     ox, oy = cam.get_offset()
     assert ox != int(target[0]) or oy != int(target[1])
-    # After large dt should be close to target
+    # Record distance after small dt
+    dist1 = abs(ox - int(target[0])) + abs(oy - int(target[1]))
+    # A longer dt should reduce the error
     cam.update((1200, 900), 1.0)
     ox2, oy2 = cam.get_offset()
-    assert abs(ox2 - int(target[0])) <= 5
-    assert abs(oy2 - int(target[1])) <= 5
+    dist2 = abs(ox2 - int(target[0])) + abs(oy2 - int(target[1]))
+    assert dist2 < dist1
+    # After more time the camera should be close to the target
+    cam.update((1200, 900), 3.0)
+    ox3, oy3 = cam.get_offset()
+    assert abs(ox3 - int(target[0])) <= 5
+    assert abs(oy3 - int(target[1])) <= 5
