@@ -92,6 +92,10 @@ def main():
                 if pause_menu.is_open():
                     # When paused, draw the pause menu and skip updates
                     renderer.draw_pause_menu(pause_menu.get_selected_index())
+                    # If the user confirmed 'Quit' in the pause menu, exit the loop
+                    if pause_menu.should_quit():
+                        running = False
+                        break
                 else:
                     actions = {
                         'move': get_movement_actions(),
