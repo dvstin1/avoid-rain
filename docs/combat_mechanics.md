@@ -2,6 +2,7 @@
 
 ## Player Actions
 - **WASD Control:** Standard 8-directional movement.
+    - **Normalization:** Movement vectors must be normalized to ensure diagonal speed is consistent with orthogonal speed.
 - **Evasion:** Dash or roll move for quick repositioning and temporary invulnerability.
 - **Blocking:** If a shield is equipped, the player can block incoming attacks.
     - **Penalty:** Movement speed is significantly reduced while blocking.
@@ -11,6 +12,11 @@
     - **Reset:** All charges are restored when visiting a Respite or upon respawning.
     - **Upgrades:** Can be improved to increase charge count or potency (e.g., Flask+1).
 - **Delta Time (dt):** All movement and physics must be scaled by `dt`.
+
+## Collision Math
+- **AABB (Axis-Aligned Bounding Box):** Use simple rectangle-to-rectangle intersection for walls and static obstacles.
+- **Circle Collision:** The Rain Safe Zone uses distance-based circle math (distance between player and center < radius).
+- **Hitboxes:** Combat hitboxes will use AABB or simple distance checks to resolve hits on enemies.
 
 ## Weapon Types
 - **Swords:** Balanced speed and range. Circular/Arc hitboxes.
