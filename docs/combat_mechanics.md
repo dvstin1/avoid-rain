@@ -1,13 +1,20 @@
 # Combat & Gameplay Mechanics
 
-## Movement
+## Player Actions
 - **WASD Control:** Standard 8-directional movement.
-- **Delta Time (dt):** All movement and physics must be scaled by `dt` to ensure frame rate independence.
+- **Evasion:** Dash or roll move for quick repositioning and temporary invulnerability.
+- **Blocking:** If a shield is equipped, the player can block incoming attacks.
+    - **Penalty:** Movement speed is significantly reduced while blocking.
+- **Delta Time (dt):** All movement and physics must be scaled by `dt`.
 
-## Combat
-- **Swinging Sword:** A state-driven attack system with startup, active, and recovery frames.
-- **Directional Hitboxes:** Hitboxes project in the direction of the player's last movement or aim.
-- **Enemy Dummy:** Static or simple AI entities used to verify hit detection and damage application.
+## Weapon Types
+- **Swords:** Balanced speed and range. Circular/Arc hitboxes.
+- **Spears:** Slower attack speed but significantly longer and narrower hitboxes. Ideal for keeping enemies at a distance.
+
+## Items & Consumables
+- **Consumables:** Items like food that can regenerate health or provide temporary stat buffs (e.g., increased defense).
+- **Upgrades:** Materials or services from vendors to improve weapon stats (damage, speed, reach).
+- **Inventory:** System to manage equipped weapons, shields, and consumables.
 
 ## The Rain (Survival Mechanic)
 - **Safe Zone:** A circular region that shrinks over time on Day 1 and Day 2, forcing players inward.

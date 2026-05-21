@@ -1,11 +1,23 @@
 # World Lore & Structure
 
+## The Hub World
+The "Sanctuary" is a safe space outside of the rain cycle.
+- **Training Room:** Contains indestructible dummies for testing weapons, combos, and movement.
+- **The Chronicle:** A mysterious book that the player reads to begin a new run/day.
+
+## Story Flags & NPC Events
+Interaction with friendly NPCs can trigger events that persist or affect the current run.
+- **Random Events:** Every run has a chance to spawn specific NPC scenarios in modular sections.
+- **Quest Rewards:** Completing a task for an NPC (e.g., retrieving an item, clearing a sub-zone) can:
+    - Permanently increase player power.
+    - Provide "intel" or items that weaken a specific Boss.
+    - Unlock new vendor inventory in the Hub.
+
 ## The Shifting World
 The game world is a large, fragmented map composed of modular sections.
 - **Dynamic Sections:** Randomly swap between variants each run.
-- **Mini-Bosses:** Each modular section contains an optional mini-boss.
-    - **Rewards:** Defeating them provides useful permanent or run-specific rewards.
-    - **Challenge:** Harder than regular enemies but easier than the End-of-Day Bosses.
+- **Vendors:** NPCs found in the world selling upgrades or consumables.
+- **Mini-Bosses:** Each modular section contains an optional mini-boss with useful rewards.
 
 ## Enemy Hierarchy
 1. **Easy:** Low HP, low damage, slow movement.

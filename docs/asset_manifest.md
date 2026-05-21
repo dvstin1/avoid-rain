@@ -1,19 +1,24 @@
 # Asset Manifest
 
 ## Sprites & Animations
-- **Player:** 4-directional walk cycles, 4-directional sword swing animations.
+- **Player:**
+    - 4-directional walk cycles.
+    - Attack animations: Sword swings, Spear thrusts.
+    - Evasion: Rolling/Dashing frames.
+    - Blocking: Shield-up stance.
+- **NPCs:**
+    - Vendors: Specialized shopkeeper sprites.
+    - Quest Givers: Unique NPCs for story events.
 - **Enemies:** Basic grunt/dummy sprites, Final Boss (large-scale 2D sprite).
 - **Environment:**
-    - Tile-based floor and wall sets for various world sections.
-    - Destructible objects or obstacles.
+    - Hub World: Training room assets, "The Book" (run initializer).
+    - Tile-based floor and wall sets.
     - Portal animation/sprite.
 
-## Visual Effects (VFX)
-- **Rain Overlay:** Particle system or animated overlay for the encroaching rain.
-- **Hit Sparks:** Visual feedback for successful sword strikes.
-- **Safe Zone Border:** A visual indicator (e.g., shimmering edge) of the rain circle.
-
-## User Interface (UI)
-- **Health/Stamina Bars.**
-- **Day Counter/Clock.**
-- **Mini-map:** Showing the player's position relative to the shrinking rain circle.
+## Items & UI
+- **Consumables:** Food icons (bread, fruit, etc.), Potion icons.
+- **Gear:** Shield sprites, Spear sprites, Sword variants.
+- **User Interface (UI):**
+    - Health/Stamina/Defense bars.
+    - Inventory grid.
+    - Interaction prompts for NPCs and items.
