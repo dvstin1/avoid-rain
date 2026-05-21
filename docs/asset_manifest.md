@@ -38,7 +38,9 @@
     - Interaction prompts for NPCs, items, and Respites.
 
 ## Prototyping Graphics Rule
-For Phase 1 and 2, do not load external image files. Represent all entities using colored `pygame.Surface` primitives:
+For Phase 1 and 2, do not load external image files.
+All newly implemented entities must register their primitive shape, dimensions, and hex color codes here during the prototyping phase to facilitate seamless structural asset injection during later art passes.
+Represent all entities using colored `pygame.Surface` primitives:
 - Player = 32x32 pixel Blue Square
 - Wall Tile = 32x32 pixel Dark Gray Square
 - Floor Tile = 32x32 pixel Light Gray Square

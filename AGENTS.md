@@ -38,3 +38,51 @@ Before transitioning to Phase 2 (Coding), the following criteria must be checked
 1. **Phase 1:** Window init, constants system, and WASD movement in the Sanctuary.
 2. **Phase 2:** Static wall grid and bounding box collision.
 3. **Phase 3:** Sword state machine, directional hitboxes, and enemy dummy.
+
+## Dialogue System Architecture: The Blackboard Protocol
+
+To ensure absolute modularity and eliminate side effects across unrelated systems, the dialogue engine must be strictly decoupled from active game state data. It must utilize a unified **Blackboard State & Query Model**.
+
+### 1. The Global Blackboard (The Data State)
+The game must maintain a flat, persistent dictionary (the Blackboard) that records primitive values tracking historical narrative milestones. No other script may directly read dialogue code; they only push facts to this dictionary.
+
+```python
+# Conceptual Structure (Do not write logic files yet, follow this schema)
+dialogue_blackboard = {
+    "last_run_result": "DEFEAT",    # Enum: INIT, VICTORY, DEFEAT
+    "level": 14,                    # Integer
+    "has_item_iron_key": True,      # Boolean flag per unique item
+    "boss_night1_encountered": True,# Boolean flag per critical encounter
+    "boss_author_slain": False      # Boolean flag per boss kill
+}
+
+## System Architecture: The Wellspring Interface (Stats & Bestiary)
+
+To keep the hub scene files lightweight, the tracking of lifetime player metrics must be managed by a decoupled, standalone file serialization process, which is pulled into a dedicated UI display layout only upon active interaction.
+
+### 1. The Persistence Matrix (The Data File)
+The engine must serialize a flat, lightweight JSON or dictionary schema file named `profile_metrics.json` inside the root user save path. This file is updated instantly when milestones occur and remains independent of active level generation memory:
+
+```json
+{
+  "lifetime_stats": {
+    "runs_started": 0,
+    "wins_chapters_cleared": 0,
+    "losses_bleed_wipes": 0,
+    "deaths_standard_respawns": 0,
+    "forced_quit_outs": 0
+  },
+  "discovered_bestiary": {
+    "enemy_id_01_slug": true,
+    "boss_id_night1_censor": false
+  }
+}
+
+## Strict Implementation Directive: The Rule of Low-Coupling Isolation
+
+To maximize development efficiency, minimize regression side effects, and optimize token usage, the AI agent must adhere to a strict **One-Thing-At-A-Time** implementation cycle:
+
+1. **Identify Isolation:** Pick exactly ONE feature from the roadmap that is unshaded/unimplemented. This feature must be highly "low-coupled"—meaning its backend architecture can be fully built, verified, and sealed without depending on or altering any other incomplete feature branches.
+2. **Design Invariance:** Prioritize systems whose data schemas are structurally independent (e.g., the `StatisticsTracker` JSON serialization, the `LootManager` probability engine, or the `Escape Pause Menu` state interceptor). Do not build highly dependent intermediate logic until its parent framework is fully set in stone.
+3. **The Test-Driven Mandate:** For the selected feature, you must write the modular framework logic alongside dedicated unit or behavioral tests. Do not proceed to any other task or file directory until the tests for this specific node pass cleanly.
+4. **Zero Feature Creep:** Implement the selected feature exactly to the specifications documented—no more, no less. Do not leave placeholder comments ("TODO") pointing to unbuilt features. Keep the execution completely self-contained.

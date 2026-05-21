@@ -54,3 +54,27 @@ TILE_WALL = 1
 # Colors for Tiles
 COLOR_WALL = (60, 60, 60)
 COLOR_FLOOR = (25, 25, 25)
+
+# Structural Schema enforced for all conversation manifests
+DIALOGUE_MANIFEST = {
+    "chronicler": [
+        {
+            "id": "chr_key_reaction",
+            "conditions": {"has_item_iron_key": True, "boss_night1_encountered": False},
+            "priority": "100", # Checked first due to high specificity
+            "text": "That key you hold... its edges match the fractures in the first chapter. Be careful."
+        },
+        {
+            "id": "chr_standard_defeat",
+            "conditions": {"last_run_result": "DEFEAT"},
+            "priority": "50",
+            "text": "You return cold... I can still smell the burning ink."
+        },
+        {
+            "id": "chr_fallback",
+            "conditions": {}, # Empty means always valid
+            "priority": "0",  # Checked last
+            "text": "The pages are waiting whenever you are ready."
+        }
+    ]
+}
