@@ -108,8 +108,12 @@ def main():
                     renderer.draw_pause_menu(pause_menu.get_selected_index())
                     # If the user confirmed 'Quit' in the pause menu, exit the loop
                     if pause_menu.should_quit():
-                        running = False
-                        break
+                        # Transition back to the title screen instead of exiting the app
+                        pause_menu.clear_quit()
+                        pause_menu.close()
+                        in_title = True
+                        # skip remaining game update work and continue loop
+                        continue
                 else:
                     actions = {
                         'move': get_movement_actions(),
