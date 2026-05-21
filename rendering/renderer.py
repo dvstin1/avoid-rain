@@ -136,6 +136,27 @@ class Renderer:
             pygame.display.flip()
             pygame.time.delay(10)
 
+    def draw_loading_screen(self, message: str, submessage: str | None = None, min_time: float = 2.0, sleep_func=None):
+        """Draw a loading screen with a message and optional submessage.
+
+        The function enforces a minimum display time (min_time). sleep_func
+        may be injected for tests (defaults to time.sleep).
+        """
+        import time
+        sleep = sleep_func if sleep_func is not None else time.sleep
+
+        self.screen.fill(COLOR_BLACK)
+        title_surf = self.font.render(message, True, COLOR_WHITE)
+        title_rect = title_surf.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2 - 20))
+        self.screen.blit(title_surf, title_rect)
+        if submessage is not None:
+            sub_surf = self.font.render(submessage, True, COLOR_WHITE)
+            sub_rect = sub_surf.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2 + 20))
+            self.screen.blit(sub_surf, sub_rect)
+        pygame.display.flip()
+        # Ensure the loading screen is visible for at least min_time
+        sleep(min_time)
+
     def draw_pause_menu(self, selected_index: int = 0):
         """Draw a simple pause overlay with 'Paused' text.
 

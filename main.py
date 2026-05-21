@@ -88,7 +88,48 @@ def main():
     clock = pygame.time.Clock()
 
     renderer = Renderer(screen)
-    state = GameState()
+    # Create a provisional GameState so we can handle corrupt-save dialogs during startup
+    # Defer auto-loading until we can present UI. Create GameState with auto_load=False first.
+    provisional_state = GameState(stats=None, auto_load=False)
+    # Now attempt to load stats with UI handling
+    try:
+        state = GameState(stats=None, stats_path=None, auto_load=True)
+    except Exception:
+        # Fall back to provisional if something unexpected happened
+        state = provisional_state
+
+    # If a corrupt save was detected during auto-load, present the user a choice
+    if getattr(state, 'stats_corrupt', False):
+        # Show loading screen explaining the issue and enforce minimum display
+        msg = "Saved data appears corrupt. Start with new data? (Y/N)"
+        renderer.draw_loading_screen("Save Corrupt", msg, min_time=2.0)
+        # Wait for user to press Y or N
+        waiting_choice = True
+        choice = None
+        while waiting_choice:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_y:
+                        choice = 'y'
+                        waiting_choice = False
+                    elif event.key == pygame.K_n:
+                        choice = 'n'
+                        waiting_choice = False
+            # small delay to avoid busy loop
+            pygame.time.delay(10)
+        if choice == 'y':
+            # Start fresh data
+            state.handle_corrupt_choice(start_new=True)
+            # Immediately persist the fresh tracker
+            state.save_stats()
+        else:
+            # User chose not to start new data: go to title instead
+            in_title = True
+            state = provisional_state
+
     # Autosave manager runs during the game loop and triggers periodic saves
     autosave = AutosaveManager(AUTOSAVE_INTERVAL)
     # PauseMenu will auto-save on open via a lightweight callback

@@ -37,9 +37,20 @@ class GameState:
                 else:
                     # Load from default location (may be in user's home directory)
                     self.stats = StatisticsTracker.load()
-            except Exception:
-                # Keep integration low-coupled: if load fails, leave stats None
-                self.stats = None
+            except Exception as exc:
+                # Handle corrupt saves specially so UI can offer a choice to the player
+                from engine.stats import CorruptSaveError
+                if isinstance(exc, CorruptSaveError):
+                    # Record that a corrupt save was detected and where backup was written
+                    self.stats = None
+                    self.stats_corrupt = True
+                    try:
+                        self.stats_corrupt_backup = exc.backup_path
+                    except Exception:
+                        self.stats_corrupt_backup = None
+                else:
+                    # Other errors: keep integration low-coupled and proceed without stats
+                    self.stats = None
 
         if self.stats is not None:
             # Track that a run has started
@@ -49,6 +60,10 @@ class GameState:
                 # If the provided tracker doesn't have the key, fail silently to
                 # keep this integration low-coupled and non-throwing in tests.
                 pass
+        else:
+            # Ensure flags exist
+            self.stats_corrupt = getattr(self, 'stats_corrupt', False)
+            self.stats_corrupt_backup = getattr(self, 'stats_corrupt_backup', None)
 
         # Dummy Entity State
         self.dummy_rect = (DUMMY_X, DUMMY_Y, DUMMY_WIDTH, DUMMY_HEIGHT)
@@ -94,6 +109,27 @@ class GameState:
 
         thread = threading.Thread(target=_worker, args=(path,), daemon=True)
         thread.start()
+
+    def handle_corrupt_choice(self, start_new: bool) -> None:
+        """Handle player's decision after a corrupt save was detected.
+
+        If start_new is True, create a fresh StatisticsTracker and increment
+        runs_started. If False, leave stats as None (caller should handle flow).
+        """
+        if not getattr(self, 'stats_corrupt', False):
+            return
+        if start_new:
+            self.stats = StatisticsTracker()
+            try:
+                self.stats.increment('runs_started', 1)
+            except Exception:
+                pass
+            # Clear corrupt flags
+            self.stats_corrupt = False
+            self.stats_corrupt_backup = None
+        else:
+            # Explicitly keep stats None and leave corrupt flags set for caller
+            self.stats = None
 
     def update(self, dt, actions):
         """Update all game logic."""
