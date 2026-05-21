@@ -1,5 +1,13 @@
 # Asset Manifest
 
+## Visual Effects (VFX) & UI
+- **Damage Numbers:** Font/Sprite set for colored numbers (Red/Yellow).
+- **Outlines:** Logic/Assets for 100ms stagger outlines.
+- **Transitions:** Solid black surface for "Fade to Black" effects.
+- **Screens:**
+    - Title Screen background/logo.
+    - Loading Screen (placeholder for map generation).
+
 ## Sprites & Animations
 - **Player:**
     - 4-directional walk cycles.

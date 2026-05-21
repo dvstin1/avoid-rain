@@ -1,5 +1,16 @@
 # Combat & Gameplay Mechanics
 
+## Combat Feedback & Stagger
+- **Damage Numbers:**
+    - **Player hits Enemy:** Yellow/Orange numbers.
+    - **Enemy hits Player:** Red numbers.
+    - **Behavior:** Numbers should "pop" at the point of impact and float upwards before fading.
+- **Stagger State:**
+    - **Trigger:** Taking a certain amount of "stagger damage" (hidden poise meter) interrupts current actions.
+    - **Effect:** Entity enters a recovery state where they are immobile and vulnerable.
+    - **Visual Cue:** The affected entity flashes or gains a colored outline for ~100ms.
+    - **Interruption:** Attacks are cancelled if the entity is staggered during startup or active frames.
+
 ## Player Actions
 - **WASD Control:** Standard 8-directional movement.
     - **Normalization:** Movement vectors must be normalized to ensure diagonal speed is consistent with orthogonal speed.
