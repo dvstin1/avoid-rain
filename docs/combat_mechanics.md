@@ -11,6 +11,17 @@
     - **Visual Cue:** The affected entity flashes or gains a colored outline for ~100ms.
     - **Interruption:** Attacks are cancelled if the entity is staggered during startup or active frames.
 
+## Charged Attacks
+- **Mechanism:** Hold the Attack button (Spacebar) to charge.
+- **Timing:** Full charge is reached between 200ms and 600ms (to be tuned via constants).
+- **Benefits:**
+    - **Higher Damage:** Significantly increased damage output compared to standard attacks.
+    - **High Stagger:** Much more likely to trigger the Stagger state in enemies and bosses.
+- **Trade-offs:**
+    - **Immobility:** The player cannot walk while charging.
+    - **Vulnerability:** The player is susceptible to interrupts and damage during the charge animation.
+- **NPC Usage:** Enemies and Bosses may also utilize charged variants of their attacks, signaled by unique wind-up animations.
+
 ## Player Actions
 - **WASD Control:** Standard 8-directional movement.
     - **Normalization:** Movement vectors must be normalized to ensure diagonal speed is consistent with orthogonal speed.

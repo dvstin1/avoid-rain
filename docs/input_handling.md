@@ -16,14 +16,17 @@ To maintain the **Decoupled Design** constraint, input must be translated from r
     - This vector is passed to the engine as a `ContinuousMoveAction(x, y)`.
     - **Fluidity:** Because it's polled every frame, movement starts and stops instantly with key presses, scaled by `dt`.
 
-## 3. Discrete Input (Actions/Combat)
-- **Mechanism:** Event Buffering.
+## 3. Discrete & Charged Input (Actions/Combat)
+- **Mechanism:** Hybrid Event/Polling.
 - **Keys:** Spacebar (Attack), Shift (Dash), E (Interact).
 - **Behavior:**
-    - The `rendering/` layer listens for `pygame.KEYDOWN` events.
-    - **Single Trigger:** Each `KEYDOWN` event generates exactly ONE action (e.g., `AttackAction`).
-    - **Non-Repeatable:** Holding the Spacebar will NOT trigger subsequent attacks. The player must release and press again to start a new attack sequence.
-    - **State Lock:** The `engine/` will ignore new `AttackActions` if the player's current state is already `ATTACKING`.
+    - **Initial Trigger:** `pygame.KEYDOWN` starts the action sequence.
+    - **Charged Attack (Hold):** 
+        - If the button is held, the `engine/` increments a `charge_timer`.
+        - If released (`pygame.KEYUP`) after the minimum threshold, a **Charged Attack** is executed.
+        - If released before the threshold, a **Standard Attack** is executed.
+    - **Non-Repeatable:** Holding the button after an attack completes will NOT trigger a new attack; the key must be released and pressed again.
+    - **State Lock:** The `engine/` will ignore new input actions if the player's current state is already `ATTACKING` or `CHARGING`.
 
 ## 4. Input Translation Map (Initial)
 | Key | Input Type | Game Action |
