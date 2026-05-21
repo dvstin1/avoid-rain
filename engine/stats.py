@@ -10,7 +10,7 @@ from pathlib import Path
 import json
 from typing import Dict, Any
 
-DEFAULT_FILENAME = "profile_metrics.json"
+DEFAULT_PATH = Path.home() / ".avoid-rain" / "profile_metrics.json"
 
 
 class StatisticsTracker:
@@ -52,8 +52,8 @@ class StatisticsTracker:
         return self.data
 
     def save(self, path: Path | str | None = None) -> None:
-        """Serialize the data to JSON at the given path (or DEFAULT_FILENAME in cwd)."""
-        target = Path(path) if path is not None else Path(DEFAULT_FILENAME)
+        """Serialize the data to JSON at the given path (or DEFAULT_PATH in the user's home directory)."""
+        target = Path(path) if path is not None else DEFAULT_PATH
         # Ensure parent exists
         if not target.parent.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -62,7 +62,7 @@ class StatisticsTracker:
     @classmethod
     def load(cls, path: Path | str | None = None) -> "StatisticsTracker":
         """Load from JSON if exists, otherwise return a fresh tracker."""
-        target = Path(path) if path is not None else Path(DEFAULT_FILENAME)
+        target = Path(path) if path is not None else DEFAULT_PATH
         if not target.exists():
             return cls()
         raw = json.loads(target.read_text())
