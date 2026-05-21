@@ -10,12 +10,21 @@ from engine.player import Player, PlayerStateEnum
 from engine.world import World
 from engine.combat import get_sword_hitbox
 from engine.physics import check_aabb_collision
+from engine.camera import Camera
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED
 
 class GameState:
     """Master state object for the game engine."""
     def __init__(self):
         self.world = World()
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
+
+        # Camera persisted on GameState to avoid recreating each frame
+        world_w = GRID_WIDTH * TILE_SIZE
+        world_h = GRID_HEIGHT * TILE_SIZE
+        self.camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT, world_w, world_h, lerp_speed=CAMERA_LERP_SPEED)
+        # Start camera centered on player instantly
+        self.camera.instant_center(self.player.get_center())
 
         # Dummy Entity State
         self.dummy_rect = (DUMMY_X, DUMMY_Y, DUMMY_WIDTH, DUMMY_HEIGHT)
@@ -33,6 +42,9 @@ class GameState:
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         walls = self.world.get_nearby_walls(player_rect)
         self.player.update(dt, move_dir, walls, attack_pressed)
+
+        # Update camera smoothing now that player moved
+        self.camera.update(self.player.get_center(), dt)
 
         # 2. Check for Sword Hits
         if self.player.state == PlayerStateEnum.ATTACKING:

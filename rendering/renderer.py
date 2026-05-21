@@ -34,13 +34,22 @@ class Renderer:
         """
         self.screen.fill(COLOR_BLACK)
 
+        # Use camera from the game state if available; otherwise create a transient one
         screen_w = self.screen.get_width()
         screen_h = self.screen.get_height()
         world_w = GRID_WIDTH * TILE_SIZE
         world_h = GRID_HEIGHT * TILE_SIZE
 
-        camera = Camera(screen_w, screen_h, world_w, world_h)
-        offset_x, offset_y = camera.get_offset(state.player.get_center())
+        if hasattr(state, 'camera'):
+            # Ensure camera screen size matches the current screen (window resize)
+            # (camera keeps its own screen_w/h so update if needed)
+            if state.camera.screen_w != screen_w or state.camera.screen_h != screen_h:
+                state.camera.screen_w = screen_w
+                state.camera.screen_h = screen_h
+            offset_x, offset_y = state.camera.get_offset()
+        else:
+            camera = Camera(screen_w, screen_h, world_w, world_h)
+            offset_x, offset_y = camera.get_target_offset(state.player.get_center())
 
         # Visible tile range (add +1 to ensure partial tiles at edges are drawn)
         start_x = max(0, offset_x // TILE_SIZE)

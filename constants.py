@@ -50,6 +50,10 @@ WORLD_EXTRA_TILES_Y = 5
 GRID_WIDTH = SCREEN_WIDTH // TILE_SIZE + WORLD_EXTRA_TILES_X
 GRID_HEIGHT = SCREEN_HEIGHT // TILE_SIZE + WORLD_EXTRA_TILES_Y
 
+# Camera smoothing configuration (how quickly the camera follows the target)
+# Higher values = snappier (1.0 means it will take ~1s to reach target)
+CAMERA_LERP_SPEED = 8.0
+
 # Tile Types
 TILE_EMPTY = 0
 TILE_WALL = 1
