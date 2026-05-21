@@ -1,26 +1,23 @@
-# Avoid Rain - Development Plan
+# Avoid Rain - Hub
 
 ## Project Overview
-**Concept:** Top-down Action RPG and Roguelike.
-**Environment:** Debian Linux, Pygame, 2D Graphics.
+**Concept:** Top-down Action RPG/Roguelike where players must outrun an encroaching lethal rain.
+**Stack:** Debian Linux, Pygame, 2D Graphics.
 
 ## Architectural Constraints
-- **No Magic Numbers:** All configuration variables must reside in specific constants files.
-- **Frame Rate Independence:** Use delta time (`dt`) to scale all physics and movement calculations.
-- **Logic/Rendering Separation:** Game logic must be strictly decoupled from rendering code.
+- **Constants Only:** No magic numbers; all config must be in specialized constants files.
+- **dt Scaling:** Frame rate independence is mandatory for all physics and movement.
+- **Decoupled Design:** Game logic must be strictly separated from rendering.
 
-## Feature Roadmap (Iterative Development)
+## Context Pointers (Hub-and-Spoke)
+- **`docs/combat_mechanics.md`**: Detailed logic for movement, sword states, and the rain circle mechanic.
+  *Include for physics, AI, or combat implementation.*
+- **`docs/asset_manifest.md`**: Registry of all 2D sprites, animations, and tile sets.
+  *Include for rendering, animation, or asset loading tasks.*
+- **`docs/world_lore.md`**: Narrative background and world rules (shifting maps, rain cycle).
+  *Include for level design or world-building context.*
 
-### Phase 1: Foundation
-- Bare bones window initialization.
-- Constants management system.
-- Simple WASD movement for the player character.
-
-### Phase 2: World & Collision
-- Static wall grid array implementation.
-- Basic bounding box collision detection.
-
-### Phase 3: Combat Basics
-- Swinging sword state machine.
-- Directional hitboxes.
-- Test enemy dummy for hit detection verification.
+## Feature Roadmap
+1. **Phase 1:** Window init, constants system, and WASD movement.
+2. **Phase 2:** Static wall grid and bounding box collision.
+3. **Phase 3:** Sword state machine, directional hitboxes, and enemy dummy.
