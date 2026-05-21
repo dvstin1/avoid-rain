@@ -62,7 +62,10 @@ DIALOGUE_MANIFEST = {
             "id": "chr_key_reaction",
             "conditions": {"has_item_iron_key": True, "boss_night1_encountered": False},
             "priority": "100", # Checked first due to high specificity
-            "text": "That key you hold... its edges match the fractures in the first chapter. Be careful."
+            "text": (
+                "That key you hold... its edges match the fractures in the first chapter. "
+                "Be careful."
+            )
         },
         {
             "id": "chr_standard_defeat",
