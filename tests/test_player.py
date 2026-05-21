@@ -26,12 +26,13 @@ def test_player_movement_normalized():
 
 def test_player_boundary_clamping():
     """Test that player cannot move off-screen."""
-    from constants import SCREEN_WIDTH, PLAYER_WIDTH
-    p = Player(SCREEN_WIDTH - PLAYER_WIDTH, 100)
+    from constants import PLAYER_WIDTH, GRID_WIDTH, TILE_SIZE
+    world_w = GRID_WIDTH * TILE_SIZE
+    p = Player(world_w - PLAYER_WIDTH, 100)
     p.speed = 100
     # Try to move right off-screen, no walls
     p.update(1.0, (1, 0), [], False)
-    assert p.x == SCREEN_WIDTH - PLAYER_WIDTH
+    assert p.x == world_w - PLAYER_WIDTH
 
 def test_player_wall_collision():
     """Test that player is blocked by walls."""

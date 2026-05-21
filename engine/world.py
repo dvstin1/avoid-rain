@@ -13,7 +13,12 @@ class World:
         self._init_sanctuary_walls()
 
     def _init_sanctuary_walls(self):
-        """Creates a simple border and some internal walls for the Sanctuary."""
+        """Creates a simple border and some internal walls for the Sanctuary.
+
+        Additionally: create a centered island perimeter to separate an inner
+        sanctuary area from the outside, while the outer border limits the
+        overall outside area.
+        """
         # Top and Bottom walls
         for x in range(GRID_WIDTH):
             self.grid[0][x] = TILE_WALL
@@ -24,11 +29,31 @@ class World:
             self.grid[y][0] = TILE_WALL
             self.grid[y][GRID_WIDTH - 1] = TILE_WALL
 
-        # Some random pillars in the sanctuary
+        # Some random pillars in the sanctuary (keep for interior detail)
         self.grid[5][5] = TILE_WALL
         self.grid[5][GRID_WIDTH - 6] = TILE_WALL
         self.grid[GRID_HEIGHT - 6][5] = TILE_WALL
         self.grid[GRID_HEIGHT - 6][GRID_WIDTH - 6] = TILE_WALL
+
+        # Centered island perimeter (inner wall) to separate inside/outside areas
+        island_w = max(5, GRID_WIDTH // 2)
+        island_h = max(5, GRID_HEIGHT // 2)
+        island_x0 = (GRID_WIDTH - island_w) // 2
+        island_y0 = (GRID_HEIGHT - island_h) // 2
+
+        # Horizontal edges of the island
+        for x in range(island_x0, island_x0 + island_w):
+            self.grid[island_y0][x] = TILE_WALL
+            self.grid[island_y0 + island_h - 1][x] = TILE_WALL
+
+        # Vertical edges of the island
+        for y in range(island_y0, island_y0 + island_h):
+            self.grid[y][island_x0] = TILE_WALL
+            self.grid[y][island_x0 + island_w - 1] = TILE_WALL
+
+        # Optionally leave a small doorway on the left side of the island
+        door_y = island_y0 + island_h // 2
+        self.grid[door_y][island_x0] = TILE_EMPTY
 
     def get_nearby_walls(self, player_rect):
         """

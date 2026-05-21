@@ -44,8 +44,11 @@ RECOVERY_TIME = 0.3 # Time spent in stagger/recovery
 
 # Grid & World Configuration
 TILE_SIZE = 40
-GRID_WIDTH = SCREEN_WIDTH // TILE_SIZE
-GRID_HEIGHT = SCREEN_HEIGHT // TILE_SIZE
+# Extra tiles to make the world larger than the visible screen (low-coupling constant)
+WORLD_EXTRA_TILES_X = 10
+WORLD_EXTRA_TILES_Y = 5
+GRID_WIDTH = SCREEN_WIDTH // TILE_SIZE + WORLD_EXTRA_TILES_X
+GRID_HEIGHT = SCREEN_HEIGHT // TILE_SIZE + WORLD_EXTRA_TILES_Y
 
 # Tile Types
 TILE_EMPTY = 0

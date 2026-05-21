@@ -5,7 +5,8 @@ import math
 from enum import Enum
 from constants import (
     PLAYER_SPEED, SCREEN_WIDTH, SCREEN_HEIGHT,
-    PLAYER_WIDTH, PLAYER_HEIGHT, SWORD_DURATION
+    PLAYER_WIDTH, PLAYER_HEIGHT, SWORD_DURATION,
+    GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
 )
 from engine.physics import resolve_wall_collision
 
@@ -78,9 +79,11 @@ class Player:
             walls
         )
 
-        # 6. Screen Boundary Clamping
-        self.x = max(0, min(self.x, SCREEN_WIDTH - self.width))
-        self.y = max(0, min(self.y, SCREEN_HEIGHT - self.height))
+        # 6. World Boundary Clamping (use world grid size instead of screen)
+        world_pixel_width = GRID_WIDTH * TILE_SIZE
+        world_pixel_height = GRID_HEIGHT * TILE_SIZE
+        self.x = max(0, min(self.x, world_pixel_width - self.width))
+        self.y = max(0, min(self.y, world_pixel_height - self.height))
 
     def get_pos(self):
         """Returns the current position as a tuple."""

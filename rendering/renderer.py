@@ -18,6 +18,7 @@ from constants import (
 )
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
+from engine.camera import Camera
 
 class Renderer:
     """Coordinates rendering of the game state."""
@@ -26,38 +27,59 @@ class Renderer:
         self.font = pygame.font.SysFont("Arial", 24)
 
     def render(self, state):
-        """Draw the entire game state to the screen."""
+        """Draw the visible portion of the game state to the screen using a camera.
+
+        The camera attempts to center on the player but is clamped to the world
+        bounds so the viewport never shows outside the world.
+        """
         self.screen.fill(COLOR_BLACK)
 
-        # 1. Draw World Grid
-        for y in range(GRID_HEIGHT):
-            for x in range(GRID_WIDTH):
-                rect = (x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+        screen_w = self.screen.get_width()
+        screen_h = self.screen.get_height()
+        world_w = GRID_WIDTH * TILE_SIZE
+        world_h = GRID_HEIGHT * TILE_SIZE
+
+        camera = Camera(screen_w, screen_h, world_w, world_h)
+        offset_x, offset_y = camera.get_offset(state.player.get_center())
+
+        # Visible tile range (add +1 to ensure partial tiles at edges are drawn)
+        start_x = max(0, offset_x // TILE_SIZE)
+        start_y = max(0, offset_y // TILE_SIZE)
+        end_x = min(GRID_WIDTH, (offset_x + screen_w) // TILE_SIZE + 1)
+        end_y = min(GRID_HEIGHT, (offset_y + screen_h) // TILE_SIZE + 1)
+
+        # 1. Draw World Grid (only visible tiles)
+        for y in range(start_y, end_y):
+            for x in range(start_x, end_x):
+                draw_rect = (x * TILE_SIZE - offset_x, y * TILE_SIZE - offset_y, TILE_SIZE, TILE_SIZE)
                 if state.world.grid[y][x] == TILE_WALL:
-                    pygame.draw.rect(self.screen, COLOR_WALL, rect)
+                    pygame.draw.rect(self.screen, COLOR_WALL, draw_rect)
                 else:
-                    pygame.draw.rect(self.screen, COLOR_FLOOR, rect, 1)
+                    pygame.draw.rect(self.screen, COLOR_FLOOR, draw_rect, 1)
 
-        # 2. Draw Dummy
+        # 2. Draw Dummy (with camera offset)
         dummy_rect = pygame.Rect(state.dummy_rect)
-        pygame.draw.rect(self.screen, COLOR_GREEN, dummy_rect)
+        dummy_draw = pygame.Rect(dummy_rect.x - offset_x, dummy_rect.y - offset_y, dummy_rect.width, dummy_rect.height)
+        pygame.draw.rect(self.screen, COLOR_GREEN, dummy_draw)
         if state.dummy_outline_timer > 0:
-            pygame.draw.rect(self.screen, COLOR_WHITE, dummy_rect, 2)
+            pygame.draw.rect(self.screen, COLOR_WHITE, dummy_draw, 2)
 
-        # 3. Draw Player
+        # 3. Draw Player (with camera offset)
         player = state.player
-        player_rect = pygame.Rect(player.x, player.y, player.width, player.height)
-        pygame.draw.rect(self.screen, COLOR_BLUE, player_rect)
+        player_draw = pygame.Rect(player.x - offset_x, player.y - offset_y, player.width, player.height)
+        pygame.draw.rect(self.screen, COLOR_BLUE, player_draw)
 
-        # 4. Draw Sword
+        # 4. Draw Sword (with camera offset)
         if player.state == PlayerStateEnum.ATTACKING:
             hitbox = get_sword_hitbox(player.get_center(), player.facing)
-            pygame.draw.rect(self.screen, COLOR_YELLOW, hitbox)
+            hitbox_draw = (hitbox[0] - offset_x, hitbox[1] - offset_y, hitbox[2], hitbox[3])
+            pygame.draw.rect(self.screen, COLOR_YELLOW, hitbox_draw)
 
-        # 5. Draw Damage Numbers
+        # 5. Draw Damage Numbers (with camera offset)
         for num in state.damage_numbers:
             text_surf = self.font.render(str(num['val']), True, num['color'])
-            self.screen.blit(text_surf, num['pos'])
+            x, y = num['pos']
+            self.screen.blit(text_surf, (x - offset_x, y - offset_y))
 
         pygame.display.flip()
 
