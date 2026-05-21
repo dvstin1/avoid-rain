@@ -64,7 +64,7 @@ dialogue_blackboard = {
 To keep the hub scene files lightweight, the tracking of lifetime player metrics must be managed by a decoupled, standalone file serialization process, which is pulled into a dedicated UI display layout only upon active interaction.
 
 ### 1. The Persistence Matrix (The Data File)
-The engine must serialize a flat, lightweight JSON or dictionary schema file named `profile_metrics.json` inside the root user save path. This file is updated instantly when milestones occur and remains independent of active level generation memory:
+The engine must serialize a flat, lightweight JSON or dictionary schema file named `profile_metrics.json` inside the root user save path (default: ~/.avoid-rain/profile_metrics.json in the user's home directory). This file is updated instantly when milestones occur and remains independent of active level generation memory:
 
 ```json
 {

@@ -155,16 +155,15 @@ When the engine is running in `ZONE_DUNGEON` or `ZONE_FINAL_ARENA`:
 - When `game_paused == True`, the engine must temporarily freeze all active update loops (delta-time accumulation, character/enemy kinematics, particle managers, and project timer clocks). It continues to run *only* the UI event polling loop and the background renderer.
 
 ### 2. The Menu Layout & Selection Vector
-The Pause Menu must present a vertical stack of exactly three clear, interactive text options:
+
 
 *   **Option 1: Resume Reading**
     - Action: Sets `game_paused = False`. Instantly unfreezes all game vectors and returns the player to active combat/exploration mid-frame.
-*   **Option 2: Abandon Chapter (Quit-Out)**
-    - Action: This option is ONLY visible or active if the player is currently inside an active run (`ZONE_DUNGEON`). 
-    - Critical Trigger: Instantly increments the `"forced_quit_outs"` metric inside `profile_metrics.json`, flushes the temporary run buffers, resets player health, sets `game_paused = False`, and force-reloads the scene back to `ZONE_SANCTUARY`.
-*   **Option 3: Close the Libram (Terminate Game)**
-    - Action: Safely writes any pending data updates to `profile_metrics.json` to ensure file integrity, calls `pygame.quit()`, and executes a clean `sys.exit()` system termination.
+- Action: Sets `game_paused = False`. Instantly unfreezes all game vectors and returns the player to active combat/exploration mid-frame.
+*   **Option 2: Quit (Return to Title Screen)**
+- Action: Returns the engine to the title screen/menu state (does not terminate the process). This preserves the application lifecycle and allows the player to restart or quit from the title menu.
 
+Note: The previously-described three-option menu (including an "Abandon Chapter" that increments `forced_quit_outs` and a direct process termination option) is planned but not yet implemented. When implemented, the "Abandon Chapter" option will be visible only during active runs (`ZONE_DUNGEON`) and will increment the `forced_quit_outs` metric in the profile save file before routing back to `ZONE_SANCTUARY`. A direct process termination option will continue to be supported via the title screen's Quit action.
 ### 3. Rendering Constraints for the Agent
 - **Visual Context Preservation:** When the menu is active, the background game world must remain visible beneath the menu options but must be heavily dimmed using a semi-transparent black overlay surface (e.g., 60% alpha opacity).
 - **Sanctuary Exception:** If the player presses ESCAPE while already inside the safe hub (`ZONE_SANCTUARY`), the "Abandon Chapter" option must be automatically hidden or disabled, presenting only "Resume" and "Close the Libram".

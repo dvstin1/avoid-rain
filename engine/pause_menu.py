@@ -7,9 +7,10 @@ from __future__ import annotations
 
 from typing import Optional
 from .pause import PauseHandler
+from .menu import MenuBase
 
 
-class PauseMenu:
+class PauseMenu(MenuBase):
     """Simple pause menu controller.
 
     This class is intentionally UI-agnostic: it manages whether the
@@ -18,17 +19,16 @@ class PauseMenu:
     """
 
     def __init__(self, pause_handler: Optional[PauseHandler] = None) -> None:
+        MenuBase.__init__(self, ["Resume", "Quit"])
         self.pause_handler = pause_handler or PauseHandler()
         self._open = False
         self._quit_requested = False
-        # Menu options for navigation (UI-agnostic)
-        self._options = ["Resume", "Quit"]
-        self._selected = 0
 
     def open(self) -> None:
         """Open the pause menu and pause the game."""
         self._open = True
         self._quit_requested = False
+        # reset selection to default
         self._selected = 0
         self.pause_handler.pause()
 
@@ -60,22 +60,6 @@ class PauseMenu:
         """Return True if quit was requested from the pause menu."""
         return bool(self._quit_requested)
 
-    def navigate(self, direction: str) -> None:
-        """Navigate the menu. direction is 'up' or 'down'."""
-        if direction == "up":
-            self._selected = (self._selected - 1) % len(self._options)
-        elif direction == "down":
-            self._selected = (self._selected + 1) % len(self._options)
-        else:
-            raise ValueError("direction must be 'up' or 'down'")
-
-    def get_options(self) -> list:
-        """Return the list of menu options."""
-        return list(self._options)
-
-    def get_selected_index(self) -> int:
-        """Return the current selected index."""
-        return int(self._selected)
 
     def confirm(self) -> None:
         """Confirm the currently selected option.

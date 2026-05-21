@@ -23,6 +23,6 @@ When a Tier 1 reward is triggered, the engine must generate exactly two choices 
     - Minor Modifier: $+Y$ Attack Damage ($Y$ must be calculated as roughly 20-30% of $X$'s power weight).
 
 ### 3. Engineering Constraints for the Agent
-- **Data-Driven Drops:** Do NOT hardcode item instantiations inside `enemy.py` or `prop.py`. Those classes must simply call `LootManager.roll_drop(source_tier, position)`, keeping their scripts lightweight and focused purely on collision/art layers.
+- **Data-Driven Drops:** Do NOT hardcode item instantiations inside `enemy.py` or `prop.py`. For now, these classes should call the LootManager API (e.g., `LootManager.roll()` or `roll_one()`) to obtain drop results. A tiered API like `LootManager.roll_drop(source_tier, position)` is planned in the roadmap and will be implemented later to support explicit source tiers and position-aware spawning.
 - **UI State Locking:** Presenting a Tier 1 Choice Card must invoke a dedicated Pygame UI overlay layout block that completely pauses the underlying game loop timers, physics calculations, and particle engines. The game resumes only when an input choice coordinates are registered.
 - **Stat Immutable Ledger:** All chosen modifications must be applied directly to a flat dictionary on the Player profile (e.g., `player.stats["attack_modifier"]`), ensuring the combat script reads from a clean, single source of truth when running damage calculations.
