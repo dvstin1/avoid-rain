@@ -2,9 +2,11 @@
 
 ## The Hub World
 The "Sanctuary" is a safe space outside of the rain cycle, accessible only between runs.
-- **Entry:** Reached after a run ends (Victory or Game Over) or by manually choosing to end a run from the menu.
+- **Environment:** A blend of indoor structures and outdoor island areas, surrounded by a lethal ocean.
+- **Lethal Water:** Falling into the ocean results in instant death. However, as it is outside a run, the player respawns within the Sanctuary with **no loss of Torn Pages**.
+- **The Chronicler (NPC):** A friendly NPC who provides greetings and basic lore/guidance. They are immortal and cannot be harmed.
 - **Training Room:** Contains indestructible dummies for testing weapons, combos, and movement.
-- **The Chronicle:** A mysterious book that the player reads to begin a new run. Once a run starts, the player cannot return to the Sanctuary until the run is over.
+- **The Chronicle:** A mysterious book that the player reads to begin a new run.
 
 ## Story Flags & NPC Events
 Interaction with friendly NPCs can trigger events that persist or affect the current run.
@@ -15,7 +17,8 @@ Interaction with friendly NPCs can trigger events that persist or affect the cur
     - Unlock new vendor inventory in the Hub.
 
 ## The Shifting World
-The game world is a large, fragmented map composed of modular sections.
+The game world is a massive island map composed of modular sections.
+- **Environment:** Sections can be outdoor (beaches, fields) or indoor (caves, ruins).
 - **Dynamic Sections:** Randomly swap between variants each run.
 - **Vendors:** NPCs found in the world selling upgrades or consumables.
 - **Mini-Bosses:** Each modular section contains an optional mini-boss with useful rewards.
