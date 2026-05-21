@@ -52,6 +52,7 @@
 ## The Rain (Survival Mechanic)
 - **Safe Zone:** A circular region that shrinks over time on Day 1 and Day 2, forcing players inward.
 - **Rain Damage:** Players outside the safe zone take periodic damage.
+- **Omnipresence:** The rain ignores all physical boundaries. It penetrates roofs, caves, and all indoor structures. There is no physical cover from the rain's effect.
 - **End-of-Day Boss:** Once the circle reaches its minimum size, a mandatory Boss fight begins.
     - **High Stakes:** Dying during a Day 1, Day 2, or Final Boss encounter is an immediate **Game Over** (run ends).
     - **Cycle:** Defeating the Day 1 boss clears the rain for Day 2. Defeating the Day 2 boss opens the final portal.

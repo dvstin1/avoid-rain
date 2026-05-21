@@ -44,4 +44,4 @@ Scattered across the map are "Respite" spots—ancient, consistent structures th
 - **The End:** Defeating the Day 2 Boss opens the portal to the Final Boss domain.
 
 ## The Narrative
-The player is a wanderer in a world that is literally dissolving. The "Rain" isn't just water; it's a force of erasure. To stop the cycle, the source—the Final Boss—must be defeated in their own domain.
+The player is a wanderer in a world that is literally dissolving. The "Rain" isn't just water; it's a supernatural force of erasure. Because it is a fundamental breakdown of reality, it ignores all physical boundaries—roofs, caves, and thick walls offer no protection once the rain arrives. To stop the cycle, the source—the Final Boss—must be defeated in their own domain.
