@@ -1,6 +1,6 @@
 ## Current Phase & Execution Rules
-* **Current Project Phase:** PLANNING (Strictly Banned: Generating python code blocks)
-* **Goal:** Refine game mechanics, file structure, and data state until the Definition of Ready is met.
+* **Current Project Phase:** CODING
+* **Goal:** Implement Phase 1: Sanctuary Foundation.
 
 ## Architectural Constraints
 - **Constants Only:** No magic numbers; all config must be in specialized constants files.

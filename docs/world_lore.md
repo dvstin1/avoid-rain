@@ -45,3 +45,10 @@ Scattered across the map are "Respite" spots—ancient, consistent structures th
 
 ## The Narrative
 The player is a wanderer in a world that is literally dissolving. The "Rain" isn't just water; it's a supernatural force of erasure. Because it is a fundamental breakdown of reality, it ignores all physical boundaries—roofs, caves, and thick walls offer no protection once the rain arrives. To stop the cycle, the source—the Final Boss—must be defeated in their own domain.
+
+## Project World Lore & Narrative Schemas
+- **The Setting:** The Scriptorium (Hub) acts as the anchor point. A safe sandbox zone.
+- **The Gateway:** Activating the central Libram object initializes the randomized map matrix engine.
+- **The Core Threat:** The environmental "Acid Rain" is a manifestation of corrupted ink originating from the final chapter boss ("The Author").
+- **Economy Schema:** Enemies drop "Torn Pages" (Unbound Syntax). These are unreadable data strings traded to the "Binder" NPC to increment player core attributes.
+- **Co-op Metaphor:** Local LAN connectivity (future) functions as a "Shared Reading" event, synchronizing two client positions within the host's active chapter draft.

@@ -56,6 +56,9 @@
 - **End-of-Day Boss:** Once the circle reaches its minimum size, a mandatory Boss fight begins.
     - **High Stakes:** Dying during a Day 1, Day 2, or Final Boss encounter is an immediate **Game Over** (run ends).
     - **Cycle:** Defeating the Day 1 boss clears the rain for Day 2. Defeating the Day 2 boss opens the final portal.
+- **Separation of Concerns:** Rain particles are purely visual and run no collision logic.
+- **Macro Collisions:** The storm hazard is calculated as a single moving bounding box zone or checked via tile-grid coordinates where the player stands.
+- **Optimized Damage Ticks:** Damage must scale with delta time (`dt`) or execute via a low-frequency timer (e.g., checking player status every 10–30 frames, rather than every single tick).
 
 ## Difficulty Scaling
 Enemies are tiered by stats and behavior:
