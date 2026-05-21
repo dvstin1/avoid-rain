@@ -91,7 +91,7 @@ def main():
                 running, attack = handle_game_events(pause_menu=pause_menu)
                 if pause_menu.is_open():
                     # When paused, draw the pause menu and skip updates
-                    renderer.draw_pause_menu()
+                    renderer.draw_pause_menu(pause_menu.get_selected_index())
                 else:
                     actions = {
                         'move': get_movement_actions(),
