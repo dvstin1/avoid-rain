@@ -14,8 +14,9 @@ Before transitioning to Phase 2 (Coding), the following criteria must be checked
 1. [X] **File Directory Blueprint Defined:** See `docs/file_blueprint.md`.
 2. [X] **State Schema Defined:** See `docs/state_schema.md`.
 3. [X] **Combat & Collision Math Rules:** See `docs/combat_mechanics.md` (AABB and Normalization).
-4. [X] **First Iteration Scope:** Defined in `docs/iteration_scope.md`.
-5. [X] **Asset Manifest:** See `docs/asset_manifest.md`.
+4. [X] **Input Handling Specification:** See `docs/input_handling.md`.
+5. [X] **First Iteration Scope:** Defined in `docs/iteration_scope.md`.
+6. [X] **Asset Manifest:** See `docs/asset_manifest.md`.
 
 ## PLANNING COMPLETE: You are ready to flip the phase to CODING. Update the agent.md to proceed.
 
@@ -28,6 +29,7 @@ Before transitioning to Phase 2 (Coding), the following criteria must be checked
 - **`docs/world_lore.md`**: Narrative background and world rules (shifting maps, rain cycle).
 - **`docs/file_blueprint.md`**: The decoupled directory structure and import rules.
 - **`docs/state_schema.md`**: Data models for Player, Rain, and World state.
+- **`docs/input_handling.md`**: Mapping of raw inputs to engine actions.
 
 ## Feature Roadmap
 ...
