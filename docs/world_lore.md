@@ -23,7 +23,7 @@ The game world is a large, fragmented map composed of modular sections.
 ## Respites
 Scattered across the map are "Respite" spots—ancient, consistent structures that offer safety.
 - **Functions:**
-    - **Healing:** Instantly restores the player to full health.
+    - **Healing:** Instantly restores the player to full health and refills the Flask charges.
     - **Progression:** The primary location to spend Torn Pages on stat upgrades (Health, Defense, Attack).
     - **Checkpoint:** Sets the player's respawn point.
 - **The Rain Constraint:** Respites are **disabled** once they are consumed by the rain. No healing or leveling can occur within the storm.

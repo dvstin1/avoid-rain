@@ -5,6 +5,11 @@
 - **Evasion:** Dash or roll move for quick repositioning and temporary invulnerability.
 - **Blocking:** If a shield is equipped, the player can block incoming attacks.
     - **Penalty:** Movement speed is significantly reduced while blocking.
+- **Healing (The Flask):**
+    - **Capacity:** Starts with 3 charges.
+    - **Effect:** Restores a fixed amount of HP (enough for a full heal at low levels).
+    - **Reset:** All charges are restored when visiting a Respite or upon respawning.
+    - **Upgrades:** Can be improved to increase charge count or potency (e.g., Flask+1).
 - **Delta Time (dt):** All movement and physics must be scaled by `dt`.
 
 ## Weapon Types
@@ -37,7 +42,7 @@ Enemies are tiered by stats and behavior:
     - If the player dies again before retrieving the pages, the original pile is lost forever.
 
 ## Progression & Persistence
-- **Respawning:** If you die during exploration, you respawn at the last visited Respite.
+- **Respawning:** If you die during exploration, you respawn at the last visited Respite. The Flask is fully refilled.
 - **Ending a Run:** The Hub World is only accessible after a run ends (Victory, Game Over, or manual "End Run" from the menu).
 - **No Resumption:** Once a run is exited or ended, that specific run state is lost; a new run must be started from the Hub.
 - **Persistence:** Enemies killed remain dead *within the current run*, but Torn Pages must be retrieved after a normal death.

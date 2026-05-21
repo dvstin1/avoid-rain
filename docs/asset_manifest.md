@@ -18,10 +18,12 @@
 
 ## Items & UI
 - **Consumables:** Food icons (bread, fruit, etc.), Potion icons.
+- **The Flask:** Main healing vessel sprite (upgradable visuals).
 - **Currency:** "Torn Page" sprite (floating paper fragment with glow).
 - **Gear:** Shield sprites, Spear sprites, Sword variants.
 - **User Interface (UI):**
     - Health/Stamina/Defense bars.
+    - Flask Tracker: Counter for charges and upgrade level (e.g., +1).
     - Torn Page counter.
     - Level-up menu (spend pages on Atk/Def/HP).
     - Inventory grid.
