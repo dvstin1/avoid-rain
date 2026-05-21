@@ -25,6 +25,9 @@ Before transitioning to Phase 2 (Coding), the following criteria must be checked
 ...
 
 ## Context Pointers (Hub-and-Spoke)
+
+Note: docs/extended-notes contains long, optional notes — do not read those files unless explicitly instructed to do so.
+
 - **`docs/combat_mechanics.md`**: Detailed logic for movement, sword states, and the rain circle mechanic.
 - **`docs/asset_manifest.md`**: Registry of all 2D sprites, animations, and tile sets.
 - **`docs/world_lore.md`**: Narrative background and world rules (shifting maps, rain cycle).
