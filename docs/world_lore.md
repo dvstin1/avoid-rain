@@ -1,9 +1,10 @@
 # World Lore & Structure
 
 ## The Hub World
-The "Sanctuary" is a safe space outside of the rain cycle.
+The "Sanctuary" is a safe space outside of the rain cycle, accessible only between runs.
+- **Entry:** Reached after a run ends (Victory or Game Over) or by manually choosing to end a run from the menu.
 - **Training Room:** Contains indestructible dummies for testing weapons, combos, and movement.
-- **The Chronicle:** A mysterious book that the player reads to begin a new run/day.
+- **The Chronicle:** A mysterious book that the player reads to begin a new run. Once a run starts, the player cannot return to the Sanctuary until the run is over.
 
 ## Story Flags & NPC Events
 Interaction with friendly NPCs can trigger events that persist or affect the current run.

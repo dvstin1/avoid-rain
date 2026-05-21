@@ -20,7 +20,7 @@
 - **Safe Zone:** A circular region that shrinks over time on Day 1 and Day 2, forcing players inward.
 - **Rain Damage:** Players outside the safe zone take periodic damage.
 - **End-of-Day Boss:** Once the circle reaches its minimum size, a mandatory Boss fight begins.
-    - **Survival:** You must defeat the boss or survive the encounter to progress. Dying here ends the run.
+    - **High Stakes:** Dying during a Day 1, Day 2, or Final Boss encounter is an immediate **Game Over** (run ends).
     - **Cycle:** Defeating the Day 1 boss clears the rain for Day 2. Defeating the Day 2 boss opens the final portal.
 
 ## Difficulty Scaling
@@ -37,6 +37,8 @@ Enemies are tiered by stats and behavior:
     - If the player dies again before retrieving the pages, the original pile is lost forever.
 
 ## Progression & Persistence
-- **Respawning:** If you die, you respawn at the last visited Respite or the Hub World.
-- **Persistence:** Enemies killed remain dead, but Torn Pages must be retrieved.
+- **Respawning:** If you die during exploration, you respawn at the last visited Respite.
+- **Ending a Run:** The Hub World is only accessible after a run ends (Victory, Game Over, or manual "End Run" from the menu).
+- **No Resumption:** Once a run is exited or ended, that specific run state is lost; a new run must be started from the Hub.
+- **Persistence:** Enemies killed remain dead *within the current run*, but Torn Pages must be retrieved after a normal death.
 - **Portal:** Appears only after the Day 2 boss is defeated.
