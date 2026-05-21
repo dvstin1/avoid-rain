@@ -17,7 +17,7 @@ from typing import Optional
 
 class GameState:
     """Master state object for the game engine."""
-    def __init__(self, stats: Optional[StatisticsTracker] = None):
+    def __init__(self, stats: Optional[StatisticsTracker] = None, stats_path: Optional[str] = None, auto_load: bool = True):
         self.world = World()
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
 
@@ -28,8 +28,19 @@ class GameState:
         # Start camera centered on player instantly
         self.camera.instant_center(self.player.get_center())
 
-        # Optional statistics tracker (low-coupled injection)
+        # Statistics tracker: prefer injected tracker; otherwise optionally auto-load
         self.stats = stats
+        if self.stats is None and auto_load:
+            try:
+                if stats_path is not None:
+                    self.stats = StatisticsTracker.load(stats_path)
+                else:
+                    # Load from default location (may be in user's home directory)
+                    self.stats = StatisticsTracker.load()
+            except Exception:
+                # Keep integration low-coupled: if load fails, leave stats None
+                self.stats = None
+
         if self.stats is not None:
             # Track that a run has started
             try:
