@@ -74,3 +74,16 @@ class Renderer:
             self.screen.blit(fade_surf, (0, 0))
             pygame.display.flip()
             pygame.time.delay(10)
+
+    def draw_pause_menu(self):
+        """Draw a simple pause overlay with 'Paused' text."""
+        overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))  # semi-transparent dark overlay
+        self.screen.blit(overlay, (0, 0))
+        pause_surf = self.font.render("PAUSED", True, COLOR_WHITE)
+        instr_surf = self.font.render("Press ESC to Resume", True, COLOR_WHITE)
+        pause_rect = pause_surf.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2 - 20))
+        instr_rect = instr_surf.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2 + 20))
+        self.screen.blit(pause_surf, pause_rect)
+        self.screen.blit(instr_surf, instr_rect)
+        pygame.display.flip()

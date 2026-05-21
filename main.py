@@ -7,6 +7,7 @@ import pygame
 from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS
 from engine.game_state import GameState
 from rendering.renderer import Renderer
+from engine.pause_menu import PauseMenu
 
 # pylint: disable=no-member
 
@@ -23,8 +24,11 @@ def handle_title_events(renderer):
                 return False, True
     return True, True
 
-def handle_game_events():
-    """Handle events during the main game loop."""
+def handle_game_events(pause_menu: PauseMenu | None = None):
+    """Handle events during the main game loop.
+
+    If a PauseMenu is provided, ESC toggles the menu instead of exiting.
+    """
     running = True
     attack = False
     for event in pygame.event.get():
@@ -32,7 +36,10 @@ def handle_game_events():
             running = False
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                running = False
+                if pause_menu is not None:
+                    pause_menu.toggle()
+                else:
+                    running = False
             if event.key == pygame.K_SPACE:
                 attack = True
     return running, attack
@@ -60,6 +67,7 @@ def main():
 
     renderer = Renderer(screen)
     state = GameState()
+    pause_menu = PauseMenu()
 
     in_title = True
     running = True
@@ -72,13 +80,17 @@ def main():
                 clock.tick(FPS)
             else:
                 dt = clock.tick(FPS) / 1000.0
-                running, attack = handle_game_events()
-                actions = {
-                    'move': get_movement_actions(),
-                    'attack': attack
-                }
-                state.update(dt, actions)
-                renderer.render(state)
+                running, attack = handle_game_events(pause_menu=pause_menu)
+                if pause_menu.is_open():
+                    # When paused, draw the pause menu and skip updates
+                    renderer.draw_pause_menu()
+                else:
+                    actions = {
+                        'move': get_movement_actions(),
+                        'attack': attack
+                    }
+                    state.update(dt, actions)
+                    renderer.render(state)
 
     except Exception as exc:
         print(f"An error occurred: {exc}")
