@@ -61,17 +61,27 @@ class Renderer:
 
         pygame.display.flip()
 
-    def draw_title_screen(self):
-        """Draw the simple title screen."""
+    def draw_title_screen(self, selected_index: int = 0):
+        """Draw the title screen with a simple menu.
+
+        selected_index highlights the current selection (0 = Start, 1 = Quit).
+        """
         self.screen.fill(COLOR_BLACK)
         title_surf = self.font.render("AVOID RAIN", True, COLOR_WHITE)
-        prompt_surf = self.font.render("Press SPACE to Start", True, COLOR_WHITE)
+        instr_surf = self.font.render("Use ARROW KEYS and ENTER to choose", True, COLOR_WHITE)
 
-        title_rect = title_surf.get_rect(center=(self.screen.get_width()//2, 300))
-        prompt_rect = prompt_surf.get_rect(center=(self.screen.get_width()//2, 400))
+        title_rect = title_surf.get_rect(center=(self.screen.get_width()//2, 220))
+        instr_rect = instr_surf.get_rect(center=(self.screen.get_width()//2, 280))
 
         self.screen.blit(title_surf, title_rect)
-        self.screen.blit(prompt_surf, prompt_rect)
+        self.screen.blit(instr_surf, instr_rect)
+
+        options = ["Start Game", "Quit"]
+        for idx, opt in enumerate(options):
+            color = COLOR_YELLOW if idx == selected_index else COLOR_WHITE
+            opt_surf = self.font.render(opt, True, color)
+            opt_rect = opt_surf.get_rect(center=(self.screen.get_width()//2, 340 + idx * 40))
+            self.screen.blit(opt_surf, opt_rect)
         pygame.display.flip()
 
     def fade_to_black(self):

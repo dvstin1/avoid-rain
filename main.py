@@ -11,17 +11,29 @@ from rendering.renderer import Renderer
 
 # pylint: disable=no-member
 
-def handle_title_events(renderer):
-    """Handle events during the title screen."""
+def handle_title_events(renderer, title_menu):
+    """Handle events during the title screen with a menu controller."""
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False, False
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 return False, False
-            if event.key == pygame.K_SPACE:
-                renderer.fade_to_black()
-                return False, True
+            # Navigation
+            if event.key in (pygame.K_UP, pygame.K_w):
+                title_menu.navigate('up')
+            elif event.key in (pygame.K_DOWN, pygame.K_s):
+                title_menu.navigate('down')
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                # Confirm selection
+                title_menu.confirm()
+                selected = title_menu.get_selected()
+                if selected == 'Start':
+                    renderer.fade_to_black()
+                    title_menu.clear_confirm()
+                    return False, True
+                elif selected == 'Quit':
+                    return False, False
     return True, True
 
 def handle_game_events(pause_menu: PauseMenu | None = None):
@@ -76,6 +88,7 @@ def main():
     renderer = Renderer(screen)
     state = GameState()
     pause_menu = PauseMenu()
+    title_menu = TitleMenu()
 
     in_title = True
     running = True
@@ -83,8 +96,8 @@ def main():
     try:
         while running:
             if in_title:
-                in_title, running = handle_title_events(renderer)
-                renderer.draw_title_screen()
+                in_title, running = handle_title_events(renderer, title_menu)
+                renderer.draw_title_screen(title_menu.get_selected_index())
                 clock.tick(FPS)
             else:
                 dt = clock.tick(FPS) / 1000.0
