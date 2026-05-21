@@ -19,6 +19,7 @@ from constants import (
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
 from engine.camera import Camera
+from constants import AUTOSAVE_INDICATOR_DURATION
 
 class Renderer:
     """Coordinates rendering of the game state."""
@@ -89,6 +90,16 @@ class Renderer:
             text_surf = self.font.render(str(num['val']), True, num['color'])
             x, y = num['pos']
             self.screen.blit(text_surf, (x - offset_x, y - offset_y))
+
+        # 6. Draw autosave indicator if a recent autosave occurred
+        try:
+            if getattr(state, 'last_save_elapsed', 1e6) <= AUTOSAVE_INDICATOR_DURATION:
+                indicator_surf = self.font.render("Saved", True, (200, 200, 200))
+                rect = indicator_surf.get_rect()
+                # Draw in top-right corner with small padding
+                self.screen.blit(indicator_surf, (self.screen.get_width() - rect.width - 8, 8))
+        except Exception:
+            pass
 
         pygame.display.flip()
 

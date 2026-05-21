@@ -57,6 +57,9 @@ class GameState:
 
         self.damage_numbers = []
 
+        # Time since last autosave (seconds). Large by default so indicator is hidden.
+        self.last_save_elapsed = 1e6
+
     def save_stats(self, path: Optional[str] = None) -> None:
         """Persist the attached StatisticsTracker to disk, if present."""
         if self.stats is not None:

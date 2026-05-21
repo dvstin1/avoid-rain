@@ -54,6 +54,12 @@ GRID_HEIGHT = SCREEN_HEIGHT // TILE_SIZE + WORLD_EXTRA_TILES_Y
 # Higher values = snappier (1.0 means it will take ~1s to reach target)
 CAMERA_LERP_SPEED = 8.0
 
+# Autosave configuration
+# Interval (seconds) between automatic saves
+AUTOSAVE_INTERVAL = 30.0
+# How long (seconds) a "Saved" indicator is shown after an autosave
+AUTOSAVE_INDICATOR_DURATION = 2.0
+
 # Tile Types
 TILE_EMPTY = 0
 TILE_WALL = 1

@@ -4,11 +4,12 @@ Handles the application lifecycle and top-level loops.
 """
 import sys
 import pygame
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS, AUTOSAVE_INTERVAL
 from engine.game_state import GameState
 from engine.pause_menu import PauseMenu
 from engine.title_menu import TitleMenu
 from rendering.renderer import Renderer
+from engine.autosave import AutosaveManager
 
 # pylint: disable=no-member
 
@@ -88,6 +89,8 @@ def main():
 
     renderer = Renderer(screen)
     state = GameState()
+    # Autosave manager runs during the game loop and triggers periodic saves
+    autosave = AutosaveManager(AUTOSAVE_INTERVAL)
     # PauseMenu will auto-save on open via a lightweight callback
     pause_menu = PauseMenu(on_open=lambda: state.save_stats())
     title_menu = TitleMenu()
@@ -126,6 +129,11 @@ def main():
                         'attack': attack
                     }
                     state.update(dt, actions)
+                    # Run the autosave manager each frame (will be tolerant if no stats)
+                    try:
+                        autosave.update(dt, state)
+                    except Exception:
+                        pass
                     renderer.render(state)
 
     except Exception as exc:
