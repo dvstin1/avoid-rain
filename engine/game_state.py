@@ -61,9 +61,39 @@ class GameState:
         self.last_save_elapsed = 1e6
 
     def save_stats(self, path: Optional[str] = None) -> None:
-        """Persist the attached StatisticsTracker to disk, if present."""
-        if self.stats is not None:
-            self.stats.save(path)
+        """Persist the attached StatisticsTracker to disk in a background thread.
+
+        This spawns a daemon thread to perform the save so that the main loop
+        isn't blocked by disk I/O. The GameState.saving_in_progress flag is set
+        while the background save is running so UI can display a saving message.
+        """
+        if self.stats is None:
+            return
+
+        # If a save is already in progress, let it continue; do not spawn another
+        if getattr(self, 'saving_in_progress', False):
+            return
+
+        import threading
+
+        def _worker(p):
+            try:
+                self.saving_in_progress = True
+                # Ensure last_save_elapsed reflects start of save
+                try:
+                    self.last_save_elapsed = 0.0
+                except Exception:
+                    pass
+                self.stats.save(p)
+            finally:
+                # Mark as saved; UI will show indicator based on last_save_elapsed
+                try:
+                    self.saving_in_progress = False
+                except Exception:
+                    pass
+
+        thread = threading.Thread(target=_worker, args=(path,), daemon=True)
+        thread.start()
 
     def update(self, dt, actions):
         """Update all game logic."""

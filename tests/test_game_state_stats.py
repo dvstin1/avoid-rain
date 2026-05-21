@@ -21,6 +21,14 @@ def test_game_state_save_stats_writes_file(tmp_path):
     p = tmp_path / "profile_metrics.json"
     assert not p.exists()
     gs.save_stats(p)
+    # save_stats is performed on a background thread; wait briefly for it to complete
+    import time
+    timeout = 1.0
+    waited = 0.0
+    interval = 0.01
+    while not p.exists() and waited < timeout:
+        time.sleep(interval)
+        waited += interval
     assert p.exists()
     data = json.loads(p.read_text(encoding='utf-8'))
     assert data["lifetime_stats"]["runs_started"] == 1
