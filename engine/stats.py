@@ -45,25 +45,29 @@ class StatisticsTracker:
         self.data["lifetime_stats"][key] += int(amount)
 
     def set_bestiary(self, enemy_id: str, discovered: bool = True) -> None:
-        """Mark an enemy as discovered or undiscovered."""
+        """Mark an enemy as discovered or undiscovered in the bestiary."""
         self.data["discovered_bestiary"][enemy_id] = bool(discovered)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Return the internal data as a plain dictionary."""
         return self.data
 
     def save(self, path: Path | str | None = None) -> None:
-        """Serialize the data to JSON at the given path (or DEFAULT_PATH in the user's home directory)."""
+        """Serialize the data to JSON at the given path (or DEFAULT_PATH).
+
+        The parent directory will be created if it does not exist.
+        """
         target = Path(path) if path is not None else DEFAULT_PATH
         # Ensure parent exists
         if not target.parent.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(self.data, indent=2))
+        target.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> "StatisticsTracker":
-        """Load from JSON if exists, otherwise return a fresh tracker."""
+        """Load from JSON if it exists; otherwise return a fresh tracker."""
         target = Path(path) if path is not None else DEFAULT_PATH
         if not target.exists():
             return cls()
-        raw = json.loads(target.read_text())
+        raw = json.loads(target.read_text(encoding="utf-8"))
         return cls(data=raw)

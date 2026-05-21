@@ -21,26 +21,34 @@ class LootManager:
     """
 
     def __init__(self, table: Optional[Dict[str, float]] = None) -> None:
+        """Initialize LootManager with an optional item->weight table."""
         self._table: Dict[str, float] = dict(table or {})
 
     def add_item(self, item: str, weight: float) -> None:
+        """Add or update an item with the given non-negative weight."""
         if weight < 0:
             raise ValueError("weight must be non-negative")
         self._table[item] = float(weight)
 
     def remove_item(self, item: str) -> None:
+        """Remove an item from the table. Raises KeyError if missing."""
         if item not in self._table:
             raise KeyError(f"item not found: {item}")
         del self._table[item]
 
     def items(self) -> Dict[str, float]:
+        """Return a shallow copy of the item->weight table."""
         return dict(self._table)
 
     def total_weight(self) -> float:
+        """Return the sum of weights in the table."""
         return sum(self._table.values())
 
     def roll_one(self, rng: Optional[random.Random] = None) -> str:
-        """Roll a single item. Raises ValueError if table empty or total weight is zero."""
+        """Roll a single item from the table using the provided RNG.
+
+        Raises ValueError if the table is empty or total weight is non-positive.
+        """
         if not self._table:
             raise ValueError("loot table is empty")
         total = self.total_weight()
@@ -58,6 +66,10 @@ class LootManager:
         return list(self._table.keys())[-1]
 
     def roll(self, n: int = 1, rng: Optional[random.Random] = None) -> List[str]:
+        """Roll n items (with replacement) and return them as a list.
+
+        n must be non-negative.
+        """
         if n < 0:
             raise ValueError("n must be non-negative")
         return [self.roll_one(rng=rng) for _ in range(int(n))]
