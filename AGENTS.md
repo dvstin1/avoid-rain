@@ -22,7 +22,10 @@ Before transitioning to Phase 2 (Coding), the following criteria must be checked
 ## PLANNING COMPLETE: You are ready to flip the phase to CODING. Update the agent.md to proceed.
 
 ## Agent Behavior Rule
-...
+- Always create a single git commit for each user prompt that requires code or documentation changes. Each commit should be atomic, include a clear message, and include the required Co-authored-by trailer.
+- Do NOT push commits to remote automatically. Pushing is not needed unless explicitly requested.
+- Keep changes low-coupled and limited to the files required by the user's request.
+
 
 ## Context Pointers (Hub-and-Spoke)
 
