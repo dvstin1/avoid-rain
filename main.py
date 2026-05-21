@@ -42,6 +42,14 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                     running = False
             if event.key == pygame.K_SPACE:
                 attack = True
+            # When the pause menu is open, allow navigation and confirm via arrow keys and Enter
+            if pause_menu is not None and pause_menu.is_open():
+                if event.key in (pygame.K_UP, pygame.K_w):
+                    pause_menu.navigate('up')
+                elif event.key in (pygame.K_DOWN, pygame.K_s):
+                    pause_menu.navigate('down')
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    pause_menu.confirm()
     return running, attack
 
 def get_movement_actions():

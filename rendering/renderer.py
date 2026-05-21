@@ -93,12 +93,25 @@ class Renderer:
         self.screen.blit(overlay, (0, 0))
         pause_surf = self.font.render("PAUSED", True, COLOR_WHITE)
         instr_surf = self.font.render("Press ESC to Resume", True, COLOR_WHITE)
+        # Show instructions and menu options
+        instr_surf = self.font.render("Use ARROW KEYS and ENTER to choose", True, COLOR_WHITE)
+        options = ["Resume", "Quit"]
+        # Draw main pause text
         pause_rect = pause_surf.get_rect(
-            center=(self.screen.get_width()//2, self.screen.get_height()//2 - 20)
-        )
-        instr_rect = instr_surf.get_rect(
-            center=(self.screen.get_width()//2, self.screen.get_height()//2 + 20)
+            center=(self.screen.get_width()//2, self.screen.get_height()//2 - 50)
         )
         self.screen.blit(pause_surf, pause_rect)
+        # Draw instruction
+        instr_rect = instr_surf.get_rect(
+            center=(self.screen.get_width()//2, self.screen.get_height()//2 - 20)
+        )
         self.screen.blit(instr_surf, instr_rect)
+        # Draw options with simple highlight on the first option by default
+        for idx, opt in enumerate(options):
+            color = COLOR_WHITE if idx != 0 else COLOR_YELLOW
+            opt_surf = self.font.render(opt, True, color)
+            opt_rect = opt_surf.get_rect(
+                center=(self.screen.get_width()//2, self.screen.get_height()//2 + 10 + idx * 30)
+            )
+            self.screen.blit(opt_surf, opt_rect)
         pygame.display.flip()
