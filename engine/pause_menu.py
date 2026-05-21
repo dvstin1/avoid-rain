@@ -5,7 +5,7 @@ Provides open/close/toggle semantics without requiring rendering or input subsys
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Callable
 from .pause import PauseHandler
 from .menu import MenuBase
 
@@ -18,11 +18,13 @@ class PauseMenu(MenuBase):
     paused while the menu is open.
     """
 
-    def __init__(self, pause_handler: Optional[PauseHandler] = None) -> None:
+    def __init__(self, pause_handler: Optional[PauseHandler] = None, on_open: Optional[Callable[[], None]] = None) -> None:
         MenuBase.__init__(self, ["Resume", "Quit"])
         self.pause_handler = pause_handler or PauseHandler()
         self._open = False
         self._quit_requested = False
+        # Optional callback invoked when the pause menu is opened (e.g., to auto-save)
+        self.on_open = on_open
 
     def open(self) -> None:
         """Open the pause menu and pause the game."""
@@ -31,6 +33,13 @@ class PauseMenu(MenuBase):
         # reset selection to default
         self._selected = 0
         self.pause_handler.pause()
+        # Call the optional on_open hook (used for autosave) without raising
+        if self.on_open is not None:
+            try:
+                self.on_open()
+            except Exception:
+                # Keep pause behavior robust: do not let save errors break the menu
+                pass
 
     def close(self) -> None:
         """Close the pause menu and resume the game."""
