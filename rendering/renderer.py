@@ -2,10 +2,19 @@
 Handles all Pygame drawing calls.
 """
 import pygame
+# pylint: disable=no-member
 from constants import (
-    COLOR_BLACK, COLOR_WHITE, COLOR_BLUE, COLOR_GREEN,
-    TILE_SIZE, TILE_WALL, COLOR_WALL, COLOR_FLOOR,
-    GRID_WIDTH, GRID_HEIGHT, COLOR_YELLOW
+    COLOR_BLACK,
+    COLOR_WHITE,
+    COLOR_BLUE,
+    COLOR_GREEN,
+    TILE_SIZE,
+    TILE_WALL,
+    COLOR_WALL,
+    COLOR_FLOOR,
+    GRID_WIDTH,
+    GRID_HEIGHT,
+    COLOR_YELLOW,
 )
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -77,13 +86,19 @@ class Renderer:
 
     def draw_pause_menu(self):
         """Draw a simple pause overlay with 'Paused' text."""
-        overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
+        overlay = pygame.Surface(
+            (self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA
+        )
         overlay.fill((0, 0, 0, 180))  # semi-transparent dark overlay
         self.screen.blit(overlay, (0, 0))
         pause_surf = self.font.render("PAUSED", True, COLOR_WHITE)
         instr_surf = self.font.render("Press ESC to Resume", True, COLOR_WHITE)
-        pause_rect = pause_surf.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2 - 20))
-        instr_rect = instr_surf.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2 + 20))
+        pause_rect = pause_surf.get_rect(
+            center=(self.screen.get_width()//2, self.screen.get_height()//2 - 20)
+        )
+        instr_rect = instr_surf.get_rect(
+            center=(self.screen.get_width()//2, self.screen.get_height()//2 + 20)
+        )
         self.screen.blit(pause_surf, pause_rect)
         self.screen.blit(instr_surf, instr_rect)
         pygame.display.flip()

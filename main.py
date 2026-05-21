@@ -6,8 +6,8 @@ import sys
 import pygame
 from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS
 from engine.game_state import GameState
-from rendering.renderer import Renderer
 from engine.pause_menu import PauseMenu
+from rendering.renderer import Renderer
 
 # pylint: disable=no-member
 
