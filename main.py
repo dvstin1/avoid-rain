@@ -7,6 +7,7 @@ import pygame
 from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS
 from engine.game_state import GameState
 from engine.pause_menu import PauseMenu
+from engine.title_menu import TitleMenu
 from rendering.renderer import Renderer
 
 # pylint: disable=no-member
@@ -32,7 +33,7 @@ def handle_title_events(renderer, title_menu):
                     renderer.fade_to_black()
                     title_menu.clear_confirm()
                     return False, True
-                elif selected == 'Quit':
+            if selected == 'Quit':
                     return False, False
     return True, True
 
