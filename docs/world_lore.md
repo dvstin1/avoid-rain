@@ -19,6 +19,15 @@ The game world is a large, fragmented map composed of modular sections.
 - **Vendors:** NPCs found in the world selling upgrades or consumables.
 - **Mini-Bosses:** Each modular section contains an optional mini-boss with useful rewards.
 
+## Respites
+Scattered across the map are "Respite" spots—ancient, consistent structures that offer safety.
+- **Functions:**
+    - **Healing:** Instantly restores the player to full health.
+    - **Progression:** The primary location to spend Torn Pages on stat upgrades (Health, Defense, Attack).
+    - **Checkpoint:** Sets the player's respawn point.
+- **The Rain Constraint:** Respites are **disabled** once they are consumed by the rain. No healing or leveling can occur within the storm.
+- **Visuals:** While the aesthetic of a Respite may change to match its biome (e.g., stone in caves, wooden in forests), they always share a consistent, recognizable silhouette or glowing sigil.
+
 ## Enemy Hierarchy
 1. **Easy:** Low HP, low damage, slow movement.
 2. **Normal:** Standard stats; the baseline for exploration.

@@ -28,7 +28,15 @@ Enemies are tiered by stats and behavior:
 - **Stats:** Higher-tier enemies have increased Health, Damage, and Defense.
 - **Behavior:** Difficult enemies may have superior movement speed, complex attack patterns, or higher aggression.
 
+## Torn Pages (Currency & Progression)
+- **Collection:** Defeated enemies drop "Torn Pages." Harder enemies (Mini-Bosses, Bosses) drop significantly more.
+- **Leveling:** Pages are spent at Respite spots to upgrade Health, Defense, and Attack Power.
+- **Death & Retrieval:**
+    - Upon death, all currently held Torn Pages are dropped at the location of death.
+    - The player can retrieve them by returning to that spot.
+    - If the player dies again before retrieving the pages, the original pile is lost forever.
+
 ## Progression & Persistence
-- **Respawning:** If you die during normal exploration, you respawn, but the run continues.
-- **Persistence:** Enemies killed during exploration remain dead after you respawn.
-- **Portal:** Appears only after the Day 2 boss is defeated, transporting the player to the final arena.
+- **Respawning:** If you die, you respawn at the last visited Respite or the Hub World.
+- **Persistence:** Enemies killed remain dead, but Torn Pages must be retrieved.
+- **Portal:** Appears only after the Day 2 boss is defeated.
