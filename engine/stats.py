@@ -13,7 +13,16 @@ import time
 import tempfile
 from typing import Dict, Any
 
-DEFAULT_PATH = Path.home() / ".avoid-rain" / "profile_metrics.json"
+def get_save_dir() -> Path:
+    """Resolve the XDG-compliant local storage directory for save data."""
+    xdg_state = os.environ.get("XDG_STATE_HOME")
+    if xdg_state:
+        return Path(xdg_state) / "avoid_rain"
+    return Path.home() / ".local" / "state" / "avoid_rain"
+
+
+DEFAULT_DIR = get_save_dir()
+DEFAULT_PATH = DEFAULT_DIR / "profile_metrics.json"
 
 
 class CorruptSaveError(Exception):
@@ -56,6 +65,8 @@ class StatisticsTracker:
             self.data = data
             if "run_state" not in self.data:
                 self.data["run_state"] = None
+            if "last_run_result" not in self.data:
+                self.data["last_run_result"] = "INIT"
 
     def increment(self, key: str, amount: int = 1) -> None:
         """Increment a lifetime stat. Raises KeyError if the stat key is unknown."""
@@ -123,6 +134,12 @@ class StatisticsTracker:
             # Basic shape check
             if 'lifetime_stats' not in raw or 'discovered_bestiary' not in raw:
                 raise ValueError('Missing required sections')
+            
+            # [DEBUG] Save State Hydrated from XDG directory
+            if path is None:
+                # Use string representation of path for display
+                print(f"[DEBUG] Save State Hydrated from {DEFAULT_DIR}/")
+
             return cls(data=raw)
         except Exception as exc:
             # Move corrupt file aside so user can inspect it

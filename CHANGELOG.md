@@ -15,6 +15,12 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Persistent Save-Path Migration & XDG Compliance
+- Migrated save data storage to an XDG-compliant directory (`~/.local/state/avoid_rain/`).
+- Implemented environment variable check for `XDG_STATE_HOME` with fallback logic.
+- Added debug logging to verify state hydration upon application startup.
+- Robustly handles loading from older save formats by populating missing baseline flags.
+
 ### The Chronicler NPC & Dialogue System
 - Implemented The Chronicler NPC in `ZONE_SANCTUARY` using the `GameObject` architecture.
 - Built a state-driven dialogue engine that branches based on the persistent `last_run_result` flag.
