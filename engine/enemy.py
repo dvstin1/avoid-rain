@@ -3,7 +3,7 @@ Enemy classes for simple NPCs and monsters.
 """
 import math
 from engine.physics import resolve_wall_collision, check_aabb_collision
-from constants import TILE_SIZE
+from constants import TILE_SIZE, STAGGER_DURATION
 
 
 class Enemy:
@@ -17,6 +17,7 @@ class Enemy:
         self.vy = 0.0
         self.hp = hp
         self.max_hp = hp
+        self.stagger_timer = 0.0
 
     def get_rect(self):
         return (self.x, self.y, self.width, self.height)
@@ -27,8 +28,14 @@ class Enemy:
     def take_damage(self, amount):
         try:
             self.hp -= amount
+            if self.hp > 0:
+                self.stagger_timer = STAGGER_DURATION
+                self.vx, self.vy = 0, 0
         except Exception:
             pass
+
+    def is_staggered(self):
+        return self.stagger_timer > 0
 
     def to_dict(self):
         """Serialize enemy state to a dictionary."""
@@ -76,6 +83,10 @@ class SlugEnemy(Enemy):
 
     def update(self, dt, state):
         """Move toward the player when within detection radius and handle internal timers."""
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+            return
+
         player_cx, player_cy = state.player.get_center()
         cx = self.x + self.width / 2
         cy = self.y + self.height / 2
@@ -153,6 +164,10 @@ class BatEnemy(Enemy):
 
     def update(self, dt, state):
         """Move toward the player with a sine-wave oscillation."""
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+            return
+
         player_cx, player_cy = state.player.get_center()
         cx = self.x + self.width / 2
         cy = self.y + self.height / 2
@@ -242,6 +257,10 @@ class Miniboss(Enemy):
 
     def update(self, dt, state):
         """Move toward the player with a pursuit vector."""
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+            return
+
         player_cx, player_cy = state.player.get_center()
         cx = self.x + self.width / 2
         cy = self.y + self.height / 2

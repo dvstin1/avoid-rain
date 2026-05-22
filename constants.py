@@ -27,6 +27,12 @@ COLOR_DEEP_SLATE = (45, 55, 70)   # Deep slate blue for Ink Urns
 COLOR_INK_PUDDLE = (10, 10, 25)   # Deep ink blue/black
 COLOR_CANDLE_AMBER = (255, 190, 40) # Warm candle light (Iron Candelabra)
 
+# Combat Polish
+STAGGER_DURATION = 0.25      # Seconds entities are locked when hit
+SCREEN_SHAKE_INTENSITY = 4.0 # Pixels of max displacement
+SCREEN_SHAKE_DURATION = 0.15 # Seconds of shake after hit
+HIT_STOP_DURATION = 0.05     # Seconds of engine freeze on hit (approx 3 frames at 60fps)
+
 # Player Configuration
 PLAYER_WIDTH = 40
 PLAYER_HEIGHT = 40

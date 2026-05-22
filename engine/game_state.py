@@ -5,7 +5,8 @@ from constants import (
     PLAYER_START_X, PLAYER_START_Y, DUMMY_X, DUMMY_Y,
     DUMMY_WIDTH, DUMMY_HEIGHT, DAMAGE_NUMBER_LIFETIME, DAMAGE_NUMBER_SPEED,
     SWORD_DAMAGE, COLOR_YELLOW, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
-    PLAYER_MAX_HP, FLASK_MAX_CHARGES
+    PLAYER_MAX_HP, FLASK_MAX_CHARGES,
+    SCREEN_SHAKE_DURATION, HIT_STOP_DURATION
 )
 from engine.player import Player, PlayerStateEnum
 from engine.world import World
@@ -115,6 +116,8 @@ class GameState:
         self.loot = [] # Dropped items like Torn Pages
         self.fading_entities = [] # Entities in destruction animation
         self.death_timer = 0.0 # 'Text Bleaching' state timer
+        self.shake_timer = 0.0
+        self.hit_stop_timer = 0.0
 
         # Time since last autosave (seconds). Large by default so indicator is hidden.
         self.last_save_elapsed = 1e6
@@ -400,6 +403,11 @@ class GameState:
 
     def update(self, dt, actions):
         """Update all game logic."""
+        # 0. Handle Hit Stop
+        if self.hit_stop_timer > 0:
+            self.hit_stop_timer -= dt
+            return
+
         # 0. Handle 'Text Bleaching' (Death State)
         if self.death_timer > 0:
             self.death_timer -= dt
@@ -470,20 +478,25 @@ class GameState:
                     self.trigger_dummy_hit(SWORD_DAMAGE, COLOR_YELLOW)
                     self.dummy_stagger_timer = RECOVERY_TIME
                     self.dummy_outline_timer = STAGGER_OUTLINE_TIME
+                    self.hit_stop_timer = HIT_STOP_DURATION
+                    self.shake_timer = SCREEN_SHAKE_DURATION
 
             # Apply hits to enemies
             damage = SWORD_DAMAGE + getattr(self.player, 'stats', {}).get('attack_modifier', 0)
             for enemy in list(self.enemies):
                 try:
                     if check_aabb_collision(hitbox, enemy.get_rect()):
-                        enemy.take_damage(damage)
-                        # Show damage number above enemy
-                        self.damage_numbers.append({
-                            'val': damage,
-                            'pos': (enemy.x + 10, enemy.y - 20),
-                            'time': DAMAGE_NUMBER_LIFETIME,
-                            'color': COLOR_YELLOW
-                        })
+                        if not enemy.is_staggered():
+                            enemy.take_damage(damage)
+                            self.hit_stop_timer = HIT_STOP_DURATION
+                            self.shake_timer = SCREEN_SHAKE_DURATION
+                            # Show damage number above enemy
+                            self.damage_numbers.append({
+                                'val': damage,
+                                'pos': (enemy.x + 10, enemy.y - 20),
+                                'time': DAMAGE_NUMBER_LIFETIME,
+                                'color': COLOR_YELLOW
+                            })
                 except Exception:
                     pass
 
@@ -530,6 +543,9 @@ class GameState:
             self.dummy_stagger_timer -= dt
         if self.dummy_outline_timer > 0:
             self.dummy_outline_timer -= dt
+
+        if self.shake_timer > 0:
+            self.shake_timer -= dt
 
         # Update fading entities
         for fading in self.fading_entities[:]:

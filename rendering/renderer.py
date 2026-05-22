@@ -24,7 +24,8 @@ from constants import (
     COLOR_DEEP_SLATE,
     COLOR_INK_PUDDLE,
     COLOR_CANDLE_AMBER,
-    TILE_LOTUS_FRAME
+    TILE_LOTUS_FRAME,
+    SCREEN_SHAKE_INTENSITY
 )
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -273,6 +274,12 @@ class Renderer:
             camera = Camera(screen_w, screen_h, world_w, world_h)
             offset_x, offset_y = camera.get_target_offset(state.player.get_center())
 
+        # Apply Screen Shake
+        if getattr(state, 'shake_timer', 0) > 0:
+            import random
+            offset_x += random.uniform(-SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_INTENSITY)
+            offset_y += random.uniform(-SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_INTENSITY)
+
         # Visible tile range (add +1 to ensure partial tiles at edges are drawn)
         start_x = max(0, offset_x // TILE_SIZE)
         start_y = max(0, offset_y // TILE_SIZE)
@@ -413,6 +420,10 @@ class Renderer:
                     pygame.draw.line(self.screen, COLOR_PURPLE, right_wing[0], right_wing[1], 2)
                 else:
                     pygame.draw.rect(self.screen, COLOR_RED, ed)
+
+                # Draw Stagger Outline
+                if getattr(enemy, 'stagger_timer', 0) > 0:
+                    pygame.draw.rect(self.screen, COLOR_WHITE, ed, 2)
         except Exception:
             pass
 
@@ -420,6 +431,10 @@ class Renderer:
         player = state.player
         player_draw = pygame.Rect(player.x - offset_x, player.y - offset_y, player.width, player.height)
         pygame.draw.rect(self.screen, COLOR_BLUE, player_draw)
+
+        # Draw Stagger Outline for player
+        if player.state == PlayerStateEnum.STAGGERED:
+            pygame.draw.rect(self.screen, COLOR_WHITE, player_draw, 2)
 
         # 4. Draw Sword (with camera offset)
         if player.state == PlayerStateEnum.ATTACKING:

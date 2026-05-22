@@ -7,7 +7,8 @@ from constants import (
     PLAYER_SPEED, SCREEN_WIDTH, SCREEN_HEIGHT,
     PLAYER_WIDTH, PLAYER_HEIGHT, SWORD_DURATION,
     GRID_WIDTH, GRID_HEIGHT, TILE_SIZE,
-    PLAYER_MAX_HP, FLASK_MAX_CHARGES, FLASK_HEAL_AMOUNT
+    PLAYER_MAX_HP, FLASK_MAX_CHARGES, FLASK_HEAL_AMOUNT,
+    STAGGER_DURATION
 )
 from engine.physics import resolve_wall_collision
 
@@ -33,6 +34,7 @@ class Player:
         self.state = PlayerStateEnum.IDLE
         self.facing = (1, 0) # Direction vector
         self.attack_timer = 0.0
+        self.stagger_timer = 0.0
         self.current_interactable = None
         self.stats = {
             "attack_modifier": 0,
@@ -45,6 +47,12 @@ class Player:
         """
         Update player position and state.
         """
+        if self.state == PlayerStateEnum.STAGGERED:
+            self.stagger_timer -= dt
+            if self.stagger_timer <= 0:
+                self.state = PlayerStateEnum.IDLE
+            return
+
         if self.state == PlayerStateEnum.ATTACKING:
             self.attack_timer -= dt
             if self.attack_timer <= 0:
@@ -124,3 +132,7 @@ class Player:
         managed by GameState to keep responsibilities decoupled.
         """
         self.hp = max(0.0, self.hp - amount)
+        if self.hp > 0:
+            self.state = PlayerStateEnum.STAGGERED
+            self.stagger_timer = STAGGER_DURATION
+            self.vx, self.vy = 0, 0

@@ -105,3 +105,46 @@ def test_minimap_draws_compass_indicators(monkeypatch):
     
     # We expect at least one indicator for our objective
     assert len(compass_rects) >= 1
+
+def test_minimap_draws_entity_markers(monkeypatch):
+    from constants import MINIMAP_ENEMY_COLOR, MINIMAP_LOOT_COLOR
+    state = GameState()
+    # Place player at (100, 100)
+    state.player.x = 100
+    state.player.y = 100
+    
+    # Place an enemy and a loot item near the player so they are in the minimap viewport
+    from engine.enemy import SlugEnemy
+    from engine.loot import TornPage
+    state.enemies = [SlugEnemy(150, 150)]
+    state.loot = [TornPage(120, 120)]
+    
+    class DummyScreen:
+        def __init__(self, w, h):
+            self._w = w
+            self._h = h
+        def get_width(self): return self._w
+        def get_height(self): return self._h
+        def fill(self, color): pass
+        def blit(self, surf, pos): pass
+
+    dummy = DummyScreen(800, 600)
+    recorded = []
+    def fake_draw_rect(surface, color, rect, *args, **kwargs):
+        recorded.append((color, tuple(rect)))
+
+    monkeypatch.setattr(pygame.draw, 'rect', fake_draw_rect)
+    monkeypatch.setattr(pygame.draw, 'circle', lambda *a, **k: None)
+    monkeypatch.setattr(pygame.font, 'SysFont', lambda *a, **k: type('F', (), {'render': lambda self, t, a, c: type('S', (), {'get_rect': lambda self, **kw: type('R', (), {'width': 40, 'height': 10})()})()})())
+    monkeypatch.setattr(pygame.display, 'flip', lambda: None)
+
+    renderer = Renderer(dummy)
+    renderer.render(state)
+
+    # Check for enemy marker
+    enemy_marker_found = any(c == MINIMAP_ENEMY_COLOR for c, r in recorded)
+    assert enemy_marker_found
+    
+    # Check for loot marker
+    loot_marker_found = any(c == MINIMAP_LOOT_COLOR for c, r in recorded)
+    assert loot_marker_found

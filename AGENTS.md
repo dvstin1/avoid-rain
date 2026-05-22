@@ -35,22 +35,8 @@
 Currently performing a comprehensive documentation cleanup to remove contradictions, consolidate architecture, and archive completed features into `CHANGELOG.md`.
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
-## Active Task: [PENDING SELECTION]
-
-Select the next phase of development from the proposed roadmap items below.
-
-### Option A: The Climate Engine - Phase 1 (The Bleed)
-- Implement the "Rain Lifecycle" mentioned in `docs/architecture.md`.
-- **Weather State Machine:** Transition between `Clear_Day` and `The_Bleed`.
-- **Visuals:** Diagonal cyan rain particles using `pygame.draw.line`.
-- **Hazard:** Apply tick damage to the player if they are caught in the rain outside a Respite boundary.
-
-### Option B: Inventory & Stat Menu (The Libram)
-- Implement a dedicated UI screen for viewing collected "Torn Pages" and player stats.
-- **The Libram:** A toggleable menu (mapped to `TAB` or `I`) that pauses the game and displays the player's current Offensive/Defensive modifiers.
-- **Visuals:** A parchment-themed modal using the `EXPANDED` UI architecture.
-
-### Option C: Combat Polish - Stagger & Visual Feedback
+## Active Task: Combat Polish - Stagger & Visual Feedback (Completed)
 - **Stagger Mechanic:** Enemies and the player enter a brief `STAGGERED` state when hit, preventing action.
 - **Visual Polish:** Add screen shake on heavy hits and a brief white flash (outline) for entities taking damage.
 - **Hit-Stop:** Pause the engine for a few frames (e.g., 50ms) during a successful hit to provide "weight" to combat.
+- **Tests:** Verified with `tests/test_combat_polish.py`.
