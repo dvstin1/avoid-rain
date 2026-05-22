@@ -96,3 +96,8 @@ The player is a wanderer in a world that is literally dissolving. The "Rain" isn
 - **The Act:** Forcing a quit-out via the pause menu is narratively defined as the Reader "Slamming the Libram Shut" mid-sentence.
 - **The Consequence:** Because the Reader violently severs their connection to the page before a natural resolution (Victory or Censor Defeat), the active draft collapses chaotically. The character entity is violently pulled back into the Scriptorium. This systemic shock leaves a scar on the timeline, which is permanently logged by the Wellspring fountain as a "Forced Quit-Out."
 
+## The Lore: The Lotus Manuscript
+
+- The Lore: Within the pages of the Libram, reality doesn't follow geography; it follows typography. The master map structure is called the Lotus Page.
+
+- The Framework vs. The Draft: The solid frame of the lotus plant represents the immutable, preserved margins of the world. The hollow cells are literal blank windows in the text where localized, unstable stories are drafted. When you warp into a run, your consciousness lands safely on the firm, unyielding frame of the manuscript. You then choose which open chamber to step down into, braving the randomized, shifting combat zones below.

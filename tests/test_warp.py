@@ -24,7 +24,7 @@ def test_warp_interaction_required():
 
     # Call update WITH attack: should warp
     gs.update(0.016, {'move': (0, 0), 'attack': True})
-    assert gs.world.name == "chapter1"
+    assert gs.world.name == "chapter1_start"
 
 def test_combat_suppression_during_interaction():
     from engine.player import PlayerStateEnum

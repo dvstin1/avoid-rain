@@ -19,6 +19,7 @@ from constants import (
     COLOR_RED,
     COLOR_CYAN,
     COLOR_DARK_GREY,
+    TILE_LOTUS_FRAME
 )
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -105,13 +106,14 @@ class Renderer:
         end_y = min(GRID_HEIGHT, (offset_y + screen_h) // TILE_SIZE + 1)
 
         # 1. Draw World Grid (only visible tiles)
-        from constants import TILE_RESPITE, TILE_OBSTACLE, TILE_PROP
         for y in range(start_y, end_y):
             for x in range(start_x, end_x):
                 draw_rect = (x * TILE_SIZE - offset_x, y * TILE_SIZE - offset_y, TILE_SIZE, TILE_SIZE)
                 tile = state.world.grid[y][x]
                 if tile == TILE_WALL:
                     pygame.draw.rect(self.screen, COLOR_WALL, draw_rect)
+                elif tile == TILE_LOTUS_FRAME:
+                    pygame.draw.rect(self.screen, (40, 40, 80), draw_rect) # Indigo frame
                 else:
                     pygame.draw.rect(self.screen, COLOR_FLOOR, draw_rect, 1)
 

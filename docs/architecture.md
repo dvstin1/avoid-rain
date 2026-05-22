@@ -217,3 +217,17 @@ ROOM_PROTOTYPES = {
         "##########"
     ]
 }
+
+## Level Layout Topography: The Lotus Page Protocol
+
+To achieve a distinct environmental identity and facilitate procedural modularity, the world map generation must mirror a **Lotus Seed Pod Cross-Section**.
+
+### 1. Spatial Zoning Rules
+- **The Solid Frame (The Firmament):** The rigid, interconnected tissue of the plant. This is the unalterable manuscript framework. It is completely safe, houses the initial spawn anchor point, and serves as the navigation pathway connecting the chambers.
+- **The Chambers (The Hollow Cells):** Circular or rectangular hollow cavities embedded inside the frame. These cells act as sandboxed containers where randomized, modular combat grids (containing walls, trees, enemies, and destructible barrels) are dynamically injected.
+
+### 2. Character Grid Mapping
+The `LevelLoader` decodes this layout by dividing the matrix into global structural zones:
+- `M` : **Manuscript Frame / Lotus Tissue** (Solid, safe walkable path where the player spawns).
+- `X` : **The Void / Outer Space** (Solid, impassable boundary enclosing the lotus pod).
+- `.` : **Active Chamber Floors** (Walkable combat space inside the cell holes).

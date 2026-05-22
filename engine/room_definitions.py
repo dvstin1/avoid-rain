@@ -33,6 +33,15 @@ ROOM_PROTOTYPES = {
         "#...BB.........B...............#",
         "#...BB.........W...............#",
         "################################"
+    ],
+    "chapter1_start": [
+        "XXXXXXXXXXXXXXX",
+        "XXXMMMMMMMMMX",
+        "XXM####M####MXX",
+        "XW####M####MX",
+        "XXM####M####MXX",
+        "XXXMMMPMMMMMX",
+        "XXXXXXXXXXXXXXX"
     ]
 }
 
@@ -41,14 +50,22 @@ ROOM_PROTOTYPES = {
 ENTITY_MANIFEST = {
     "sanctuary": {
         (15, 9): {
-            "target": "chapter1",
+            "target": "chapter1_start",
             "name": "The Chronicle",
-            "spawn_x": 15 * 40,
-            "spawn_y": 6 * 40
+            "spawn_x": 7 * 40,
+            "spawn_y": 5 * 40
         }
     },
     "chapter1": {
         (15, 12): {
+            "target": "sanctuary",
+            "name": "The Return",
+            "spawn_x": 15 * 40,
+            "spawn_y": 7 * 40
+        }
+    },
+    "chapter1_start": {
+        (1, 3): {
             "target": "sanctuary",
             "name": "The Return",
             "spawn_x": 15 * 40,

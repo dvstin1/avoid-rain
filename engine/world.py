@@ -96,9 +96,12 @@ class LevelLoader:
             for x, char in enumerate(row):
                 if x >= GRID_WIDTH: break
                 
-                # Only static walls and empty space go into the grid
-                if char == '#':
+                # Only static walls, frame, and empty space go into the grid
+                if char == '#' or char == 'X':
                     grid[y][x] = TILE_WALL
+                elif char == 'M':
+                    from constants import TILE_LOTUS_FRAME
+                    grid[y][x] = TILE_LOTUS_FRAME
                 else:
                     grid[y][x] = TILE_EMPTY
                 

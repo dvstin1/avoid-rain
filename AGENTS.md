@@ -150,3 +150,27 @@ Populate the `ROOM_PROTOTYPES` dictionary inside your map data files with distin
 
 ### 2. Layout Integration Constraint
 - Ensure the character parsing loops match your tile dimensions exactly so the player doesn't spawn inside a solid stone wall block (`#`).
+
+## Active Task: Lotus Layout Instantiation & Spawn Allocation
+
+Implement a static macro-representation of the Lotus Pod blueprint inside `map_data.py` to fix the empty-world loading bug and establish correct spawn orientations.
+
+### 1. Macro Lotus Grid Blueprint
+The initial `ROOM_PROTOTYPES["chapter1_start"]` must be configured as a fixed matrix demonstrating distinct framework and cell boundaries:
+
+```python
+# 'X' = Outer Wall boundary
+# 'M' = Solid safe Lotus Frame (Walkable)
+# '#' = Inner Chamber Wall
+# '.' = Interior Chamber Floor (Where enemies/props reside)
+# 'P' = Player Spawn (Must sit directly on an 'M' tile)
+
+LOTUS_POD_TEST_GRID = [
+    "XXXXXXXXXXXXXXX",
+    "XXXMMMMMMMMMX",
+    "XXM####M####MXX",
+    "XW####M####MX",
+    "XXM####M####MXX",
+    "XXXMMMPMMMMMX",
+    "XXXXXXXXXXXXXXX"
+]

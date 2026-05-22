@@ -92,6 +92,7 @@ TILE_WARP = 2  # Special tile that warps the player to another map
 TILE_RESPITE = 3
 TILE_OBSTACLE = 4
 TILE_PROP = 5
+TILE_LOTUS_FRAME = 6
 
 TILE_KEY = {
     '#': TILE_WALL,
@@ -101,6 +102,8 @@ TILE_KEY = {
     'T': TILE_OBSTACLE,
     'B': TILE_PROP,
     'P': 100, # Special marker for player start
+    'M': TILE_LOTUS_FRAME,
+    'X': TILE_WALL, # X also acts as a wall boundary
 }
 
 # Colors for Tiles
