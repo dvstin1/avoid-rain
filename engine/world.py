@@ -1,6 +1,7 @@
 """
 Handles world grid, map sections, and static obstacles.
 """
+import math
 from constants import (
     GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP,
     PLAYER_START_X, PLAYER_START_Y, MACRO_MAP_SIZE
@@ -8,53 +9,83 @@ from constants import (
 
 def generate_macro_lotus_world():
     """
-    Programmatically builds a 120x120 macro-grid with four carved-out modular sectors.
-    Stitches copies of chapter1 layout into these sectors.
+    Refactors the macro-level generation to a distance-based radial algorithm.
+    Creates a central courtyard, an outer ring, and 6 connecting spokes.
+    Nests replicated chapter1 modules within the radial sectors.
     """
     from engine.room_definitions import ROOM_PROTOTYPES
     chapter1 = ROOM_PROTOTYPES.get("chapter1", ["#"])
     
     # Initialize 120x120 with '#' (Walls)
     world_grid = [['#' for _ in range(MACRO_MAP_SIZE)] for _ in range(MACRO_MAP_SIZE)]
+    center_x, center_y = MACRO_MAP_SIZE // 2, MACRO_MAP_SIZE // 2
     
-    # Carve out central framework (Tissue) - Cross-shaped paths
-    center = MACRO_MAP_SIZE // 2
-    for i in range(MACRO_MAP_SIZE):
-        # Main thoroughfares (2 tiles wide for comfort)
-        world_grid[center][i] = '.'
-        world_grid[center + 1][i] = '.'
-        world_grid[i][center] = '.'
-        world_grid[i][center + 1] = '.'
+    for y in range(MACRO_MAP_SIZE):
+        for x in range(MACRO_MAP_SIZE):
+            dx = x - center_x
+            dy = y - center_y
+            dist = math.sqrt(dx*dx + dy*dy)
 
-    # Define 4 sectors for replication (20x20 blocks)
-    # North, South, East, West relative to center
-    sector_offsets = [
-        (center - 10, 15),                  # North
-        (center - 10, MACRO_MAP_SIZE - 35),  # South
-        (15, center - 10),                  # West
-        (MACRO_MAP_SIZE - 35, center - 10)   # East
-    ]
+            # 1. Central Courtyard
+            if dist < 15:
+                world_grid[y][x] = '.'
 
-    for sx, sy in sector_offsets:
-        # Copy a 20x20 chunk of chapter1
-        for y in range(20):
-            if y >= len(chapter1):
+            # 2. Outer Rim Ring
+            if 50 < dist < 55:
+                world_grid[y][x] = '.'
+
+            # 3. 6 Radial Spoke Hallways
+            # Angles: 0, 60, 120, 180, 240, 300 degrees
+            if 15 <= dist <= 50:
+                angle = math.degrees(math.atan2(dy, dx))
+                # Normalize angle to [0, 360)
+                if angle < 0:
+                    angle += 360
+
+                # Check proximity to 6 target angles
+                for target in [0, 60, 120, 180, 240, 300]:
+                    # Handle wrap-around for 0/360
+                    diff = abs(angle - target)
+                    if diff > 180:
+                        diff = 360 - diff
+
+                    # Hallway width threshold (approx 2-3 tiles wide at dist 15-50)
+                    # angle_threshold = width / dist * (180 / pi)
+                    # Let's use a simpler fixed angle width for now, or scale it.
+                    if diff < (120 / max(1, dist)):
+                        world_grid[y][x] = '.'
+
+    # 4. Nest Replicated Modules
+    # We place 4 modules in the larger gaps between spokes
+    # Positions roughly at 30, 90, 210, 270 degrees
+    module_angles = [30, 105, 210, 285] # Adjusted to miss spokes better
+    for m_angle in module_angles:
+        rad = math.radians(m_angle)
+        # Place module center at distance ~35
+        mx = int(center_x + math.cos(rad) * 35) - 10
+        my = int(center_y + math.sin(rad) * 35) - 10
+
+        for y_offset in range(20):
+            if y_offset >= len(chapter1):
                 break
-            for x in range(20):
-                if x >= len(chapter1[y]):
+            for x_offset in range(20):
+                if x_offset >= len(chapter1[y_offset]):
                     break
-                char = chapter1[y][x]
-
-                # We skip player markers to avoid multiple spawns
+                char = chapter1[y_offset][x_offset]
                 if char == 'P':
                     char = '.'
 
-                world_grid[sy + y][sx + x] = char
+                # Only overwrite if it's within map bounds
+                if 0 <= my + y_offset < MACRO_MAP_SIZE and 0 <= mx + x_offset < MACRO_MAP_SIZE:
+                    # Carve into walls
+                    if char != '#':
+                        world_grid[my + y_offset][mx + x_offset] = char
 
-    # Anchor player spawn point in central framework tissue
-    world_grid[center + 5][center + 5] = 'P'
+    # 5. Anchor player spawn point
+    # LAND at (60, 50) as requested
+    world_grid[50][60] = 'P'
 
-    print("[WORLD MATRIX] Initialized 120x120 Macro-Grid with 4 replicated test sectors.")
+    print("[WORLD MATRIX] Initialized 120x120 Radial Lotus-Wheel with 6 spokes and 4 modules.")
 
     return ["".join(row) for row in world_grid]
 

@@ -321,3 +321,14 @@ During early development phases where primitive shapes (rects, lines) are used i
 - **Contrast:** Colors must be selected from the `constants.py` palette to ensure visibility against the `COLOR_FLOOR` backdrop.
 - **Layering:** All active entities (Player, Enemies, Props) must be drawn *after* the tile grid to prevent occlusion.
 - **Bat Indicators:** Fast-moving enemies like Bats must include wing indicators (lines) to maintain visibility during high-speed movement.
+
+## Level Layout Topography: The Radiant Lotus Wheel Protocol
+
+To prevent architectural monotony and eradicate dead-end traversal traps, the macro-grid generator must transition from a rectangular matrix to a radial, ring-and-spoke structural model.
+
+### 1. The Radial Geometric Layout
+The macro-world map ($120 \times 120$ tiles) is generated using explicit geometric distance tracking relative to the true map center `(60, 60)`:
+- **The Central Well (Radius 0 to 15):** A vast, circular open plaza (`.`). This serves as the safe entry threshold and the ultimate battleground where the closing weather system finishes its collapse.
+- **The Tissue Framework (The Spokes):** Distinct, multi-tile wide avenues that radiate outward at specific angular intervals (e.g., $0^\circ, 60^\circ, 120^\circ, 180^\circ, 240^\circ, 300^\circ$).
+- **The Outer Rim Ring (Radius 50 to 55):** A continuous circular pathway running along the perimeter of the map. Every radial spoke links directly into this ring, guaranteeing a closed topological loop with zero dead ends.
+- **The Vault Cells:** The $20 \times 20$ modular modular content zones are nested in the negative spaces trapped between the radiating spokes.

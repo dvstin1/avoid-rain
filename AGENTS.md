@@ -49,3 +49,19 @@ Establish the foundation for the massive world map by building a macro-grid load
 ### 3. Verification Trace
 - Limit code lengths across files to the newly established 120-character rule.
 - Print a debug message on boot to track world scaling: `print(f"[WORLD MATRIX] Initialized 120x120 Macro-Grid with 4 replicated test sectors.")`
+
+## Continued
+
+## Active Task: Radial Lotus-Wheel Generation & Loop Integrity
+
+Refactor the macro-level generation script from a block-stitching system to a distance-based radial algorithm to implement the Lotus Wheel structure and destroy all dead ends.
+
+### 1. Distance-Based Matrix Generation
+- Rewrite `generate_macro_lotus_world()` in `engine/world.py` to evaluate every coordinate `(x, y)` based on its distance formula from center `(60, 60)`: `distance = math.sqrt((x-60)**2 + (y-60)**2)`.
+- If `distance < 15`, carve the tile as an open floor (`.`).
+- If `distance > 50` and `distance < 55`, carve the tile as an open perimeter floor (`.`) to form the Outer Rim Ring.
+
+### 2. Spoke Interpolation & Module Placement
+- Program 6 radial hallways that carve open paths from the Central Well straight to the Outer Rim Ring using basic angle steps.
+- Nest the four replicated `chapter1` test zones within the quadrant spaces between the hallways. Ensure the entry and exit boundaries of these modules cut directly into the spokes, guaranteeing seamless flow.
+- Reposition the initial player spawn anchor `P` to land at coordinate `(60, 50)`, placing the player right at the mouth of the spectacular central courtyard upon warping in.

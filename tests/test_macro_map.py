@@ -29,13 +29,11 @@ def test_macro_map_replicated_sectors():
     assert found_replicated, "North sector did not contain replicated elements from chapter1"
 
 def test_macro_map_player_spawn():
-    """Verify player spawn is in the central tissue."""
+    """Verify player spawn is at (60, 50)."""
     world = create_world("macro_world")
-    # Our generator sets player start at center + 5
-    center = MACRO_MAP_SIZE // 2
     # Player start is returned in pixels
     from constants import TILE_SIZE
-    expected_px = (center + 5) * TILE_SIZE
-    expected_py = (center + 5) * TILE_SIZE
+    expected_px = 60 * TILE_SIZE
+    expected_py = 50 * TILE_SIZE
     
     assert world.player_start == (expected_px, expected_py)
