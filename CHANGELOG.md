@@ -15,6 +15,13 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Atomic Save-Flush & Milestone Persistence
+- Implemented synchronous, atomic save flushing for critical game milestones.
+- Forced immediate directory creation and disk write during New Game initialization.
+- Added synchronous save hooks after warping back to the Sanctuary and closing NPC dialogue.
+- Integrated diagnostic trace logs: `[DISK WRITE] Target path resolved to: {path}`.
+- Ensured physical disk write compliance using `os.fsync()`.
+
 ### Persistent Save-Path Migration & XDG Compliance
 - Migrated save data storage to an XDG-compliant directory (`~/.local/state/avoid_rain/`).
 - Implemented environment variable check for `XDG_STATE_HOME` with fallback logic.

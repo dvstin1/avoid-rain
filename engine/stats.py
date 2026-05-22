@@ -91,6 +91,10 @@ class StatisticsTracker:
         corruption on crashes mid-write.
         """
         target = Path(path) if path is not None else DEFAULT_PATH
+        
+        # [DISK WRITE] Target path resolved to: {absolute_path}
+        print(f"[DISK WRITE] Target path resolved to: {target.absolute()}")
+
         # Ensure parent exists
         target.parent.mkdir(parents=True, exist_ok=True)
 

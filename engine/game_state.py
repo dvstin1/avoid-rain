@@ -145,18 +145,13 @@ class GameState:
         if hasattr(self, 'camera'):
             self.camera.instant_center(self.player.get_center())
 
-    def save_stats(self, path: Optional[str] = None) -> None:
-        """Persist the attached StatisticsTracker to disk in a background thread.
-
-        This spawns a daemon thread to perform the save so that the main loop
-        isn't blocked by disk I/O. The GameState.saving_in_progress flag is set
-        while the background save is running so UI can display a saving message.
+    def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
+        """Persist the attached StatisticsTracker to disk.
+        
+        By default, this enqueues the save for a background thread. If wait=True
+        is passed, the save is performed synchronously on the main thread.
         """
         if self.stats is None:
-            return
-
-        # If a save is already in progress, let it continue; do not spawn another
-        if getattr(self, 'saving_in_progress', False):
             return
 
         # Collect current run state into StatisticsTracker
@@ -175,23 +170,15 @@ class GameState:
             # If state collection fails, we still try to save whatever was there
             pass
 
-        import threading
-
-        def _worker(p):
+        if wait:
+            # Synchronous save for critical milestones
             try:
                 self.saving_in_progress = True
-                # Ensure last_save_elapsed reflects start of save
-                try:
-                    self.last_save_elapsed = 0.0
-                except Exception:
-                    pass
-                self.stats.save(p)
+                self.last_save_elapsed = 0.0
+                self.stats.save(path)
             finally:
-                # Mark as saved; UI will show indicator based on last_save_elapsed
-                try:
-                    self.saving_in_progress = False
-                except Exception:
-                    pass
+                self.saving_in_progress = False
+            return
 
         # Enqueue a save request for the worker to process. If the queue is full,
         # drop the request to avoid blocking the main thread.
@@ -307,7 +294,7 @@ class GameState:
         if self.active_dialogue:
             if attack_pressed:
                 self.active_dialogue = None
-                # Small delay/debounce could go here if needed
+                self.save_stats(wait=True) # Synchronous flush on dialogue close
             return # Block all other updates during dialogue
 
         # 1. Update Interactables
@@ -444,6 +431,9 @@ class GameState:
         # Clear transient world state
         self.enemies = []
         self.loot = []
+        
+        # [Milestone] Flush state immediately upon returning to sanctuary
+        self.save_stats(wait=True)
 
     def update_damage_numbers(self, dt):
         """Handle fading and movement of damage numbers."""

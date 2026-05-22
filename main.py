@@ -189,7 +189,7 @@ def main():
                                 # Reset GameState to defaults and clear run_state
                                 try:
                                     state.reset_to_new_game()
-                                    state.save_stats()
+                                    state.save_stats(wait=True) # Synchronous flush for first-run
                                 except Exception:
                                     pass
                                 renderer.fade_to_black()
@@ -202,7 +202,7 @@ def main():
                             # No run exists: start fresh immediately
                             try:
                                 state.reset_to_new_game()
-                                state.save_stats()
+                                state.save_stats(wait=True) # Synchronous flush for first-run
                             except Exception:
                                 pass
                             renderer.fade_to_black()

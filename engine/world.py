@@ -73,9 +73,10 @@ class WarpPortal(GameObject):
                 game_state.camera.instant_center(game_state.player.get_center())
             # Update enemies list from the new world
             game_state.enemies = getattr(game_state.world, 'enemies', []) if hasattr(game_state.world, 'enemies') else []
-            # Persist state immediately after warp to avoid progress loss
-            if hasattr(game_state, 'save_stats'):
-                game_state.save_stats()
+            
+            # [Milestone] Flush state immediately upon returning to sanctuary
+            is_to_sanctuary = self.target_name == "sanctuary"
+            game_state.save_stats(wait=is_to_sanctuary)
         except Exception:
             # If transition fails, ignore to maintain robustness
             pass
