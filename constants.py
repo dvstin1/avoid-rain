@@ -39,6 +39,15 @@ SWORD_HEIGHT = 20
 SWORD_OFFSET = 30 # Distance from player center
 SWORD_DURATION = 0.2 # How long the attack lasts (seconds)
 SWORD_DAMAGE = 10
+# Player HP
+PLAYER_MAX_HP = 100
+
+# Low-tier Slug enemy configuration
+SLUG_MAX_HP = 40
+SLUG_SPEED = 80.0  # pixels per second (slow approach)
+SLUG_DETECT_METERS = 5  # detection radius in 'meters' (meters * TILE_SIZE)
+SLUG_DAMAGE = 10  # damage dealt on contact
+SLUG_DAMAGE_COOLDOWN = 1.0  # seconds between contact damage attempts
 STAGGER_THRESHOLD = 20 # Damage needed to stagger
 RECOVERY_TIME = 0.3 # Time spent in stagger/recovery
 

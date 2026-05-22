@@ -8,6 +8,8 @@ from engine.world import World
 from constants import TILE_WALL, TILE_EMPTY, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT
 
 
+from engine.enemy import SlugEnemy
+
 class OutsideWorld(World):
     """A simple outside map with some open space and perimeter walls."""
     def _init_sanctuary_walls(self):
@@ -26,6 +28,15 @@ class OutsideWorld(World):
             self.grid[3][x] = TILE_WALL
         for y in range(6, min(12, GRID_HEIGHT - 3)):
             self.grid[y][6] = TILE_WALL
+
+        # Spawn a small pack of slug enemies near the center-left
+        # Coordinates are in pixels
+        try:
+            spawn_x = (GRID_WIDTH // 2) * TILE_SIZE
+            spawn_y = (GRID_HEIGHT // 2) * TILE_SIZE
+            self.enemies = [SlugEnemy(spawn_x + 40, spawn_y), SlugEnemy(spawn_x - 80, spawn_y + 40)]
+        except Exception:
+            self.enemies = []
 
 
 def create_world(name: str) -> World:

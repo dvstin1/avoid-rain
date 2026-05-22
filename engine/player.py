@@ -92,3 +92,20 @@ class Player:
     def get_center(self):
         """Returns the center point of the player."""
         return (self.x + self.width / 2, self.y + self.height / 2)
+
+    def take_damage(self, amount: float) -> None:
+        """Apply damage to the player; clamp at zero.
+
+        This method is intentionally simple; death/respawn handling is
+        managed by GameState to keep responsibilities decoupled.
+        """
+        try:
+            if not hasattr(self, 'hp'):
+                from constants import PLAYER_MAX_HP
+                self.hp = PLAYER_MAX_HP
+                self.max_hp = PLAYER_MAX_HP
+            self.hp -= amount
+            if self.hp < 0:
+                self.hp = 0
+        except Exception:
+            pass

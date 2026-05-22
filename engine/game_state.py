@@ -70,10 +70,23 @@ class GameState:
         self.dummy_stagger_timer = 0.0
         self.dummy_outline_timer = 0.0
 
+        # Enemies (populated by world variants if present)
+        self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
+
         self.damage_numbers = []
 
         # Time since last autosave (seconds). Large by default so indicator is hidden.
         self.last_save_elapsed = 1e6
+
+        # Track player HP if Player implements it; ensure defaults
+        try:
+            from constants import PLAYER_MAX_HP
+            # Ensure player has hp attributes for tests
+            if not hasattr(self.player, 'hp'):
+                self.player.hp = PLAYER_MAX_HP
+                self.player.max_hp = PLAYER_MAX_HP
+        except Exception:
+            pass
 
         # Save worker: queue + dedicated thread to serialize all save requests.
         # This avoids spawning many threads and keeps saves off the main thread.
@@ -229,36 +242,90 @@ class GameState:
         # Check for warp tiles and perform a map transition if needed
         warp = self.world.check_for_warp((self.player.x, self.player.y, self.player.width, self.player.height))
         if warp is not None:
-            target_name, spawn_x, spawn_y = warp
-            try:
-                from engine.maps import create_world
-                self.world = create_world(target_name)
-                # Position player at spawn coords
-                self.player.x = float(spawn_x)
-                self.player.y = float(spawn_y)
-                # Recenter camera instantly
-                if hasattr(self, 'camera'):
-                    self.camera.instant_center(self.player.get_center())
-            except Exception:
-                # If transition fails, ignore to maintain robustness
-                pass
+           target_name, spawn_x, spawn_y = warp
+           try:
+               from engine.maps import create_world
+               self.world = create_world(target_name)
+               # Position player at spawn coords
+               self.player.x = float(spawn_x)
+               self.player.y = float(spawn_y)
+               # Recenter camera instantly
+               if hasattr(self, 'camera'):
+                   self.camera.instant_center(self.player.get_center())
+               # Update enemies list from the new world
+               self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
+           except Exception:
+               # If transition fails, ignore to maintain robustness
+               pass
 
-        # 2. Check for Sword Hits
+        # 2. Check for Sword Hits (affect dummy and enemies)
         if self.player.state == PlayerStateEnum.ATTACKING:
-            hitbox = get_sword_hitbox(self.player.get_center(), self.player.facing)
-            if check_aabb_collision(hitbox, self.dummy_rect):
-                if self.dummy_stagger_timer <= 0: # Only hit if not recovering
-                    self.trigger_dummy_hit(SWORD_DAMAGE, COLOR_YELLOW)
-                    self.dummy_stagger_timer = RECOVERY_TIME
-                    self.dummy_outline_timer = STAGGER_OUTLINE_TIME
+           hitbox = get_sword_hitbox(self.player.get_center(), self.player.facing)
+           if check_aabb_collision(hitbox, self.dummy_rect):
+               if self.dummy_stagger_timer <= 0: # Only hit if not recovering
+                   self.trigger_dummy_hit(SWORD_DAMAGE, COLOR_YELLOW)
+                   self.dummy_stagger_timer = RECOVERY_TIME
+                   self.dummy_outline_timer = STAGGER_OUTLINE_TIME
 
-        # 3. Update Timers
+           # Apply hits to enemies
+           for enemy in list(self.enemies):
+               try:
+                   if check_aabb_collision(hitbox, enemy.get_rect()):
+                       enemy.take_damage(SWORD_DAMAGE)
+                       # Show damage number above enemy
+                       self.damage_numbers.append({
+                           'val': SWORD_DAMAGE,
+                           'pos': (enemy.x + 10, enemy.y - 20),
+                           'time': DAMAGE_NUMBER_LIFETIME,
+                           'color': COLOR_YELLOW
+                       })
+                       if enemy.is_dead():
+                           try:
+                               self.enemies.remove(enemy)
+                           except Exception:
+                               pass
+               except Exception:
+                   pass
+
+        # 3. Update Enemies
+        for enemy in list(self.enemies):
+           try:
+               enemy.update(dt, self)
+           except Exception:
+               pass
+           try:
+               enemy.attempt_damage_player(self)
+           except Exception:
+               pass
+
+        # 4. Update Timers
         if self.dummy_stagger_timer > 0:
-            self.dummy_stagger_timer -= dt
+           self.dummy_stagger_timer -= dt
         if self.dummy_outline_timer > 0:
-            self.dummy_outline_timer -= dt
+           self.dummy_outline_timer -= dt
 
         self.update_damage_numbers(dt)
+
+        # 5. Check for player death and respawn to sanctuary if needed
+        try:
+           if hasattr(self.player, 'hp') and self.player.hp <= 0:
+               # Respawn in the first world (sanctuary)
+               from engine.world import World
+               self.world = World()
+               self.player.x = float(PLAYER_START_X)
+               self.player.y = float(PLAYER_START_Y)
+               # Reset camera
+               if hasattr(self, 'camera'):
+                   self.camera.instant_center(self.player.get_center())
+               # Reset player HP
+               try:
+                   self.player.hp = getattr(self.player, 'max_hp', self.player.hp)
+               except Exception:
+                   pass
+               # Clear enemies
+               self.enemies = []
+        except Exception:
+           pass
 
     def update_damage_numbers(self, dt):
         """Handle fading and movement of damage numbers."""

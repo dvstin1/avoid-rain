@@ -72,7 +72,16 @@ class Renderer:
         dummy_draw = pygame.Rect(dummy_rect.x - offset_x, dummy_rect.y - offset_y, dummy_rect.width, dummy_rect.height)
         pygame.draw.rect(self.screen, COLOR_GREEN, dummy_draw)
         if state.dummy_outline_timer > 0:
-            pygame.draw.rect(self.screen, COLOR_WHITE, dummy_draw, 2)
+           pygame.draw.rect(self.screen, COLOR_WHITE, dummy_draw, 2)
+
+        # 2b. Draw Enemies
+        try:
+           for enemy in getattr(state, 'enemies', []):
+               er = pygame.Rect(enemy.get_rect())
+               ed = pygame.Rect(er.x - offset_x, er.y - offset_y, er.width, er.height)
+               pygame.draw.rect(self.screen, COLOR_RED, ed)
+        except Exception:
+           pass
 
         # 3. Draw Player (with camera offset)
         player = state.player
