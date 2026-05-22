@@ -132,7 +132,7 @@ class GameState:
         self.active_dialogue = None
 
     def hydrate_from_disk(self):
-        """Reload state exclusively from the persistent disk file and reset to Sanctuary."""
+        """Reload state exclusively from the persistent disk file and restore the active session."""
         from engine.stats import StatisticsTracker
         from engine.maps import create_world
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
@@ -146,16 +146,42 @@ class GameState:
             # Fallback to fresh tracker if load fails
             self.stats = StatisticsTracker()
             
-        # 2. Force the LevelLoader to completely rebuild the Sanctuary layout from scratch
-        self.world = create_world("sanctuary")
+        # 2. Check for an active session snapshot (run_state)
+        run_data = self.stats.data.get("run_state")
         
-        # 3. Instantiate a brand-new, full-health Player entity anchored at Sanctuary spawn 'P'
-        self.player = Player(self.world.player_start[0], self.world.player_start[1])
-        self.player.hp = float(PLAYER_MAX_HP)
-        self.player.flask_charges = int(FLASK_MAX_CHARGES)
+        if run_data:
+            # Restore specific active session
+            world_name = run_data.get("world_name", "sanctuary")
+            self.world = create_world(world_name)
+            
+            p_data = run_data.get("player", {})
+            spawn_x = float(p_data.get("x", self.world.player_start[0]))
+            spawn_y = float(p_data.get("y", self.world.player_start[1]))
+            hp = float(p_data.get("hp", PLAYER_MAX_HP))
+            charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
+            
+            self.player = Player(spawn_x, spawn_y)
+            self.player.hp = hp
+            self.player.flask_charges = charges
+            
+            # Restore Enemies
+            if "enemies" in run_data:
+                from engine.enemy import SlugEnemy
+                self.enemies = []
+                for e_data in run_data["enemies"]:
+                    if e_data.get("type") == "SlugEnemy":
+                        self.enemies.append(SlugEnemy.from_dict(e_data))
+            else:
+                self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
+        else:
+            # Fallback to fresh Sanctuary start if no run is in progress
+            self.world = create_world("sanctuary")
+            self.player = Player(self.world.player_start[0], self.world.player_start[1])
+            self.player.hp = float(PLAYER_MAX_HP)
+            self.player.flask_charges = int(FLASK_MAX_CHARGES)
+            self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
         
         # 4. Flush all transient scene variables from runtime memory
-        self.enemies = []
         self.loot = []
         self.fading_entities = []
         self.active_dialogue = None
@@ -206,21 +232,22 @@ class GameState:
         if self.stats is None:
             return
 
-        # Collect current run state into StatisticsTracker
-        try:
-            self.stats.data["run_state"] = {
-                "world_name": getattr(self.world, 'name', 'sanctuary'),
-                "player": {
-                    "x": self.player.x,
-                    "y": self.player.y,
-                    "hp": self.player.hp,
-                    "flask_charges": self.player.flask_charges
-                },
-                "enemies": [e.to_dict() for e in self.enemies]
-            }
-        except Exception:
-            # If state collection fails, we still try to save whatever was there
-            pass
+        # Collect current run state into StatisticsTracker if a session is active
+        if self.player is not None and self.world is not None:
+            try:
+                self.stats.data["run_state"] = {
+                    "world_name": getattr(self.world, 'name', 'sanctuary'),
+                    "player": {
+                        "x": self.player.x,
+                        "y": self.player.y,
+                        "hp": self.player.hp,
+                        "flask_charges": self.player.flask_charges
+                    },
+                    "enemies": [e.to_dict() for e in self.enemies]
+                }
+            except Exception:
+                # If state collection fails, we still try to save whatever was there
+                pass
 
         if wait:
             # Synchronous save for critical milestones

@@ -216,3 +216,26 @@ The save engine must compute the absolute directory path using Python’s built-
 Before attempting a write operation on `profile_metrics.json`, the data wrapper must explicitly verify directory presence using:
 `save_dir.mkdir(parents=True, exist_ok=True)`
 This eliminates filesystem write failures if the app subfolder does not exist yet.
+
+## Save File Architecture: Active Session Suspension (True Continue)
+
+To allow seamless run suspension, the `profile_metrics.json` file must support a decoupled state snapshot that differentiates lifetime stats from volatile runtime properties.
+
+### 1. Unified JSON Save Schema
+The JSON document structure must explicitly track whether a run is currently suspended in progress:
+
+```json
+{
+  "lifetime_stats": {
+    "runs_started": 12,
+    "wins_chapters_cleared": 2
+  },
+  "active_session": {
+    "in_progress": true,
+    "current_zone": "chapter1",
+    "player_health": 45,
+    "player_max_health": 100,
+    "player_position": [144, 288],
+    "torn_pages_collected": 3
+  }
+}

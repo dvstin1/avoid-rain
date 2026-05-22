@@ -227,9 +227,9 @@ def main():
                     renderer.draw_pause_menu(pause_menu.get_selected_index())
                     # If the user confirmed 'Quit' in the pause menu, exit the loop
                     if pause_menu.should_quit():
-                        # Auto-save before transitioning back to title screen
+                        # [Milestone] Auto-save synchronously before transitioning back to title screen
                         try:
-                            state.save_stats()
+                            state.save_stats(wait=True)
                         except Exception:
                             pass
                         # Transition back to the title screen instead of exiting the app
@@ -269,7 +269,7 @@ def main():
         # Ensure game stats are saved automatically on exit if available
         try:
             if 'state' in locals() and getattr(state, 'save_stats', None) is not None:
-                state.save_stats()
+                state.save_stats(wait=True) # Synchronous flush on exit
             # Shutdown save worker to flush pending saves
             if 'state' in locals() and getattr(state, 'shutdown_save_worker', None) is not None:
                 state.shutdown_save_worker()

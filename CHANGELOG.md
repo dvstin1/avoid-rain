@@ -15,6 +15,13 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Active Session Snapshot & True Continue Hydration
+- Refactored `GameState.hydrate_from_disk()` to restore the player's exact health, coordinates, and active zone from the persistent `run_state`.
+- Hardened `GameState.save_stats()` to guard against overwriting session data when in a deallocated (Title Screen) state.
+- Integrated synchronous save flushes (`wait=True`) for the Pause Menu "Quit" action and application exit.
+- Ensured the Title Screen "Continue" button accurately reflects the presence of a resume-able run state.
+- Verified restoration accuracy with comprehensive unit tests in `tests/test_hydration.py`.
+
 ### State Hydration & Scene Deallocation Lifecycle
 - Implemented `GameState.deallocate()` to purge runtime memory (Player, World, enemies) when exiting to the Title Screen.
 - Implemented `GameState.hydrate_from_disk()` to ensure "Continue" loads exclusively from persistent disk storage.
