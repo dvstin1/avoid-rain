@@ -6,7 +6,8 @@ from enum import Enum
 from constants import (
     PLAYER_SPEED, SCREEN_WIDTH, SCREEN_HEIGHT,
     PLAYER_WIDTH, PLAYER_HEIGHT, SWORD_DURATION,
-    GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
+    GRID_WIDTH, GRID_HEIGHT, TILE_SIZE,
+    PLAYER_MAX_HP, FLASK_MAX_CHARGES, FLASK_HEAL_AMOUNT
 )
 from engine.physics import resolve_wall_collision
 
@@ -33,8 +34,11 @@ class Player:
         self.facing = (1, 0) # Direction vector
         self.attack_timer = 0.0
         self.current_interactable = None
+        self.hp = PLAYER_MAX_HP
+        self.max_hp = PLAYER_MAX_HP
+        self.flask_charges = FLASK_MAX_CHARGES
 
-    def update(self, dt, move_dir, walls, attack_pressed=False):
+    def update(self, dt, move_dir, walls, attack_pressed=False, flask_pressed=False):
         """
         Update player position and state.
         """
@@ -43,6 +47,10 @@ class Player:
             if self.attack_timer <= 0:
                 self.state = PlayerStateEnum.IDLE
             return
+
+        # 0. Handle Flask
+        if flask_pressed:
+            self.use_flask()
 
         dx, dy = move_dir
 
@@ -94,19 +102,16 @@ class Player:
         """Returns the center point of the player."""
         return (self.x + self.width / 2, self.y + self.height / 2)
 
+    def use_flask(self):
+        """Consume a flask charge to restore HP."""
+        if self.flask_charges > 0 and self.hp < self.max_hp:
+            self.flask_charges -= 1
+            self.hp = min(self.max_hp, self.hp + FLASK_HEAL_AMOUNT)
+
     def take_damage(self, amount: float) -> None:
         """Apply damage to the player; clamp at zero.
 
         This method is intentionally simple; death/respawn handling is
         managed by GameState to keep responsibilities decoupled.
         """
-        try:
-            if not hasattr(self, 'hp'):
-                from constants import PLAYER_MAX_HP
-                self.hp = PLAYER_MAX_HP
-                self.max_hp = PLAYER_MAX_HP
-            self.hp -= amount
-            if self.hp < 0:
-                self.hp = 0
-        except Exception:
-            pass
+        self.hp = max(0.0, self.hp - amount)

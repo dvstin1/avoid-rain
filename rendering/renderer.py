@@ -129,7 +129,30 @@ class Renderer:
         except Exception:
             pass
 
+        # 8. Draw HUD (HP and Flask)
+        try:
+            self.draw_hud(state)
+        except Exception:
+            pass
+
         pygame.display.flip()
+
+    def draw_hud(self, state):
+        """Draw player HP and Flask charges in the bottom-left corner."""
+        player = state.player
+        hp_text = f"HP: {int(player.hp)} / {int(player.max_hp)}"
+        flask_text = f"Flasks: {player.flask_charges}"
+
+        hp_surf = self.font.render(hp_text, True, COLOR_WHITE)
+        flask_surf = self.font.render(flask_text, True, COLOR_BLUE)
+
+        # Draw background panel
+        panel_rect = pygame.Rect(10, self.screen.get_height() - 70, 200, 60)
+        pygame.draw.rect(self.screen, (30, 30, 30), panel_rect)
+        pygame.draw.rect(self.screen, (100, 100, 100), panel_rect, 2)
+
+        self.screen.blit(hp_surf, (20, self.screen.get_height() - 60))
+        self.screen.blit(flask_surf, (20, self.screen.get_height() - 35))
 
     def draw_minimap(self, state):
         """Draw a small minimap in the top-left corner showing walls and player.

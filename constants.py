@@ -23,6 +23,9 @@ PLAYER_HEIGHT = 40
 PLAYER_START_X = SCREEN_WIDTH // 2
 PLAYER_START_Y = SCREEN_HEIGHT // 2
 PLAYER_SPEED = 300.0  # Pixels per second
+PLAYER_MAX_HP = 100
+FLASK_MAX_CHARGES = 3
+FLASK_HEAL_AMOUNT = 40
 
 # Dummy Configuration
 DUMMY_WIDTH = 45
@@ -39,8 +42,6 @@ SWORD_HEIGHT = 20
 SWORD_OFFSET = 30 # Distance from player center
 SWORD_DURATION = 0.2 # How long the attack lasts (seconds)
 SWORD_DAMAGE = 10
-# Player HP
-PLAYER_MAX_HP = 100
 
 # Low-tier Slug enemy configuration
 SLUG_MAX_HP = 40

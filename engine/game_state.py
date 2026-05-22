@@ -230,6 +230,7 @@ class GameState:
         """Update all game logic."""
         move_dir = actions.get('move', (0, 0))
         attack_pressed = actions.get('attack', False)
+        flask_pressed = actions.get('flask', False)
 
         # 1. Update Interactables
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
@@ -246,7 +247,7 @@ class GameState:
 
         # 2. Update Player
         walls = self.world.get_nearby_walls(player_rect)
-        self.player.update(dt, move_dir, walls, attack_pressed)
+        self.player.update(dt, move_dir, walls, attack_pressed, flask_pressed)
 
         # Update camera smoothing now that player moved
         self.camera.update(self.player.get_center(), dt)
@@ -310,9 +311,11 @@ class GameState:
                 # Reset camera
                 if hasattr(self, 'camera'):
                     self.camera.instant_center(self.player.get_center())
-                # Reset player HP
+                # Reset player HP and Flask
                 try:
                     self.player.hp = getattr(self.player, 'max_hp', self.player.hp)
+                    from constants import FLASK_MAX_CHARGES
+                    self.player.flask_charges = FLASK_MAX_CHARGES
                 except Exception:
                     pass
                 # Clear enemies

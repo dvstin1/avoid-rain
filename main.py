@@ -44,6 +44,7 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
     """
     running = True
     attack = False
+    flask = False
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -55,6 +56,8 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                     running = False
             if event.key == pygame.K_SPACE:
                 attack = True
+            if event.key == pygame.K_1:
+                flask = True
             # When the pause menu is open, allow navigation and confirm via arrow keys and Enter
             if pause_menu is not None and pause_menu.is_open():
                 if event.key in (pygame.K_UP, pygame.K_w):
@@ -63,7 +66,7 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                     pause_menu.navigate('down')
                 elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                     pause_menu.confirm()
-    return running, attack
+    return running, attack, flask
 
 def get_movement_actions():
     """Poll keyboard for movement actions."""
@@ -233,7 +236,7 @@ def main():
                 clock.tick(FPS)
             else:
                 dt = clock.tick(FPS) / 1000.0
-                running, attack = handle_game_events(pause_menu=pause_menu)
+                running, attack, flask = handle_game_events(pause_menu=pause_menu)
                 if pause_menu.is_open():
                     # When paused, draw the pause menu and skip updates
                     renderer.draw_pause_menu(pause_menu.get_selected_index())
@@ -259,7 +262,8 @@ def main():
                 else:
                     actions = {
                         'move': get_movement_actions(),
-                        'attack': attack
+                        'attack': attack,
+                        'flask': flask
                     }
                     state.update(dt, actions)
                     # Run the autosave manager each frame (will be tolerant if no stats)
