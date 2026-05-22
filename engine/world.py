@@ -5,6 +5,31 @@ from constants import (
     GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP
 )
 
+class WarpInteractable:
+    """An interactable object that warps the player to another map."""
+    def __init__(self, target_name, spawn_x, spawn_y, rect):
+        self.target_name = target_name
+        self.spawn_x = spawn_x
+        self.spawn_y = spawn_y
+        self.rect = rect # (x, y, w, h) in pixels
+
+    def execute_interaction(self, game_state):
+        """Perform the map transition."""
+        try:
+            from engine.maps import create_world
+            game_state.world = create_world(self.target_name)
+            # Position player at spawn coords
+            game_state.player.x = float(self.spawn_x)
+            game_state.player.y = float(self.spawn_y)
+            # Recenter camera instantly
+            if hasattr(game_state, 'camera'):
+                game_state.camera.instant_center(game_state.player.get_center())
+            # Update enemies list from the new world
+            game_state.enemies = getattr(game_state.world, 'enemies', []) if hasattr(game_state.world, 'enemies') else []
+        except Exception:
+            # If transition fails, ignore to maintain robustness
+            pass
+
 class World:
     """Manages the tile-based world map.
 
@@ -15,6 +40,7 @@ class World:
     def __init__(self):
         self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.warp_tiles = {}  # Mapping (x,y) -> (target_name, spawn_x_px, spawn_y_px)
+        self.interactables = []
         self._init_sanctuary_walls()
 
     def _init_sanctuary_walls(self):
@@ -66,6 +92,10 @@ class World:
         spawn_py = (GRID_HEIGHT // 2) * TILE_SIZE
         self.warp_tiles[(door_x, door_y)] = ('outside', spawn_px, spawn_py)
 
+        # Create interactable for the warp
+        rect = (door_x * TILE_SIZE, door_y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+        self.interactables.append(WarpInteractable('outside', spawn_px, spawn_py, rect))
+
     def get_nearby_walls(self, player_rect):
         """
         Returns a list of wall rectangles (x, y, w, h) that could collide with the player.
@@ -84,6 +114,20 @@ class World:
                 if self.grid[y][x] == TILE_WALL:
                     walls.append((x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE))
         return walls
+
+    def get_nearby_interactables(self, player_rect):
+        """Returns a list of interactables that overlap with an expanded player rect."""
+        px, py, pw, ph = player_rect
+        # Expand player rect for interaction detection
+        margin = 10
+        expanded_rect = (px - margin, py - margin, pw + margin * 2, ph + margin * 2)
+
+        from engine.physics import check_aabb_collision
+        nearby = []
+        for interactable in self.interactables:
+            if check_aabb_collision(expanded_rect, interactable.rect):
+                nearby.append(interactable)
+        return nearby
 
     def check_for_warp(self, player_rect):
         """Return (target_name, spawn_x, spawn_y) if player's center is on a warp tile.

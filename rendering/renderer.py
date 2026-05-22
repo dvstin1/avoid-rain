@@ -15,6 +15,7 @@ from constants import (
     GRID_WIDTH,
     GRID_HEIGHT,
     COLOR_YELLOW,
+    COLOR_RED,
 )
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -26,6 +27,14 @@ class Renderer:
     def __init__(self, screen):
         self.screen = screen
         self.font = pygame.font.SysFont("Arial", 24)
+
+    def draw_interaction_prompt(self, player, offset_x, offset_y):
+        """Draw a text prompt above the player's head."""
+        prompt_surf = self.font.render("Press [SPACE] to Interact", True, COLOR_WHITE)
+        rect = prompt_surf.get_rect()
+        # Position above player center
+        px, py = player.get_center()
+        self.screen.blit(prompt_surf, (px - rect.width // 2 - offset_x, py - player.height - 20 - offset_y))
 
     def render(self, state):
         """Draw the visible portion of the game state to the screen using a camera.
@@ -72,16 +81,16 @@ class Renderer:
         dummy_draw = pygame.Rect(dummy_rect.x - offset_x, dummy_rect.y - offset_y, dummy_rect.width, dummy_rect.height)
         pygame.draw.rect(self.screen, COLOR_GREEN, dummy_draw)
         if state.dummy_outline_timer > 0:
-           pygame.draw.rect(self.screen, COLOR_WHITE, dummy_draw, 2)
+            pygame.draw.rect(self.screen, COLOR_WHITE, dummy_draw, 2)
 
         # 2b. Draw Enemies
         try:
-           for enemy in getattr(state, 'enemies', []):
-               er = pygame.Rect(enemy.get_rect())
-               ed = pygame.Rect(er.x - offset_x, er.y - offset_y, er.width, er.height)
-               pygame.draw.rect(self.screen, COLOR_RED, ed)
+            for enemy in getattr(state, 'enemies', []):
+                er = pygame.Rect(enemy.get_rect())
+                ed = pygame.Rect(er.x - offset_x, er.y - offset_y, er.width, er.height)
+                pygame.draw.rect(self.screen, COLOR_RED, ed)
         except Exception:
-           pass
+            pass
 
         # 3. Draw Player (with camera offset)
         player = state.player
@@ -99,6 +108,10 @@ class Renderer:
             text_surf = self.font.render(str(num['val']), True, num['color'])
             x, y = num['pos']
             self.screen.blit(text_surf, (x - offset_x, y - offset_y))
+
+        # 5b. Draw Interaction Prompt
+        if getattr(state.player, 'current_interactable', None):
+            self.draw_interaction_prompt(state.player, offset_x, offset_y)
 
         # 6. Draw autosave indicator if a recent autosave occurred
         try:

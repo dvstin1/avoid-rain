@@ -32,6 +32,7 @@ class Player:
         self.state = PlayerStateEnum.IDLE
         self.facing = (1, 0) # Direction vector
         self.attack_timer = 0.0
+        self.current_interactable = None
 
     def update(self, dt, move_dir, walls, attack_pressed=False):
         """

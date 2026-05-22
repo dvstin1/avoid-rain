@@ -15,6 +15,9 @@ class OutsideWorld(World):
     def _init_sanctuary_walls(self):
         # wipe existing grid
         self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+        self.warp_tiles = {}
+        self.interactables = []
+
         # Outer border walls
         for x in range(GRID_WIDTH):
             self.grid[0][x] = TILE_WALL
@@ -28,6 +31,19 @@ class OutsideWorld(World):
             self.grid[3][x] = TILE_WALL
         for y in range(6, min(12, GRID_HEIGHT - 3)):
             self.grid[y][6] = TILE_WALL
+
+        # Add a warp back to the sanctuary
+        # Position it near the right side of the outside map
+        warp_x, warp_y = GRID_WIDTH - 2, GRID_HEIGHT // 2
+        self.grid[warp_y][warp_x] = TILE_WALL # Visual wall or maybe empty?
+        # Use TILE_WARP if we want it to look like a warp
+        from constants import TILE_WARP
+        self.grid[warp_y][warp_x] = TILE_WARP
+        
+        from constants import PLAYER_START_X, PLAYER_START_Y
+        rect = (warp_x * TILE_SIZE, warp_y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+        from engine.world import WarpInteractable
+        self.interactables.append(WarpInteractable('sanctuary', PLAYER_START_X, PLAYER_START_Y, rect))
 
         # Spawn a small pack of slug enemies near the center-left
         # Coordinates are in pixels
