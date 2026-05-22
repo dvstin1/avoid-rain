@@ -4,7 +4,8 @@ Manages the global game state and coordinates engine components.
 from constants import (
     PLAYER_START_X, PLAYER_START_Y, DUMMY_X, DUMMY_Y,
     DUMMY_WIDTH, DUMMY_HEIGHT, DAMAGE_NUMBER_LIFETIME, DAMAGE_NUMBER_SPEED,
-    SWORD_DAMAGE, COLOR_YELLOW, RECOVERY_TIME, STAGGER_OUTLINE_TIME
+    SWORD_DAMAGE, COLOR_YELLOW, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
+    PLAYER_MAX_HP, FLASK_MAX_CHARGES
 )
 from engine.player import Player, PlayerStateEnum
 from engine.world import World
@@ -18,30 +19,22 @@ from typing import Optional
 class GameState:
     """Master state object for the game engine."""
     def __init__(self, stats: Optional[StatisticsTracker] = None, stats_path: Optional[str] = None, auto_load: bool = True):
+        # 1. Initialize core components with defaults
         self.world = World()
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
+        self.enemies = []
 
-        # Camera persisted on GameState to avoid recreating each frame
-        world_w = GRID_WIDTH * TILE_SIZE
-        world_h = GRID_HEIGHT * TILE_SIZE
-        self.camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT, world_w, world_h, lerp_speed=CAMERA_LERP_SPEED)
-        # Start camera centered on player instantly
-        self.camera.instant_center(self.player.get_center())
-
-        # Statistics tracker: prefer injected tracker; otherwise optionally auto-load
+        # 2. Statistics tracker: prefer injected tracker; otherwise optionally auto-load
         self.stats = stats
         if self.stats is None and auto_load:
             try:
                 if stats_path is not None:
                     self.stats = StatisticsTracker.load(stats_path)
                 else:
-                    # Load from default location (may be in user's home directory)
                     self.stats = StatisticsTracker.load()
             except Exception as exc:
-                # Handle corrupt saves specially so UI can offer a choice to the player
                 from engine.stats import CorruptSaveError
                 if isinstance(exc, CorruptSaveError):
-                    # Record that a corrupt save was detected and where backup was written
                     self.stats = None
                     self.stats_corrupt = True
                     try:
@@ -49,44 +42,68 @@ class GameState:
                     except Exception:
                         self.stats_corrupt_backup = None
                 else:
-                    # Other errors: keep integration low-coupled and proceed without stats
                     self.stats = None
 
-        if self.stats is not None:
-            # Track that a run has started
+        # 3. Apply persistent run state if available
+        if self.stats is not None and self.stats.data.get("run_state"):
+            run_data = self.stats.data["run_state"]
+            try:
+                # Restore World
+                from engine.maps import create_world
+                world_name = run_data.get("world_name", "sanctuary")
+                self.world = create_world(world_name)
+                
+                # Restore Player
+                p_data = run_data.get("player", {})
+                self.player.x = float(p_data.get("x", PLAYER_START_X))
+                self.player.y = float(p_data.get("y", PLAYER_START_Y))
+                self.player.hp = float(p_data.get("hp", PLAYER_MAX_HP))
+                self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
+                
+                # Restore Enemies
+                e_data_list = run_data.get("enemies", [])
+                if e_data_list:
+                    from engine.enemy import SlugEnemy
+                    self.enemies = []
+                    for e_data in e_data_list:
+                        if e_data.get("type") == "SlugEnemy":
+                            self.enemies.append(SlugEnemy.from_dict(e_data))
+                else:
+                    # Fallback to world defaults if no enemy data saved
+                    self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
+            except Exception:
+                # Keep robust: if restoration fails, defaults are already set
+                pass
+        else:
+            # Default enemies for initial world
+            self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
+
+        # Camera persisted on GameState to avoid recreating each frame
+        world_w = GRID_WIDTH * TILE_SIZE
+        world_h = GRID_HEIGHT * TILE_SIZE
+        self.camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT, world_w, world_h, lerp_speed=CAMERA_LERP_SPEED)
+        self.camera.instant_center(self.player.get_center())
+
+        if self.stats is not None and self.stats.data.get("run_state") is None:
+            # Track that a new run has started
             try:
                 self.stats.increment("runs_started", 1)
             except KeyError:
-                # If the provided tracker doesn't have the key, fail silently to
-                # keep this integration low-coupled and non-throwing in tests.
                 pass
-        else:
-            # Ensure flags exist
+
+        if self.stats is None:
             self.stats_corrupt = getattr(self, 'stats_corrupt', False)
             self.stats_corrupt_backup = getattr(self, 'stats_corrupt_backup', None)
 
-        # Dummy Entity State
+        # 4. Dummy Entity State
         self.dummy_rect = (DUMMY_X, DUMMY_Y, DUMMY_WIDTH, DUMMY_HEIGHT)
         self.dummy_stagger_timer = 0.0
         self.dummy_outline_timer = 0.0
-
-        # Enemies (populated by world variants if present)
-        self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
 
         self.damage_numbers = []
 
         # Time since last autosave (seconds). Large by default so indicator is hidden.
         self.last_save_elapsed = 1e6
-
-        # Track player HP if Player implements it; ensure defaults
-        try:
-            from constants import PLAYER_MAX_HP
-            # Ensure player has hp attributes for tests
-            if not hasattr(self.player, 'hp'):
-                self.player.hp = PLAYER_MAX_HP
-                self.player.max_hp = PLAYER_MAX_HP
-        except Exception:
-            pass
 
         # Save worker: queue + dedicated thread to serialize all save requests.
         # This avoids spawning many threads and keeps saves off the main thread.
@@ -110,6 +127,22 @@ class GameState:
         # If a save is already in progress, let it continue; do not spawn another
         if getattr(self, 'saving_in_progress', False):
             return
+
+        # Collect current run state into StatisticsTracker
+        try:
+            self.stats.data["run_state"] = {
+                "world_name": getattr(self.world, 'name', 'sanctuary'),
+                "player": {
+                    "x": self.player.x,
+                    "y": self.player.y,
+                    "hp": self.player.hp,
+                    "flask_charges": self.player.flask_charges
+                },
+                "enemies": [e.to_dict() for e in self.enemies]
+            }
+        except Exception:
+            # If state collection fails, we still try to save whatever was there
+            pass
 
         import threading
 

@@ -48,9 +48,12 @@ class StatisticsTracker:
                     "forced_quit_outs": 0,
                 },
                 "discovered_bestiary": {},
+                "run_state": None,
             }
         else:
             self.data = data
+            if "run_state" not in self.data:
+                self.data["run_state"] = None
 
     def increment(self, key: str, amount: int = 1) -> None:
         """Increment a lifetime stat. Raises KeyError if the stat key is unknown."""

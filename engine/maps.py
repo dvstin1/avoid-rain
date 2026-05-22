@@ -12,6 +12,9 @@ from engine.enemy import SlugEnemy
 
 class OutsideWorld(World):
     """A simple outside map with some open space and perimeter walls."""
+    def __init__(self):
+        super().__init__(name='outside')
+
     def _init_sanctuary_walls(self):
         # wipe existing grid
         self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]

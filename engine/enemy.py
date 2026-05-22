@@ -30,6 +30,22 @@ class Enemy:
         except Exception:
             pass
 
+    def to_dict(self):
+        """Serialize enemy state to a dictionary."""
+        return {
+            "type": self.__class__.__name__,
+            "x": self.x,
+            "y": self.y,
+            "hp": self.hp
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """Create an enemy instance from a dictionary."""
+        # This base implementation might not be enough for specific subclasses
+        # but serves as a template.
+        return cls(data["x"], data["y"], data.get("width", 40), data.get("height", 40), data["hp"])
+
 
 class SlugEnemy(Enemy):
     """A low-tier slug enemy that detects the player and slowly approaches.
@@ -38,14 +54,24 @@ class SlugEnemy(Enemy):
     - Moves directly toward player (no pathfinding)
     - Deals damage on contact with a cooldown
     """
-    def __init__(self, x, y):
+    def __init__(self, x, y, hp=None):
         from constants import SLUG_MAX_HP, SLUG_SPEED, SLUG_DETECT_METERS, SLUG_DAMAGE, SLUG_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
-        super().__init__(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, SLUG_MAX_HP)
+        initial_hp = hp if hp is not None else SLUG_MAX_HP
+        super().__init__(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, initial_hp)
         self.speed = SLUG_SPEED
         self.detect_radius = SLUG_DETECT_METERS * TILE_SIZE
         self.damage = SLUG_DAMAGE
         self.damage_cooldown = SLUG_DAMAGE_COOLDOWN
         self._damage_timer = 0.0
+
+    def to_dict(self):
+        d = super().to_dict()
+        d["type"] = "SlugEnemy"
+        return d
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(data["x"], data["y"], hp=data["hp"])
 
     def update(self, dt, state):
         """Move toward the player when within detection radius and handle internal timers."""

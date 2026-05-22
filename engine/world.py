@@ -37,7 +37,8 @@ class World:
     factory to obtain other world variants (e.g., 'outside').
     """
     # pylint: disable=too-few-public-methods
-    def __init__(self):
+    def __init__(self, name='sanctuary'):
+        self.name = name
         self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.warp_tiles = {}  # Mapping (x,y) -> (target_name, spawn_x_px, spawn_y_px)
         self.interactables = []
