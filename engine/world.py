@@ -91,6 +91,11 @@ class LevelLoader:
         player_start = (PLAYER_START_X, PLAYER_START_Y)
         entity_data = entity_data or {}
 
+        # Check for Lotus Topography symbols
+        has_lotus = any('M' in row or 'X' in row for row in prototype_array)
+        if has_lotus:
+            print("[DEBUG] LevelLoader actively building Lotus Topography Grid")
+
         for y, row in enumerate(prototype_array):
             if y >= GRID_HEIGHT: break
             for x, char in enumerate(row):

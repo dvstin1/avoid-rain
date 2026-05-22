@@ -2,6 +2,16 @@
 Central repository for map layouts and room prototypes.
 """
 
+LOTUS_POD_TEST_GRID = [
+    "XXXXXXXXXXXXXXX",
+    "XXXMMMMMMMMMX",
+    "XXM####M####MXX",
+    "XW####M####MX",
+    "XXM####M####MXX",
+    "XXXMMMPMMMMMX",
+    "XXXXXXXXXXXXXXX"
+]
+
 ROOM_PROTOTYPES = {
     "sanctuary": [
         "################################",
@@ -34,15 +44,7 @@ ROOM_PROTOTYPES = {
         "#...BB.........W...............#",
         "################################"
     ],
-    "chapter1_start": [
-        "XXXXXXXXXXXXXXX",
-        "XXXMMMMMMMMMX",
-        "XXM####M####MXX",
-        "XW####M####MX",
-        "XXM####M####MXX",
-        "XXXMMMPMMMMMX",
-        "XXXXXXXXXXXXXXX"
-    ]
+    "chapter1_start": LOTUS_POD_TEST_GRID
 }
 
 # Supplemental entity data for prototypes

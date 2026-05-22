@@ -174,3 +174,15 @@ LOTUS_POD_TEST_GRID = [
     "XXXMMMPMMMMMX",
     "XXXXXXXXXXXXXXX"
 ]
+
+## Active Troubleshooting: Main Loop Level Hook Verification
+
+Verify the exact file import path the main execution loop uses to fetch level layouts, and force the `World` initialization script to explicitly bind to the newly generated `LOTUS_POD_TEST_GRID`.
+
+### 1. File Path Resolution
+- Audit the main game loop initialization file (e.g., `main.py` or `game_state.py`). Trace exactly where it calls `LevelLoader` or `World()`.
+- Identify if it is currently reading from a hardcoded backup string array or an outdated configuration asset file.
+
+### 2. Explicit Override
+- Force the scene transition logic to directly assign `LOTUS_POD_TEST_GRID` (containing the `M` and `X` characters) as the structural source for `chapter1_start`.
+- Print a debugging string to the terminal console upon map initialization: `"[DEBUG] LevelLoader actively building Lotus Topography Grid"`.
