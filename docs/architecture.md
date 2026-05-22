@@ -251,3 +251,13 @@ To handle both narrative character dialogue and expansive dataset ledger present
 ### 2. Procedural Animation Constraints (The Wellspring Surface)
 - Non-image placeholder structures must utilize frame-relative math or time-based sine vectors to simulate life.
 - **The Water Primitive:** A bounding block mapped to the Wellspring position that dynamically alternates rendering layers of primary cyan/blue color bars offset by moving horizontal highlight strokes to mimic continuous liquid currents.
+
+## Prototyping Infrastructure: Core Sandbox Exhibition Rule
+
+To guarantee immediate visual feedback and prevent asset regression during core development, all testing map matrices must comply with the Exhibition Floor Protocol.
+
+### 1. Mandatory Asset Distribution
+Every prototype map layer (e.g., `chapter1_start` or active combat testing maps) must intentionally allocate space for at least one active instance of every implemented engine element.
+- **Indoor Environments:** Must contain an immediate distribution of Benches (`S`), Rocks (`K`), and Breakable Barrels (`B`).
+- **Outdoor Environments:** Must include Static Trees (`T`) alongside standard terrain blockades.
+- **Threat Verification:** Must spawn a minimum of one unit per active enemy variant (e.g., standard training target AND the newly added `BatEnemy`) within 5 horizontal tiles of the player spawn coordinates.
