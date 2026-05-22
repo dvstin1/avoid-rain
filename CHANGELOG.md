@@ -15,6 +15,12 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### New Game Confirmation Prompt Rendering
+- Fixed the rendering sequence for the New Game "Y/N" confirmation overlay.
+- Ensured text assets are drawn as the absolute top layer on the viewport buffer.
+- Anchored confirmation text to the viewport center for dynamic scaling.
+- Verified that 'N' reverts to the Title Menu and 'Y' correctly resets the game profile and state.
+
 ### Fast-Pursuit Enemy & Environmental Objects
 - **BatEnemy:** A new fast-pursuit enemy type with erratic sine-wave movement patterns.
 - **Environmental Objects:** Added Benches ('S') and Rocks ('K') as solid obstacles to enrich map topography.

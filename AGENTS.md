@@ -35,20 +35,6 @@ Currently performing a comprehensive documentation cleanup to remove contradicti
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
-## Active Troubleshooting: New Game Confirmation Prompt Rendering Fix
+## Active Task: PENDING NEXT TASK
+Waiting for the next core gameplay loop priority.
 
-Fix the rendering sequence for the New Game "Y/N" confirmation overlay to ensure text assets are cleanly drawn on top of the active viewport buffer.
-
-### 1. Layering Audit & Drawing Order
-- Locate the code section managing the Title Menu states (e.g., `title_screen.py` or the menu interaction switch block).
-- Ensure that when the state transitions to `CONFIRM_NEW_GAME`, the drawing sequence strictly follows this execution order:
-  1. Draw the base title background/void mask.
-  2. Draw the confirmation prompt background card box (if applicable).
-  3. Render and draw the "Are you sure you want to start a New Game? (Y/N)" text surface as the absolute top layer.
-
-### 2. Coordinate & Color Verification
-- Verify that the $(X, Y)$ coordinates for the confirmation text surface dynamically anchor to the center of the viewport dimensions (`screen.get_rect().center`) rather than relying on stale or absolute window offsets.
-- Force the text primitive color to contrast sharply with the menu background (e.g., solid white `#FFFFFF` or light amber) so it is highly visible.
-
-### 3. State-Switch Clean Slate
-- Ensure that pressing `N` cleanly reverts the rendering mode back to the standard Title Menu options, and pressing `Y` triggers a full directory purge/reset of `profile_metrics.json` before booting into a pristine `ZONE_SANCTUARY`.
