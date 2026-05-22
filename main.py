@@ -133,7 +133,9 @@ def main():
     autosave = AutosaveManager(AUTOSAVE_INTERVAL)
     # PauseMenu will auto-save on open via a lightweight callback
     pause_menu = PauseMenu(on_open=lambda: state.save_stats())
-    title_menu = TitleMenu()
+    # Title menu should reflect whether a valid save exists
+    has_save = getattr(state, 'stats', None) is not None and not getattr(state, 'stats_corrupt', False)
+    title_menu = TitleMenu(has_save=has_save)
 
     in_title = True
     running = True
@@ -245,6 +247,12 @@ def main():
                         pause_menu.clear_quit()
                         pause_menu.close()
                         in_title = True
+                        # Update title menu to reflect whether a save now exists
+                        try:
+                            has_save_now = getattr(state, 'stats', None) is not None and not getattr(state, 'stats_corrupt', False)
+                            title_menu.set_has_save(has_save_now)
+                        except Exception:
+                            pass
                         # skip remaining game update work and continue loop
                         continue
                 else:
