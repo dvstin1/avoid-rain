@@ -131,6 +131,42 @@ class Chronicler(GameObject):
                 "text": self.current_dialogue
             }
 
+class Wellspring(GameObject):
+    """Environmental Hub Asset that projects statistics and bestiary."""
+    def __init__(self, position, dimensions, name="The Wellspring"):
+        super().__init__(position, dimensions)
+        self.name = name
+        self.is_interactive = True
+        self.is_solid = True
+
+    def execute_interaction(self, game_state):
+        """Open the Statistics menu via dialogue box."""
+        if not game_state.stats:
+            # Fallback if no stats available
+            game_state.active_dialogue = {
+                "speaker": self.name,
+                "text": "The water is still. No memories are reflected here yet."
+            }
+            return
+
+        stats = game_state.stats.data.get("lifetime_stats", {})
+        bestiary = game_state.stats.data.get("discovered_bestiary", {})
+
+        # Build multiline text
+        text = "Timeline Reflection:\n"
+        text += f"Chapters Cleared: {stats.get('wins_chapters_cleared', 0)}\n"
+        text += f"Bleed Wipes: {stats.get('losses_bleed_wipes', 0)}\n"
+        text += f"Standard Respawns: {stats.get('deaths_standard_respawns', 0)}\n"
+        text += f"Torn Pages: {stats.get('pages_collected', 0)}\n"
+        
+        discovered_count = sum(1 for v in bestiary.values() if v)
+        text += f"Syntax Blocks: {discovered_count}"
+
+        game_state.active_dialogue = {
+            "speaker": self.name,
+            "text": text
+        }
+
 class LevelLoader:
     """
     Dedicated parser for 2D text matrix strings.
@@ -204,6 +240,11 @@ class LevelLoader:
                     # The Chronicler NPC
                     chronicler = Chronicler(pos, dim)
                     interactables.append(chronicler)
+                
+                elif char == 'F':
+                    # The Wellspring (Fountain)
+                    wellspring = Wellspring(pos, dim)
+                    interactables.append(wellspring)
                 
                 elif char == 'B':
                     # Placeholder Prop / Barrel

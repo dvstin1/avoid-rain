@@ -107,19 +107,21 @@ class Renderer:
         speaker_surf = self.font.render(speaker, True, COLOR_YELLOW)
         self.screen.blit(speaker_surf, (x + 20, y + 10))
         
-        # Draw text (wrapped)
-        words = text.split(' ')
+        # Draw text (wrapped, respecting newlines)
+        raw_lines = text.split('\n')
         lines = []
-        current_line = []
-        for word in words:
-            test_line = ' '.join(current_line + [word])
-            w, _ = self.font.size(test_line)
-            if w < width - 40:
-                current_line.append(word)
-            else:
-                lines.append(' '.join(current_line))
-                current_line = [word]
-        lines.append(' '.join(current_line))
+        for raw_line in raw_lines:
+            words = raw_line.split(' ')
+            current_line = []
+            for word in words:
+                test_line = ' '.join(current_line + [word])
+                w, _ = self.font.size(test_line)
+                if w < width - 40:
+                    current_line.append(word)
+                else:
+                    lines.append(' '.join(current_line))
+                    current_line = [word]
+            lines.append(' '.join(current_line))
         
         for i, line in enumerate(lines):
             line_surf = self.font.render(line, True, COLOR_WHITE)
