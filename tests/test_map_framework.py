@@ -12,7 +12,7 @@ def test_level_loader_player_start():
         ".P.",
         "..."
     ]
-    grid, interactables, warp_tiles, p_start = LevelLoader.parse_map(prototype)
+    grid, interactables, warp_tiles, p_start, enemies = LevelLoader.parse_map(prototype)
     
     # x=1, y=1 -> (TILE_SIZE, TILE_SIZE)
     from constants import TILE_SIZE

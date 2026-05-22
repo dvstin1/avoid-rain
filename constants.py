@@ -109,6 +109,10 @@ TILE_KEY = {
     'R': TILE_RESPITE,
     'T': TILE_OBSTACLE,
     'B': TILE_PROP,
+    'S': TILE_OBSTACLE, # Seat/Bench
+    'K': TILE_OBSTACLE, # Rock
+    'Z': 101, # SlugEnemy Spawn
+    'A': 102, # BatEnemy Spawn
     'P': 100, # Special marker for player start
     'M': TILE_LOTUS_FRAME,
     'X': TILE_WALL, # X also acts as a wall boundary

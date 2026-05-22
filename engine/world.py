@@ -197,10 +197,11 @@ class LevelLoader:
     @staticmethod
     def parse_map(prototype_array, entity_data=None):
         """
-        Parses a string array and returns (grid, interactables, warp_tiles, player_start).
+        Parses a string array and returns (grid, interactables, warp_tiles, player_start, enemies).
         """
         grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         interactables = []
+        enemies = []
         warp_tiles = {}
         player_start = (PLAYER_START_X, PLAYER_START_Y)
         entity_data = entity_data or {}
@@ -299,11 +300,21 @@ class LevelLoader:
                     rock.name = "Rock"
                     interactables.append(rock)
                 
+                elif char == 'Z':
+                    # SlugEnemy Spawn
+                    from engine.enemy import SlugEnemy
+                    enemies.append(SlugEnemy(pos[0], pos[1]))
+                
+                elif char == 'A':
+                    # BatEnemy Spawn
+                    from engine.enemy import BatEnemy
+                    enemies.append(BatEnemy(pos[0], pos[1]))
+                
                 elif char == 'P':
                     # Player Start hook
                     player_start = (pos[0], pos[1])
 
-        return grid, interactables, warp_tiles, player_start
+        return grid, interactables, warp_tiles, player_start, enemies
 
 class World:
     """Manages the tile-based world map.
@@ -315,6 +326,7 @@ class World:
         self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.warp_tiles = {}  # Legacy mapping (x,y) -> (target_name, spawn_x_px, spawn_y_px)
         self.interactables = []
+        self.enemies = []
         self.player_start = (PLAYER_START_X, PLAYER_START_Y)
 
     def _init_sanctuary_walls(self):
@@ -362,7 +374,7 @@ class World:
         """
         Populates the world from a string array using LevelLoader.
         """
-        self.grid, self.interactables, self.warp_tiles, self.player_start = \
+        self.grid, self.interactables, self.warp_tiles, self.player_start, self.enemies = \
             LevelLoader.parse_map(prototype_array, entity_data)
 
     def get_nearby_walls(self, player_rect):
