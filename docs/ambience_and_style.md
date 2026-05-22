@@ -41,6 +41,20 @@ These props are used to populate the world and reinforce the narrative theme of 
 - **Physics:** Solid (Impassable).
 - **Description:** A heavy iron stand holding a single, defiant candle.
 
+## The Devouring Storm Visuals
+The weather system is a core part of the "Scriptorium Noir" aesthetic, transitioning from subtle background detail to an overwhelming environmental threat.
+
+### Act I: The Ambient Weep
+- **Atmosphere:** Rhythmic, sparse background particle drops.
+- **Color:** Translucent grey or soft cyan.
+- **Vibe:** Melancholic and atmospheric, but non-threatening.
+
+### Act II: The Corrosive Ink-Collapse
+- **Atmosphere:** A dense, high-velocity storm that feels "heavy" and viscous.
+- **Color:** Deep ink-black or high-contrast cyan/lime (to indicate hazard).
+- **Vibe:** Oppressive and urgent. The "ink-storm" represents the world literalizing its own corruption.
+- **The Shrinking Circle:** The safe zone should be clearly demarcated by a visible boundary (e.g., a glowing amber or cyan ring) that contrasts against the encroaching ink.
+
 ## Lighting and Effects
 - **Background Clear Color:**
   - **ZONE_SANCTUARY:** Warm, low-contrast dark sepia/amber.

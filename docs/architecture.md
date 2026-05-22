@@ -85,36 +85,46 @@ avoid_rain/
 - `engine/` files must never import `pygame`.
 - `rendering/` files can import `engine/` to read state, but not vice versa.
 
-## 4. Climate Engine: Rain Lifecycle & State Machine
+## 4. Climate Engine: The Devouring Storm Lifecycle
 
-The climate engine must operate on a strict 4-stage state machine synchronized with the day/night timer:
+The climate engine dictates the pace of gameplay, splitting a standard run into two distinct strategic acts synchronized with a 4-stage state machine.
 
-1. **State: Clear_Day**
-   - Rain particle generator: `OFF`.
-   - Environmental damage hazard: `OFF`.
-   - Respites: `ACTIVE`.
+### Act I: The Exploration Window (0:00 to 10:00)
 
-2. **State: The_Bleed (Night Cycle Peak)**
-   - Rain particle generator: `ON` (High density, sharp diagonal vectors, custom cyan/lime palette tint).
-   - Constriction: Map boundary collapses inward via a radial clamping vector toward a designated Boss Arena circle.
-   - Environmental damage hazard: `ON` (Applies a continuous tick damage modifier to the player if standing outside a Respite boundary before deactivation).
-   - Respites: `DEACTIVATED`.
+1. **State: Clear_Day (The Calm Before)**
+   - **Duration:** 10 minutes.
+   - **Visuals:** Ambient, rhythmic background particle drops.
+   - **Hazard:** `OFF`.
+   - **Navigation:** Standard movement; player explores the modular chambers.
+   - **Respites:** `ACTIVE`.
+
+### Act II: The Closing Collapse (10:00 Onward)
+
+2. **State: The_Bleed (The Corrosive Ink-Storm)**
+   - **Transition:** At the 10-minute mark, the weather shifts to a massive, corrosive ink-storm.
+   - **Visual density:** High density, sharp diagonal vectors, custom cyan/lime or ink-black palette tint.
+   - **The Closing Shrink:** The safe zone (active radius) shrinks continuously toward a randomized central map coordinate over a **3 to 5-minute window**.
+   - **The Hazard Boundary:** Any player coordinates outside the active radius take progressive damage: `take_damage(2)` per second.
+   - **Respites:** `DEACTIVATED`.
+   - **The Climax:** Once the circle reaches its minimum threshold diameter, the Final Boss is instantly instantiated at the center point.
+
+### Resolution & Reset
 
 3. **State: The_Dilution (Immediate Post-Boss Victory)**
-   - Rain particle generator: `ON` (Maintains current particle count but transitions velocity to a gentle, vertical descent. Change palette tint to low-opacity translucent white/gray).
+   - Rain particle generator: `ON` (Transitions velocity to a gentle, vertical descent. Palette tint shifts to low-opacity translucent white/gray).
    - Constriction: Radial boundary restriction instantly dissolves; full map navigation restores.
-   - Environmental damage hazard: `OFF` (Rain drops no longer decrement player health).
-   - Respites: Enter a 10-second `Rebooting` state (Glyph flashes slowly, rain animation overlays disappear).
+   - Environmental damage hazard: `OFF`.
+   - Respites: Enter a 10-second `Rebooting` state.
 
 4. **State: Clear_Night_Extended (The Breather)**
-   - Rain particle generator: `OFF` (Particles fade out smoothly via alpha-channel reduction over 3 seconds).
+   - Rain particle generator: `OFF` (Particles fade out smoothly over 3 seconds).
    - Environmental damage hazard: `OFF`.
-   - Respites: `ACTIVE` (Fully operational for leveling and healing before the countdown to Night 2 begins).
+   - Respites: `ACTIVE` (Fully operational before the next run cycle/chapter).
 
 ### Survival Mechanics & Rules
-- **Omnipresence:** The rain ignores all physical boundaries. It penetrates roofs, caves, and all indoor structures.
-- **Safe Zone:** A circular region that shrinks over time.
-- **Optimized Damage:** Hazard calculations use tile-grid coordinates or distance-based circle math, scaled by `dt`.
+- **Omnipresence:** The rain ignores all physical boundaries (roofs, caves, etc.).
+- **Safe Zone:** A circular region that shrinks continuously during Act II.
+- **Optimized Damage:** Hazard calculations use distance-based circle math against player coordinates, scaled by `dt`.
 - **Separation of Concerns:** Rain particles are purely visual; storm hazard is a separate logical calculation.
 
 ### Zone Override Rules
@@ -174,17 +184,23 @@ To prevent input conflicts, the engine routes actions through a **Contextual Int
 1. **Trigger Boundary:** Interactables have a bounding box larger than their collision rect.
 2. **Input Suppression:** If `player.current_interactable` is set, `ATTACK` key executes interaction; otherwise, it executes combat.
 
-## 9. Map Design & Topography
+## 9. Map Design & Topography: The Macro-Grid Topology
+
+To facilitate a sustained 10-minute exploration experience before the environmental shift triggers, maps utilize a **Modular Component Matrix** instead of standalone rooms.
+
+### The Modular Component Matrix
+Map generation mirrors a **Lotus Seed Pod**:
+- **The Global Map Dimensions:** A massive macro-layout (minimum $120 \times 120$ tiles).
+- **The Core Framework (Tissue):** The immutable, solid frame of the structure (safe walkways/navigation pathways, marked as `M` or `#`).
+- **The Volatile Modular Holes (Cells):** Distinct $20 \times 20$ tile open "cavities" embedded into the frame (marked as `.` for combat/exploration).
+- **The Void (`X`):** Impassable outer boundary.
+
+### Phase 1 Testing Constraint
+To ensure stability during initial prototyping, the engine initializes the world by generating a macro-map where **all modular holes are populated with exact copies of the established `chapter1` exhibition grid layout**. This allows for testing combat, prop destruction, and hazard navigation multiple times across different sectors of the same massive run.
 
 ### Grid-Cell Mapping
 Levels are decoded from a 2D Matrix String Grid:
 - `#` : Wall, `.` : Floor, `W` : Warp, `R` : Respite, `T` : Tree, `B` : Barrel.
-
-### The Lotus Page Protocol
-Map generation mirrors a **Lotus Seed Pod**:
-- **The Solid Frame (Tissue):** Safe navigation pathways (`M`).
-- **The Chambers (Cells):** Modular combat/exploration holes (`.`).
-- **The Void (`X`):** Impassable outer boundary.
 
 ## 10. Dialogue System Architecture: The Blackboard Protocol
 Dialogue engine is decoupled from active state via a **Blackboard State & Query Model**.

@@ -118,7 +118,19 @@
 - Realigned the Chronicle warp trigger to point directly to the `chapter1` production layout.
 - Expanded the arena with clusters of breakable barrels and enemy spawn points.
 
-## [2026-05-22] - Ambience Expansion & Scriptorium Noir Integration
+## [2026-05-22] - World Scaling, Weather Systems, & Documentation Consolidation
+### Documentation Integration: World Scaling & Devouring Storm
+- **Macro-Grid Topology:** Integrated the $120 \times 120$ Modular Component Matrix architecture into `docs/architecture.md` and `docs/world_expansion.md`.
+- **The Devouring Storm:** Documented the two-act weather lifecycle (Act I: Exploration, Act II: The Closing Collapse) with a 10-minute transition window and `take_damage(2)` hazard rules.
+- **Lore Alignment:** Updated `docs/world_lore.md` to reflect the "Lotus Manuscript" as the narrative counterpart to the macro-grid topology.
+- **Visual Standards:** Defined the "Ambient Weep" and "Corrosive Ink-Collapse" aesthetics in `docs/ambience_and_style.md`.
+
+### Combat Polish - Stagger & Visual Feedback (Archived from AGENTS.md)
+- **Stagger Mechanic:** Entities enter a brief `STAGGERED` state when hit, preventing action.
+- **Visual Polish:** Added screen shake on heavy hits and a brief white flash (outline) for entities taking damage.
+- **Hit-Stop:** Pause the engine for 50ms during a successful hit to provide "weight" to combat.
+- **Tests:** Verified with `tests/test_combat_polish.py`.
+
 ### Ambience Core Integration & Prop Expansion
 - **Scriptorium Noir Aesthetic:** Injected a dark, atmospheric library theme into the game world.
 - **New Atmospheric Props:**
@@ -132,3 +144,14 @@
 - **Spilled Inkwell Puddle (`v`):** Implemented a movement hazard that reduces player speed by 50% when inside.
 - **Iron Candelabra (`l`):** Added a light-emitting prop with a flickering amber glow effect using a semi-transparent circular primitive.
 - **Refactoring:** Cleaned up project-wide trailing whitespace and refactored long lines to meet new quality standards (Pylint 8.8+).
+
+### Project Rules & Infrastructure (Archived from AGENTS.md)
+- **Phase 1 Goal:** Core Gameplay Loop (Combat, Physics, and Map Generation).
+- **Architectural Mandates:** 
+    - No magic numbers (use constants).
+    - Mandatory `dt` scaling for frame-rate independence.
+    - Strict decoupling of game logic from rendering.
+    - 120-character line length limit.
+    - Pylint score requirement: 8.0+.
+- **Testing:** Mandatory `pytest` coverage for all engine logic.
+

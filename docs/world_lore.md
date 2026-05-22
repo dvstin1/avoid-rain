@@ -38,13 +38,16 @@ Scattered across the map are "Respite" spots—ancient, consistent structures th
 3. **Mini-Boss:** High HP/Defense, specialized mechanics, optional.
 4. **Boss:** Maximum stats, lethal patterns, mandatory for progression.
 
-## The Cycle of Rain
-- **Day 1:** Lethal rain shrinks the world. Ends with a mandatory Boss fight in the center circle.
-- **Day 2:** Rain returns, shrinking toward a new center. Ends with a second mandatory Boss fight.
-- **The End:** Defeating the Day 2 Boss opens the portal to the Final Boss domain.
+## The Devouring Storm Cycle
+The climate of the world actively dictates the pace of gameplay, splitting a standard run into two distinct strategic acts:
+
+- **Act I: The Exploration Window (0:00 to 10:00):** The player spawns onto the solid framework and explores the modular chambers. The weather is visually represented as ambient, rhythmic background particle drops.
+- **Act II: The Closing Collapse (10:00 Onward):** At the 10-minute mark, the weather shifts into a massive, corrosive ink-storm. The safe zone begins closing inward toward a randomized central map coordinate over a **3 to 5-minute window**. 
+- **The Hazard Boundary:** Any player outside the active radius takes progressive, rapid damage over time (`take_damage(2)` per second).
+- **The Climax:** Once the circle reaches its minimum threshold, the Final Boss is instantiated at the center point, triggering the ultimate survival event.
 
 ## The Narrative
-The player is a wanderer in a world that is literally dissolving. The "Rain" isn't just water; it's a supernatural force of erasure. Because it is a fundamental breakdown of reality, it ignores all physical boundaries—roofs, caves, and thick walls offer no protection once the rain arrives. To stop the cycle, the source—the Final Boss—must be defeated in their own domain.
+The player is a wanderer in a world that is literally dissolving. The "Rain" isn't just water; it's a supernatural force of erasure—a manifestation of corrupted ink originating from "The Author." Because it is a fundamental breakdown of reality, it ignores all physical boundaries—roofs, caves, and thick walls offer no protection once the rain arrives. To stop the cycle, the source must be defeated in their own domain.
 
 ## Project World Lore & Narrative Schemas
 - **The Setting:** The Scriptorium (Hub) acts as the anchor point. A safe sandbox zone.
@@ -96,8 +99,8 @@ The player is a wanderer in a world that is literally dissolving. The "Rain" isn
 - **The Act:** Forcing a quit-out via the pause menu is narratively defined as the Reader "Slamming the Libram Shut" mid-sentence.
 - **The Consequence:** Because the Reader violently severs their connection to the page before a natural resolution (Victory or Censor Defeat), the active draft collapses chaotically. The character entity is violently pulled back into the Scriptorium. This systemic shock leaves a scar on the timeline, which is permanently logged by the Wellspring fountain as a "Forced Quit-Out."
 
-## The Lore: The Lotus Manuscript
+## The Lore: The Lotus Manuscript (Macro-Grid Topology)
 
-- The Lore: Within the pages of the Libram, reality doesn't follow geography; it follows typography. The master map structure is called the Lotus Page.
+- **The Topology:** Within the pages of the Libram, reality follows typography. The master map structure—the **Modular Component Matrix**—is known as the Lotus Page.
 
-- The Framework vs. The Draft: The solid frame of the lotus plant represents the immutable, preserved margins of the world. The hollow cells are literal blank windows in the text where localized, unstable stories are drafted. When you warp into a run, your consciousness lands safely on the firm, unyielding frame of the manuscript. You then choose which open chamber to step down into, braving the randomized, shifting combat zones below.
+- **The Framework vs. The Draft:** The solid frame (the "Tissue") represents the immutable, preserved margins of the world. The **Modular Holes** (the "Cells") are literal blank windows in the text where localized, unstable stories are drafted. When you warp into a run, your consciousness lands safely on the firm, unyielding frame of the manuscript. You then choose which open chamber to step down into, braving the randomized, shifting combat zones below.
