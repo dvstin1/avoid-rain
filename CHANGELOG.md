@@ -160,3 +160,9 @@
 - **Map Specification:** Authored `docs/map_format_specification.md` defining the standard JSON schema for level interchange.
 - **Native Editor Tool:** Built `tools/edit_map.py`, a standalone Pygame utility for click-and-drag map creation, canvas resizing, and live JSON export.
 
+## [ARCHIVED] Pygame Editor Interface Polish - May 2026
+- **Sidebar Palette:** Implemented a clickable sidebar for tile selection, featuring visual previews and labels.
+- **In-Window IO:** Replaced terminal prompts with an interactive in-window text banner for saving (`Ctrl+S`) and loading (`Ctrl+O`).
+- **Dimensional Controls:** Added support for bidirectional canvas resizing, using standard `+/-` for horizontal and `Ctrl +/-` for vertical adjustments.
+- **Code Refactor:** Optimized `tools/edit_map.py` structure into focused helper methods to maintain a high Pylint score (9.6+).
+

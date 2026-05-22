@@ -1,19 +1,29 @@
 {
   "map_id": "sanctuary",
-  "dimensions": { "width": 32, "height": 13 },
+  "dimensions": {
+    "width": 32,
+    "height": 13
+  },
   "legend": {
     "#": "WALL",
     ".": "EMPTY",
-    "h": "HEAVY_BOOKCASE",
+    "B": "BARREL",
+    "S": "BENCH",
     "l": "CANDELABRA",
-    "d": "INK_URN",
-    "R": "RESPITE",
-    "L": "LORE_FRAGMENT",
-    "C": "THE_CHRONICLER",
-    "P": "PLAYER_START",
-    "F": "THE_WELLSPRING",
     "v": "INK_PUDDLE",
-    "W": "WARP_PORTAL"
+    "d": "INK_URN",
+    "h": "BOOKCASE",
+    "T": "STRUCTURE",
+    "K": "ROCK",
+    "W": "WARP",
+    "P": "PLAYER_START",
+    "C": "CHRONICLER",
+    "F": "WELLSPRING",
+    "L": "LORE",
+    "R": "RESPITE",
+    "A": "BAT_SPAWN",
+    "Z": "SLUG_SPAWN",
+    "E": "MINIBOSS_SPAWN"
   },
   "grid": [
     "################################",
@@ -25,7 +35,7 @@
     "#.........#..........#.........#",
     "#.........#L.C.P..F..#.........#",
     "#.........#d...v...d.#.........#",
-    "#.........#####W######.........#",
+    "#.........#####W.#####.........#",
     "#..............................#",
     "#..............................#",
     "################################"
