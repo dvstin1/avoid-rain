@@ -26,6 +26,9 @@ class WarpInteractable:
                 game_state.camera.instant_center(game_state.player.get_center())
             # Update enemies list from the new world
             game_state.enemies = getattr(game_state.world, 'enemies', []) if hasattr(game_state.world, 'enemies') else []
+            # Persist state immediately after warp to avoid progress loss
+            if hasattr(game_state, 'save_stats'):
+                game_state.save_stats()
         except Exception:
             # If transition fails, ignore to maintain robustness
             pass

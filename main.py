@@ -136,9 +136,9 @@ def main():
     autosave = AutosaveManager(AUTOSAVE_INTERVAL)
     # PauseMenu will auto-save on open via a lightweight callback
     pause_menu = PauseMenu(on_open=lambda: state.save_stats())
-    # Title menu should reflect whether a valid save exists
-    has_save = getattr(state, 'stats', None) is not None and not getattr(state, 'stats_corrupt', False)
-    title_menu = TitleMenu(has_save=has_save)
+    # Title menu should reflect whether a resume-able save exists
+    has_run = getattr(state, 'stats', None) is not None and state.stats.data.get("run_state") is not None
+    title_menu = TitleMenu(has_save=has_run)
 
     in_title = True
     running = True
@@ -155,7 +155,7 @@ def main():
                     title_menu.clear_confirm()
 
                     if selected == 'Continue':
-                        # Start the game normally
+                        # Start the game normally using the state already loaded from run_state
                         renderer.fade_to_black()
                         in_title = False
                         # ensure camera centers on player immediately
@@ -164,13 +164,12 @@ def main():
                         continue
 
                     if selected == 'New Game':
-                        # If valid save data exists, ask for confirmation because this
-                        # will replace/erase previous save data. If no save exists,
-                        # just start a new game.
-                        has_save = getattr(state, 'stats', None) is not None
-                        if has_save:
+                        # If a persistent run exists, ask for confirmation because this
+                        # will replace/erase previous progress.
+                        has_run = getattr(state, 'stats', None) is not None and state.stats.data.get("run_state") is not None
+                        if has_run:
                             # Show confirmation screen and require Y/N
-                            renderer.draw_loading_screen('Confirm New Game', 'This will permanently remove old save data. Press Y to confirm, N to cancel', min_time=2.0)
+                            renderer.draw_loading_screen('Confirm New Game', 'This will permanently remove old progress. Press Y to confirm, N to cancel', min_time=2.0)
                             waiting = True
                             choice = None
                             while waiting:
@@ -187,48 +186,27 @@ def main():
                                             waiting = False
                                 pygame.time.delay(10)
                             if choice == 'y':
-                                # Replace with fresh stats and persist immediately
+                                # Reset GameState to defaults and clear run_state
                                 try:
-                                    from engine.stats import DEFAULT_PATH, StatisticsTracker
-                                    # Remove existing save file if present
-                                    try:
-                                        import os
-                                        if DEFAULT_PATH.exists():
-                                            DEFAULT_PATH.unlink()
-                                    except Exception:
-                                        pass
-                                    state.stats = StatisticsTracker()
-                                    try:
-                                        state.stats.increment('runs_started', 1)
-                                    except Exception:
-                                        pass
+                                    state.reset_to_new_game()
                                     state.save_stats()
                                 except Exception:
                                     pass
                                 renderer.fade_to_black()
                                 in_title = False
-                                if hasattr(state, 'camera'):
-                                    state.camera.instant_center(state.player.get_center())
                                 continue
                             else:
                                 # Cancel new game; remain on title
                                 pass
                         else:
-                            # No save exists: start immediately
+                            # No run exists: start fresh immediately
                             try:
-                                from engine.stats import StatisticsTracker
-                                state.stats = StatisticsTracker()
-                                try:
-                                    state.stats.increment('runs_started', 1)
-                                except Exception:
-                                    pass
+                                state.reset_to_new_game()
                                 state.save_stats()
                             except Exception:
                                 pass
                             renderer.fade_to_black()
                             in_title = False
-                            if hasattr(state, 'camera'):
-                                state.camera.instant_center(state.player.get_center())
                             continue
 
                     if selected == 'Quit':
@@ -251,10 +229,10 @@ def main():
                         pause_menu.clear_quit()
                         pause_menu.close()
                         in_title = True
-                        # Update title menu to reflect whether a save now exists
+                        # Update title menu to reflect whether a resume-able run now exists
                         try:
-                            has_save_now = getattr(state, 'stats', None) is not None and not getattr(state, 'stats_corrupt', False)
-                            title_menu.set_has_save(has_save_now)
+                            has_run_now = getattr(state, 'stats', None) is not None and state.stats.data.get("run_state") is not None
+                            title_menu.set_has_save(has_run_now)
                         except Exception:
                             pass
                         # skip remaining game update work and continue loop

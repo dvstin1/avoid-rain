@@ -61,15 +61,17 @@ class GameState:
                 self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
                 
                 # Restore Enemies
-                e_data_list = run_data.get("enemies", [])
-                if e_data_list:
+                # We check "enemies" in run_data; if it is a list (even empty), we use it.
+                # If it is missing (None/not present), only then do we fallback to defaults.
+                if "enemies" in run_data:
                     from engine.enemy import SlugEnemy
                     self.enemies = []
+                    e_data_list = run_data["enemies"]
                     for e_data in e_data_list:
                         if e_data.get("type") == "SlugEnemy":
                             self.enemies.append(SlugEnemy.from_dict(e_data))
                 else:
-                    # Fallback to world defaults if no enemy data saved
+                    # Fallback to world defaults only if enemy data was never saved
                     self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
             except Exception:
                 # Keep robust: if restoration fails, defaults are already set
@@ -113,6 +115,29 @@ class GameState:
         self.saving_in_progress = False
         self._save_worker_thread = threading.Thread(target=self._save_worker, daemon=True)
         self._save_worker_thread.start()
+
+    def reset_to_new_game(self):
+        """Reset player and world to start-of-game defaults, and clear run_state."""
+        from engine.world import World
+        from constants import PLAYER_START_X, PLAYER_START_Y, PLAYER_MAX_HP, FLASK_MAX_CHARGES
+        
+        self.world = World()
+        self.player.x = float(PLAYER_START_X)
+        self.player.y = float(PLAYER_START_Y)
+        self.player.hp = float(PLAYER_MAX_HP)
+        self.player.flask_charges = int(FLASK_MAX_CHARGES)
+        self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
+        
+        if self.stats:
+            self.stats.data["run_state"] = None
+            try:
+                self.stats.increment("runs_started", 1)
+            except Exception:
+                pass
+
+        # Recenter camera
+        if hasattr(self, 'camera'):
+            self.camera.instant_center(self.player.get_center())
 
     def save_stats(self, path: Optional[str] = None) -> None:
         """Persist the attached StatisticsTracker to disk in a background thread.
