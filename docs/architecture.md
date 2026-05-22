@@ -188,3 +188,32 @@ class GameObject(pygame.sprite.Sprite):
         self.is_interactive = False   # Listens to player input triggers
         self.is_kinematic = False     # Modifies passenger velocity vectors (platforms)
 ```
+
+## Map Design & AI Generation Schema (Grid-Cell Mapping)
+
+To facilitate rapid prototyping and enable frictionless level layout generation via LLM text sheets, the map engine must decode levels using a flat **Two-Dimensional Matrix String Grid**.
+
+### 1. The Core Tile Key
+The layout parser translates single-character symbols into spatial entities during scene construction. During early prototyping, all entities are mapped directly to asset primitives:
+
+- `#` : **Immovable Wall / Boundary** (Solid primitive box, blocks kinematics)
+- `.` : **Floor Space** (Empty walkable tile, no collision)
+- `W` : **Warp Portal Entity** (Triggers Interaction Filter)
+- `R` : **Respite Structure** (Triggers Interaction Filter)
+- `T` : **Static Obstacle / Tree / Structure** (Solid primitive circle, blocks kinematics)
+- `B` : **Placeholder Prop / Barrel / Chair** (Solid primitive box, designated for eventual breakable data traits)
+
+### 2. The Room Matrix Schema
+Levels are stored in a centralized data dictionary as simple arrays of strings. This structural format allows external generation without coupling layout design to python object definitions:
+
+```python
+ROOM_PROTOTYPES = {
+    "chapter1_start": [
+        "##########",
+        "#........#",
+        "#.B....R.#",
+        "#....T...#",
+        "#........#",
+        "##########"
+    ]
+}

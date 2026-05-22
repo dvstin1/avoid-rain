@@ -105,19 +105,31 @@ class Renderer:
         end_y = min(GRID_HEIGHT, (offset_y + screen_h) // TILE_SIZE + 1)
 
         # 1. Draw World Grid (only visible tiles)
+        from constants import TILE_RESPITE, TILE_OBSTACLE, TILE_PROP
         for y in range(start_y, end_y):
             for x in range(start_x, end_x):
                 draw_rect = (x * TILE_SIZE - offset_x, y * TILE_SIZE - offset_y, TILE_SIZE, TILE_SIZE)
-                if state.world.grid[y][x] == TILE_WALL:
+                tile = state.world.grid[y][x]
+                if tile == TILE_WALL:
                     pygame.draw.rect(self.screen, COLOR_WALL, draw_rect)
+                elif tile == TILE_OBSTACLE:
+                    pygame.draw.rect(self.screen, (80, 70, 60), draw_rect) # Brownish
+                elif tile == TILE_PROP:
+                    pygame.draw.rect(self.screen, (100, 80, 40), draw_rect) # Wood color
+                elif tile == TILE_RESPITE:
+                    pygame.draw.rect(self.screen, (50, 100, 50), draw_rect) # Greenish base
                 else:
                     pygame.draw.rect(self.screen, COLOR_FLOOR, draw_rect, 1)
 
-        # 1b. Draw Warp Points (The Chronicle)
-        for interactable in getattr(state.world, 'interactables', []):
-            # Check if it's a warp-type interactable (WarpInteractable)
-            if hasattr(interactable, 'target_name'):
-                self.draw_warp(interactable, offset_x, offset_y)
+        # 1b. Draw Interactables & GameObjects
+        for obj in getattr(state.world, 'interactables', []):
+            # Check if it's a warp-type interactable (WarpPortal)
+            if hasattr(obj, 'target_name'):
+                self.draw_warp(obj, offset_x, offset_y)
+            elif obj.name == "Respite":
+                # Draw Respite sigil
+                ox, oy, ow, oh = obj.rect
+                pygame.draw.circle(self.screen, COLOR_CYAN, (int(ox + ow/2 - offset_x), int(oy + oh/2 - offset_y)), 10, 2)
 
         # 1c. Draw Loot (Torn Pages)
         for item in getattr(state, 'loot', []):

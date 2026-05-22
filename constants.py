@@ -89,6 +89,18 @@ MINIMAP_VIEWPORT_FRAC = 1.2
 TILE_EMPTY = 0
 TILE_WALL = 1
 TILE_WARP = 2  # Special tile that warps the player to another map
+TILE_RESPITE = 3
+TILE_OBSTACLE = 4
+TILE_PROP = 5
+
+TILE_KEY = {
+    '#': TILE_WALL,
+    '.': TILE_EMPTY,
+    'W': TILE_WARP,
+    'R': TILE_RESPITE,
+    'T': TILE_OBSTACLE,
+    'B': TILE_PROP,
+}
 
 # Colors for Tiles
 COLOR_WALL = (60, 60, 60)
