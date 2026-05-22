@@ -41,7 +41,7 @@ class Player:
         self.hp = PLAYER_MAX_HP
         self.flask_charges = FLASK_MAX_CHARGES
 
-    def update(self, dt, move_dir, walls, attack_pressed=False, flask_pressed=False):
+    def update(self, dt, move_dir, walls, attack_pressed=False, flask_pressed=False, speed_multiplier=1.0):
         """
         Update player position and state.
         """
@@ -73,8 +73,9 @@ class Player:
         # 3. Normalize movement
         magnitude = math.sqrt(dx*dx + dy*dy)
         if magnitude > 0:
-            self.vx = (dx / magnitude) * self.speed
-            self.vy = (dy / magnitude) * self.speed
+            current_speed = self.speed * speed_multiplier
+            self.vx = (dx / magnitude) * current_speed
+            self.vy = (dy / magnitude) * current_speed
             self.state = PlayerStateEnum.MOVING
         else:
             self.vx = 0.0

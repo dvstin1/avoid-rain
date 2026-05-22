@@ -22,6 +22,8 @@ from constants import (
     COLOR_SEPIA_AMBER,
     COLOR_CHARCOAL,
     COLOR_DEEP_SLATE,
+    COLOR_INK_PUDDLE,
+    COLOR_CANDLE_AMBER,
     TILE_LOTUS_FRAME
 )
 from engine.player import PlayerStateEnum
@@ -297,7 +299,8 @@ class Renderer:
             elif obj.name == "Respite":
                 # Draw Respite sigil
                 ox, oy, ow, oh = obj.rect
-                pygame.draw.circle(self.screen, COLOR_CYAN, (int(ox + ow/2 - offset_x), int(oy + oh/2 - offset_y)), 10, 2)
+                center = (int(ox + ow/2 - offset_x), int(oy + oh/2 - offset_y))
+                pygame.draw.circle(self.screen, COLOR_CYAN, center, 10, 2)
             elif obj.name == "Barrel":
                 ox, oy, ow, oh = obj.rect
                 pygame.draw.rect(self.screen, (100, 80, 40), (ox - offset_x, oy - offset_y, ow, oh))
@@ -331,6 +334,33 @@ class Renderer:
                 # Rim detail
                 rim_rect = (ox + 4 - offset_x, oy + 2 - offset_y, ow - 8, 4)
                 pygame.draw.rect(self.screen, COLOR_BLACK, rim_rect)
+            elif obj.name == "Inkwell Puddle":
+                ox, oy, ow, oh = obj.rect
+                # Draw Puddle (Irregular deep blue shape)
+                # For prototyping, we'll use a slightly smaller rectangle with rounded corners
+                puddle_rect = (ox + 4 - offset_x, oy + 4 - offset_y, ow - 8, oh - 8)
+                pygame.draw.rect(self.screen, COLOR_INK_PUDDLE, puddle_rect)
+                # Optional: Add small highlight to indicate surface
+                pygame.draw.rect(self.screen, (30, 30, 50), (ox + 6 - offset_x, oy + 6 - offset_y, 4, 4))
+            elif obj.name == "Candelabra":
+                ox, oy, ow, oh = obj.rect
+                # Draw Candelabra (Thin iron stand with glow)
+                stand_w = 6
+                stand_rect = (ox + ow//2 - stand_w//2 - offset_x, oy + 10 - offset_y, stand_w, oh - 10)
+                pygame.draw.rect(self.screen, COLOR_DARK_GREY, stand_rect)
+                pygame.draw.rect(self.screen, COLOR_BLACK, stand_rect, 1)
+                # Draw Light Glow (Flickering amber circle)
+                import math
+                import time
+                flicker = (math.sin(time.time() * 10) * 0.1) + 1.0
+                glow_radius = int(30 * flicker)
+                # Draw glow as a semi-transparent surface
+                glow_surf = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (255, 190, 40, 60), (glow_radius, glow_radius), glow_radius)
+                self.screen.blit(glow_surf, (ox + ow//2 - glow_radius - offset_x, oy + 5 - glow_radius - offset_y))
+                # Draw Candle flame (Small bright core)
+                flame_rect = (ox + ow//2 - 2 - offset_x, oy + 4 - offset_y, 4, 6)
+                pygame.draw.rect(self.screen, COLOR_CANDLE_AMBER, flame_rect)
             elif obj.name == "Bench":
                 ox, oy, ow, oh = obj.rect
                 # Draw Bench (Dark brown base with backrest line)
@@ -377,8 +407,10 @@ class Renderer:
                 if isinstance(enemy, BatEnemy):
                     pygame.draw.rect(self.screen, COLOR_PURPLE, ed)
                     # Draw small wings
-                    pygame.draw.line(self.screen, COLOR_PURPLE, (ed.left - 5, ed.centery), (ed.left, ed.centery - 5), 2)
-                    pygame.draw.line(self.screen, COLOR_PURPLE, (ed.right + 5, ed.centery), (ed.right, ed.centery - 5), 2)
+                    left_wing = ((ed.left - 5, ed.centery), (ed.left, ed.centery - 5))
+                    right_wing = ((ed.right + 5, ed.centery), (ed.right, ed.centery - 5))
+                    pygame.draw.line(self.screen, COLOR_PURPLE, left_wing[0], left_wing[1], 2)
+                    pygame.draw.line(self.screen, COLOR_PURPLE, right_wing[0], right_wing[1], 2)
                 else:
                     pygame.draw.rect(self.screen, COLOR_RED, ed)
         except Exception:
@@ -500,8 +532,8 @@ class Renderer:
         draws a small rectangle for wall tiles and a distinct marker for the player.
         """
         from constants import (
-            MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING, TILE_SIZE, GRID_WIDTH,
-            GRID_HEIGHT, MINIMAP_WALL_COLOR, MINIMAP_PLAYER_COLOR,
+            MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING, TILE_SIZE,
+            GRID_WIDTH, GRID_HEIGHT, MINIMAP_WALL_COLOR, MINIMAP_PLAYER_COLOR,
             MINIMAP_ENEMY_COLOR, MINIMAP_LOOT_COLOR
         )
 
@@ -689,7 +721,8 @@ class Renderer:
             # Warning about losing progress
             warning_msg = "This will permanently remove old progress."
             warning_surf = self.font.render(warning_msg, True, COLOR_RED)
-            warning_rect = warning_surf.get_rect(center=(self.screen.get_rect().centerx, self.screen.get_rect().centery + 30))
+            warning_center = (self.screen.get_rect().centerx, self.screen.get_rect().centery + 30)
+            warning_rect = warning_surf.get_rect(center=warning_center)
 
             self.screen.blit(confirm_surf, confirm_rect)
             self.screen.blit(warning_surf, warning_rect)

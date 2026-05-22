@@ -72,7 +72,10 @@ class WarpPortal(GameObject):
             if hasattr(game_state, 'camera'):
                 game_state.camera.instant_center(game_state.player.get_center())
             # Update enemies list from the new world
-            game_state.enemies = getattr(game_state.world, 'enemies', []) if hasattr(game_state.world, 'enemies') else []
+            if hasattr(game_state.world, 'enemies'):
+                game_state.enemies = getattr(game_state.world, 'enemies', [])
+            else:
+                game_state.enemies = []
 
             # [Milestone] Flush state immediately upon returning to sanctuary
             is_to_sanctuary = self.target_name == "sanctuary"
@@ -242,7 +245,10 @@ class LevelLoader:
                     sy = data.get('spawn_y', PLAYER_START_Y)
 
                     warp_tiles[(x, y)] = (target, sx, sy)
-                    interactables.append(WarpPortal(target, sx, sy, (pos[0], pos[1], dim[0], dim[1]), name=data.get('name', "The Chronicle")))
+                    interactables.append(WarpPortal(
+                        target, sx, sy, (pos[0], pos[1], dim[0], dim[1]),
+                        name=data.get('name', "The Chronicle")
+                    ))
 
                 elif char == 'R':
                     # Respite
@@ -301,8 +307,21 @@ class LevelLoader:
                     urn.name = "Ink Urn"
                     interactables.append(urn)
 
-                elif char == 'S':
-                    # Seat / Bench - Vertical 1x2
+                elif char == 'v':
+                    # Spilled Inkwell Puddle - 1x1 Hazard
+                    puddle = GameObject(pos, dim)
+                    puddle.is_solid = False
+                    puddle.name = "Inkwell Puddle"
+                    interactables.append(puddle)
+
+                elif char == 'l':
+                    # Iron Candelabra - 1x1 Light Source
+                    candelabra = GameObject(pos, dim)
+                    candelabra.is_solid = True
+                    candelabra.name = "Candelabra"
+                    interactables.append(candelabra)
+
+                elif char == 'S':                    # Seat / Bench - Vertical 1x2
                     bench_dim = (TILE_SIZE, TILE_SIZE * 2)
                     bench = GameObject(pos, bench_dim)
                     bench.is_solid = True

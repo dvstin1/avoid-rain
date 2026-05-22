@@ -18,7 +18,12 @@ from typing import Optional
 
 class GameState:
     """Master state object for the game engine."""
-    def __init__(self, stats: Optional[StatisticsTracker] = None, stats_path: Optional[str] = None, auto_load: bool = True):
+    def __init__(
+        self,
+        stats: Optional[StatisticsTracker] = None,
+        stats_path: Optional[str] = None,
+        auto_load: bool = True
+    ):
         # 1. Initialize core components with defaults
         from engine.maps import create_world
         self.world = create_world("sanctuary")
@@ -53,14 +58,14 @@ class GameState:
                 from engine.maps import create_world
                 world_name = run_data.get("world_name", "sanctuary")
                 self.world = create_world(world_name)
-                
+
                 # Restore Player
                 p_data = run_data.get("player", {})
                 self.player.x = float(p_data.get("x", PLAYER_START_X))
                 self.player.y = float(p_data.get("y", PLAYER_START_Y))
                 self.player.hp = float(p_data.get("hp", PLAYER_MAX_HP))
                 self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
-                
+
                 # Restore Enemies
                 # We check "enemies" in run_data; if it is a list (even empty), we use it.
                 # If it is missing (None/not present), only then do we fallback to defaults.
@@ -139,34 +144,34 @@ class GameState:
         from engine.stats import StatisticsTracker
         from engine.maps import create_world
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
-        
+
         print("[STATE RECOVERY] Re-hydrating clean player and environment session from disk file.")
-        
+
         # 1. Reload persistent stats from the absolute source of truth
         try:
             self.stats = StatisticsTracker.load()
         except Exception:
             # Fallback to fresh tracker if load fails
             self.stats = StatisticsTracker()
-            
+
         # 2. Check for an active session snapshot (run_state)
         run_data = self.stats.data.get("run_state")
-        
+
         if run_data:
             # Restore specific active session
             world_name = run_data.get("world_name", "sanctuary")
             self.world = create_world(world_name)
-            
+
             p_data = run_data.get("player", {})
             spawn_x = float(p_data.get("x", self.world.player_start[0]))
             spawn_y = float(p_data.get("y", self.world.player_start[1]))
             hp = float(p_data.get("hp", PLAYER_MAX_HP))
             charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
-            
+
             self.player = Player(spawn_x, spawn_y)
             self.player.hp = hp
             self.player.flask_charges = charges
-            
+
             # Restore Enemies
             if "enemies" in run_data:
                 from engine.enemy import SlugEnemy
@@ -183,14 +188,14 @@ class GameState:
             self.player.hp = float(PLAYER_MAX_HP)
             self.player.flask_charges = int(FLASK_MAX_CHARGES)
             self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
-        
+
         # 4. Flush all transient scene variables from runtime memory
         self.loot = []
         self.fading_entities = []
         self.active_dialogue = None
         self.death_timer = 0.0
         self.damage_numbers = []
-        
+
         # 5. Recenter camera on the new player instance
         if hasattr(self, 'camera'):
             self.camera.instant_center(self.player.get_center())
@@ -199,16 +204,16 @@ class GameState:
         """Reset player and world to start-of-game defaults, and clear run_state."""
         from engine.maps import create_world
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
-        
+
         self.world = create_world("sanctuary")
-        
+
         # Instantiate a fresh player at Sanctuary spawn 'P'
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
         self.player.hp = float(PLAYER_MAX_HP)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
-        
+
         self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
-        
+
         if self.stats:
             self.stats.data["run_state"] = None
             try:
@@ -228,7 +233,7 @@ class GameState:
 
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
         """Persist the attached StatisticsTracker to disk.
-        
+
         By default, this enqueues the save for a background thread. If wait=True
         is passed, the save is performed synchronously on the main thread.
         """
@@ -370,10 +375,10 @@ class GameState:
                 level_scale = 1 + (pages // 100)
             except Exception:
                 pass
-        
+
         base_x = 5 * level_scale
         minor_y = int(base_x * 0.25)
-        
+
         self.active_choice = {
             "title": "The Choice of Fates",
             "options": [
@@ -419,7 +424,7 @@ class GameState:
                 self.active_choice["selected_index"] = 1
             elif move_dir[0] < 0:
                 self.active_choice["selected_index"] = 0
-            
+
             if attack_pressed:
                 # Apply selection
                 choice = self.active_choice["options"][self.active_choice["selected_index"]]
@@ -443,7 +448,16 @@ class GameState:
 
         # 2. Update Player
         walls = self.world.get_nearby_walls(player_rect)
-        self.player.update(dt, move_dir, walls, attack_pressed, flask_pressed)
+
+        # Calculate speed multiplier from hazards
+        speed_multiplier = 1.0
+        for obj in self.world.interactables:
+            if obj.name == "Inkwell Puddle":
+                if check_aabb_collision(player_rect, obj.rect):
+                    speed_multiplier = 0.5 # 50% slow
+                    break
+
+        self.player.update(dt, move_dir, walls, attack_pressed, flask_pressed, speed_multiplier)
 
         # Update camera smoothing now that player moved
         self.camera.update(self.player.get_center(), dt)
@@ -546,11 +560,11 @@ class GameState:
         """Reset player to sanctuary after 'Text Bleaching' completes."""
         from engine.maps import create_world
         from constants import FLASK_MAX_CHARGES
-        
+
         # Set persistent result for dialogue branching
         if self.stats:
             self.stats.data["last_run_result"] = "DEFEAT"
-        
+
         self.world = create_world("sanctuary")
         self.player.x = float(self.world.player_start[0])
         self.player.y = float(self.world.player_start[1])
@@ -566,7 +580,7 @@ class GameState:
         # Clear transient world state
         self.enemies = []
         self.loot = []
-        
+
         # [Milestone] Flush state immediately upon returning to sanctuary
         self.save_stats(wait=True)
 

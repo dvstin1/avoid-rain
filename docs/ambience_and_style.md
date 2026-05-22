@@ -27,6 +27,20 @@ These props are used to populate the world and reinforce the narrative theme of 
 - **Physics:** Solid (Impassable).
 - **Description:** Ceramic vessels overflowing with viscous, stagnant ink.
 
+### 3. Spilled Inkwell Puddle (`v`)
+- **Visuals:** Irregular circular primitive.
+- **Color:** Deep ink blue/black.
+- **Size:** 1x1 tile.
+- **Physics:** Hazard (50% speed reduction when inside).
+- **Description:** A slick, treacherous patch of spilled manuscript ink.
+
+### 4. Iron Candelabra (`l`)
+- **Visuals:** Thin vertical stand with a flickering amber glow.
+- **Color:** Dark charcoal grey stand, amber flame.
+- **Size:** 1x1 tile.
+- **Physics:** Solid (Impassable).
+- **Description:** A heavy iron stand holding a single, defiant candle.
+
 ## Lighting and Effects
 - **Background Clear Color:**
   - **ZONE_SANCTUARY:** Warm, low-contrast dark sepia/amber.

@@ -24,6 +24,8 @@ COLOR_DARK_GREY = (40, 40, 40)
 COLOR_SEPIA_AMBER = (40, 30, 20)  # Warm, low-contrast dark sepia
 COLOR_CHARCOAL = (15, 15, 20)     # Cold, stark dark charcoal
 COLOR_DEEP_SLATE = (45, 55, 70)   # Deep slate blue for Ink Urns
+COLOR_INK_PUDDLE = (10, 10, 25)   # Deep ink blue/black
+COLOR_CANDLE_AMBER = (255, 190, 40) # Warm candle light (Iron Candelabra)
 
 # Player Configuration
 PLAYER_WIDTH = 40
@@ -115,6 +117,8 @@ TILE_OBSTACLE = 4
 TILE_PROP = 5
 TILE_LOTUS_FRAME = 6
 TILE_LORE = 7
+TILE_HAZARD = 8
+TILE_LIGHT = 9
 
 TILE_KEY = {
     '#': TILE_WALL,
@@ -134,6 +138,8 @@ TILE_KEY = {
     'L': TILE_LORE,
     'h': TILE_PROP, # Heavy Bookcase
     'd': TILE_PROP, # Ink-Drip Urn
+    'v': TILE_HAZARD, # Spilled Inkwell Puddle
+    'l': TILE_LIGHT, # Iron Candelabra
 }
 
 # Colors for Tiles
