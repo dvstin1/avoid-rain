@@ -14,6 +14,16 @@ Behavior:
 - Only walls inside the viewport are drawn; the player is shown relative to the viewport center to indicate position and movement.
 - Useful for early prototyping; future work could add toggles, minimap markers for entities, or a zoom control.
 
+Roadmap item: Compass indicator
+
+- Add a simple compass indicator on the minimap edge to point toward objectives.
+- Implementation: compute vector from player to objective in world space, normalize
+  and project onto the minimap viewport rectangle. Render a white square at the
+  edge in that direction to indicate where the objective lies off-screen.
+- This feature is low-coupled and purely visual: renderer will accept an
+  optional list of objective positions (world coordinates) and render indicators
+  on the minimap edge for each.
+
 Implementation notes:
 - Low-coupled: functionality lives in Renderer.draw_minimap and relies only on state.player and state.world for read-only data.
 - The minimap is purely visual; game logic is unaffected.

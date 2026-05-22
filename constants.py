@@ -67,9 +67,11 @@ MINIMAP_PADDING = 8
 # Minimap tile marker color
 MINIMAP_WALL_COLOR = (120, 120, 120)
 MINIMAP_PLAYER_COLOR = (200, 50, 50)
-# Fraction of the world shown in the minimap viewport (0-1). Less than 1
-# means the minimap shows a window around the player, demonstrating panning.
-MINIMAP_VIEWPORT_FRAC = 0.6
+# Fraction of the world shown in the minimap viewport. Values >1 are
+# allowed and will result in the minimap showing the full world (clamped).
+# A value around 1.2 is useful for showing some context while still
+# demonstrating panning in many world sizes.
+MINIMAP_VIEWPORT_FRAC = 1.2
 
 # Tile Types
 TILE_EMPTY = 0

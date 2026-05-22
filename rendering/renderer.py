@@ -128,17 +128,27 @@ class Renderer:
 
         # Determine viewport in world-space centered on player
         from constants import MINIMAP_VIEWPORT_FRAC
-        frac = max(0.1, min(1.0, float(MINIMAP_VIEWPORT_FRAC)))
+        frac = max(0.1, float(MINIMAP_VIEWPORT_FRAC))
         vp_w = int(world_w * frac)
         vp_h = int(world_h * frac)
+
+        # Clamp viewport to at most the world size
+        if vp_w > world_w:
+            vp_w = world_w
+        if vp_h > world_h:
+            vp_h = world_h
 
         # Center viewport on player
         px_c, py_c = state.player.get_center()
         vp_x0 = int(px_c - vp_w // 2)
         vp_y0 = int(py_c - vp_h // 2)
         # Clamp viewport to world bounds
-        vp_x0 = max(0, min(vp_x0, world_w - vp_w))
-        vp_y0 = max(0, min(vp_y0, world_h - vp_h))
+        vp_x0 = max(0, min(vp_x0, max(0, world_w - vp_w)))
+        vp_y0 = max(0, min(vp_y0, max(0, world_h - vp_h)))
+
+        # Avoid division by zero
+        if vp_w == 0 or vp_h == 0:
+            return
 
         scale_x = MINIMAP_WIDTH / vp_w
         scale_y = MINIMAP_HEIGHT / vp_h
