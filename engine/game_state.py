@@ -420,14 +420,6 @@ class GameState:
                             'time': DAMAGE_NUMBER_LIFETIME,
                             'color': COLOR_YELLOW
                         })
-                        if enemy.is_dead():
-                            try:
-                                self.enemies.remove(enemy)
-                                # Spawn Torn Page (Unbound Syntax)
-                                from engine.loot import TornPage
-                                self.loot.append(TornPage(enemy.x, enemy.y))
-                            except Exception:
-                                pass
                 except Exception:
                     pass
 
@@ -449,6 +441,16 @@ class GameState:
 
         # 4. Update Enemies
         for enemy in list(self.enemies):
+            if enemy.is_dead():
+                try:
+                    self.enemies.remove(enemy)
+                    # Spawn Torn Page (Unbound Syntax)
+                    from engine.loot import TornPage
+                    self.loot.append(TornPage(enemy.x, enemy.y))
+                except Exception:
+                    pass
+                continue
+
             try:
                 enemy.update(dt, self)
             except Exception:

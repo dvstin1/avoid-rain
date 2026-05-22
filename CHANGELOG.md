@@ -15,6 +15,12 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Fast-Pursuit Enemy & Environmental Objects
+- **BatEnemy:** A new fast-pursuit enemy type with erratic sine-wave movement patterns.
+- **Environmental Objects:** Added Benches ('S') and Rocks ('K') as solid obstacles to enrich map topography.
+- **Engine Refactor (Enemy Cleanup):** Centralized dead enemy removal in `GameState.update`, ensuring cleanup and loot spawning occur regardless of the player's attack state.
+- **Visuals:** Added custom rendering for Bats (purple with wings), Benches (dark wood), and Rocks (grey with highlights).
+
 ### Compass Indicator for Minimap
 - Implemented the "Compass Indicator" feature to show markers for off-screen objectives at the minimap edge.
 - Added an `objectives` list to `GameState` for world-space coordinates.

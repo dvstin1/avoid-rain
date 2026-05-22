@@ -285,6 +285,20 @@ class LevelLoader:
                     prop.name = "Barrel"
                     interactables.append(prop)
                 
+                elif char == 'S':
+                    # Seat / Bench
+                    bench = GameObject(pos, dim)
+                    bench.is_solid = True
+                    bench.name = "Bench"
+                    interactables.append(bench)
+                
+                elif char == 'K':
+                    # Rock
+                    rock = GameObject(pos, dim)
+                    rock.is_solid = True
+                    rock.name = "Rock"
+                    interactables.append(rock)
+                
                 elif char == 'P':
                     # Player Start hook
                     player_start = (pos[0], pos[1])

@@ -255,6 +255,17 @@ class Renderer:
                 pygame.draw.rect(self.screen, COLOR_BLACK, (ox - offset_x, oy - offset_y, ow, oh), 1)
             elif obj.name == "The Wellspring":
                 self.draw_wellspring(obj, offset_x, offset_y)
+            elif obj.name == "Bench":
+                ox, oy, ow, oh = obj.rect
+                # Draw Bench (Dark brown base with backrest line)
+                pygame.draw.rect(self.screen, (101, 67, 33), (ox - offset_x, oy - offset_y, ow, oh))
+                pygame.draw.line(self.screen, (60, 40, 20), (ox - offset_x, oy + 5 - offset_y), (ox + ow - offset_x, oy + 5 - offset_y), 2)
+            elif obj.name == "Rock":
+                ox, oy, ow, oh = obj.rect
+                # Draw Rock (Irregular grey block)
+                pygame.draw.rect(self.screen, (80, 80, 80), (ox - offset_x, oy - offset_y, ow, oh))
+                # Add some highlight detail
+                pygame.draw.line(self.screen, (120, 120, 120), (ox + 5 - offset_x, oy + 5 - offset_y), (ox + 15 - offset_x, oy + 10 - offset_y), 2)
 
         # 1c. Draw Loot (Torn Pages)
         for item in getattr(state, 'loot', []):
@@ -281,10 +292,19 @@ class Renderer:
 
         # 2b. Draw Enemies
         try:
+            from engine.enemy import BatEnemy
+            from constants import COLOR_PURPLE
             for enemy in getattr(state, 'enemies', []):
                 er = pygame.Rect(enemy.get_rect())
                 ed = pygame.Rect(er.x - offset_x, er.y - offset_y, er.width, er.height)
-                pygame.draw.rect(self.screen, COLOR_RED, ed)
+                
+                if isinstance(enemy, BatEnemy):
+                    pygame.draw.rect(self.screen, COLOR_PURPLE, ed)
+                    # Draw small wings
+                    pygame.draw.line(self.screen, COLOR_PURPLE, (ed.left - 5, ed.centery), (ed.left, ed.centery - 5), 2)
+                    pygame.draw.line(self.screen, COLOR_PURPLE, (ed.right + 5, ed.centery), (ed.right, ed.centery - 5), 2)
+                else:
+                    pygame.draw.rect(self.screen, COLOR_RED, ed)
         except Exception:
             pass
 

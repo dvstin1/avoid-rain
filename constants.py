@@ -54,6 +54,13 @@ SLUG_DAMAGE_COOLDOWN = 1.0  # seconds between contact damage attempts
 STAGGER_THRESHOLD = 20 # Damage needed to stagger
 RECOVERY_TIME = 0.3 # Time spent in stagger/recovery
 
+# Fast-pursuit Bat enemy configuration
+BAT_MAX_HP = 20
+BAT_SPEED = 150.0  # pixels per second (fast pursuit)
+BAT_DETECT_METERS = 7  # detection radius
+BAT_DAMAGE = 5  # damage dealt on contact
+BAT_DAMAGE_COOLDOWN = 0.5  # seconds between contact damage attempts
+
 # Grid & World Configuration
 TILE_SIZE = 40
 # Extra tiles to make the world larger than the visible screen (low-coupling constant)
