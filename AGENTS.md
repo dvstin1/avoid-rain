@@ -35,16 +35,5 @@ Currently performing a comprehensive documentation cleanup to remove contradicti
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
-## Active Task: Wellspring Visual Mapping & Expanded UI Overhaul
-
-Implement the animated water primitive for the Wellspring fountain asset and refactor the interface controller to support full-screen expanded text modals.
-
-### 1. Wellspring Primitive Animation
-- Ensure the `LevelLoader` assigns a distinct, visible rendering block to the Wellspring coordinate map anchor.
-- Inside the fountain's `draw()` loop, render a solid blue background surface, layered with 3 to 4 alternating horizontal lines of a lighter cyan hue (`#00FFFF`).
-- Shift the X-coordinates or alpha-opacities of these lines using a simple frame counter or modulo timer (`pygame.time.get_ticks() // 200 % TILE_SIZE`) to simulate flowing, striped water vectors.
-
-### 2. Dual-Scale Dialog Engine Implementation
-- Update the `UIManager` or dialogue script to accept a layout flag parameter: `display_mode="STANDARD"` or `display_mode="EXPANDED"`.
-- When accessing the Wellspring, set `display_mode="EXPANDED"`. This changes the destination rendering surface bounding box to a large, centralized screen overlay, allowing all statistical tracking strings to print cleanly with proper vertical line-spacing.
-- Suppress player kinematics and standard combat swings universally while either overlay type is actively processing.
+## Active Task: [UNASSIGNED]
+Next task pending assignment from roadmap or user directive.

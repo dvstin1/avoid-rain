@@ -56,3 +56,52 @@ def test_minimap_draws_player_and_walls(monkeypatch):
     # Optionally ensure a small player-sized rect exists
     player_marker_found = any(r[2] <= 6 and r[3] <= 6 for r in minimap_rects)
     assert player_marker_found
+
+def test_minimap_draws_compass_indicators(monkeypatch):
+    from constants import MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING
+    state = GameState()
+    # Place player at (100, 100)
+    state.player.x = 100
+    state.player.y = 100
+    
+    # Place an objective far to the right and down
+    state.objectives = [(5000, 5000)]
+    
+    class DummyScreen:
+        def __init__(self, w, h):
+            self._w = w
+            self._h = h
+        def get_width(self): return self._w
+        def get_height(self): return self._h
+        def fill(self, color): pass
+        def blit(self, surf, pos): pass
+
+    dummy = DummyScreen(800, 600)
+    recorded = []
+    def fake_draw_rect(surface, color, rect, *args, **kwargs):
+        recorded.append((color, tuple(rect)))
+
+    monkeypatch.setattr(pygame.draw, 'rect', fake_draw_rect)
+    monkeypatch.setattr(pygame.draw, 'circle', lambda *a, **k: None)
+    monkeypatch.setattr(pygame.font, 'SysFont', lambda *a, **k: type('F', (), {'render': lambda self, t, a, c: type('S', (), {'get_rect': lambda self, **kw: type('R', (), {'width': 40, 'height': 10})()})()})())
+    monkeypatch.setattr(pygame.display, 'flip', lambda: None)
+
+    renderer = Renderer(dummy)
+    renderer.render(state)
+
+    # Compass indicators are drawn with COLOR_WHITE (or (255, 255, 255))
+    # and should be at the edge of the minimap.
+    # The minimap bounds are [PADDING, PADDING + WIDTH] x [PADDING, PADDING + HEIGHT]
+    
+    def is_on_edge(rect):
+        x, y, w, h = rect
+        on_left = abs(x - MINIMAP_PADDING) <= 2
+        on_right = abs(x + w - (MINIMAP_PADDING + MINIMAP_WIDTH)) <= 2
+        on_top = abs(y - MINIMAP_PADDING) <= 2
+        on_bottom = abs(y + h - (MINIMAP_PADDING + MINIMAP_HEIGHT)) <= 2
+        return on_left or on_right or on_top or on_bottom
+
+    compass_rects = [r for c, r in recorded if (c == (255, 255, 255) or c == "white") and is_on_edge(r)]
+    
+    # We expect at least one indicator for our objective
+    assert len(compass_rects) >= 1

@@ -460,6 +460,45 @@ class Renderer:
         my = MINIMAP_PADDING + int((py_c - vp_y0) * scale_y)
         pygame.draw.rect(self.screen, MINIMAP_PLAYER_COLOR, (mx-2, my-2, 4, 4))
 
+        # Draw compass indicators for off-screen objectives
+        for obj_x, obj_y in getattr(state, 'objectives', []):
+            # If objective is inside world-space viewport, we could show it normally,
+            # but the spec asks specifically for edge indicators for off-screen.
+            if vp_x0 <= obj_x <= vp_x0 + vp_w and vp_y0 <= obj_y <= vp_y0 + vp_h:
+                continue
+
+            dx = obj_x - px_c
+            dy = obj_y - py_c
+            if dx == 0 and dy == 0:
+                continue
+
+            # Minimap bounds relative to player marker (mx, my)
+            rel_left = MINIMAP_PADDING - mx
+            rel_right = MINIMAP_PADDING + MINIMAP_WIDTH - mx
+            rel_top = MINIMAP_PADDING - my
+            rel_bottom = MINIMAP_PADDING + MINIMAP_HEIGHT - my
+
+            # Find intersection with the minimap rectangle boundary
+            k = 1e9
+            if dx > 0:
+                k = min(k, rel_right / dx)
+            elif dx < 0:
+                k = min(k, rel_left / dx)
+
+            if dy > 0:
+                k = min(k, rel_bottom / dy)
+            elif dy < 0:
+                k = min(k, rel_top / dy)
+
+            ix = int(mx + k * dx)
+            iy = int(my + k * dy)
+
+            # Final clamping to ensure precision errors don't push it outside
+            ix = max(MINIMAP_PADDING, min(ix, MINIMAP_PADDING + MINIMAP_WIDTH - 3))
+            iy = max(MINIMAP_PADDING, min(iy, MINIMAP_PADDING + MINIMAP_HEIGHT - 3))
+
+            pygame.draw.rect(self.screen, COLOR_WHITE, (ix, iy, 3, 3))
+
     def draw_title_screen(self, selected_index_or_menu=0):
         """Draw the title screen with a simple menu.
 

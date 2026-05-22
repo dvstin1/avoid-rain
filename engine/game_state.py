@@ -114,6 +114,8 @@ class GameState:
         # Time since last autosave (seconds). Large by default so indicator is hidden.
         self.last_save_elapsed = 1e6
 
+        self.objectives = [] # List of (x, y) world coordinates for minimap indicators
+
         # Save worker: queue + dedicated thread to serialize all save requests.
         # This avoids spawning many threads and keeps saves off the main thread.
         import queue, threading

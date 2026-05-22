@@ -15,6 +15,18 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Compass Indicator for Minimap
+- Implemented the "Compass Indicator" feature to show markers for off-screen objectives at the minimap edge.
+- Added an `objectives` list to `GameState` for world-space coordinates.
+- Developed projection logic in `Renderer.draw_minimap` to handle edge-clamping and vector intersection.
+- Added comprehensive unit tests in `tests/test_minimap.py`.
+
+### Wellspring Visual Mapping & Expanded UI Overhaul
+- Implemented animated water primitive for the Wellspring fountain using shifting horizontal cyan lines.
+- Refactored the dialogue engine to support a `display_mode="EXPANDED"` flag for large, centralized modals.
+- Optimized the Wellspring interaction to display high-density player statistics using the expanded UI mode.
+- Ensured player movement and combat are suppressed during expanded UI states.
+
 ### Active Session Snapshot & True Continue Hydration
 - Refactored `GameState.hydrate_from_disk()` to restore the player's exact health, coordinates, and active zone from the persistent `run_state`.
 - Hardened `GameState.save_stats()` to guard against overwriting session data when in a deallocated (Title Screen) state.
