@@ -1,0 +1,53 @@
+"""Unit tests for the minimap rendering behavior in Renderer.draw_minimap.
+
+The tests monkeypatch pygame.draw.rect to capture draw calls and assert that
+minimap-drawn rectangles appear in the top-left minimap area.
+"""
+import pygame
+from rendering.renderer import Renderer
+from engine.game_state import GameState
+from constants import MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING
+
+
+def test_minimap_draws_player_and_walls(monkeypatch):
+    state = GameState()
+    # Place a wall near top-left of the world and put player nearby
+    state.world.grid[1][1] = 1
+    state.player.x = 1 * 40 + 5
+    state.player.y = 1 * 40 + 5
+
+    class DummyScreen:
+        def __init__(self, w, h):
+            self._w = w
+            self._h = h
+        def get_width(self):
+            return self._w
+        def get_height(self):
+            return self._h
+        def fill(self, color):
+            pass
+        def blit(self, surf, pos):
+            pass
+
+    dummy = DummyScreen(800, 600)
+
+    recorded = []
+
+    def fake_draw_rect(surface, color, rect, *args, **kwargs):
+        # record rect tuple; surface arg comes from our dummy screen or elsewhere
+        recorded.append(tuple(rect))
+
+    monkeypatch.setattr(pygame.draw, 'rect', fake_draw_rect)
+    monkeypatch.setattr(pygame.font, 'SysFont', lambda *a, **k: type('F', (), {'render': lambda self, t, a, c: type('S', (), {'get_rect': lambda self, **kw: type('R', (), {'width': 40, 'height': 10})()})()})())
+    monkeypatch.setattr(pygame.display, 'flip', lambda: None)
+
+    renderer = Renderer(dummy)
+    renderer.render(state)
+
+    # Filter recorded rects that lie within minimap area (top-left region)
+    minimap_rects = [r for r in recorded if r[0] >= MINIMAP_PADDING and r[0] <= MINIMAP_PADDING + MINIMAP_WIDTH and r[1] >= MINIMAP_PADDING and r[1] <= MINIMAP_PADDING + MINIMAP_HEIGHT]
+    # Expect at least one wall rect and one player rect within minimap area
+    assert len(minimap_rects) >= 2
+    # Optionally ensure a small player-sized rect exists
+    player_marker_found = any(r[2] <= 6 and r[3] <= 6 for r in minimap_rects)
+    assert player_marker_found

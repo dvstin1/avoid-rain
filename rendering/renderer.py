@@ -101,7 +101,49 @@ class Renderer:
         except Exception:
             pass
 
+        # 7. Draw minimap in the top-left corner
+        try:
+            self.draw_minimap(state)
+        except Exception:
+            pass
+
         pygame.display.flip()
+
+    def draw_minimap(self, state):
+        """Draw a small minimap in the top-left corner showing walls and player.
+
+        The minimap scales the entire world to MINIMAP_WIDTH x MINIMAP_HEIGHT and
+        draws a small rectangle for wall tiles and a distinct marker for the player.
+        """
+        from constants import MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, MINIMAP_WALL_COLOR, MINIMAP_PLAYER_COLOR
+
+        # Background rect for minimap
+        bg_rect = (MINIMAP_PADDING, MINIMAP_PADDING, MINIMAP_WIDTH, MINIMAP_HEIGHT)
+        pygame.draw.rect(self.screen, (10, 10, 10), bg_rect)
+
+        world_w = GRID_WIDTH * TILE_SIZE
+        world_h = GRID_HEIGHT * TILE_SIZE
+        if world_w == 0 or world_h == 0:
+            return
+
+        scale_x = MINIMAP_WIDTH / world_w
+        scale_y = MINIMAP_HEIGHT / world_h
+
+        # Draw walls as tiny rects
+        for y in range(GRID_HEIGHT):
+            for x in range(GRID_WIDTH):
+                if state.world.grid[y][x] == TILE_WALL:
+                    wx = MINIMAP_PADDING + int((x * TILE_SIZE) * scale_x)
+                    wy = MINIMAP_PADDING + int((y * TILE_SIZE) * scale_y)
+                    w = max(1, int(TILE_SIZE * scale_x))
+                    h = max(1, int(TILE_SIZE * scale_y))
+                    pygame.draw.rect(self.screen, MINIMAP_WALL_COLOR, (wx, wy, w, h))
+
+        # Draw player marker
+        px, py = state.player.get_center()
+        mx = MINIMAP_PADDING + int(px * scale_x)
+        my = MINIMAP_PADDING + int(py * scale_y)
+        pygame.draw.rect(self.screen, MINIMAP_PLAYER_COLOR, (mx-2, my-2, 4, 4))
 
     def draw_title_screen(self, selected_index_or_menu=0):
         """Draw the title screen with a simple menu.
