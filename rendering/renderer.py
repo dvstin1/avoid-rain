@@ -281,10 +281,10 @@ class Renderer:
             offset_y += random.uniform(-SCREEN_SHAKE_INTENSITY, SCREEN_SHAKE_INTENSITY)
 
         # Visible tile range (add +1 to ensure partial tiles at edges are drawn)
-        start_x = max(0, offset_x // TILE_SIZE)
-        start_y = max(0, offset_y // TILE_SIZE)
-        end_x = min(GRID_WIDTH, (offset_x + screen_w) // TILE_SIZE + 1)
-        end_y = min(GRID_HEIGHT, (offset_y + screen_h) // TILE_SIZE + 1)
+        start_x = int(max(0, offset_x // TILE_SIZE))
+        start_y = int(max(0, offset_y // TILE_SIZE))
+        end_x = int(min(GRID_WIDTH, (offset_x + screen_w) // TILE_SIZE + 1))
+        end_y = int(min(GRID_HEIGHT, (offset_y + screen_h) // TILE_SIZE + 1))
 
         # 1. Draw World Grid (only visible tiles)
         for y in range(start_y, end_y):
