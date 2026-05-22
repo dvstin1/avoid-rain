@@ -104,6 +104,7 @@ class GameState:
 
         self.damage_numbers = []
         self.loot = [] # Dropped items like Torn Pages
+        self.fading_entities = [] # Entities in destruction animation
         self.death_timer = 0.0 # 'Text Bleaching' state timer
 
         # Time since last autosave (seconds). Large by default so indicator is hidden.
@@ -351,6 +352,22 @@ class GameState:
                 except Exception:
                     pass
 
+            # Apply hits to destructible props
+            for obj in list(self.world.interactables):
+                if obj.is_breakable:
+                    if check_aabb_collision(hitbox, obj.rect):
+                        obj.take_damage(SWORD_DAMAGE)
+                        if obj.is_destroyed():
+                            try:
+                                self.world.interactables.remove(obj)
+                                # Add to fading entities for visual cleanup
+                                self.fading_entities.append({'obj': obj, 'time': 0.1}) # ~6 frames at 60fps
+                                # Trigger Tier 4 Loot Roll
+                                from engine.loot import roll_drop
+                                roll_drop(4, (obj.x, obj.y), self)
+                            except Exception:
+                                pass
+
         # 4. Update Enemies
         for enemy in list(self.enemies):
             try:
@@ -367,6 +384,12 @@ class GameState:
             self.dummy_stagger_timer -= dt
         if self.dummy_outline_timer > 0:
             self.dummy_outline_timer -= dt
+
+        # Update fading entities
+        for fading in self.fading_entities[:]:
+            fading['time'] -= dt
+            if fading['time'] <= 0:
+                self.fading_entities.remove(fading)
 
         self.update_damage_numbers(dt)
 

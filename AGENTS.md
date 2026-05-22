@@ -113,3 +113,25 @@ Implement a clean, data-driven map parsing engine that reads 2D text matrix stri
 ### 3. Integration Constraints
 - The player entity and existing warp objects must be cleanly positioned using designated coordinate start hooks or dedicated characters inside the string grid (e.g., `P` for Player start, `W` for Warp).
 - The physics engine's collision detection loops must universally evaluate these newly parsed sprite groups using the `is_solid` boundary checks.
+
+## Active Task: Destructible Prop Layer & Tier 4 Loot Roll
+
+Implement the destruction state engine for the placeholder Barrel (`B`) prop and integrate the baseline `LootManager` probability engine for Tier 4 drops.
+
+### 1. Prop Health & Interaction States
+- Update the base `GameObject` initialization for entities spawned with the `"barrel"` configuration flag:
+  - Set `self.is_breakable = True`
+  - Initialize a flat health tracking property: `self.health = 1`
+- Implement a `take_damage(self, amount)` method. When an active combat swing hitbox intersects a breakable prop, decrement its health.
+
+### 2. The LootManager Serialization (Tier 4)
+- Create a modular `loot_manager.py` file to handle entity drop tables.
+- Write a `roll_drop(source_tier, position)` function. 
+- For a **Tier 4** event (Barrel Destruction):
+  - Run a floating-point probability check against a **15% drop chance**.
+  - If successful, instantiate a tiny floating text primitive or primitive item particle at the object's exact $(X, Y)$ coordinate space representing either `torn_pages: 1` or a minor heal.
+  - When the player bounding box intersects this dropped item, increment the respective value in the player profile dictionary and destroy the item instance.
+
+### 3. Destruction Clean-Up
+- Upon a barrel's health hitting 0, instantly remove the entity instance from the active `is_solid` collision tracking group so it no longer blocks player/enemy kinematics.
+- Trigger a brief 3-frame fading or shrinking primitive animation sequence before entirely purging the object instance from active memory loops.

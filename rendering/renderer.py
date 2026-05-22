@@ -112,12 +112,6 @@ class Renderer:
                 tile = state.world.grid[y][x]
                 if tile == TILE_WALL:
                     pygame.draw.rect(self.screen, COLOR_WALL, draw_rect)
-                elif tile == TILE_OBSTACLE:
-                    pygame.draw.rect(self.screen, (80, 70, 60), draw_rect) # Brownish
-                elif tile == TILE_PROP:
-                    pygame.draw.rect(self.screen, (100, 80, 40), draw_rect) # Wood color
-                elif tile == TILE_RESPITE:
-                    pygame.draw.rect(self.screen, (50, 100, 50), draw_rect) # Greenish base
                 else:
                     pygame.draw.rect(self.screen, COLOR_FLOOR, draw_rect, 1)
 
@@ -130,10 +124,29 @@ class Renderer:
                 # Draw Respite sigil
                 ox, oy, ow, oh = obj.rect
                 pygame.draw.circle(self.screen, COLOR_CYAN, (int(ox + ow/2 - offset_x), int(oy + oh/2 - offset_y)), 10, 2)
+            elif obj.name == "Barrel":
+                ox, oy, ow, oh = obj.rect
+                pygame.draw.rect(self.screen, (100, 80, 40), (ox - offset_x, oy - offset_y, ow, oh))
+                pygame.draw.rect(self.screen, (60, 40, 20), (ox - offset_x, oy - offset_y, ow, oh), 2)
+            elif obj.name == "Structure":
+                ox, oy, ow, oh = obj.rect
+                pygame.draw.rect(self.screen, (80, 70, 60), (ox - offset_x, oy - offset_y, ow, oh))
 
         # 1c. Draw Loot (Torn Pages)
         for item in getattr(state, 'loot', []):
             self.draw_loot(item, offset_x, offset_y)
+
+        # 1d. Draw Fading Entities (Destruction Animation)
+        for fading in getattr(state, 'fading_entities', []):
+            obj = fading['obj']
+            # Calculate alpha based on remaining time (0.1s total)
+            alpha = int((fading['time'] / 0.1) * 255)
+            if alpha > 0:
+                ox, oy, ow, oh = obj.rect
+                surf = pygame.Surface((ow, oh), pygame.SRCALPHA)
+                # Use same color as TILE_PROP/Barrel
+                surf.fill((100, 80, 40, alpha))
+                self.screen.blit(surf, (ox - offset_x, oy - offset_y))
 
         # 2. Draw Dummy (with camera offset)
         dummy_rect = pygame.Rect(state.dummy_rect)
@@ -236,13 +249,21 @@ class Renderer:
 
     def draw_loot(self, item, offset_x, offset_y):
         """Draw loot items with prototype graphics."""
-        from engine.loot import TornPage
+        from engine.loot import TornPage, HealItem
         if isinstance(item, TornPage):
             ir = item.get_rect()
             draw_rect = pygame.Rect(ir[0] - offset_x, ir[1] - offset_y, ir[2], ir[3])
             # Draw as a small white rectangle (parchment) with a yellow outline (glow)
             pygame.draw.rect(self.screen, COLOR_WHITE, draw_rect)
             pygame.draw.rect(self.screen, COLOR_YELLOW, draw_rect, 1)
+        elif isinstance(item, HealItem):
+            ir = item.get_rect()
+            draw_rect = pygame.Rect(ir[0] - offset_x, ir[1] - offset_y, ir[2], ir[3])
+            # Draw as a small red rectangle with a white cross
+            pygame.draw.rect(self.screen, (200, 50, 50), draw_rect)
+            # White cross
+            pygame.draw.rect(self.screen, COLOR_WHITE, (draw_rect.centerx - 2, draw_rect.y + 2, 4, draw_rect.height - 4))
+            pygame.draw.rect(self.screen, COLOR_WHITE, (draw_rect.x + 2, draw_rect.centery - 2, draw_rect.width - 4, 4))
 
     def draw_minimap(self, state):
         """Draw a small minimap in the top-left corner showing walls and player.

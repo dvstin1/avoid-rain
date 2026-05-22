@@ -49,7 +49,7 @@ def test_world_load_from_prototype():
     
     # Check grid
     assert world.grid[0][0] == TILE_WALL
-    assert world.grid[1][1] == TILE_KEY['W']
+    assert world.grid[1][1] == TILE_EMPTY # Entities no longer in grid
     
     # Check interactables
     assert len(world.interactables) == 1

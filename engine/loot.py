@@ -75,6 +75,23 @@ class LootManager:
         return [self.roll_one(rng=rng) for _ in range(int(n))]
 
 
+def roll_drop(source_tier: int, position: tuple, state: any):
+    """
+    Roll for a loot drop based on the source tier and position.
+    
+    Tier 4 (Barrel Destruction):
+    - 15% drop chance.
+    - If hit, 50% TornPage, 50% HealItem.
+    """
+    x, y = position
+    if source_tier == 4:
+        if random.random() < 0.15:
+            if random.random() < 0.5:
+                state.loot.append(TornPage(x, y))
+            else:
+                state.loot.append(HealItem(x, y))
+
+
 class TornPage:
     """An collectable item (Unbound Syntax) dropped by enemies."""
     def __init__(self, x, y):
@@ -82,6 +99,7 @@ class TornPage:
         self.y = y
         self.width = 16
         self.height = 16
+        self.name = "Torn Page"
 
     def get_rect(self):
         """Returns the bounding box (x, y, w, h)."""
@@ -91,8 +109,28 @@ class TornPage:
         """Increase collected pages metric in statistics."""
         if state.stats:
             try:
-                # Add to inventory if we track it on player/state
-                # For now, we increment a lifetime/run stat
                 state.stats.increment("pages_collected", 1)
             except Exception:
                 pass
+
+
+class HealItem:
+    """A minor healing item that restores a small amount of HP."""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 16
+        self.height = 16
+        self.name = "Minor Heal"
+        self.heal_amount = 10
+
+    def get_rect(self):
+        """Returns the bounding box (x, y, w, h)."""
+        return (self.x, self.y, self.width, self.height)
+
+    def execute_pickup(self, state):
+        """Restore player HP."""
+        try:
+            state.player.hp = min(state.player.max_hp, state.player.hp + self.heal_amount)
+        except Exception:
+            pass

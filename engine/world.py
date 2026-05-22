@@ -22,6 +22,7 @@ class GameObject:
         self.is_interactive = False   # Listens to player input triggers
         self.is_kinematic = False     # Modifies passenger velocity vectors (platforms)
         
+        self.health = 1.0            # Default health for breakables
         self.name = "Object"
         self.data = {}
 
@@ -29,6 +30,15 @@ class GameObject:
     def rect(self):
         """Returns the rectangle as a (x, y, w, h) tuple."""
         return (self.x, self.y, self.width, self.height)
+
+    def take_damage(self, amount):
+        """Decrement health if the object is breakable."""
+        if self.is_breakable:
+            self.health -= amount
+
+    def is_destroyed(self):
+        """Check if the object has been destroyed."""
+        return self.is_breakable and self.health <= 0
 
     def execute_interaction(self, game_state):
         """Standard interaction callback to be overridden or assigned."""
@@ -86,10 +96,11 @@ class LevelLoader:
             for x, char in enumerate(row):
                 if x >= GRID_WIDTH: break
                 
-                tile_type = TILE_KEY.get(char, TILE_EMPTY)
-                # Marker 100 is Player start, not a physical tile type
-                if tile_type != 100:
-                    grid[y][x] = tile_type
+                # Only static walls and empty space go into the grid
+                if char == '#':
+                    grid[y][x] = TILE_WALL
+                else:
+                    grid[y][x] = TILE_EMPTY
                 
                 pos = (x * TILE_SIZE, y * TILE_SIZE)
                 dim = (TILE_SIZE, TILE_SIZE)
@@ -124,7 +135,8 @@ class LevelLoader:
                     prop = GameObject(pos, dim)
                     prop.is_solid = True
                     prop.is_breakable = True
-                    prop.name = "Prop"
+                    prop.health = 1.0
+                    prop.name = "Barrel"
                     interactables.append(prop)
                 
                 elif char == 'P':
