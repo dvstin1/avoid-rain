@@ -15,6 +15,13 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### State Hydration & Scene Deallocation Lifecycle
+- Implemented `GameState.deallocate()` to purge runtime memory (Player, World, enemies) when exiting to the Title Screen.
+- Implemented `GameState.hydrate_from_disk()` to ensure "Continue" loads exclusively from persistent disk storage.
+- Enforced a "Fresh Hub Start" policy on Continue: resets player to full health in a clean Sanctuary layout.
+- Added terminal trace logs for state recovery verification.
+- Updated `main.py` and `GameState.reset_to_new_game()` to support the new deallocation-safe lifecycle.
+
 ### Atomic Save-Flush & Milestone Persistence
 - Implemented synchronous, atomic save flushing for critical game milestones.
 - Forced immediate directory creation and disk write during New Game initialization.

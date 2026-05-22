@@ -122,16 +122,62 @@ class GameState:
         self._save_worker_thread = threading.Thread(target=self._save_worker, daemon=True)
         self._save_worker_thread.start()
 
+    def deallocate(self):
+        """Purge all runtime gameplay memory to ensure a clean slate for the title screen."""
+        self.player = None
+        self.world = None
+        self.enemies = []
+        self.loot = []
+        self.fading_entities = []
+        self.active_dialogue = None
+
+    def hydrate_from_disk(self):
+        """Reload state exclusively from the persistent disk file and reset to Sanctuary."""
+        from engine.stats import StatisticsTracker
+        from engine.maps import create_world
+        from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
+        
+        print("[STATE RECOVERY] Re-hydrating clean player and environment session from disk file.")
+        
+        # 1. Reload persistent stats from the absolute source of truth
+        try:
+            self.stats = StatisticsTracker.load()
+        except Exception:
+            # Fallback to fresh tracker if load fails
+            self.stats = StatisticsTracker()
+            
+        # 2. Force the LevelLoader to completely rebuild the Sanctuary layout from scratch
+        self.world = create_world("sanctuary")
+        
+        # 3. Instantiate a brand-new, full-health Player entity anchored at Sanctuary spawn 'P'
+        self.player = Player(self.world.player_start[0], self.world.player_start[1])
+        self.player.hp = float(PLAYER_MAX_HP)
+        self.player.flask_charges = int(FLASK_MAX_CHARGES)
+        
+        # 4. Flush all transient scene variables from runtime memory
+        self.enemies = []
+        self.loot = []
+        self.fading_entities = []
+        self.active_dialogue = None
+        self.death_timer = 0.0
+        self.damage_numbers = []
+        
+        # 5. Recenter camera on the new player instance
+        if hasattr(self, 'camera'):
+            self.camera.instant_center(self.player.get_center())
+
     def reset_to_new_game(self):
         """Reset player and world to start-of-game defaults, and clear run_state."""
         from engine.maps import create_world
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
         
         self.world = create_world("sanctuary")
-        self.player.x = float(self.world.player_start[0])
-        self.player.y = float(self.world.player_start[1])
+        
+        # Instantiate a fresh player at Sanctuary spawn 'P'
+        self.player = Player(self.world.player_start[0], self.world.player_start[1])
         self.player.hp = float(PLAYER_MAX_HP)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
+        
         self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
         
         if self.stats:
@@ -140,6 +186,12 @@ class GameState:
                 self.stats.increment("runs_started", 1)
             except Exception:
                 pass
+
+        # Clear other transient state
+        self.loot = []
+        self.fading_entities = []
+        self.active_dialogue = None
+        self.damage_numbers = []
 
         # Recenter camera
         if hasattr(self, 'camera'):

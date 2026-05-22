@@ -143,6 +143,9 @@ def main():
     in_title = True
     running = True
 
+    # [Lifecycle] Purge runtime memory while on the title screen
+    state.deallocate()
+
     try:
         while running:
             if in_title:
@@ -155,12 +158,16 @@ def main():
                     title_menu.clear_confirm()
 
                     if selected == 'Continue':
-                        # Start the game normally using the state already loaded from run_state
+                        # [Lifecycle] Re-hydrate clean player and environment session from disk file
                         renderer.fade_to_black()
+                        try:
+                            state.hydrate_from_disk()
+                        except Exception as exc:
+                            print(f"[ERROR] Failed to hydrate state: {exc}")
+                            # fallback if hydration fails for some reason
+                            state.reset_to_new_game()
+                        
                         in_title = False
-                        # ensure camera centers on player immediately
-                        if hasattr(state, 'camera'):
-                            state.camera.instant_center(state.player.get_center())
                         continue
 
                     if selected == 'New Game':
@@ -229,6 +236,10 @@ def main():
                         pause_menu.clear_quit()
                         pause_menu.close()
                         in_title = True
+                        
+                        # [Lifecycle] Purge all runtime gameplay memory
+                        state.deallocate()
+                        
                         # Update title menu to reflect whether a resume-able run now exists
                         try:
                             has_run_now = getattr(state, 'stats', None) is not None and state.stats.data.get("run_state") is not None
