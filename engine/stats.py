@@ -46,6 +46,7 @@ class StatisticsTracker:
                     "losses_bleed_wipes": 0,
                     "deaths_standard_respawns": 0,
                     "forced_quit_outs": 0,
+                    "pages_collected": 0,
                 },
                 "discovered_bestiary": {},
                 "run_state": None,

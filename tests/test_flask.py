@@ -57,5 +57,12 @@ def test_flask_reset_on_death():
     gs.player.take_damage(PLAYER_MAX_HP + 10)
     gs.update(0.1, {'move': (0, 0), 'attack': False, 'flask': False})
     
+    # Should be in bleaching state, not yet respawned
+    assert gs.death_timer > 0
+    assert gs.player.hp == 0
+    
+    # Advance time past 5 seconds
+    gs.update(5.0, {'move': (0, 0), 'attack': False, 'flask': False})
+    
     assert gs.player.hp == PLAYER_MAX_HP
     assert gs.player.flask_charges == FLASK_MAX_CHARGES

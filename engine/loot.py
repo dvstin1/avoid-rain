@@ -73,3 +73,26 @@ class LootManager:
         if n < 0:
             raise ValueError("n must be non-negative")
         return [self.roll_one(rng=rng) for _ in range(int(n))]
+
+
+class TornPage:
+    """An collectable item (Unbound Syntax) dropped by enemies."""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 16
+        self.height = 16
+
+    def get_rect(self):
+        """Returns the bounding box (x, y, w, h)."""
+        return (self.x, self.y, self.width, self.height)
+
+    def execute_pickup(self, state):
+        """Increase collected pages metric in statistics."""
+        if state.stats:
+            try:
+                # Add to inventory if we track it on player/state
+                # For now, we increment a lifetime/run stat
+                state.stats.increment("pages_collected", 1)
+            except Exception:
+                pass

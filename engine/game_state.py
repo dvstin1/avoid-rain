@@ -103,6 +103,8 @@ class GameState:
         self.dummy_outline_timer = 0.0
 
         self.damage_numbers = []
+        self.loot = [] # Dropped items like Torn Pages
+        self.death_timer = 0.0 # 'Text Bleaching' state timer
 
         # Time since last autosave (seconds). Large by default so indicator is hidden.
         self.last_save_elapsed = 1e6
@@ -286,6 +288,13 @@ class GameState:
 
     def update(self, dt, actions):
         """Update all game logic."""
+        # 0. Handle 'Text Bleaching' (Death State)
+        if self.death_timer > 0:
+            self.death_timer -= dt
+            if self.death_timer <= 0:
+                self.respawn_player()
+            return # Freeze logic during bleaching
+
         move_dir = actions.get('move', (0, 0))
         attack_pressed = actions.get('attack', False)
         flask_pressed = actions.get('flask', False)
@@ -334,6 +343,9 @@ class GameState:
                         if enemy.is_dead():
                             try:
                                 self.enemies.remove(enemy)
+                                # Spawn Torn Page (Unbound Syntax)
+                                from engine.loot import TornPage
+                                self.loot.append(TornPage(enemy.x, enemy.y))
                             except Exception:
                                 pass
                 except Exception:
@@ -358,28 +370,43 @@ class GameState:
 
         self.update_damage_numbers(dt)
 
-        # 6. Check for player death and respawn to sanctuary if needed
+        # 5b. Update Loot Collection
+        player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
+        for item in self.loot[:]:
+            try:
+                if check_aabb_collision(player_rect, item.get_rect()):
+                    item.execute_pickup(self)
+                    self.loot.remove(item)
+            except Exception:
+                pass
+
+        # 6. Check for player death and trigger 'Text Bleaching'
         try:
             if hasattr(self.player, 'hp') and self.player.hp <= 0:
-                # Respawn in the first world (sanctuary)
-                from engine.world import World
-                self.world = World()
-                self.player.x = float(PLAYER_START_X)
-                self.player.y = float(PLAYER_START_Y)
-                # Reset camera
-                if hasattr(self, 'camera'):
-                    self.camera.instant_center(self.player.get_center())
-                # Reset player HP and Flask
-                try:
-                    self.player.hp = getattr(self.player, 'max_hp', self.player.hp)
-                    from constants import FLASK_MAX_CHARGES
-                    self.player.flask_charges = FLASK_MAX_CHARGES
-                except Exception:
-                    pass
-                # Clear enemies
-                self.enemies = []
+                self.death_timer = 5.0 # 5 second monochrome freeze
         except Exception:
             pass
+
+    def respawn_player(self):
+        """Reset player to sanctuary after 'Text Bleaching' completes."""
+        from engine.world import World
+        from constants import PLAYER_START_X, PLAYER_START_Y, FLASK_MAX_CHARGES
+        
+        self.world = World()
+        self.player.x = float(PLAYER_START_X)
+        self.player.y = float(PLAYER_START_Y)
+        # Reset camera
+        if hasattr(self, 'camera'):
+            self.camera.instant_center(self.player.get_center())
+        # Reset player HP and Flask
+        try:
+            self.player.hp = getattr(self.player, 'max_hp', self.player.hp)
+            self.player.flask_charges = FLASK_MAX_CHARGES
+        except Exception:
+            pass
+        # Clear transient world state
+        self.enemies = []
+        self.loot = []
 
     def update_damage_numbers(self, dt):
         """Handle fading and movement of damage numbers."""

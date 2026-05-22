@@ -119,6 +119,10 @@ class Renderer:
             if hasattr(interactable, 'target_name'):
                 self.draw_warp(interactable, offset_x, offset_y)
 
+        # 1c. Draw Loot (Torn Pages)
+        for item in getattr(state, 'loot', []):
+            self.draw_loot(item, offset_x, offset_y)
+
         # 2. Draw Dummy (with camera offset)
         dummy_rect = pygame.Rect(state.dummy_rect)
         dummy_draw = pygame.Rect(dummy_rect.x - offset_x, dummy_rect.y - offset_y, dummy_rect.width, dummy_rect.height)
@@ -178,6 +182,17 @@ class Renderer:
         except Exception:
             pass
 
+        # 9. Apply 'Text Bleaching' (Monochrome/Grey Overlay)
+        if getattr(state, 'death_timer', 0) > 0:
+            overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
+            overlay.fill((200, 200, 200, 150)) # semi-transparent light grey
+            self.screen.blit(overlay, (0, 0))
+            
+            # Message
+            msg_surf = self.font.render("TEXT BLEACHING...", True, COLOR_BLACK)
+            msg_rect = msg_surf.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2))
+            self.screen.blit(msg_surf, msg_rect)
+
         pygame.display.flip()
 
     def draw_hud(self, state):
@@ -185,17 +200,37 @@ class Renderer:
         player = state.player
         hp_text = f"HP: {int(player.hp)} / {int(player.max_hp)}"
         flask_text = f"Flasks: {player.flask_charges}"
+        
+        pages = 0
+        if state.stats:
+            try:
+                pages = state.stats.data["lifetime_stats"].get("pages_collected", 0)
+            except Exception:
+                pass
+        pages_text = f"Pages: {pages}"
 
         hp_surf = self.font.render(hp_text, True, COLOR_WHITE)
         flask_surf = self.font.render(flask_text, True, COLOR_BLUE)
+        pages_surf = self.font.render(pages_text, True, COLOR_YELLOW)
 
         # Draw background panel
-        panel_rect = pygame.Rect(10, self.screen.get_height() - 70, 200, 60)
+        panel_rect = pygame.Rect(10, self.screen.get_height() - 95, 200, 85)
         pygame.draw.rect(self.screen, (30, 30, 30), panel_rect)
         pygame.draw.rect(self.screen, (100, 100, 100), panel_rect, 2)
 
-        self.screen.blit(hp_surf, (20, self.screen.get_height() - 60))
-        self.screen.blit(flask_surf, (20, self.screen.get_height() - 35))
+        self.screen.blit(hp_surf, (20, self.screen.get_height() - 85))
+        self.screen.blit(flask_surf, (20, self.screen.get_height() - 60))
+        self.screen.blit(pages_surf, (20, self.screen.get_height() - 35))
+
+    def draw_loot(self, item, offset_x, offset_y):
+        """Draw loot items with prototype graphics."""
+        from engine.loot import TornPage
+        if isinstance(item, TornPage):
+            ir = item.get_rect()
+            draw_rect = pygame.Rect(ir[0] - offset_x, ir[1] - offset_y, ir[2], ir[3])
+            # Draw as a small white rectangle (parchment) with a yellow outline (glow)
+            pygame.draw.rect(self.screen, COLOR_WHITE, draw_rect)
+            pygame.draw.rect(self.screen, COLOR_YELLOW, draw_rect, 1)
 
     def draw_minimap(self, state):
         """Draw a small minimap in the top-left corner showing walls and player.
