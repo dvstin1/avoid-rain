@@ -100,6 +100,7 @@ TILE_KEY = {
     'R': TILE_RESPITE,
     'T': TILE_OBSTACLE,
     'B': TILE_PROP,
+    'P': 100, # Special marker for player start
 }
 
 # Colors for Tiles

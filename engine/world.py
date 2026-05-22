@@ -2,7 +2,8 @@
 Handles world grid, map sections, and static obstacles.
 """
 from constants import (
-    GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP, TILE_KEY
+    GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP, TILE_KEY,
+    PLAYER_START_X, PLAYER_START_Y
 )
 
 class GameObject:
@@ -64,6 +65,74 @@ class WarpPortal(GameObject):
             # If transition fails, ignore to maintain robustness
             pass
 
+class LevelLoader:
+    """
+    Dedicated parser for 2D text matrix strings.
+    Translates symbols into spatial entities and initial layout.
+    """
+    @staticmethod
+    def parse_map(prototype_array, entity_data=None):
+        """
+        Parses a string array and returns (grid, interactables, warp_tiles, player_start).
+        """
+        grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+        interactables = []
+        warp_tiles = {}
+        player_start = (PLAYER_START_X, PLAYER_START_Y)
+        entity_data = entity_data or {}
+
+        for y, row in enumerate(prototype_array):
+            if y >= GRID_HEIGHT: break
+            for x, char in enumerate(row):
+                if x >= GRID_WIDTH: break
+                
+                tile_type = TILE_KEY.get(char, TILE_EMPTY)
+                # Marker 100 is Player start, not a physical tile type
+                if tile_type != 100:
+                    grid[y][x] = tile_type
+                
+                pos = (x * TILE_SIZE, y * TILE_SIZE)
+                dim = (TILE_SIZE, TILE_SIZE)
+                
+                if char == 'W':
+                    # Warp Portal
+                    data = entity_data.get((x, y), {})
+                    target = data.get('target', 'sanctuary')
+                    sx = data.get('spawn_x', PLAYER_START_X)
+                    sy = data.get('spawn_y', PLAYER_START_Y)
+                    
+                    warp_tiles[(x, y)] = (target, sx, sy)
+                    interactables.append(WarpPortal(target, sx, sy, (pos[0], pos[1], dim[0], dim[1]), name=data.get('name', "The Chronicle")))
+                
+                elif char == 'R':
+                    # Respite
+                    respite = GameObject(pos, dim)
+                    respite.is_interactive = True
+                    respite.is_solid = True
+                    respite.name = "Respite"
+                    interactables.append(respite)
+                
+                elif char == 'T':
+                    # Static Obstacle / Tree
+                    tree = GameObject(pos, dim)
+                    tree.is_solid = True
+                    tree.name = "Structure"
+                    interactables.append(tree)
+                
+                elif char == 'B':
+                    # Placeholder Prop / Barrel
+                    prop = GameObject(pos, dim)
+                    prop.is_solid = True
+                    prop.is_breakable = True
+                    prop.name = "Prop"
+                    interactables.append(prop)
+                
+                elif char == 'P':
+                    # Player Start hook
+                    player_start = (pos[0], pos[1])
+
+        return grid, interactables, warp_tiles, player_start
+
 class World:
     """Manages the tile-based world map.
 
@@ -74,6 +143,7 @@ class World:
         self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.warp_tiles = {}  # Legacy mapping (x,y) -> (target_name, spawn_x_px, spawn_y_px)
         self.interactables = []
+        self.player_start = (PLAYER_START_X, PLAYER_START_Y)
         
         # Default to legacy hardcoded sanctuary if no prototype is used
         if name == 'sanctuary':
@@ -122,61 +192,10 @@ class World:
 
     def load_from_prototype(self, prototype_array, entity_data=None):
         """
-        Populates the grid and spawns GameObjects from a string array.
-        
-        Args:
-            prototype_array: List of strings representing the map layout.
-            entity_data: Dictionary mapping (x, y) to custom entity properties.
+        Populates the world from a string array using LevelLoader.
         """
-        self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
-        self.interactables = []
-        self.warp_tiles = {}
-        entity_data = entity_data or {}
-
-        for y, row in enumerate(prototype_array):
-            if y >= GRID_HEIGHT: break
-            for x, char in enumerate(row):
-                if x >= GRID_WIDTH: break
-                
-                tile_type = TILE_KEY.get(char, TILE_EMPTY)
-                self.grid[y][x] = tile_type
-                
-                pos = (x * TILE_SIZE, y * TILE_SIZE)
-                dim = (TILE_SIZE, TILE_SIZE)
-                
-                if char == 'W':
-                    # Warp Portal
-                    data = entity_data.get((x, y), {})
-                    target = data.get('target', 'sanctuary')
-                    from constants import PLAYER_START_X, PLAYER_START_Y
-                    sx = data.get('spawn_x', PLAYER_START_X)
-                    sy = data.get('spawn_y', PLAYER_START_Y)
-                    
-                    self.warp_tiles[(x, y)] = (target, sx, sy)
-                    self.interactables.append(WarpPortal(target, sx, sy, (pos[0], pos[1], dim[0], dim[1]), name=data.get('name', "The Chronicle")))
-                
-                elif char == 'R':
-                    # Respite
-                    respite = GameObject(pos, dim)
-                    respite.is_interactive = True
-                    respite.is_solid = True
-                    respite.name = "Respite"
-                    self.interactables.append(respite)
-                
-                elif char == 'T':
-                    # Static Obstacle
-                    tree = GameObject(pos, dim)
-                    tree.is_solid = True
-                    tree.name = "Structure"
-                    self.interactables.append(tree)
-                
-                elif char == 'B':
-                    # Placeholder Prop
-                    prop = GameObject(pos, dim)
-                    prop.is_solid = True
-                    prop.is_breakable = True
-                    prop.name = "Prop"
-                    self.interactables.append(prop)
+        self.grid, self.interactables, self.warp_tiles, self.player_start = \
+            LevelLoader.parse_map(prototype_array, entity_data)
 
     def get_nearby_walls(self, player_rect):
         """Returns wall rectangles (grid or solid GameObjects) near the player."""

@@ -2,9 +2,23 @@
 Tests for the map design framework (string-grid parsing and GameObjects).
 """
 import pytest
-from engine.world import World, GameObject, WarpPortal
+from engine.world import World, GameObject, WarpPortal, LevelLoader
 from engine.room_definitions import ROOM_PROTOTYPES, ENTITY_MANIFEST
-from constants import TILE_WALL, TILE_EMPTY, TILE_KEY
+from constants import TILE_WALL, TILE_EMPTY, TILE_KEY, PLAYER_START_X, PLAYER_START_Y
+
+def test_level_loader_player_start():
+    prototype = [
+        "...",
+        ".P.",
+        "..."
+    ]
+    grid, interactables, warp_tiles, p_start = LevelLoader.parse_map(prototype)
+    
+    # x=1, y=1 -> (TILE_SIZE, TILE_SIZE)
+    from constants import TILE_SIZE
+    assert p_start == (TILE_SIZE, TILE_SIZE)
+    # Check that 'P' doesn't leave a wall or anything in the grid
+    assert grid[1][1] == TILE_EMPTY
 
 def test_game_object_initialization():
     pos = (100, 200)

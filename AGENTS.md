@@ -92,3 +92,24 @@ To maximize development efficiency, minimize regression side effects, and optimi
 2. **Design Invariance:** Prioritize systems whose data schemas are structurally independent (e.g., the `StatisticsTracker` JSON serialization, the `LootManager` probability engine, or the `Escape Pause Menu` state interceptor). Do not build highly dependent intermediate logic until its parent framework is fully set in stone.
 3. **The Test-Driven Mandate:** For the selected feature, you must write the modular framework logic alongside dedicated unit or behavioral tests. Do not proceed to any other task or file directory until the tests for this specific node pass cleanly.
 4. **Zero Feature Creep:** Implement the selected feature exactly to the specifications documented—no more, no less. Do not leave placeholder comments ("TODO") pointing to unbuilt features. Keep the execution completely self-contained.
+
+## Active Task: Grid-Based Level Parser Implementation
+
+Implement a clean, data-driven map parsing engine that reads 2D text matrix strings and instantiates the initial structural layout using placeholder colored primitives.
+
+### 1. Data Schema
+- Create a dedicated container module `map_data.py` to hold the `ROOM_PROTOTYPES` string array dictionary. 
+- Define a base layout size constraint (e.g., `TILE_SIZE = 32` or `48` pixels).
+
+### 2. Parser Logic
+- Write a `LevelLoader` class that loops through a chosen string matrix grid.
+- Multiplies row and column indices by `TILE_SIZE` to calculate exact $(X, Y)$ rendering coordinates.
+- Maps symbols to basic sprite primitive groups:
+  - `#` -> Static Wall (Solid grey rectangle)
+  - `T` -> Static Obstacle/Tree (Solid dark green circle)
+  - `B` -> Placeholder Prop/Barrel (Solid brown rectangle; acts as a standard solid object for now)
+  - `.` -> Open Floor (Skips collision, handles background tile rendering if applicable)
+
+### 3. Integration Constraints
+- The player entity and existing warp objects must be cleanly positioned using designated coordinate start hooks or dedicated characters inside the string grid (e.g., `P` for Player start, `W` for Warp).
+- The physics engine's collision detection loops must universally evaluate these newly parsed sprite groups using the `is_solid` boundary checks.
