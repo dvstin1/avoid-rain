@@ -287,11 +287,17 @@ class LevelLoader:
                     interactables.append(prop)
                 
                 elif char == 'S':
-                    # Seat / Bench
-                    bench = GameObject(pos, dim)
+                    # Seat / Bench - Vertical 1x2
+                    bench_dim = (TILE_SIZE, TILE_SIZE * 2)
+                    bench = GameObject(pos, bench_dim)
                     bench.is_solid = True
                     bench.name = "Bench"
                     interactables.append(bench)
+                
+                elif char == 'E':
+                    # Miniboss Spawn
+                    from engine.enemy import Miniboss
+                    enemies.append(Miniboss(pos[0], pos[1]))
                 
                 elif char == 'K':
                     # Rock

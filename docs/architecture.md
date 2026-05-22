@@ -144,6 +144,12 @@ To ensure consistency and prevent jitter:
 - **Circle Collision:** Distance-based math for circular safe zones.
 - **Normalization:** Movement vectors must be normalized to ensure consistent diagonal speed.
 
+### 5.3 Combat Logic & Hitbox Rules
+To maintain predictable combat, hitboxes are calculated relative to the player's center and cardinal facing direction:
+- **Horizontal Attack:** Hitbox is $60 \times 20$ pixels, offset by 30 pixels from the player center.
+- **Vertical Attack:** Hitbox is $20 \times 60$ pixels, offset by 30 pixels from the player center.
+- **Resolution:** Damage is applied to all enemies overlapping the sword hitbox during the `ATTACKING` state.
+
 ## 6. Player Death Animation Loop (The Bleach Phase)
 Upon Player Entity health reaching exactly 0, execute this sequence (min 5s):
 1. **Step 1: Entity Desaturation (Instant):** Freeze all velocity, apply monochrome filter.
@@ -261,3 +267,27 @@ Every prototype map layer (e.g., `chapter1_start` or active combat testing maps)
 - **Indoor Environments:** Must contain an immediate distribution of Benches (`S`), Rocks (`K`), and Breakable Barrels (`B`).
 - **Outdoor Environments:** Must include Static Trees (`T`) alongside standard terrain blockades.
 - **Threat Verification:** Must spawn a minimum of one unit per active enemy variant (e.g., standard training target AND the newly added `BatEnemy`) within 5 horizontal tiles of the player spawn coordinates.
+
+## Entity Architecture: Multi-Tile Footprints & Boss Spatial Rules
+
+To accommodate advanced environmental clutter and impactful elite combat encounters, the engine must support composite multi-tile entity parsing.
+
+### 1. Structural Component Dimensions
+- **Standard Props (Barrels, Rocks):** Retain a $1 \times 1$ single-tile grid footprint.
+- **Benches (`S`):** Span a $1 \times 2$ structural footprint (1 tile wide, 2 tiles tall vertically). The parser must look ahead or allocate bound blocks to prevent overlapping asset artifacts.
+
+### 2. Elite Class Boundaries (Miniboss)
+- **The Ink-Stained Miniboss:** Occupies a strict $2 \times 2$ multi-tile tile boundary footprint.
+- **Kinematics & Tracking:** Movement code must evaluate collision boundaries relative to a scaled bounding box, ensuring the unit cannot squeeze through narrow $1 \times 1$ hallway corridors.
+
+## 16. Enemy Reset & Lifecycle Persistence
+To ensure runs are consistent, enemy states must be managed via a clean re-population strategy:
+- **Map Entry:** All enemies are instantiated fresh from map symbols (`Z`, `A`). 
+- **Persistence:** Enemies do not track health across map warps. Entering a room always resets enemies to their full HP and starting positions.
+- **Cleanup:** Dead enemies must be purged from the active state list immediately to prevent phantom collisions.
+
+## 17. Rendering Standards: Primitive Visibility
+During early development phases where primitive shapes (rects, lines) are used instead of sprites:
+- **Contrast:** Colors must be selected from the `constants.py` palette to ensure visibility against the `COLOR_FLOOR` backdrop.
+- **Layering:** All active entities (Player, Enemies, Props) must be drawn *after* the tile grid to prevent occlusion.
+- **Bat Indicators:** Fast-moving enemies like Bats must include wing indicators (lines) to maintain visibility during high-speed movement.

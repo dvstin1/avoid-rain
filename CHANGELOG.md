@@ -15,6 +15,11 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Bat Visibility Patch & Test Area Asset Population
+- **Visibility Fix:** Added missing `COLOR_PURPLE` constant to `constants.py`, resolving a rendering pipeline `ImportError`.
+- **Exhibition Layout:** Rearranged the `chapter1` map to cluster a Rock, Bench, Barrel, Tree, and Bat enemy directly in front of the player's spawn point for immediate testing.
+- **Bat Rendering:** Verified purple primitive rendering with wing indicators for the `BatEnemy`.
+
 ### New Game Confirmation Prompt Rendering
 - Fixed the rendering sequence for the New Game "Y/N" confirmation overlay.
 - Ensured text assets are drawn as the absolute top layer on the viewport buffer.

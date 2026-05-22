@@ -79,27 +79,56 @@ def roll_drop(source_tier: int, position: tuple, state: any):
     """
     Roll for a loot drop based on the source tier and position.
     
-    Tier 4 (Barrel Destruction):
-    - 15% drop chance.
-    - If hit, 50% TornPage, 50% HealItem.
+    Tier 4 (Barrels / Basic Chests):
+    - Barrel: 15% drop chance.
+    - Chest: 100% drop chance (not yet implemented in world).
+    - Reward: Minor Instants (1-3 pages or heal).
+    
+    Tier 3 (Standard Minor Enemies):
+    - 5% drop chance.
+    - Reward: Flat currency packet (5-10 pages).
+    
+    Tier 2 (Mini-Bosses):
+    - 100% drop chance.
+    - Reward: Massive currency bundle (20-50 pages).
+    
+    Tier 1 (Bosses):
+    - 100% drop chance.
+    - Reward: Choice of Fates (Stat Choice).
     """
+    import random
     x, y = position
+    
     if source_tier == 4:
+        # Assuming Barrel for now as they are the only Tier 4 in-game
         if random.random() < 0.15:
             if random.random() < 0.5:
-                state.loot.append(TornPage(x, y))
+                state.loot.append(TornPage(x, y, amount=random.randint(1, 3)))
             else:
                 state.loot.append(HealItem(x, y))
+                
+    elif source_tier == 3:
+        if random.random() < 0.05:
+            state.loot.append(TornPage(x, y, amount=random.randint(5, 10)))
+            
+    elif source_tier == 2:
+        # Guaranteed bundle
+        state.loot.append(TornPage(x, y, amount=random.randint(20, 50)))
+        
+    elif source_tier == 1:
+        # Choice of Fates
+        state.loot.append(ChoiceOfFates(x, y))
 
 
 class TornPage:
     """An collectable item (Unbound Syntax) dropped by enemies."""
-    def __init__(self, x, y):
+    def __init__(self, x, y, amount=1):
         self.x = x
         self.y = y
         self.width = 16
         self.height = 16
         self.name = "Torn Page"
+        self.amount = amount
 
     def get_rect(self):
         """Returns the bounding box (x, y, w, h)."""
@@ -109,7 +138,7 @@ class TornPage:
         """Increase collected pages metric in statistics."""
         if state.stats:
             try:
-                state.stats.increment("pages_collected", 1)
+                state.stats.increment("pages_collected", self.amount)
             except Exception:
                 pass
 
@@ -134,3 +163,21 @@ class HealItem:
             state.player.hp = min(state.player.max_hp, state.player.hp + self.heal_amount)
         except Exception:
             pass
+
+
+class ChoiceOfFates:
+    """A special Tier 1 reward that triggers a UI choice menu."""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 24
+        self.height = 24
+        self.name = "Choice of Fates"
+
+    def get_rect(self):
+        return (self.x, self.y, self.width, self.height)
+
+    def execute_pickup(self, state):
+        """Trigger the Choice of Fates UI in GameState."""
+        if hasattr(state, 'trigger_choice_of_fates'):
+            state.trigger_choice_of_fates()

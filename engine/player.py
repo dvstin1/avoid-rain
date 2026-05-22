@@ -34,8 +34,11 @@ class Player:
         self.facing = (1, 0) # Direction vector
         self.attack_timer = 0.0
         self.current_interactable = None
+        self.stats = {
+            "attack_modifier": 0,
+            "max_hp_modifier": 0
+        }
         self.hp = PLAYER_MAX_HP
-        self.max_hp = PLAYER_MAX_HP
         self.flask_charges = FLASK_MAX_CHARGES
 
     def update(self, dt, move_dir, walls, attack_pressed=False, flask_pressed=False):
@@ -101,6 +104,11 @@ class Player:
     def get_center(self):
         """Returns the center point of the player."""
         return (self.x + self.width / 2, self.y + self.height / 2)
+
+    @property
+    def max_hp(self):
+        """Dynamic max HP including modifiers."""
+        return PLAYER_MAX_HP + self.stats.get("max_hp_modifier", 0)
 
     def use_flask(self):
         """Consume a flask charge to restore HP."""

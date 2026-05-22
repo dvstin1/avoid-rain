@@ -359,6 +359,40 @@ class GameState:
             # Explicitly keep stats None and leave corrupt flags set for caller
             self.stats = None
 
+    def trigger_choice_of_fates(self):
+        """Generate two mutually exclusive stat choices for the player."""
+        # Biased Polar Distribution: High-Offense vs High-Defense
+        # Values scaled to current "level" (pages collected could be a proxy for level)
+        level_scale = 1
+        if self.stats:
+            try:
+                pages = self.stats.data["lifetime_stats"].get("pages_collected", 0)
+                level_scale = 1 + (pages // 100)
+            except Exception:
+                pass
+        
+        base_x = 5 * level_scale
+        minor_y = int(base_x * 0.25)
+        
+        self.active_choice = {
+            "title": "The Choice of Fates",
+            "options": [
+                {
+                    "name": "The Quill",
+                    "bias": "Offense",
+                    "modifiers": {"attack_modifier": base_x, "max_hp_modifier": minor_y},
+                    "description": f"+{base_x} Attack, +{minor_y} Max HP"
+                },
+                {
+                    "name": "The Binding",
+                    "bias": "Defense",
+                    "modifiers": {"max_hp_modifier": base_x, "attack_modifier": minor_y},
+                    "description": f"+{base_x} Max HP, +{minor_y} Attack"
+                }
+            ],
+            "selected_index": 0
+        }
+
     def update(self, dt, actions):
         """Update all game logic."""
         # 0. Handle 'Text Bleaching' (Death State)
@@ -378,6 +412,21 @@ class GameState:
                 self.active_dialogue = None
                 self.save_stats(wait=True) # Synchronous flush on dialogue close
             return # Block all other updates during dialogue
+
+        # 0b. Handle Choice of Fates
+        if getattr(self, 'active_choice', None):
+            if move_dir[0] > 0:
+                self.active_choice["selected_index"] = 1
+            elif move_dir[0] < 0:
+                self.active_choice["selected_index"] = 0
+            
+            if attack_pressed:
+                # Apply selection
+                choice = self.active_choice["options"][self.active_choice["selected_index"]]
+                for stat, val in choice["modifiers"].items():
+                    self.player.stats[stat] = self.player.stats.get(stat, 0) + val
+                self.active_choice = None
+            return
 
         # 1. Update Interactables
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
@@ -409,13 +458,14 @@ class GameState:
                     self.dummy_outline_timer = STAGGER_OUTLINE_TIME
 
             # Apply hits to enemies
+            damage = SWORD_DAMAGE + getattr(self.player, 'stats', {}).get('attack_modifier', 0)
             for enemy in list(self.enemies):
                 try:
                     if check_aabb_collision(hitbox, enemy.get_rect()):
-                        enemy.take_damage(SWORD_DAMAGE)
+                        enemy.take_damage(damage)
                         # Show damage number above enemy
                         self.damage_numbers.append({
-                            'val': SWORD_DAMAGE,
+                            'val': damage,
                             'pos': (enemy.x + 10, enemy.y - 20),
                             'time': DAMAGE_NUMBER_LIFETIME,
                             'color': COLOR_YELLOW
@@ -427,7 +477,7 @@ class GameState:
             for obj in list(self.world.interactables):
                 if obj.is_breakable:
                     if check_aabb_collision(hitbox, obj.rect):
-                        obj.take_damage(SWORD_DAMAGE)
+                        obj.take_damage(damage)
                         if obj.is_destroyed():
                             try:
                                 self.world.interactables.remove(obj)
@@ -444,9 +494,10 @@ class GameState:
             if enemy.is_dead():
                 try:
                     self.enemies.remove(enemy)
-                    # Spawn Torn Page (Unbound Syntax)
-                    from engine.loot import TornPage
-                    self.loot.append(TornPage(enemy.x, enemy.y))
+                    # Trigger Tiered Loot Roll
+                    from engine.loot import roll_drop
+                    tier = getattr(enemy, 'loot_tier', 3)
+                    roll_drop(tier, (enemy.x, enemy.y), self)
                 except Exception:
                     pass
                 continue

@@ -186,6 +186,56 @@ class Renderer:
         close_surf = self.font.render("Press [SPACE] to continue", True, COLOR_GREY)
         self.screen.blit(close_surf, (x + width - close_surf.get_width() - 20, y + height - 30))
 
+    def draw_choice_of_fates(self, choice):
+        """Draw the Choice of Fates UI overlay."""
+        from constants import COLOR_WHITE, COLOR_YELLOW, COLOR_GREY, COLOR_PURPLE
+        
+        # Dim background
+        overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        self.screen.blit(overlay, (0, 0))
+        
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        
+        # Draw title
+        title_surf = self.font.render(choice["title"], True, COLOR_PURPLE)
+        self.screen.blit(title_surf, (sw // 2 - title_surf.get_width() // 2, sh // 4))
+        
+        # Draw options
+        card_w, card_h = 300, 200
+        padding = 50
+        
+        for i, option in enumerate(choice["options"]):
+            x = sw // 2 - (card_w + padding // 2) + i * (card_w + padding)
+            y = sh // 2 - card_h // 2
+            
+            rect = pygame.Rect(x, y, card_w, card_h)
+            color = (40, 40, 40)
+            border_color = COLOR_GREY
+            
+            if i == choice["selected_index"]:
+                color = (60, 60, 80)
+                border_color = COLOR_YELLOW
+            
+            pygame.draw.rect(self.screen, color, rect)
+            pygame.draw.rect(self.screen, border_color, rect, 3)
+            
+            # Draw option name
+            name_surf = self.font.render(option["name"], True, COLOR_WHITE)
+            self.screen.blit(name_surf, (x + card_w // 2 - name_surf.get_width() // 2, y + 20))
+            
+            # Draw bias
+            bias_surf = self.font.render(f"({option['bias']})", True, COLOR_GREY)
+            self.screen.blit(bias_surf, (x + card_w // 2 - bias_surf.get_width() // 2, y + 50))
+            
+            # Draw description
+            desc_surf = self.font.render(option["description"], True, COLOR_YELLOW)
+            self.screen.blit(desc_surf, (x + card_w // 2 - desc_surf.get_width() // 2, y + card_h - 50))
+
+        # Instructions
+        instr_surf = self.font.render("Move [Left/Right] to select, [SPACE] to confirm", True, COLOR_WHITE)
+        self.screen.blit(instr_surf, (sw // 2 - instr_surf.get_width() // 2, sh - 100))
+
     def render(self, state):
         """Draw the visible portion of the game state to the screen using a camera.
 
@@ -354,6 +404,10 @@ class Renderer:
         # 8b. Draw Dialogue
         if getattr(state, 'active_dialogue', None):
             self.draw_dialogue_box(state)
+
+        # 8c. Draw Choice of Fates
+        if getattr(state, 'active_choice', None):
+            self.draw_choice_of_fates(state.active_choice)
 
         # 9. Apply 'Text Bleaching' (Monochrome/Grey Overlay)
         if getattr(state, 'death_timer', 0) > 0:

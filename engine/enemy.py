@@ -54,6 +54,7 @@ class SlugEnemy(Enemy):
     - Moves directly toward player (no pathfinding)
     - Deals damage on contact with a cooldown
     """
+    loot_tier = 3
     def __init__(self, x, y, hp=None):
         from constants import SLUG_MAX_HP, SLUG_SPEED, SLUG_DETECT_METERS, SLUG_DAMAGE, SLUG_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
         initial_hp = hp if hp is not None else SLUG_MAX_HP
@@ -125,6 +126,7 @@ class BatEnemy(Enemy):
     - Moves toward player with a faster speed than Slugs
     - Erratic motion: adds a perpendicular sine wave to its movement
     """
+    loot_tier = 3
     def __init__(self, x, y, hp=None):
         from constants import (
             BAT_MAX_HP, BAT_SPEED, BAT_DETECT_METERS, BAT_DAMAGE,
@@ -196,6 +198,84 @@ class BatEnemy(Enemy):
 
     def attempt_damage_player(self, state):
         """If touching the player and cooldown elapsed, apply damage."""
+        if self._damage_timer > 0.0:
+            return False
+        if check_aabb_collision(
+            self.get_rect(),
+            (state.player.x, state.player.y, state.player.width, state.player.height)
+        ):
+            try:
+                state.player.take_damage(self.damage)
+            except Exception:
+                pass
+            self._damage_timer = self.damage_cooldown
+            return True
+        return False
+
+
+class Miniboss(Enemy):
+    """An elite 2x2 miniboss enemy with pursuit behavior."""
+    loot_tier = 2
+    def __init__(self, x, y, hp=None):
+        from constants import (
+            MINIBOSS_MAX_HP, MINIBOSS_SPEED, MINIBOSS_DAMAGE,
+            MINIBOSS_DAMAGE_COOLDOWN, TILE_SIZE
+        )
+        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
+        # Miniboss is 2x2 tiles
+        super().__init__(x, y, TILE_SIZE * 2, TILE_SIZE * 2, initial_hp)
+        self.speed = MINIBOSS_SPEED
+        # Large detection radius
+        self.detect_radius = 12 * TILE_SIZE
+        self.damage = MINIBOSS_DAMAGE
+        self.damage_cooldown = MINIBOSS_DAMAGE_COOLDOWN
+        self._damage_timer = 0.0
+
+    def to_dict(self):
+        d = super().to_dict()
+        d["type"] = "Miniboss"
+        return d
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(data["x"], data["y"], hp=data["hp"])
+
+    def update(self, dt, state):
+        """Move toward the player with a pursuit vector."""
+        player_cx, player_cy = state.player.get_center()
+        cx = self.x + self.width / 2
+        cy = self.y + self.height / 2
+        dx = player_cx - cx
+        dy = player_cy - cy
+        dist_sq = dx * dx + dy * dy
+
+        if dist_sq <= (self.detect_radius * self.detect_radius):
+            dist = math.sqrt(dist_sq) if dist_sq > 0 else 0.0
+            if dist > 0.0:
+                nx = dx / dist
+                ny = dy / dist
+                self.vx = nx * self.speed
+                self.vy = ny * self.speed
+                self.x += self.vx * dt
+                self.y += self.vy * dt
+                
+                # Resolve wall collisions
+                try:
+                    walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
+                    self.x, self.y = resolve_wall_collision(
+                        (self.x, self.y, self.width, self.height), walls
+                    )
+                except Exception:
+                    pass
+        else:
+            self.vx = 0.0
+            self.vy = 0.0
+
+        if self._damage_timer > 0.0:
+            self._damage_timer -= dt
+
+    def attempt_damage_player(self, state):
+        """Apply damage on contact."""
         if self._damage_timer > 0.0:
             return False
         if check_aabb_collision(

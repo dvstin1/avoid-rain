@@ -96,7 +96,7 @@ def test_roll_drop_tier4_logic():
 def test_heal_item_pickup():
     state = GameState(auto_load=False)
     state.player.hp = 50
-    state.player.max_hp = 100
+    # state.player.max_hp is 100 by default (PLAYER_MAX_HP)
     
     heal = HealItem(state.player.x, state.player.y)
     heal.execute_pickup(state)

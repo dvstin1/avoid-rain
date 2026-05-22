@@ -17,6 +17,7 @@ COLOR_BLUE = (50, 50, 200)
 COLOR_GREEN = (50, 200, 50)
 COLOR_GREY = (100, 100, 100)
 COLOR_CYAN = (0, 255, 255)
+COLOR_PURPLE = (150, 50, 250)
 COLOR_DARK_GREY = (40, 40, 40)
 
 # Player Configuration
@@ -64,14 +65,20 @@ BAT_DAMAGE_COOLDOWN = 0.5  # seconds between contact damage attempts
 # Grid & World Configuration
 TILE_SIZE = 40
 # Extra tiles to make the world larger than the visible screen (low-coupling constant)
-WORLD_EXTRA_TILES_X = 10
-WORLD_EXTRA_TILES_Y = 5
+WORLD_EXTRA_TILES_X = 60
+WORLD_EXTRA_TILES_Y = 40
 GRID_WIDTH = SCREEN_WIDTH // TILE_SIZE + WORLD_EXTRA_TILES_X
 GRID_HEIGHT = SCREEN_HEIGHT // TILE_SIZE + WORLD_EXTRA_TILES_Y
 
 # Camera smoothing configuration (how quickly the camera follows the target)
 # Higher values = snappier (1.0 means it will take ~1s to reach target)
 CAMERA_LERP_SPEED = 8.0
+
+# Miniboss configuration
+MINIBOSS_MAX_HP = 150
+MINIBOSS_SPEED = 100.0
+MINIBOSS_DAMAGE = 20
+MINIBOSS_DAMAGE_COOLDOWN = 1.5
 
 # Autosave configuration
 # Interval (seconds) between automatic saves
@@ -113,6 +120,7 @@ TILE_KEY = {
     'K': TILE_OBSTACLE, # Rock
     'Z': 101, # SlugEnemy Spawn
     'A': 102, # BatEnemy Spawn
+    'E': 103, # Miniboss Spawn
     'P': 100, # Special marker for player start
     'M': TILE_LOTUS_FRAME,
     'X': TILE_WALL, # X also acts as a wall boundary

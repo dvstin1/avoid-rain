@@ -34,6 +34,17 @@
 Currently performing a comprehensive documentation cleanup to remove contradictions, consolidate architecture, and archive completed features into `CHANGELOG.md`.
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
+## Active Task: Arena Sprawl Expansion, Multi-Tile Props, & 2x2 Miniboss
 
-## Completed Tasks
-- [X] **Enemy Population Reset Lifecycle Fix:** Transitioned to a fully data-driven re-population system using map symbols. Enemies now correctly reset on map entry or run restart. (See `CHANGELOG.md` for details).
+Expand the Chapter 1 level array to a massive layout featuring a clear hallway progression, refactor Benches to a vertical 1x2 footprint, and implement a large 2x2 Miniboss entity.
+
+### 1. Level Design: The Corridor Sprawl
+- Rewrite the `chapter1` map grid matrix to be approximately 4 times its current scale.
+- **The Topology:** Design a starting room with benches, rocks, and bats, narrow down into a long $1 \times 1$ tile wide connecting hallway corridor, and open up into a large, grand final chamber.
+
+### 2. Multi-Tile Bench & Miniboss Allocation
+- **The Bench Refactor (`S`):** Update `LevelLoader` so that reading an `S` character instantiates a vertical rectangle spanning `TILE_SIZE` width and `TILE_SIZE * 2` height.
+- **The Miniboss (`M_BOSS`):** Create an elite enemy class in `engine/enemy.py`. 
+  - Render it as a large $2 \times 2$ primitive colored block.
+  - Position its character spawn anchor exclusively inside the large final chamber room.
+  - Give it a simple pursuit vector with an expanded health pool.
