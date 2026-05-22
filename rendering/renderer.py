@@ -83,24 +83,79 @@ class Renderer:
         px, py = player.get_center()
         self.screen.blit(prompt_surf, (px - rect.width // 2 - offset_x, py - player.height - 20 - offset_y))
 
-    def draw_dialogue_box(self, dialogue):
-        """Draw a dialogue box at the bottom of the screen."""
+    def draw_wellspring(self, wellspring, offset_x, offset_y):
+        """Draw the Wellspring fountain with animated water lines."""
+        ox, oy, ow, oh = wellspring.rect
+        screen_x = ox - offset_x
+        screen_y = oy - offset_y
+
+        # Draw Basin (Solid blue background)
+        basin_rect = pygame.Rect(screen_x, screen_y, ow, oh)
+        pygame.draw.rect(self.screen, COLOR_BLUE, basin_rect)
+        pygame.draw.rect(self.screen, COLOR_WHITE, basin_rect, 2) # Basin rim
+
+        # Animated Water Lines
+        # Specification: 3 to 4 alternating horizontal lines of lighter cyan hue
+        try:
+            ticks = pygame.time.get_ticks()
+            offset = (ticks // 200) % TILE_SIZE
+            
+            for i in range(4):
+                line_y = screen_y + (i + 1) * (oh // 5)
+                # Alternate direction
+                line_offset = offset if i % 2 == 0 else -offset
+                
+                # Draw segments to simulate flowing water
+                segment_len = 15
+                gap = 10
+                for lx in range(-TILE_SIZE, ow + TILE_SIZE, segment_len + gap):
+                    start_x = screen_x + lx + line_offset
+                    end_x = start_x + segment_len
+                    
+                    # Clamp to basin width
+                    final_start_x = max(screen_x + 2, min(screen_x + ow - 2, start_x))
+                    final_end_x = max(screen_x + 2, min(screen_x + ow - 2, end_x))
+                    
+                    if final_start_x < final_end_x:
+                        pygame.draw.line(self.screen, COLOR_CYAN, (final_start_x, line_y), (final_end_x, line_y), 2)
+        except Exception:
+            pass
+
+    def draw_dialogue_box(self, state):
+        """Draw a dialogue box. Supports STANDARD and EXPANDED modes."""
+        dialogue = state.active_dialogue
         if not dialogue:
             return
             
+        mode = getattr(state, 'dialogue_mode', "STANDARD")
         speaker = dialogue.get("speaker", "Unknown")
         text = dialogue.get("text", "")
         
-        # Panel dimensions
-        margin = 50
-        width = self.screen.get_width() - margin * 2
-        height = 150
-        x = margin
-        y = self.screen.get_height() - height - 20
+        if mode == "EXPANDED":
+            # Large, centralized screen overlay
+            margin_x = 100
+            margin_y = 100
+            width = self.screen.get_width() - margin_x * 2
+            height = self.screen.get_height() - margin_y * 2
+            x = margin_x
+            y = margin_y
+            bg_color = (10, 10, 30) # Darker blueish
+            line_spacing = 40
+            text_y_offset = 80
+        else:
+            # Panel dimensions
+            margin = 50
+            width = self.screen.get_width() - margin * 2
+            height = 150
+            x = margin
+            y = self.screen.get_height() - height - 20
+            bg_color = (20, 20, 20)
+            line_spacing = 30
+            text_y_offset = 50
         
         # Draw background panel
         panel_rect = pygame.Rect(x, y, width, height)
-        pygame.draw.rect(self.screen, (20, 20, 20), panel_rect)
+        pygame.draw.rect(self.screen, bg_color, panel_rect)
         pygame.draw.rect(self.screen, COLOR_WHITE, panel_rect, 2)
         
         # Draw speaker name
@@ -125,7 +180,7 @@ class Renderer:
         
         for i, line in enumerate(lines):
             line_surf = self.font.render(line, True, COLOR_WHITE)
-            self.screen.blit(line_surf, (x + 20, y + 50 + i * 30))
+            self.screen.blit(line_surf, (x + 20, y + text_y_offset + i * line_spacing))
             
         # Instruction to close
         close_surf = self.font.render("Press [SPACE] to continue", True, COLOR_GREY)
@@ -198,6 +253,8 @@ class Renderer:
                 pygame.draw.rect(self.screen, (255, 200, 150), (ox + 5 - offset_x, oy + 5 - offset_y, ow - 10, 10))
                 # Outline
                 pygame.draw.rect(self.screen, COLOR_BLACK, (ox - offset_x, oy - offset_y, ow, oh), 1)
+            elif obj.name == "The Wellspring":
+                self.draw_wellspring(obj, offset_x, offset_y)
 
         # 1c. Draw Loot (Torn Pages)
         for item in getattr(state, 'loot', []):
@@ -276,7 +333,7 @@ class Renderer:
 
         # 8b. Draw Dialogue
         if getattr(state, 'active_dialogue', None):
-            self.draw_dialogue_box(state.active_dialogue)
+            self.draw_dialogue_box(state)
 
         # 9. Apply 'Text Bleaching' (Monochrome/Grey Overlay)
         if getattr(state, 'death_timer', 0) > 0:

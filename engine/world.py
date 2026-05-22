@@ -126,6 +126,7 @@ class Chronicler(GameObject):
         if valid_nodes:
             self.current_dialogue = valid_nodes[0]["text"]
             # Trigger dialogue box in GameState
+            game_state.dialogue_mode = "STANDARD"
             game_state.active_dialogue = {
                 "speaker": self.name,
                 "text": self.current_dialogue
@@ -162,6 +163,7 @@ class Wellspring(GameObject):
         discovered_count = sum(1 for v in bestiary.values() if v)
         text += f"Syntax Blocks: {discovered_count}"
 
+        game_state.dialogue_mode = "EXPANDED"
         game_state.active_dialogue = {
             "speaker": self.name,
             "text": text

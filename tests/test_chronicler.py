@@ -26,6 +26,7 @@ def test_chronicler_dialogue_init():
     # Interaction
     chronicler.execute_interaction(gs)
     assert gs.active_dialogue is not None
+    assert gs.dialogue_mode == "STANDARD"
     assert "Welcome back to the Scriptorium" in gs.active_dialogue["text"]
 
 def test_chronicler_dialogue_defeat():

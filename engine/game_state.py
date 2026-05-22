@@ -99,6 +99,7 @@ class GameState:
             self.stats_corrupt_backup = getattr(self, 'stats_corrupt_backup', None)
 
         self.active_dialogue = None
+        self.dialogue_mode = "STANDARD"
 
         # 4. Dummy Entity State
         self.dummy_rect = (DUMMY_X, DUMMY_Y, DUMMY_WIDTH, DUMMY_HEIGHT)

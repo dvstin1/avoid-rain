@@ -29,6 +29,7 @@ def test_wellspring_interaction_shows_stats():
     wellspring.execute_interaction(gs)
     
     assert gs.active_dialogue is not None
+    assert gs.dialogue_mode == "EXPANDED"
     assert gs.active_dialogue["speaker"] == "The Wellspring"
     text = gs.active_dialogue["text"]
     assert "Timeline Reflection:" in text

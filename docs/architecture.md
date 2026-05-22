@@ -239,3 +239,15 @@ The JSON document structure must explicitly track whether a run is currently sus
     "torn_pages_collected": 3
   }
 }
+
+## UI Rendering Architecture: Dialog Scaling & Entity Primitives
+
+To handle both narrative character dialogue and expansive dataset ledger presentation, the rendering engine must support scalable user-interface viewports.
+
+### 1. The Context-Aware UI Matrix
+- **Standard Dialog Window:** A lower-third horizontal banner (approx. 25-30% screen height) reserved exclusively for active NPC banter (e.g., The Chronicler).
+- **Expanded Manuscript overlay:** A centralized, large modal window (occupying approx. 70-80% of total screen dimensions) featuring a parchment or high-contrast background mask. This mode is explicitly triggered by architectural data-log systems (e.g., The Wellspring Fountain Ledger, The Chronicle Profile Screen) to present dense multiline metrics without string clipping.
+
+### 2. Procedural Animation Constraints (The Wellspring Surface)
+- Non-image placeholder structures must utilize frame-relative math or time-based sine vectors to simulate life.
+- **The Water Primitive:** A bounding block mapped to the Wellspring position that dynamically alternates rendering layers of primary cyan/blue color bars offset by moving horizontal highlight strokes to mimic continuous liquid currents.
