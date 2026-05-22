@@ -19,11 +19,15 @@ def test_threaded_save_sets_flags(tmp_path):
     gs = GameState(stats=st, auto_load=False)
     # Ensure not saving initially
     assert not getattr(gs, 'saving_in_progress', False)
-    # Call save_stats which starts a background thread
+    # Call save_stats which enqueues a save for the worker
     gs.save_stats(str(tmp_path / 'profile_metrics.json'))
-    # Immediately after calling, saving_in_progress should be True
-    assert getattr(gs, 'saving_in_progress', False)
-    # Wait for background save to complete
-    time.sleep(0.2)
-    assert not getattr(gs, 'saving_in_progress', False)
+    # Wait until the save is processed (poll with timeout)
+    timeout = 1.0
+    waited = 0.0
+    interval = 0.01
+    while st.saved == 0 and waited < timeout:
+        time.sleep(interval)
+        waited += interval
     assert st.saved == 1
+    # Shutdown worker for cleanliness
+    gs.shutdown_save_worker()

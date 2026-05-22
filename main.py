@@ -185,6 +185,9 @@ def main():
         try:
             if 'state' in locals() and getattr(state, 'save_stats', None) is not None:
                 state.save_stats()
+            # Shutdown save worker to flush pending saves
+            if 'state' in locals() and getattr(state, 'shutdown_save_worker', None) is not None:
+                state.shutdown_save_worker()
         except Exception:
             pass
         pygame.quit()

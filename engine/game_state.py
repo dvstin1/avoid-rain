@@ -75,6 +75,15 @@ class GameState:
         # Time since last autosave (seconds). Large by default so indicator is hidden.
         self.last_save_elapsed = 1e6
 
+        # Save worker: queue + dedicated thread to serialize all save requests.
+        # This avoids spawning many threads and keeps saves off the main thread.
+        import queue, threading
+        self._save_queue = queue.Queue(maxsize=8)
+        self._save_worker_running = True
+        self.saving_in_progress = False
+        self._save_worker_thread = threading.Thread(target=self._save_worker, daemon=True)
+        self._save_worker_thread.start()
+
     def save_stats(self, path: Optional[str] = None) -> None:
         """Persist the attached StatisticsTracker to disk in a background thread.
 
@@ -107,8 +116,81 @@ class GameState:
                 except Exception:
                     pass
 
-        thread = threading.Thread(target=_worker, args=(path,), daemon=True)
-        thread.start()
+        # Enqueue a save request for the worker to process. If the queue is full,
+        # drop the request to avoid blocking the main thread.
+        try:
+            self._save_queue.put_nowait(path)
+        except Exception:
+            # Queue full or unavailable: ignore (best-effort save)
+            pass
+
+    def _save_worker(self):
+        import time
+        while getattr(self, '_save_worker_running', False):
+            try:
+                item = self._save_queue.get(timeout=0.5)
+            except Exception:
+                continue
+            # Sentinel to stop
+            if item is None:
+                break
+            try:
+                self.saving_in_progress = True
+                try:
+                    self.last_save_elapsed = 0.0
+                except Exception:
+                    pass
+                # Perform the actual save using the stats object
+                if self.stats is not None:
+                    try:
+                        self.stats.save(item)
+                    except Exception:
+                        # Save failures are non-fatal; ignore but continue
+                        pass
+            finally:
+                self.saving_in_progress = False
+                try:
+                    self._save_queue.task_done()
+                except Exception:
+                    pass
+        # Drain any remaining items without blocking
+        try:
+            while True:
+                item = self._save_queue.get_nowait()
+                if item is None:
+                    break
+                try:
+                    if self.stats is not None:
+                        self.stats.save(item)
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        self._save_queue.task_done()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def shutdown_save_worker(self, timeout: float = 2.0) -> None:
+        """Stop the save worker thread and wait for it to finish.
+
+        This enqueues a sentinel and joins the thread (with timeout) to ensure
+        a clean shutdown during application exit or tests.
+        """
+        self._save_worker_running = False
+        try:
+            # enqueue sentinel
+            self._save_queue.put_nowait(None)
+        except Exception:
+            try:
+                self._save_queue.put(None, timeout=0.1)
+            except Exception:
+                pass
+        try:
+            self._save_worker_thread.join(timeout)
+        except Exception:
+            pass
 
     def handle_corrupt_choice(self, start_new: bool) -> None:
         """Handle player's decision after a corrupt save was detected.
