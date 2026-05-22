@@ -93,6 +93,7 @@ TILE_RESPITE = 3
 TILE_OBSTACLE = 4
 TILE_PROP = 5
 TILE_LOTUS_FRAME = 6
+TILE_LORE = 7
 
 TILE_KEY = {
     '#': TILE_WALL,
@@ -104,6 +105,7 @@ TILE_KEY = {
     'P': 100, # Special marker for player start
     'M': TILE_LOTUS_FRAME,
     'X': TILE_WALL, # X also acts as a wall boundary
+    'L': TILE_LORE,
 }
 
 # Colors for Tiles
@@ -143,5 +145,22 @@ DIALOGUE_MANIFEST = {
             "priority": "0",  # Checked last
             "text": "The pages are waiting whenever you are ready."
         }
-    ]
+    ],
+    "lore_fragments": {
+        "wellspring_origin": (
+            "The Wellspring. It sits at the absolute center of the Scriptorium. "
+            "It doesn't draw from water tables in the earth; it is an active artesian "
+            "pressure valve connected directly to the original, untainted source—the Unwritten Page."
+        ),
+        "chronicler_nature": (
+            "The Chronicler is the physical manifestation of the book's original purpose. "
+            "Before the Author went mad and corrupted the manuscript with 'The Bleed', "
+            "the Chronicler was the entity designed to record history with clarity and care."
+        ),
+        "lotus_page": (
+            "Within the Libram, reality follows typography. The master map structure is called "
+            "the Lotus Page. The solid frame represents the immutable, preserved margins. "
+            "The hollow cells are literal blank windows where stories are drafted."
+        )
+    }
 }

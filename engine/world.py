@@ -169,6 +169,26 @@ class Wellspring(GameObject):
             "text": text
         }
 
+class LoreFragment(GameObject):
+    """An interactable object that displays a lore snippet from the manifest."""
+    def __init__(self, position, dimensions, fragment_id, name="Lost Passage"):
+        super().__init__(position, dimensions)
+        self.fragment_id = fragment_id
+        self.name = name
+        self.is_interactive = True
+        self.is_solid = False # Can walk over it, like a page on the ground
+
+    def execute_interaction(self, game_state):
+        from constants import DIALOGUE_MANIFEST
+        manifest = DIALOGUE_MANIFEST.get("lore_fragments", {})
+        snippet = manifest.get(self.fragment_id, "The text is faded beyond recognition.")
+        
+        game_state.dialogue_mode = "STANDARD"
+        game_state.active_dialogue = {
+            "speaker": self.name,
+            "text": snippet
+        }
+
 class LevelLoader:
     """
     Dedicated parser for 2D text matrix strings.
@@ -247,6 +267,14 @@ class LevelLoader:
                     # The Wellspring (Fountain)
                     wellspring = Wellspring(pos, dim)
                     interactables.append(wellspring)
+                
+                elif char == 'L':
+                    # Lore Fragment
+                    data = entity_data.get((x, y), {})
+                    frag_id = data.get('fragment_id', 'unknown')
+                    frag_name = data.get('name', 'Lost Passage')
+                    fragment = LoreFragment(pos, dim, frag_id, name=frag_name)
+                    interactables.append(fragment)
                 
                 elif char == 'B':
                     # Placeholder Prop / Barrel
