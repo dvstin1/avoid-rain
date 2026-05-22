@@ -507,6 +507,8 @@ class Renderer:
         the displayed options (e.g., New Game / Continue / Quit).
         """
         self.screen.fill(COLOR_BLACK)
+        
+        # 1. Draw the base title background/void mask
         title_surf = self.font.render("AVOID RAIN", True, COLOR_WHITE)
         instr_surf = self.font.render("Use ARROW KEYS and ENTER to choose", True, COLOR_WHITE)
 
@@ -519,23 +521,59 @@ class Renderer:
         # Resolve options and selected index from parameter
         options = ["New Game", "Quit"]
         selected_index = 0
+        menu_state = None
+        
+        from engine.title_menu import TitleMenuState
+        
         try:
             # If passed an object with get_options, use it
             if hasattr(selected_index_or_menu, 'get_options'):
                 options = selected_index_or_menu.get_options()
                 selected_index = selected_index_or_menu.get_selected_index()
+                menu_state = getattr(selected_index_or_menu, 'state', TitleMenuState.MAIN)
             else:
                 # treat as integer index
                 selected_index = int(selected_index_or_menu)
+                menu_state = TitleMenuState.MAIN
         except Exception:
             options = ["New Game", "Quit"]
             selected_index = 0
+            menu_state = TitleMenuState.MAIN
 
         for idx, opt in enumerate(options):
             color = COLOR_YELLOW if idx == selected_index else COLOR_WHITE
             opt_surf = self.font.render(opt, True, color)
             opt_rect = opt_surf.get_rect(center=(self.screen.get_width()//2, 340 + idx * 40))
             self.screen.blit(opt_surf, opt_rect)
+
+        # 2. Draw confirmation overlay if in CONFIRM_NEW_GAME state
+        if menu_state == TitleMenuState.CONFIRM_NEW_GAME:
+            # Semi-transparent dark overlay for the whole screen
+            overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 200))
+            self.screen.blit(overlay, (0, 0))
+            
+            # Confirmation box (card box)
+            box_w, box_h = 600, 150
+            box_rect = pygame.Rect(0, 0, box_w, box_h)
+            box_rect.center = self.screen.get_rect().center
+            
+            pygame.draw.rect(self.screen, (30, 30, 30), box_rect)
+            pygame.draw.rect(self.screen, COLOR_WHITE, box_rect, 2)
+            
+            # Confirmation text - anchor to center of viewport
+            msg = "Are you sure you want to start a New Game? (Y/N)"
+            confirm_surf = self.font.render(msg, True, COLOR_WHITE)
+            confirm_rect = confirm_surf.get_rect(center=self.screen.get_rect().center)
+            
+            # Warning about losing progress
+            warning_msg = "This will permanently remove old progress."
+            warning_surf = self.font.render(warning_msg, True, COLOR_RED)
+            warning_rect = warning_surf.get_rect(center=(self.screen.get_rect().centerx, self.screen.get_rect().centery + 30))
+            
+            self.screen.blit(confirm_surf, confirm_rect)
+            self.screen.blit(warning_surf, warning_rect)
+
         pygame.display.flip()
 
     def fade_to_black(self):

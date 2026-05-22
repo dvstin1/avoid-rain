@@ -4,11 +4,14 @@ TitleMenu: decoupled title screen menu state.
 Provides navigation and confirmation for title screen options (Start, Quit).
 """
 from __future__ import annotations
-
-
+from enum import Enum, auto
 
 from .menu import MenuBase
 
+class TitleMenuState(Enum):
+    """States for the title menu."""
+    MAIN = auto()
+    CONFIRM_NEW_GAME = auto()
 
 class TitleMenu(MenuBase):
     """Manage title screen menu state and confirmation flag.
@@ -28,14 +31,20 @@ class TitleMenu(MenuBase):
             # index 1 = Continue
             self._selected = 1
         self._confirmed = False
+        self.state = TitleMenuState.MAIN
 
     def set_has_save(self, has_save: bool) -> None:
         """Update menu options based on presence of save data.
 
         Calling this will reset the options list and selection appropriately.
         """
-        # Reinitialize options and selection while preserving the confirm flag
-        self.__init__(has_save=has_save)
+        # Update internal state and options without dunder __init__ call
+        self._has_save = bool(has_save)
+        self._options = ["New Game", "Quit"] if not self._has_save else ["New Game", "Continue", "Quit"]
+        if self._has_save:
+            self._selected = 1
+        else:
+            self._selected = 0
 
     def confirm(self) -> None:
         """Mark that the current selection was confirmed."""

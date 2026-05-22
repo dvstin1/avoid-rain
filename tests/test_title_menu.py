@@ -1,4 +1,4 @@
-from engine.title_menu import TitleMenu
+from engine.title_menu import TitleMenu, TitleMenuState
 
 
 def test_navigation_and_confirm():
@@ -15,3 +15,18 @@ def test_navigation_and_confirm():
     assert tm.was_confirmed()
     tm.clear_confirm()
     assert not tm.was_confirmed()
+
+
+def test_title_menu_states():
+    tm = TitleMenu()
+    assert tm.state == TitleMenuState.MAIN
+    tm.state = TitleMenuState.CONFIRM_NEW_GAME
+    assert tm.state == TitleMenuState.CONFIRM_NEW_GAME
+    
+    # Test that set_has_save preserves state
+    tm.set_has_save(True)
+    assert tm.state == TitleMenuState.CONFIRM_NEW_GAME
+    
+    # Test reset to MAIN
+    tm.state = TitleMenuState.MAIN
+    assert tm.state == TitleMenuState.MAIN

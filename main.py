@@ -7,13 +7,13 @@ import pygame
 from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS, AUTOSAVE_INTERVAL
 from engine.game_state import GameState
 from engine.pause_menu import PauseMenu
-from engine.title_menu import TitleMenu
-from rendering.renderer import Renderer
+from engine.title_menu import TitleMenu, TitleMenuState
 from engine.autosave import AutosaveManager
+from rendering.renderer import Renderer
 
 # pylint: disable=no-member
 
-def handle_title_events(renderer, title_menu):
+def handle_title_events(renderer, title_menu: TitleMenu):
     """Handle events during the title screen with a menu controller.
 
     This function updates menu navigation and sets the confirm flag on the
@@ -25,6 +25,16 @@ def handle_title_events(renderer, title_menu):
         if event.type == pygame.QUIT:
             return False, False
         if event.type == pygame.KEYDOWN:
+            # If we are in confirmation state, handle ESC as 'cancel'
+            if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
+                if event.key in (pygame.K_ESCAPE, pygame.K_n):
+                    title_menu.state = TitleMenuState.MAIN
+                    return True, True
+                if event.key == pygame.K_y:
+                    title_menu.confirm()
+                    return True, True
+                return True, True
+
             if event.key == pygame.K_ESCAPE:
                 return False, False
             # Navigation
@@ -137,7 +147,8 @@ def main():
     # PauseMenu will auto-save on open via a lightweight callback
     pause_menu = PauseMenu(on_open=lambda: state.save_stats())
     # Title menu should reflect whether a resume-able save exists
-    has_run = getattr(state, 'stats', None) is not None and state.stats.data.get("run_state") is not None
+    has_run = (getattr(state, 'stats', None) is not None and 
+               state.stats.data.get("run_state") is not None)
     title_menu = TitleMenu(has_save=has_run)
 
     in_title = True
@@ -152,7 +163,7 @@ def main():
                 in_title, running = handle_title_events(renderer, title_menu)
                 # Pass the whole TitleMenu so the renderer can render dynamic options
                 renderer.draw_title_screen(title_menu)
-                # If the user confirmed a title selection, handle it here where we have access to `state`.
+                # If the user confirmed a title selection, handle it here
                 if title_menu.was_confirmed():
                     selected = title_menu.get_selected()
                     title_menu.clear_confirm()
@@ -171,40 +182,25 @@ def main():
                         continue
 
                     if selected == 'New Game':
-                        # If a persistent run exists, ask for confirmation because this
-                        # will replace/erase previous progress.
-                        has_run = getattr(state, 'stats', None) is not None and state.stats.data.get("run_state") is not None
-                        if has_run:
-                            # Show confirmation screen and require Y/N
-                            renderer.draw_loading_screen('Confirm New Game', 'This will permanently remove old progress. Press Y to confirm, N to cancel', min_time=2.0)
-                            waiting = True
-                            choice = None
-                            while waiting:
-                                for ev in pygame.event.get():
-                                    if ev.type == pygame.QUIT:
-                                        pygame.quit()
-                                        sys.exit()
-                                    if ev.type == pygame.KEYDOWN:
-                                        if ev.key == pygame.K_y:
-                                            choice = 'y'
-                                            waiting = False
-                                        elif ev.key == pygame.K_n:
-                                            choice = 'n'
-                                            waiting = False
-                                pygame.time.delay(10)
-                            if choice == 'y':
-                                # Reset GameState to defaults and clear run_state
-                                try:
-                                    state.reset_to_new_game()
-                                    state.save_stats(wait=True) # Synchronous flush for first-run
-                                except Exception:
-                                    pass
-                                renderer.fade_to_black()
-                                in_title = False
-                                continue
-                            else:
-                                # Cancel new game; remain on title
+                        # If we just confirmed 'New Game' from the prompt
+                        if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
+                            # User pressed Y (confirmed in handle_title_events)
+                            try:
+                                state.reset_to_new_game()
+                                state.save_stats(wait=True)
+                            except Exception:
                                 pass
+                            renderer.fade_to_black()
+                            title_menu.state = TitleMenuState.MAIN
+                            in_title = False
+                            continue
+                        
+                        # If a persistent run exists, ask for confirmation
+                        has_run = (getattr(state, 'stats', None) is not None and 
+                                   state.stats.data.get("run_state") is not None)
+                        if has_run:
+                            # Transition to confirmation state instead of blocking
+                            title_menu.state = TitleMenuState.CONFIRM_NEW_GAME
                         else:
                             # No run exists: start fresh immediately
                             try:
@@ -227,7 +223,7 @@ def main():
                     renderer.draw_pause_menu(pause_menu.get_selected_index())
                     # If the user confirmed 'Quit' in the pause menu, exit the loop
                     if pause_menu.should_quit():
-                        # [Milestone] Auto-save synchronously before transitioning back to title screen
+                        # [Milestone] Auto-save synchronously before transitioning
                         try:
                             state.save_stats(wait=True)
                         except Exception:
@@ -240,9 +236,10 @@ def main():
                         # [Lifecycle] Purge all runtime gameplay memory
                         state.deallocate()
                         
-                        # Update title menu to reflect whether a resume-able run now exists
+                        # Update title menu
                         try:
-                            has_run_now = getattr(state, 'stats', None) is not None and state.stats.data.get("run_state") is not None
+                            has_run_now = (getattr(state, 'stats', None) is not None and 
+                                           state.stats.data.get("run_state") is not None)
                             title_menu.set_has_save(has_run_now)
                         except Exception:
                             pass
@@ -255,7 +252,7 @@ def main():
                         'flask': flask
                     }
                     state.update(dt, actions)
-                    # Run the autosave manager each frame (will be tolerant if no stats)
+                    # Run the autosave manager each frame
                     try:
                         autosave.update(dt, state)
                     except Exception:
