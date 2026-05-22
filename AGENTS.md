@@ -34,17 +34,6 @@
 Currently performing a comprehensive documentation cleanup to remove contradictions, consolidate architecture, and archive completed features into `CHANGELOG.md`.
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
-## Active Troubleshooting: Enemy Population Reset Lifecycle Fix
 
-Correct the room initialization sequence to ensure that when the player warps into a combat zone, the enemy group array is fully re-instantiated and populated fresh, rather than pulling an exhausted or dead state tracking array from memory.
-
-### 1. Verification of Level Spawning
-- Audit the centralized cleanup loop inside `GameState.update`. Ensure that deleting a dead enemy instance from the active sprite groups does NOT permanently delete their character code spawn symbol from the master blueprint template in `room_definitions.py`.
-
-### 2. The Re-Population Hook
-- Update the `LevelLoader.parse_map` or scene-warp transition function:
-  - The exact moment a player triggers a warp or resets a run via death, the engine must clear the old enemy array completely and re-read the map layout symbols (`BatEnemy` symbols, etc.).
-  - Re-instantiate brand new, full-health `BatEnemy` objects at their designated grid coordinate spaces.
-
-### 3. State Preservation Isolation
-- Ensure mid-run suspended snapshots ONLY track dead enemies if a run is actively suspended mid-room. If a run has completely reset or a new map layout loads, the enemy group must reset to 100% capacity.
+## Completed Tasks
+- [X] **Enemy Population Reset Lifecycle Fix:** Transitioned to a fully data-driven re-population system using map symbols. Enemies now correctly reset on map entry or run restart. (See `CHANGELOG.md` for details).
