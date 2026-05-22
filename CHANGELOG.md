@@ -145,3 +145,11 @@
 - **Iron Candelabra (`l`):** Added a light-emitting prop with a flickering amber glow effect using a semi-transparent circular primitive.
 - **Refactoring:** Cleaned up project-wide trailing whitespace and refactored long lines to meet new quality standards (Pylint 8.8+).
 
+### Macro-Map Framework & Radial Lotus-Wheel Generation
+- **Macro-Map Architecture:** Established a massive $120 \times 120$ tile world map foundation.
+- **Radial Lotus-Wheel Protocol:** Implemented a distance-based generation algorithm in `engine/world.py` featuring a circular central courtyard, an outer ring path, and 6 connecting spoke hallways.
+- **Loop Integrity:** Eliminated all dead ends in the macro-topology, ensuring a continuous, high-flow exploration experience.
+- **Section Replication:** Programmed the `LevelLoader` to nest four $20 \times 20$ replicated sectors from the `chapter1` layout (props, enemies) between the radial spokes.
+- **Cinematic Spawn:** Relocated the initial player spawn anchor to `(60, 50)`, placing the reader at the threshold of the central courtyard.
+- **Documentation:** Created `docs/weather_and_world_progression.md` defining the 4-stage climate lifecycle ("The Bleed") and environmental damage rules.
+
