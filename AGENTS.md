@@ -8,6 +8,7 @@
 - **Decoupled Design:** Game logic must be strictly separated from rendering.
 - **Testing Mandate:** All engine logic (physics, state transitions, math) must have unit tests using `pytest`.
 - **Quality Control:** All code must pass `pylint` with a score of 8.0 or higher.
+- **Coding Style Rule:** All Python source files must adhere to a maximum line length constraint of **120 characters** (instead of 79/80). Prioritize clear, single-line mathematical expressions and readable Pygame rendering chains.
 
 ## Agent Behavior Rules
 - Always create a single git commit for each user prompt that requires code or documentation changes. Each commit should be atomic, include a clear message, and include the required Co-authored-by trailer.
@@ -34,12 +35,22 @@
 Currently performing a comprehensive documentation cleanup to remove contradictions, consolidate architecture, and archive completed features into `CHANGELOG.md`.
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
-## Active Task: [NEXT_TASK_NAME]
+## Active Task: [PENDING SELECTION]
 
-[Next task description]
+Select the next phase of development from the proposed roadmap items below.
 
-### 1. [Sub-task 1]
-- [Details]
+### Option A: The Climate Engine - Phase 1 (The Bleed)
+- Implement the "Rain Lifecycle" mentioned in `docs/architecture.md`.
+- **Weather State Machine:** Transition between `Clear_Day` and `The_Bleed`.
+- **Visuals:** Diagonal cyan rain particles using `pygame.draw.line`.
+- **Hazard:** Apply tick damage to the player if they are caught in the rain outside a Respite boundary.
 
-### 2. [Sub-task 2]
-- [Details]
+### Option B: Inventory & Stat Menu (The Libram)
+- Implement a dedicated UI screen for viewing collected "Torn Pages" and player stats.
+- **The Libram:** A toggleable menu (mapped to `TAB` or `I`) that pauses the game and displays the player's current Offensive/Defensive modifiers.
+- **Visuals:** A parchment-themed modal using the `EXPANDED` UI architecture.
+
+### Option C: Combat Polish - Stagger & Visual Feedback
+- **Stagger Mechanic:** Enemies and the player enter a brief `STAGGERED` state when hit, preventing action.
+- **Visual Polish:** Add screen shake on heavy hits and a brief white flash (outline) for entities taking damage.
+- **Hit-Stop:** Pause the engine for a few frames (e.g., 50ms) during a successful hit to provide "weight" to combat.

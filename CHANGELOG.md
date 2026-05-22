@@ -117,3 +117,18 @@
 ### Chapter 1 Realignment & Arena Expansion
 - Realigned the Chronicle warp trigger to point directly to the `chapter1` production layout.
 - Expanded the arena with clusters of breakable barrels and enemy spawn points.
+
+## [2026-05-22] - Ambience Expansion & Scriptorium Noir Integration
+### Ambience Core Integration & Prop Expansion
+- **Scriptorium Noir Aesthetic:** Injected a dark, atmospheric library theme into the game world.
+- **New Atmospheric Props:**
+    - **Heavy Bookcase (`h`):** Solid 2x1 horizontal charcoal grey rectangle.
+    - **Ink-Drip Urn (`d`):** Solid 1x1 deep slate blue square.
+- **Sanctuary Overhaul:** Updated the hub layout with bookcases and urns around the Chronicler and Wellspring.
+- **Lighting:** Shifted background clear colors to warm sepia (Sanctuary) and cold charcoal (Combat zones).
+
+### Ambience Expansion Phase II & Formatting Configuration
+- **Formatting Standard:** Updated project linting configuration (.pylintrc) to permit a **120-character maximum line length**, improving readability of complex math and rendering chains.
+- **Spilled Inkwell Puddle (`v`):** Implemented a movement hazard that reduces player speed by 50% when inside.
+- **Iron Candelabra (`l`):** Added a light-emitting prop with a flickering amber glow effect using a semi-transparent circular primitive.
+- **Refactoring:** Cleaned up project-wide trailing whitespace and refactored long lines to meet new quality standards (Pylint 8.8+).
