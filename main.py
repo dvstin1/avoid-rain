@@ -14,7 +14,13 @@ from engine.autosave import AutosaveManager
 # pylint: disable=no-member
 
 def handle_title_events(renderer, title_menu):
-    """Handle events during the title screen with a menu controller."""
+    """Handle events during the title screen with a menu controller.
+
+    This function updates menu navigation and sets the confirm flag on the
+    TitleMenu when the user presses confirm. It does not perform transition
+    actions which are handled in the main loop where application state is
+    available.
+    """
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False, False
@@ -27,15 +33,8 @@ def handle_title_events(renderer, title_menu):
             elif event.key in (pygame.K_DOWN, pygame.K_s):
                 title_menu.navigate('down')
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
-                # Confirm selection
+                # Confirm selection (main handles the resulting action)
                 title_menu.confirm()
-                selected = title_menu.get_selected()
-                if selected == 'Start':
-                    renderer.fade_to_black()
-                    title_menu.clear_confirm()
-                    return False, True
-                if selected == 'Quit':
-                    return False, False
     return True, True
 
 def handle_game_events(pause_menu: PauseMenu | None = None):
@@ -144,6 +143,90 @@ def main():
             if in_title:
                 in_title, running = handle_title_events(renderer, title_menu)
                 renderer.draw_title_screen(title_menu.get_selected_index())
+                # If the user confirmed a title selection, handle it here where we have access to `state`.
+                if title_menu.was_confirmed():
+                    selected = title_menu.get_selected()
+                    title_menu.clear_confirm()
+
+                    if selected == 'Continue':
+                        # Start the game normally
+                        renderer.fade_to_black()
+                        in_title = False
+                        # ensure camera centers on player immediately
+                        if hasattr(state, 'camera'):
+                            state.camera.instant_center(state.player.get_center())
+                        continue
+
+                    if selected == 'New Game':
+                        # If valid save data exists, ask for confirmation because this
+                        # will replace/erase previous save data. If no save exists,
+                        # just start a new game.
+                        has_save = getattr(state, 'stats', None) is not None
+                        if has_save:
+                            # Show confirmation screen and require Y/N
+                            renderer.draw_loading_screen('Confirm New Game', 'This will permanently remove old save data. Press Y to confirm, N to cancel', min_time=2.0)
+                            waiting = True
+                            choice = None
+                            while waiting:
+                                for ev in pygame.event.get():
+                                    if ev.type == pygame.QUIT:
+                                        pygame.quit()
+                                        sys.exit()
+                                    if ev.type == pygame.KEYDOWN:
+                                        if ev.key == pygame.K_y:
+                                            choice = 'y'
+                                            waiting = False
+                                        elif ev.key == pygame.K_n:
+                                            choice = 'n'
+                                            waiting = False
+                                pygame.time.delay(10)
+                            if choice == 'y':
+                                # Replace with fresh stats and persist immediately
+                                try:
+                                    from engine.stats import DEFAULT_PATH, StatisticsTracker
+                                    # Remove existing save file if present
+                                    try:
+                                        import os
+                                        if DEFAULT_PATH.exists():
+                                            DEFAULT_PATH.unlink()
+                                    except Exception:
+                                        pass
+                                    state.stats = StatisticsTracker()
+                                    try:
+                                        state.stats.increment('runs_started', 1)
+                                    except Exception:
+                                        pass
+                                    state.save_stats()
+                                except Exception:
+                                    pass
+                                renderer.fade_to_black()
+                                in_title = False
+                                if hasattr(state, 'camera'):
+                                    state.camera.instant_center(state.player.get_center())
+                                continue
+                            else:
+                                # Cancel new game; remain on title
+                                pass
+                        else:
+                            # No save exists: start immediately
+                            try:
+                                from engine.stats import StatisticsTracker
+                                state.stats = StatisticsTracker()
+                                try:
+                                    state.stats.increment('runs_started', 1)
+                                except Exception:
+                                    pass
+                                state.save_stats()
+                            except Exception:
+                                pass
+                            renderer.fade_to_black()
+                            in_title = False
+                            if hasattr(state, 'camera'):
+                                state.camera.instant_center(state.player.get_center())
+                            continue
+
+                    if selected == 'Quit':
+                        running = False
                 clock.tick(FPS)
             else:
                 dt = clock.tick(FPS) / 1000.0
