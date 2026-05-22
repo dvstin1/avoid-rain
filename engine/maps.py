@@ -7,6 +7,7 @@ from constants import TILE_SIZE
 
 def create_world(name: str) -> World:
     """Factory function to create and populate a World instance by name."""
+    print(f"[DEBUG] Fetching room prototype: {name}")
     world = World(name=name)
     
     # Check if we have a prototype for this world name

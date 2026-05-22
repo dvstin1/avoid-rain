@@ -122,12 +122,12 @@ class GameState:
 
     def reset_to_new_game(self):
         """Reset player and world to start-of-game defaults, and clear run_state."""
-        from engine.world import World
-        from constants import PLAYER_START_X, PLAYER_START_Y, PLAYER_MAX_HP, FLASK_MAX_CHARGES
+        from engine.maps import create_world
+        from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
         
-        self.world = World()
-        self.player.x = float(PLAYER_START_X)
-        self.player.y = float(PLAYER_START_Y)
+        self.world = create_world("sanctuary")
+        self.player.x = float(self.world.player_start[0])
+        self.player.y = float(self.world.player_start[1])
         self.player.hp = float(PLAYER_MAX_HP)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
         self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
@@ -413,12 +413,12 @@ class GameState:
 
     def respawn_player(self):
         """Reset player to sanctuary after 'Text Bleaching' completes."""
-        from engine.world import World
-        from constants import PLAYER_START_X, PLAYER_START_Y, FLASK_MAX_CHARGES
+        from engine.maps import create_world
+        from constants import FLASK_MAX_CHARGES
         
-        self.world = World()
-        self.player.x = float(PLAYER_START_X)
-        self.player.y = float(PLAYER_START_Y)
+        self.world = create_world("sanctuary")
+        self.player.x = float(self.world.player_start[0])
+        self.player.y = float(self.world.player_start[1])
         # Reset camera
         if hasattr(self, 'camera'):
             self.camera.instant_center(self.player.get_center())
