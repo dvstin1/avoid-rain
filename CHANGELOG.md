@@ -145,13 +145,3 @@
 - **Iron Candelabra (`l`):** Added a light-emitting prop with a flickering amber glow effect using a semi-transparent circular primitive.
 - **Refactoring:** Cleaned up project-wide trailing whitespace and refactored long lines to meet new quality standards (Pylint 8.8+).
 
-### Project Rules & Infrastructure (Archived from AGENTS.md)
-- **Phase 1 Goal:** Core Gameplay Loop (Combat, Physics, and Map Generation).
-- **Architectural Mandates:** 
-    - No magic numbers (use constants).
-    - Mandatory `dt` scaling for frame-rate independence.
-    - Strict decoupling of game logic from rendering.
-    - 120-character line length limit.
-    - Pylint score requirement: 8.0+.
-- **Testing:** Mandatory `pytest` coverage for all engine logic.
-
