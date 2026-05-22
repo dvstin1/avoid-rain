@@ -144,7 +144,8 @@ def main():
         while running:
             if in_title:
                 in_title, running = handle_title_events(renderer, title_menu)
-                renderer.draw_title_screen(title_menu.get_selected_index())
+                # Pass the whole TitleMenu so the renderer can render dynamic options
+                renderer.draw_title_screen(title_menu)
                 # If the user confirmed a title selection, handle it here where we have access to `state`.
                 if title_menu.was_confirmed():
                     selected = title_menu.get_selected()
