@@ -76,7 +76,7 @@ ROOM_PROTOTYPES = {
 ENTITY_MANIFEST = {
     "sanctuary": {
         (15, 9): {
-            "target": "chapter1",
+            "target": "macro_world",
             "name": "The Chronicle",
             "spawn_x": 17 * 40,
             "spawn_y": 7 * 40

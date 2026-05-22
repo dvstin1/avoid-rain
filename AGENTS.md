@@ -32,3 +32,20 @@
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
+## Active Task: Macro-Map Framework & Replicated Section Injection
+
+Establish the foundation for the massive world map by building a macro-grid loader that embeds copies of the `chapter1` layout into multiple modular coordinates.
+
+### 1. Macro-Grid Blueprint Definition
+- Inside `engine/world.py` or your level loading module, define a grand map size constant: `MACRO_MAP_SIZE = 120`.
+- Program a generator function `generate_macro_lotus_world()` that builds a basic frame layout grid. 
+- Carve out four separate $20 \times 20$ empty grid sectors (e.g., North, South, East, West chambers) within this large framework.
+
+### 2. Section Replication Parser
+- Update the `LevelLoader` to stitch text matrices together. 
+- When building the macro world, programmatically copy and paste the rows of the pre-existing, interesting `chapter1` layout (containing your benches, bookcases, ink puddles, and bats) directly into each of the four empty carved-out sectors.
+- Anchor the initial player spawn point safely on the central framework tissue outside of these replicated combat zones.
+
+### 3. Verification Trace
+- Limit code lengths across files to the newly established 120-character rule.
+- Print a debug message on boot to track world scaling: `print(f"[WORLD MATRIX] Initialized 120x120 Macro-Grid with 4 replicated test sectors.")`

@@ -2,9 +2,61 @@
 Handles world grid, map sections, and static obstacles.
 """
 from constants import (
-    GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP, TILE_KEY,
-    PLAYER_START_X, PLAYER_START_Y
+    GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP,
+    PLAYER_START_X, PLAYER_START_Y, MACRO_MAP_SIZE
 )
+
+def generate_macro_lotus_world():
+    """
+    Programmatically builds a 120x120 macro-grid with four carved-out modular sectors.
+    Stitches copies of chapter1 layout into these sectors.
+    """
+    from engine.room_definitions import ROOM_PROTOTYPES
+    chapter1 = ROOM_PROTOTYPES.get("chapter1", ["#"])
+    
+    # Initialize 120x120 with '#' (Walls)
+    world_grid = [['#' for _ in range(MACRO_MAP_SIZE)] for _ in range(MACRO_MAP_SIZE)]
+    
+    # Carve out central framework (Tissue) - Cross-shaped paths
+    center = MACRO_MAP_SIZE // 2
+    for i in range(MACRO_MAP_SIZE):
+        # Main thoroughfares (2 tiles wide for comfort)
+        world_grid[center][i] = '.'
+        world_grid[center + 1][i] = '.'
+        world_grid[i][center] = '.'
+        world_grid[i][center + 1] = '.'
+
+    # Define 4 sectors for replication (20x20 blocks)
+    # North, South, East, West relative to center
+    sector_offsets = [
+        (center - 10, 15),                  # North
+        (center - 10, MACRO_MAP_SIZE - 35),  # South
+        (15, center - 10),                  # West
+        (MACRO_MAP_SIZE - 35, center - 10)   # East
+    ]
+
+    for sx, sy in sector_offsets:
+        # Copy a 20x20 chunk of chapter1
+        for y in range(20):
+            if y >= len(chapter1):
+                break
+            for x in range(20):
+                if x >= len(chapter1[y]):
+                    break
+                char = chapter1[y][x]
+
+                # We skip player markers to avoid multiple spawns
+                if char == 'P':
+                    char = '.'
+
+                world_grid[sy + y][sx + x] = char
+
+    # Anchor player spawn point in central framework tissue
+    world_grid[center + 5][center + 5] = 'P'
+
+    print("[WORLD MATRIX] Initialized 120x120 Macro-Grid with 4 replicated test sectors.")
+
+    return ["".join(row) for row in world_grid]
 
 class GameObject:
     """

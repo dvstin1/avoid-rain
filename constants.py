@@ -77,11 +77,12 @@ BAT_DAMAGE_COOLDOWN = 0.5  # seconds between contact damage attempts
 
 # Grid & World Configuration
 TILE_SIZE = 40
+MACRO_MAP_SIZE = 120
 # Extra tiles to make the world larger than the visible screen (low-coupling constant)
 WORLD_EXTRA_TILES_X = 60
 WORLD_EXTRA_TILES_Y = 40
-GRID_WIDTH = SCREEN_WIDTH // TILE_SIZE + WORLD_EXTRA_TILES_X
-GRID_HEIGHT = SCREEN_HEIGHT // TILE_SIZE + WORLD_EXTRA_TILES_Y
+GRID_WIDTH = MACRO_MAP_SIZE
+GRID_HEIGHT = MACRO_MAP_SIZE
 
 # Camera smoothing configuration (how quickly the camera follows the target)
 # Higher values = snappier (1.0 means it will take ~1s to reach target)
