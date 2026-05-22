@@ -2,14 +2,19 @@
 Handles world grid, map sections, and static obstacles.
 """
 from constants import (
-    GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE
+    GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP
 )
 
 class World:
-    """Manages the tile-based world map."""
+    """Manages the tile-based world map.
+
+    By default this creates the Sanctuary layout. Use create_world(name)
+    factory to obtain other world variants (e.g., 'outside').
+    """
     # pylint: disable=too-few-public-methods
     def __init__(self):
         self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+        self.warp_tiles = {}  # Mapping (x,y) -> (target_name, spawn_x_px, spawn_y_px)
         self._init_sanctuary_walls()
 
     def _init_sanctuary_walls(self):
@@ -53,7 +58,13 @@ class World:
 
         # Optionally leave a small doorway on the left side of the island
         door_y = island_y0 + island_h // 2
-        self.grid[door_y][island_x0] = TILE_EMPTY
+        door_x = island_x0
+        # Replace doorway tile with a warp tile leading to the outside world
+        self.grid[door_y][door_x] = TILE_WARP
+        # Record warp mapping: spawn player near the left side of outside map
+        spawn_px = (GRID_WIDTH - 3) * TILE_SIZE
+        spawn_py = (GRID_HEIGHT // 2) * TILE_SIZE
+        self.warp_tiles[(door_x, door_y)] = ('outside', spawn_px, spawn_py)
 
     def get_nearby_walls(self, player_rect):
         """
@@ -73,3 +84,15 @@ class World:
                 if self.grid[y][x] == TILE_WALL:
                     walls.append((x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE))
         return walls
+
+    def check_for_warp(self, player_rect):
+        """Return (target_name, spawn_x, spawn_y) if player's center is on a warp tile.
+
+        Otherwise return None.
+        """
+        px, py, pw, ph = player_rect
+        cx = int((px + pw / 2) // TILE_SIZE)
+        cy = int((py + ph / 2) // TILE_SIZE)
+        if (cx, cy) in self.warp_tiles:
+            return self.warp_tiles[(cx, cy)]
+        return None

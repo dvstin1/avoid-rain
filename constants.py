@@ -76,6 +76,7 @@ MINIMAP_VIEWPORT_FRAC = 1.2
 # Tile Types
 TILE_EMPTY = 0
 TILE_WALL = 1
+TILE_WARP = 2  # Special tile that warps the player to another map
 
 # Colors for Tiles
 COLOR_WALL = (60, 60, 60)

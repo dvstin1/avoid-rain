@@ -226,6 +226,23 @@ class GameState:
         # Update camera smoothing now that player moved
         self.camera.update(self.player.get_center(), dt)
 
+        # Check for warp tiles and perform a map transition if needed
+        warp = self.world.check_for_warp((self.player.x, self.player.y, self.player.width, self.player.height))
+        if warp is not None:
+            target_name, spawn_x, spawn_y = warp
+            try:
+                from engine.maps import create_world
+                self.world = create_world(target_name)
+                # Position player at spawn coords
+                self.player.x = float(spawn_x)
+                self.player.y = float(spawn_y)
+                # Recenter camera instantly
+                if hasattr(self, 'camera'):
+                    self.camera.instant_center(self.player.get_center())
+            except Exception:
+                # If transition fails, ignore to maintain robustness
+                pass
+
         # 2. Check for Sword Hits
         if self.player.state == PlayerStateEnum.ATTACKING:
             hitbox = get_sword_hitbox(self.player.get_center(), self.player.facing)
