@@ -25,6 +25,7 @@
 - **BatEnemy:** A new fast-pursuit enemy type with erratic sine-wave movement patterns.
 - **Environmental Objects:** Added Benches ('S') and Rocks ('K') as solid obstacles to enrich map topography.
 - **Engine Refactor (Enemy Cleanup):** Centralized dead enemy removal in `GameState.update`, ensuring cleanup and loot spawning occur regardless of the player's attack state.
+- **Enemy Population Reset Lifecycle Fix:** Transitioned to a fully data-driven re-population system using map symbols ('Z', 'A'). Enemies now correctly reset to full health and original positions upon map entry or run restart, resolving the issue of persistent death states.
 - **Visuals:** Added custom rendering for Bats (purple with wings), Benches (dark wood), and Rocks (grey with highlights).
 
 ### Compass Indicator for Minimap
