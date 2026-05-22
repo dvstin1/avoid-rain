@@ -46,7 +46,7 @@ class OutsideWorld(World):
         from constants import PLAYER_START_X, PLAYER_START_Y
         rect = (warp_x * TILE_SIZE, warp_y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
         from engine.world import WarpInteractable
-        self.interactables.append(WarpInteractable('sanctuary', PLAYER_START_X, PLAYER_START_Y, rect))
+        self.interactables.append(WarpInteractable('sanctuary', PLAYER_START_X, PLAYER_START_Y, rect, name="The Scriptorium"))
 
         # Spawn a small pack of slug enemies near the center-left
         # Coordinates are in pixels

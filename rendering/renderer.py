@@ -15,7 +15,10 @@ from constants import (
     GRID_WIDTH,
     GRID_HEIGHT,
     COLOR_YELLOW,
+    COLOR_GREY,
     COLOR_RED,
+    COLOR_CYAN,
+    COLOR_DARK_GREY,
 )
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -28,9 +31,43 @@ class Renderer:
         self.screen = screen
         self.font = pygame.font.SysFont("Arial", 24)
 
+    def draw_warp(self, warp, offset_x, offset_y):
+        """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
+        wx, wy, ww, wh = warp.rect
+        screen_x = wx - offset_x
+        screen_y = wy - offset_y
+
+        # Draw Pedestal (Geometric base)
+        pedestal_rect = pygame.Rect(screen_x + 5, screen_y + wh - 15, ww - 10, 15)
+        pygame.draw.rect(self.screen, COLOR_DARK_GREY, pedestal_rect)
+        pygame.draw.rect(self.screen, COLOR_BLACK, pedestal_rect, 1)
+
+        # Draw The Libram (The Chronicle)
+        book_rect = pygame.Rect(screen_x + 8, screen_y + 10, ww - 16, 20)
+        pygame.draw.rect(self.screen, (139, 69, 19), book_rect) # Brown cover
+        
+        # Iron binding detail
+        pygame.draw.rect(self.screen, COLOR_GREY, (screen_x + 8, screen_y + 10, 4, 20))
+        
+        # Glowing Glyph (Cyan/Neon)
+        import math
+        import time
+        # Pulsing glow effect
+        pulse = (math.sin(time.time() * 4) + 1) / 2
+        glow_alpha = 100 + int(pulse * 155)
+        glyph_color = (0, 255, 255) # Cyan
+        
+        # Draw small glowing sigil on the book
+        pulse_size = int(pulse * 4)
+        sigil_rect = pygame.Rect(0, 0, 4 + pulse_size, 4 + pulse_size)
+        sigil_rect.center = (book_rect.centerx, book_rect.centery)
+        pygame.draw.rect(self.screen, glyph_color, sigil_rect)
+
     def draw_interaction_prompt(self, player, offset_x, offset_y):
         """Draw a text prompt above the player's head."""
-        prompt_surf = self.font.render("Press [SPACE] to Interact", True, COLOR_WHITE)
+        target = player.current_interactable
+        prompt_text = f"Read {target.name}" if hasattr(target, 'name') else "Interact"
+        prompt_surf = self.font.render(f"Press [SPACE] to {prompt_text}", True, COLOR_WHITE)
         rect = prompt_surf.get_rect()
         # Position above player center
         px, py = player.get_center()
@@ -75,6 +112,12 @@ class Renderer:
                     pygame.draw.rect(self.screen, COLOR_WALL, draw_rect)
                 else:
                     pygame.draw.rect(self.screen, COLOR_FLOOR, draw_rect, 1)
+
+        # 1b. Draw Warp Points (The Chronicle)
+        for interactable in getattr(state.world, 'interactables', []):
+            # Check if it's a warp-type interactable (WarpInteractable)
+            if hasattr(interactable, 'target_name'):
+                self.draw_warp(interactable, offset_x, offset_y)
 
         # 2. Draw Dummy (with camera offset)
         dummy_rect = pygame.Rect(state.dummy_rect)

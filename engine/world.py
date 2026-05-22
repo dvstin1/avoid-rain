@@ -7,11 +7,12 @@ from constants import (
 
 class WarpInteractable:
     """An interactable object that warps the player to another map."""
-    def __init__(self, target_name, spawn_x, spawn_y, rect):
+    def __init__(self, target_name, spawn_x, spawn_y, rect, name="Warp"):
         self.target_name = target_name
         self.spawn_x = spawn_x
         self.spawn_y = spawn_y
         self.rect = rect # (x, y, w, h) in pixels
+        self.name = name
 
     def execute_interaction(self, game_state):
         """Perform the map transition."""
@@ -98,7 +99,7 @@ class World:
 
         # Create interactable for the warp
         rect = (door_x * TILE_SIZE, door_y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-        self.interactables.append(WarpInteractable('outside', spawn_px, spawn_py, rect))
+        self.interactables.append(WarpInteractable('outside', spawn_px, spawn_py, rect, name="The Chronicle"))
 
     def get_nearby_walls(self, player_rect):
         """
