@@ -201,3 +201,18 @@ Translates raw hardware events into a unified, normalized `InputAction` schema.
 2. **Design Invariance:** Prioritize independent data schemas.
 3. **Test-Driven Mandate:** Write logic alongside tests; do not proceed until tests pass.
 4. **Zero Feature Creep:** Implement exactly to spec; no placeholders for unbuilt features.
+
+## Save File Architecture: Linux XDG Compliance Protocol
+
+To prevent save data from vaporizing between runtime sessions and to respect system standards, all user save layers, timeline statistics, and profiles must resolve to standard local filesystem paths.
+
+### 1. Directory Resolution Hierarchy
+The save engine must compute the absolute directory path using Python’s built-in `pathlib.Path` framework by checking environment variables in this exact order:
+
+1. **Primary Target State:** Check for the environment string `XDG_STATE_HOME`. If present, use `Path(os.environ["XDG_STATE_HOME"]) / "avoid_rain"`.
+2. **Standard Fallback State:** If `XDG_STATE_HOME` is absent or null, resolve explicitly to `Path.home() / ".local" / "state" / "avoid_rain"`.
+
+### 2. Initialization Constraint
+Before attempting a write operation on `profile_metrics.json`, the data wrapper must explicitly verify directory presence using:
+`save_dir.mkdir(parents=True, exist_ok=True)`
+This eliminates filesystem write failures if the app subfolder does not exist yet.

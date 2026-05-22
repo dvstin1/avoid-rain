@@ -15,6 +15,13 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### The Chronicler NPC & Dialogue System
+- Implemented The Chronicler NPC in `ZONE_SANCTUARY` using the `GameObject` architecture.
+- Built a state-driven dialogue engine that branches based on the persistent `last_run_result` flag.
+- Integrated a Unified Interaction Filter to suppress combat during conversation.
+- Added a dedicated dialogue UI layer with word-wrapping and speaker identification.
+- Established a persistent state reset rule when initiating new runs through The Chronicle.
+
 ### Grid-Based Level Parser
 - Implemented a clean, data-driven map parsing engine that reads 2D text matrix strings.
 - Mapped symbols (`#`, `T`, `B`, `.`) to basic structural elements.

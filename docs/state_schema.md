@@ -23,3 +23,9 @@ The `GameState` object is the "Single Source of Truth."
 - `killed_enemies`: Set of unique enemy IDs (for persistence).
 - `story_flags`: Dict { flag_name: bool }
 - `respawn_point`: Vector2 (x, y)
+
+## Statistics & Persistence (profile_metrics.json)
+- `lifetime_stats`: Dict of cumulative metrics (runs, wins, deaths, pages).
+- `discovered_bestiary`: Dict { enemy_id: bool }.
+- `run_state`: Serialized snapshot of current player and world state for resumption.
+- `last_run_result`: Enum (INIT, VICTORY, DEFEAT) used for dialogue branching.
