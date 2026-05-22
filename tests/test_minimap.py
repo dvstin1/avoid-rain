@@ -6,7 +6,7 @@ minimap-drawn rectangles appear in the top-left minimap area.
 import pygame
 from rendering.renderer import Renderer
 from engine.game_state import GameState
-from constants import MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING
+from constants import MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING, GRID_WIDTH, GRID_HEIGHT, TILE_SIZE
 
 
 def test_minimap_draws_player_and_walls(monkeypatch):
@@ -15,6 +15,10 @@ def test_minimap_draws_player_and_walls(monkeypatch):
     state.world.grid[1][1] = 1
     state.player.x = 1 * 40 + 5
     state.player.y = 1 * 40 + 5
+    # Also place a distant wall far away that should be outside the minimap viewport
+    far_x = min( max(2, GRID_WIDTH - 3), GRID_WIDTH - 1)
+    far_y = min( max(2, GRID_HEIGHT - 3), GRID_HEIGHT - 1)
+    state.world.grid[far_y][far_x] = 1
 
     class DummyScreen:
         def __init__(self, w, h):

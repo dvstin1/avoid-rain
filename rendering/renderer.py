@@ -126,23 +126,44 @@ class Renderer:
         if world_w == 0 or world_h == 0:
             return
 
-        scale_x = MINIMAP_WIDTH / world_w
-        scale_y = MINIMAP_HEIGHT / world_h
+        # Determine viewport in world-space centered on player
+        from constants import MINIMAP_VIEWPORT_FRAC
+        frac = max(0.1, min(1.0, float(MINIMAP_VIEWPORT_FRAC)))
+        vp_w = int(world_w * frac)
+        vp_h = int(world_h * frac)
 
-        # Draw walls as tiny rects
+        # Center viewport on player
+        px_c, py_c = state.player.get_center()
+        vp_x0 = int(px_c - vp_w // 2)
+        vp_y0 = int(py_c - vp_h // 2)
+        # Clamp viewport to world bounds
+        vp_x0 = max(0, min(vp_x0, world_w - vp_w))
+        vp_y0 = max(0, min(vp_y0, world_h - vp_h))
+
+        scale_x = MINIMAP_WIDTH / vp_w
+        scale_y = MINIMAP_HEIGHT / vp_h
+
+        # Draw walls that fall within the viewport
         for y in range(GRID_HEIGHT):
             for x in range(GRID_WIDTH):
                 if state.world.grid[y][x] == TILE_WALL:
-                    wx = MINIMAP_PADDING + int((x * TILE_SIZE) * scale_x)
-                    wy = MINIMAP_PADDING + int((y * TILE_SIZE) * scale_y)
+                    wx_world = x * TILE_SIZE
+                    wy_world = y * TILE_SIZE
+                    # Check if wall is inside viewport (simple AABB)
+                    if wx_world + TILE_SIZE < vp_x0 or wx_world > vp_x0 + vp_w:
+                        continue
+                    if wy_world + TILE_SIZE < vp_y0 or wy_world > vp_y0 + vp_h:
+                        continue
+                    # Map to minimap coords relative to viewport origin
+                    wx = MINIMAP_PADDING + int((wx_world - vp_x0) * scale_x)
+                    wy = MINIMAP_PADDING + int((wy_world - vp_y0) * scale_y)
                     w = max(1, int(TILE_SIZE * scale_x))
                     h = max(1, int(TILE_SIZE * scale_y))
                     pygame.draw.rect(self.screen, MINIMAP_WALL_COLOR, (wx, wy, w, h))
 
-        # Draw player marker
-        px, py = state.player.get_center()
-        mx = MINIMAP_PADDING + int(px * scale_x)
-        my = MINIMAP_PADDING + int(py * scale_y)
+        # Draw player marker centered in the viewport
+        mx = MINIMAP_PADDING + int((px_c - vp_x0) * scale_x)
+        my = MINIMAP_PADDING + int((py_c - vp_y0) * scale_y)
         pygame.draw.rect(self.screen, MINIMAP_PLAYER_COLOR, (mx-2, my-2, 4, 4))
 
     def draw_title_screen(self, selected_index_or_menu=0):
