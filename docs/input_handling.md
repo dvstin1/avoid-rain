@@ -37,19 +37,3 @@ To maintain the **Decoupled Design** constraint, input must be translated from r
 | K_k | Event | Block(toggle or hold) |
 | K_1, K_2 | Event | UseItem |
 | ESCAPE | Event | OpenMenu / EndRun |
-
-## Controller & Joystick Abstraction Support
-
-### 1. Unified Input Action Schema
-The input manager module must translate raw hardware events (whether keyboard or joystick) into a unified, normalized data structure before passing it to the game state:
-- `move_direction`: A `pygame.math.Vector2` representing the raw direction. Values must range from `-1.0` to `1.0`.
-- `action_attack`: A single Boolean flag (`True`/`False`) indicating a single, non-repeating attack request.
-
-### 2. Gamepad / Joystick Mapping Rules
-When a joystick device is initialized (`pygame.joystick.get_count() > 0`), the controller subsystem must enforce the following technical criteria:
-- **Analog Deadzone Threshold:** Apply a software deadzone of `0.15`. Any axis value with an absolute value less than `0.15` must be truncated to exactly `0.0` to eliminate joystick drift.
-- **Normalized Vector Length:** Because analog sticks allow circular movement, diagonal input values could theoretically exceed normal bounds. The resultant movement vector must be clamped using `vector.scale_to_length(1.0)` if its magnitude exceeds `1.0`.
-- **Button Debouncing:** The attack flag must listen for the specific button-down event (typically Button `0` or `1` depending on Linux controller layout) to prevent continuous holding from spamming the sword attack state.
-
-### 3. Fallback Priority
-- If a gamepad is disconnected or unavailable, the input abstraction system must seamlessly fall back to monitoring the keyboard `WASD` / `Spacebar` states without throwing runtime exceptions or halting the game loop.

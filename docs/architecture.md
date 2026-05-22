@@ -2,7 +2,7 @@
 
 This document outlines the high-level execution flow and the main entry point's structural requirements.
 
-## main.py Structural Skeleton
+## 1. main.py Structural Skeleton
 To ensure a clean exit on Debian Linux and prevent orphaned processes, `main.py` must follow this lifecycle pattern:
 
 ```python
@@ -57,12 +57,35 @@ if __name__ == "__main__":
     main()
 ```
 
-## Key Lifecycle Rules
+## 2. Key Lifecycle Rules
 - **Resource Management:** All Pygame surfaces and sound channels must be initialized within the `main()` scope or managed by a dedicated loader that is called within the `try` block.
 - **Error Handling:** The `finally` block is mandatory to ensure the terminal state of the Debian environment remains clean.
 - **FPS Capping:** The loop must be capped (defaulting to 60 FPS) to prevent excessive CPU usage, while still providing `dt` for frame-rate independence.
 
-## Technical Specification: Rain Lifecycle & State Machine
+## 3. Decoupled Directory Structure (File Blueprint)
+To maintain the **Decoupled Design** constraint, the project follows this structure:
+
+```text
+avoid_rain/
+├── main.py                # Entry point: initializes Pygame and the main loop.
+├── constants.py           # Central registry for all configuration.
+├── engine/                # PURE LOGIC: No pygame imports allowed here.
+│   ├── game_state.py      # The master State object.
+│   ├── player.py          # Player movement, stats, and state machine.
+│   ├── physics.py         # Collision math (AABB) and dt scaling.
+│   ├── combat.py          # Hitbox logic and damage calculation.
+│   └── world.py           # Rain circle math and modular section logic.
+└── rendering/             # PYGAME CODE: Handles all drawing and input mapping.
+    ├── renderer.py        # Main drawing coordinator.
+    ├── camera.py          # Handles screen offsets.
+    └── assets.py          # Sprite loading and animation management.
+```
+
+### Import Rules
+- `engine/` files must never import `pygame`.
+- `rendering/` files can import `engine/` to read state, but not vice versa.
+
+## 4. Climate Engine: Rain Lifecycle & State Machine
 
 The climate engine must operate on a strict 4-stage state machine synchronized with the day/night timer:
 
@@ -88,146 +111,93 @@ The climate engine must operate on a strict 4-stage state machine synchronized w
    - Environmental damage hazard: `OFF`.
    - Respites: `ACTIVE` (Fully operational for leveling and healing before the countdown to Night 2 begins).
 
-## Climate Engine: Zone Override Rules
+### Survival Mechanics & Rules
+- **Omnipresence:** The rain ignores all physical boundaries. It penetrates roofs, caves, and all indoor structures.
+- **Safe Zone:** A circular region that shrinks over time.
+- **Optimized Damage:** Hazard calculations use tile-grid coordinates or distance-based circle math, scaled by `dt`.
+- **Separation of Concerns:** Rain particles are purely visual; storm hazard is a separate logical calculation.
 
-To prevent global timer bugs, the game engine must evaluate the current scene's `Zone_Type` before executing the Rain State Machine:
-
+### Zone Override Rules
 1. **ZONE_SANCTUARY (Hub / Scriptorium)**
-   - `Rain_Capable = False`
-   - Day/Night Timer: `PAUSED` at 0.
-   - Climate State: Forced `Clear_Day` permanently.
-
+   - `Rain_Capable = False`, Timer: `PAUSED`, State: `Clear_Day`.
 2. **ZONE_DUNGEON (Randomized Run Chapters)**
-   - `Rain_Capable = True`
-   - Day/Night Timer: `ACTIVE`.
-   - Climate State: Fully managed by the 4-stage Lifecycle State Machine.
-
+   - `Rain_Capable = True`, Timer: `ACTIVE`, Fully managed by state machine.
 3. **ZONE_FINAL_ARENA (The Author's Study)**
-   - `Rain_Capable = False`
-   - Day/Night Timer: `PAUSED` at maximum threshold.
-   - Climate State: Forced `Clear_Day` (Dry/No Particles) during active combat state.
-   - **Victory Trigger:** Upon Author Entity health reaching 0, force-trigger a localized 5-second `The_Dilution` visual particle storm across the entire viewport display before initiating the transition sequence back to `ZONE_SANCTUARY`.
+   - `Rain_Capable = False`, Timer: `PAUSED`, State: `Clear_Day` (during combat).
 
-## Climate Engine: Boss Arena & Victory Overrides
+### Boss Arena & Victory Overrides
+- **Boss Entry:** Freeze timer, `Rain_Particles = OFF`, `Environmental_Damage = OFF`.
+- **Boss Defeat (Win):** 5-second `The_Dilution` event, then proceed to next stage/Sanctuary.
+- **Boss Defeat (Loss):** 2-second `The_Bleed` event (Max density), then Game Over/Sanctuary.
 
-The game engine must seamlessly pause and override standard timed rain behaviors based on active Boss Entity life cycles across all `Rain_Capable` zones:
+## 5. Physics & Collision Architecture
 
-1. **Boss Arena Entry Trigger:**
-   - When a Boss Entity initializes (Night 1, Night 2, or Final Boss), force-set `Rain_Particles = OFF` and `Environmental_Damage = OFF`.
-   - Freeze the global day/night countdown timer. The arena remains a dry, quiet "Eye of the Storm" for the duration of the battle.
+### Collision Order of Operations
+To ensure consistency and prevent jitter:
+1. **Apply Velocity:** `temp_pos = pos + vel * dt`
+2. **Wall Collision:** Resolve AABB intersections with static grid.
+3. **Boundary Clamp:** Force `temp_pos` into screen bounds (`max(0, min(pos, BOUND))`).
+4. **Finalize:** `pos = temp_pos`
 
-2. **Boss Defeat Handler (Player Wins):**
-   - Upon Boss Entity health dropping to exactly 0, instantly trigger a 5-second localized climate event.
-   - Set `Rain_Particles = ON` (Gentle vertical vector, low-opacity translucent white/gray "Clear Rain" tint).
-   - Set `Environmental_Damage = OFF`. 
-   - *Next Step:* If Night 1, resume normal timer exploration. If Night 2, spawn the Appendix Portal. If Final Boss, trigger credit roll and save state before routing back to Sanctuary.
+### Physics Rules
+- **AABB (Axis-Aligned Bounding Box):** Standard rectangle-to-rectangle intersection for walls.
+- **Circle Collision:** Distance-based math for circular safe zones.
+- **Normalization:** Movement vectors must be normalized to ensure consistent diagonal speed.
 
-3. **Player Defeat Handler (Player Loses):**
-   - Upon Player Entity health dropping to exactly 0 inside a boss arena, instantly trigger an intense 2-second climate event before resetting.
-   - Set `Rain_Particles = ON` (Maximum density, hyper-saturated sharp diagonal "Bleed" tint).
-   - Set `Environmental_Damage = ON` (Visual indicator of total text erasure).
-   - *Next Step:* Execute Game Over state, wipe run temporary buffers, and force-reload scene back to `ZONE_SANCTUARY`.
+## 6. Player Death Animation Loop (The Bleach Phase)
+Upon Player Entity health reaching exactly 0, execute this sequence (min 5s):
+1. **Step 1: Entity Desaturation (Instant):** Freeze all velocity, apply monochrome filter.
+2. **Step 2: The Dimming Stasis (3s):** Slowly blit black overlay with increasing alpha.
+3. **Step 3: Total Fade & Clean-Up (2s):** Max black opacity, wipe session buffers, transition to Sanctuary.
 
-## Technical Specification: Player Death Animation Loop (The Bleach Phase)
+## 7. System Architecture: Escape Pause Menu
+To prevent immediate hard-quits, the engine intercepts `pygame.K_ESCAPE` to toggle `game_paused`.
+- **Interception:** Freezes delta-time, kinematics, and particle managers.
+- **Options:** "Resume Reading" (Unfreeze), "Quit" (Return to Title).
+- **Context:** Background remains visible but dimmed (60% alpha). "Abandon Chapter" is hidden in `ZONE_SANCTUARY`.
 
-Upon Player Entity health reaching exactly 0, the engine must immediately suspend the standard game loop and execute this 3-step sequence over a minimum of 5 seconds before triggering a scene transition:
+## 8. Environmental Entity & Interaction Architecture
+All interactive elements are instantiations of a base `GameObject` with structural trait flags:
+- `is_solid`: Blocks kinematics.
+- `is_breakable`: Listens to damage vectors (links to `LootManager`).
+- `is_interactive`: Listens to player input triggers.
+- `is_kinematic`: Modifies passenger velocity (platforms).
 
-1. **Step 1: Entity Desaturation (Instant)**
-   - Suspend all active velocity vectors and physics calculations (freeze character, enemy, and boss positions mid-frame).
-   - Apply a monochrome surface filter across the viewport, converting all active RGB color values for sprites and background elements into a grayscale spectrum.
+### Interaction Architecture: The Unified Interaction Filter
+To prevent input conflicts, the engine routes actions through a **Contextual Interceptor Matrix**:
+1. **Trigger Boundary:** Interactables have a bounding box larger than their collision rect.
+2. **Input Suppression:** If `player.current_interactable` is set, `ATTACK` key executes interaction; otherwise, it executes combat.
 
-2. **Step 2: The Dimming Stasis (Duration: 3 Seconds)**
-   - Keep the scene locked in a static, grayscale state.
-   - Begin slowly blitting a full-screen black overlay surface with an accumulating alpha channel value to gradually darken the display viewport.
+## 9. Map Design & Topography
 
-3. **Step 3: Total Fade & Clean-Up (Duration: 2 Seconds)**
-   - Accelerate the black overlay alpha to maximum opacity (total black screen).
-   - Safely wipe the current level's procedurally generated map arrays and enemy instantiation tables from memory buffers.
-   - Route the engine state machine directly to the standard loading screen to initialize `ZONE_SANCTUARY` for a clean run reset.
+### Grid-Cell Mapping
+Levels are decoded from a 2D Matrix String Grid:
+- `#` : Wall, `.` : Floor, `W` : Warp, `R` : Respite, `T` : Tree, `B` : Barrel.
 
-## System Architecture: Escape Pause Menu & Game Termination Flow
+### The Lotus Page Protocol
+Map generation mirrors a **Lotus Seed Pod**:
+- **The Solid Frame (Tissue):** Safe navigation pathways (`M`).
+- **The Chambers (Cells):** Modular combat/exploration holes (`.`).
+- **The Void (`X`):** Impassable outer boundary.
 
-To prevent immediate hard-quits and safely process run statistics, the engine's main event polling loop must intercept the `pygame.K_ESCAPE` keypress to drive a dedicated, modal pause overlay menu state.
+## 10. Dialogue System Architecture: The Blackboard Protocol
+Dialogue engine is decoupled from active state via a **Blackboard State & Query Model**.
+- **The Global Blackboard:** A flat, persistent dictionary tracking historical milestones (e.g., `has_item_iron_key`, `boss_night1_encountered`).
 
-### 1. The Interception State Machine
-When the engine is running in `ZONE_DUNGEON` or `ZONE_FINAL_ARENA`:
-- Pressing **ESCAPE** must NOT terminate the process. It must toggle a boolean flag `game_paused = True`.
-- When `game_paused == True`, the engine must temporarily freeze all active update loops (delta-time accumulation, character/enemy kinematics, particle managers, and project timer clocks). It continues to run *only* the UI event polling loop and the background renderer.
+## 11. System Architecture: The Wellspring Interface (Stats & Bestiary)
+Lifetime metrics are managed by a decoupled serialization process.
+- **The Persistence Matrix:** `profile_metrics.json` records lifetime stats (`runs_started`, `wins`, `deaths`) and discovered bestiary. Independent of active level memory.
 
-### 2. The Menu Layout & Selection Vector
+## 12. Input Architecture: Controller & Joystick Abstraction
+Translates raw hardware events into a unified, normalized `InputAction` schema.
+- **Analog Deadzone:** Software deadzone of `0.15`.
+- **Normalized Vector:** Clamps analog stick magnitude to `1.0`.
+- **Fallback:** Seamlessly falls back to keyboard if gamepad is disconnected.
 
+## 13. Design Principles
 
-*   **Option 1: Resume Reading**
-    - Action: Sets `game_paused = False`. Instantly unfreezes all game vectors and returns the player to active combat/exploration mid-frame.
-- Action: Sets `game_paused = False`. Instantly unfreezes all game vectors and returns the player to active combat/exploration mid-frame.
-*   **Option 2: Quit (Return to Title Screen)**
-- Action: Returns the engine to the title screen/menu state (does not terminate the process). This preserves the application lifecycle and allows the player to restart or quit from the title menu.
-
-Note: The previously-described three-option menu (including an "Abandon Chapter" that increments `forced_quit_outs` and a direct process termination option) is planned but not yet implemented. When implemented, the "Abandon Chapter" option will be visible only during active runs (`ZONE_DUNGEON`) and will increment the `forced_quit_outs` metric in the profile save file before routing back to `ZONE_SANCTUARY`. A direct process termination option will continue to be supported via the title screen's Quit action.
-### 3. Rendering Constraints for the Agent
-- **Visual Context Preservation:** When the menu is active, the background game world must remain visible beneath the menu options but must be heavily dimmed using a semi-transparent black overlay surface (e.g., 60% alpha opacity).
-- **Sanctuary Exception:** If the player presses ESCAPE while already inside the safe hub (`ZONE_SANCTUARY`), the "Abandon Chapter" option must be automatically hidden or disabled, presenting only "Resume" and "Close the Libram".
-
-## Environmental Entity & Interaction Architecture
-
-To prevent class sprawl and maintain optimal decoupling inside the level generation layers, all physical props, breakables, doors, mechanisms, and moving platforms must derive from a unified, component-flagged data structure.
-
-### 1. The Unified GameObject Schema
-Rather than creating separate inheritance trees for every world object, all interactive elements are instantiations of a base `GameObject` configured via structural trait properties:
-
-```python
-class GameObject(pygame.sprite.Sprite):
-    def __init__(self, position, dimensions, sprite_primitive):
-        super().__init__()
-        self.image = sprite_primitive
-        self.rect = pygame.Rect(position, dimensions)
-        
-        # Core Architectural Trait Flags
-        self.is_solid = True         # Blocks player/enemy kinematics
-        self.is_breakable = False     # Listens to damage vectors; links to LootManager
-        self.is_interactive = False   # Listens to player input triggers
-        self.is_kinematic = False     # Modifies passenger velocity vectors (platforms)
-```
-
-## Map Design & AI Generation Schema (Grid-Cell Mapping)
-
-To facilitate rapid prototyping and enable frictionless level layout generation via LLM text sheets, the map engine must decode levels using a flat **Two-Dimensional Matrix String Grid**.
-
-### 1. The Core Tile Key
-The layout parser translates single-character symbols into spatial entities during scene construction. During early prototyping, all entities are mapped directly to asset primitives:
-
-- `#` : **Immovable Wall / Boundary** (Solid primitive box, blocks kinematics)
-- `.` : **Floor Space** (Empty walkable tile, no collision)
-- `W` : **Warp Portal Entity** (Triggers Interaction Filter)
-- `R` : **Respite Structure** (Triggers Interaction Filter)
-- `T` : **Static Obstacle / Tree / Structure** (Solid primitive circle, blocks kinematics)
-- `B` : **Placeholder Prop / Barrel / Chair** (Solid primitive box, designated for eventual breakable data traits)
-
-### 2. The Room Matrix Schema
-Levels are stored in a centralized data dictionary as simple arrays of strings. This structural format allows external generation without coupling layout design to python object definitions:
-
-```python
-ROOM_PROTOTYPES = {
-    "chapter1_start": [
-        "##########",
-        "#........#",
-        "#.B....R.#",
-        "#....T...#",
-        "#........#",
-        "##########"
-    ]
-}
-
-## Level Layout Topography: The Lotus Page Protocol
-
-To achieve a distinct environmental identity and facilitate procedural modularity, the world map generation must mirror a **Lotus Seed Pod Cross-Section**.
-
-### 1. Spatial Zoning Rules
-- **The Solid Frame (The Firmament):** The rigid, interconnected tissue of the plant. This is the unalterable manuscript framework. It is completely safe, houses the initial spawn anchor point, and serves as the navigation pathway connecting the chambers.
-- **The Chambers (The Hollow Cells):** Circular or rectangular hollow cavities embedded inside the frame. These cells act as sandboxed containers where randomized, modular combat grids (containing walls, trees, enemies, and destructible barrels) are dynamically injected.
-
-### 2. Character Grid Mapping
-The `LevelLoader` decodes this layout by dividing the matrix into global structural zones:
-- `M` : **Manuscript Frame / Lotus Tissue** (Solid, safe walkable path where the player spawns).
-- `X` : **The Void / Outer Space** (Solid, impassable boundary enclosing the lotus pod).
-- `.` : **Active Chamber Floors** (Walkable combat space inside the cell holes).
+### The Rule of Low-Coupling Isolation
+1. **Identify Isolation:** Pick ONE feature that can be fully built without incomplete dependencies.
+2. **Design Invariance:** Prioritize independent data schemas.
+3. **Test-Driven Mandate:** Write logic alongside tests; do not proceed until tests pass.
+4. **Zero Feature Creep:** Implement exactly to spec; no placeholders for unbuilt features.
