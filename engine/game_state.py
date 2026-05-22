@@ -98,6 +98,8 @@ class GameState:
             self.stats_corrupt = getattr(self, 'stats_corrupt', False)
             self.stats_corrupt_backup = getattr(self, 'stats_corrupt_backup', None)
 
+        self.active_dialogue = None
+
         # 4. Dummy Entity State
         self.dummy_rect = (DUMMY_X, DUMMY_Y, DUMMY_WIDTH, DUMMY_HEIGHT)
         self.dummy_stagger_timer = 0.0
@@ -301,6 +303,13 @@ class GameState:
         attack_pressed = actions.get('attack', False)
         flask_pressed = actions.get('flask', False)
 
+        # 0. Handle Dialogue Stasis
+        if self.active_dialogue:
+            if attack_pressed:
+                self.active_dialogue = None
+                # Small delay/debounce could go here if needed
+            return # Block all other updates during dialogue
+
         # 1. Update Interactables
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         nearby_interactables = self.world.get_nearby_interactables(player_rect)
@@ -415,6 +424,10 @@ class GameState:
         """Reset player to sanctuary after 'Text Bleaching' completes."""
         from engine.maps import create_world
         from constants import FLASK_MAX_CHARGES
+        
+        # Set persistent result for dialogue branching
+        if self.stats:
+            self.stats.data["last_run_result"] = "DEFEAT"
         
         self.world = create_world("sanctuary")
         self.player.x = float(self.world.player_start[0])

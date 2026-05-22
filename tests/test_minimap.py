@@ -42,6 +42,7 @@ def test_minimap_draws_player_and_walls(monkeypatch):
         recorded.append(tuple(rect))
 
     monkeypatch.setattr(pygame.draw, 'rect', fake_draw_rect)
+    monkeypatch.setattr(pygame.draw, 'circle', lambda *a, **k: None)
     monkeypatch.setattr(pygame.font, 'SysFont', lambda *a, **k: type('F', (), {'render': lambda self, t, a, c: type('S', (), {'get_rect': lambda self, **kw: type('R', (), {'width': 40, 'height': 10})()})()})())
     monkeypatch.setattr(pygame.display, 'flip', lambda: None)
 

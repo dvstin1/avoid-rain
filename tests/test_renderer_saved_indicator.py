@@ -37,6 +37,7 @@ def test_renderer_shows_saved_indicator(monkeypatch):
     monkeypatch.setattr(pygame.font, 'SysFont', lambda *a, **k: DummyFont())
     monkeypatch.setattr(pygame.display, 'flip', lambda: None)
     monkeypatch.setattr(pygame.draw, 'rect', lambda *a, **k: None)
+    monkeypatch.setattr(pygame.draw, 'circle', lambda *a, **k: None)
 
     renderer = Renderer(dummy)
     renderer.render(state)

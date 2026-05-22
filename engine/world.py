@@ -60,6 +60,11 @@ class WarpPortal(GameObject):
         try:
             from engine.maps import create_world
             game_state.world = create_world(self.target_name)
+            
+            # State Reset Rule: When starting a new run through the book, reset result to INIT
+            if self.target_name != "sanctuary" and game_state.stats:
+                game_state.stats.data["last_run_result"] = "INIT"
+            
             # Position player at spawn coords
             game_state.player.x = float(self.spawn_x)
             game_state.player.y = float(self.spawn_y)
@@ -74,6 +79,56 @@ class WarpPortal(GameObject):
         except Exception:
             # If transition fails, ignore to maintain robustness
             pass
+
+class Chronicler(GameObject):
+    """NPC that provides dialogue based on the player's last run result."""
+    def __init__(self, position, dimensions, name="The Chronicler"):
+        super().__init__(position, dimensions)
+        self.name = name
+        self.is_interactive = True
+        self.is_solid = True
+        self.current_dialogue = None
+
+    def execute_interaction(self, game_state):
+        """Select dialogue based on state and display it."""
+        from constants import DIALOGUE_MANIFEST
+        manifest = DIALOGUE_MANIFEST.get("chronicler", [])
+        
+        # Get current state from stats
+        last_result = "INIT"
+        if game_state.stats:
+            last_result = game_state.stats.data.get("last_run_result", "INIT")
+            
+        # Filter and sort by priority
+        valid_nodes = []
+        for node in manifest:
+            conditions = node.get("conditions", {})
+            match = True
+            for key, value in conditions.items():
+                if key == "last_run_result":
+                    if value != last_result:
+                        match = False
+                        break
+                # Other story flags could be checked here
+                elif game_state.stats:
+                    story_flags = game_state.stats.data.get("story_flags", {})
+                    if story_flags.get(key) != value:
+                        match = False
+                        break
+            
+            if match:
+                valid_nodes.append(node)
+        
+        # Sort by priority (descending)
+        valid_nodes.sort(key=lambda x: int(x.get("priority", 0)), reverse=True)
+        
+        if valid_nodes:
+            self.current_dialogue = valid_nodes[0]["text"]
+            # Trigger dialogue box in GameState
+            game_state.active_dialogue = {
+                "speaker": self.name,
+                "text": self.current_dialogue
+            }
 
 class LevelLoader:
     """
@@ -143,6 +198,11 @@ class LevelLoader:
                     tree.is_solid = True
                     tree.name = "Structure"
                     interactables.append(tree)
+                
+                elif char == 'C':
+                    # The Chronicler NPC
+                    chronicler = Chronicler(pos, dim)
+                    interactables.append(chronicler)
                 
                 elif char == 'B':
                     # Placeholder Prop / Barrel

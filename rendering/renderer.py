@@ -67,12 +67,67 @@ class Renderer:
     def draw_interaction_prompt(self, player, offset_x, offset_y):
         """Draw a text prompt above the player's head."""
         target = player.current_interactable
-        prompt_text = f"Read {target.name}" if hasattr(target, 'name') else "Interact"
+        
+        # Determine the action verb based on the object type or name
+        if target.name == "The Chronicler":
+            prompt_text = f"Speak to {target.name}"
+        elif "Chronicle" in target.name or "Return" in target.name:
+            prompt_text = f"Read {target.name}"
+        else:
+            prompt_text = f"Interact with {target.name}" if hasattr(target, 'name') else "Interact"
+            
+        # AGENTS.md specifies "Press [ATTACK] to Speak"
         prompt_surf = self.font.render(f"Press [SPACE] to {prompt_text}", True, COLOR_WHITE)
         rect = prompt_surf.get_rect()
         # Position above player center
         px, py = player.get_center()
         self.screen.blit(prompt_surf, (px - rect.width // 2 - offset_x, py - player.height - 20 - offset_y))
+
+    def draw_dialogue_box(self, dialogue):
+        """Draw a dialogue box at the bottom of the screen."""
+        if not dialogue:
+            return
+            
+        speaker = dialogue.get("speaker", "Unknown")
+        text = dialogue.get("text", "")
+        
+        # Panel dimensions
+        margin = 50
+        width = self.screen.get_width() - margin * 2
+        height = 150
+        x = margin
+        y = self.screen.get_height() - height - 20
+        
+        # Draw background panel
+        panel_rect = pygame.Rect(x, y, width, height)
+        pygame.draw.rect(self.screen, (20, 20, 20), panel_rect)
+        pygame.draw.rect(self.screen, COLOR_WHITE, panel_rect, 2)
+        
+        # Draw speaker name
+        speaker_surf = self.font.render(speaker, True, COLOR_YELLOW)
+        self.screen.blit(speaker_surf, (x + 20, y + 10))
+        
+        # Draw text (wrapped)
+        words = text.split(' ')
+        lines = []
+        current_line = []
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            w, _ = self.font.size(test_line)
+            if w < width - 40:
+                current_line.append(word)
+            else:
+                lines.append(' '.join(current_line))
+                current_line = [word]
+        lines.append(' '.join(current_line))
+        
+        for i, line in enumerate(lines):
+            line_surf = self.font.render(line, True, COLOR_WHITE)
+            self.screen.blit(line_surf, (x + 20, y + 50 + i * 30))
+            
+        # Instruction to close
+        close_surf = self.font.render("Press [SPACE] to continue", True, COLOR_GREY)
+        self.screen.blit(close_surf, (x + width - close_surf.get_width() - 20, y + height - 30))
 
     def render(self, state):
         """Draw the visible portion of the game state to the screen using a camera.
@@ -133,6 +188,14 @@ class Renderer:
             elif obj.name == "Structure":
                 ox, oy, ow, oh = obj.rect
                 pygame.draw.rect(self.screen, (80, 70, 60), (ox - offset_x, oy - offset_y, ow, oh))
+            elif obj.name == "The Chronicler":
+                ox, oy, ow, oh = obj.rect
+                # Draw Chronicler (Tall, white-ish robe)
+                pygame.draw.rect(self.screen, (220, 220, 220), (ox - offset_x, oy - offset_y, ow, oh))
+                # Head
+                pygame.draw.rect(self.screen, (255, 200, 150), (ox + 5 - offset_x, oy + 5 - offset_y, ow - 10, 10))
+                # Outline
+                pygame.draw.rect(self.screen, COLOR_BLACK, (ox - offset_x, oy - offset_y, ow, oh), 1)
 
         # 1c. Draw Loot (Torn Pages)
         for item in getattr(state, 'loot', []):
@@ -208,6 +271,10 @@ class Renderer:
             self.draw_hud(state)
         except Exception:
             pass
+
+        # 8b. Draw Dialogue
+        if getattr(state, 'active_dialogue', None):
+            self.draw_dialogue_box(state.active_dialogue)
 
         # 9. Apply 'Text Bleaching' (Monochrome/Grey Overlay)
         if getattr(state, 'death_timer', 0) > 0:

@@ -34,5 +34,23 @@
 Currently performing a comprehensive documentation cleanup to remove contradictions, consolidate architecture, and archive completed features into `CHANGELOG.md`.
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
-## Next Task: [PENDING]
-*Wait for user instruction to define the next implementation task.*
+
+## Active Task: The Chronicler NPC Implementation
+
+Implement the foundational safe-hub NPC "The Chronicler" inside `ZONE_SANCTUARY` using the State-Driven Dialogue Schema.
+
+### 1. Spatial Placement & Interactivity
+- Instantiate The Chronicler as a static `GameObject` near the center of the Sanctuary map (adjacent to the Wellspring fountain if available, or near the spawn layout).
+- Set trait flags: `self.is_solid = True` and `self.is_interactive = True`.
+- Configure their interaction box to trigger the **Unified Interaction Filter**, displaying a localized text primitive prompt: `"Press [ATTACK] to Speak"`. Combat swings must be suppressed during conversation.
+
+### 2. State-Based Dialogue Matrix
+- Read the dialogue branching guidelines defined in your documentation spoke files.
+- Wire the dialogue engine to pull text nodes from a localized dictionary mapping directly to the player's persistent `last_run_result` flag:
+  - `INIT`: Present calm, objective welcoming text strings.
+  - `DEFEAT`: Present quiet, hesitant, low-scrolling dialogue strings.
+  - `VICTORY`: Present warm, accelerated celebratory dialogue strings.
+
+### 3. Fail-Safe Verification
+- Ensure an empty condition fallback string is registered so the interaction loop never freezes.
+- Verify that initializing a new run through *The Chronicle* book object cleanly resets the player's run status back to `INIT` behind the scenes.

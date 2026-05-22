@@ -50,6 +50,7 @@ class StatisticsTracker:
                 },
                 "discovered_bestiary": {},
                 "run_state": None,
+                "last_run_result": "INIT",
             }
         else:
             self.data = data

@@ -13,6 +13,7 @@ def test_world_is_larger_than_screen():
     assert GRID_WIDTH > screen_tiles_w
 
     world = World()
+    world._init_sanctuary_walls()
 
     # Outer border walls should exist
     for x in range(GRID_WIDTH):

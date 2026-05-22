@@ -53,6 +53,7 @@ def test_renderer_uses_camera_offset(monkeypatch):
         return None
 
     monkeypatch.setattr(pygame.draw, 'rect', fake_draw_rect)
+    monkeypatch.setattr(pygame.draw, 'circle', lambda *a, **k: None)
     monkeypatch.setattr(pygame.display, 'flip', lambda: None)
 
     renderer = Renderer(dummy)

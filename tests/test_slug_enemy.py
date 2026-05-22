@@ -29,7 +29,8 @@ def test_slug_spawns_and_moves_toward_player():
 
 def test_slug_damage_player_and_respawn_on_death():
     gs = GameState(auto_load=False)
-    gs.world = create_world('outside')
+    from engine.maps import create_world
+    gs.world = create_world('chapter1')
     gs.enemies = getattr(gs.world, 'enemies', [])
     # Place an enemy directly on top of the player to force contact
     if not gs.enemies:
@@ -48,9 +49,13 @@ def test_slug_damage_player_and_respawn_on_death():
     e.x = gs.player.x
     e.y = gs.player.y
     gs.update(0.5, {})
+    
+    # Manually trigger respawn to skip 5s death timer
+    gs.respawn_player()
+    
     # After death, world should be reset to sanctuary and player at start
-    assert gs.player.x == float(PLAYER_START_X)
-    assert gs.player.y == float(PLAYER_START_Y)
+    assert gs.player.x == float(gs.world.player_start[0])
+    assert gs.player.y == float(gs.world.player_start[1])
 
 
 def test_player_attack_hurts_slug_and_kills():

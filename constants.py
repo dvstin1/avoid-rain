@@ -114,19 +114,28 @@ COLOR_FLOOR = (25, 25, 25)
 DIALOGUE_MANIFEST = {
     "chronicler": [
         {
-            "id": "chr_key_reaction",
-            "conditions": {"has_item_iron_key": True, "boss_night1_encountered": False},
-            "priority": "100", # Checked first due to high specificity
+            "id": "chr_victory",
+            "conditions": {"last_run_result": "VICTORY"},
+            "priority": "100",
             "text": (
-                "That key you hold... its edges match the fractures in the first chapter. "
-                "Be careful."
+                "You did it! The wash was beautiful—the pages inside me felt "
+                "completely clear for the first time in an age. You are a master editor, my friend!"
             )
         },
         {
-            "id": "chr_standard_defeat",
+            "id": "chr_defeat",
             "conditions": {"last_run_result": "DEFEAT"},
+            "priority": "100",
+            "text": (
+                "You return... cold. I can still smell the burning ink on your hands. "
+                "Please... give me a moment of quiet before you open the cover again."
+            )
+        },
+        {
+            "id": "chr_init",
+            "conditions": {"last_run_result": "INIT"},
             "priority": "50",
-            "text": "You return cold... I can still smell the burning ink."
+            "text": "Welcome back to the Scriptorium, Reader. The pages are waiting whenever you are ready to begin."
         },
         {
             "id": "chr_fallback",

@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 from engine.game_state import GameState
 from engine.stats import StatisticsTracker
-from engine.maps import OutsideWorld
 from constants import PLAYER_START_X, PLAYER_START_Y
 
 def test_save_and_load_state():
@@ -21,7 +20,7 @@ def test_save_and_load_state():
         
         # Warp to outside and move player
         from engine.maps import create_world
-        gs.world = create_world('outside')
+        gs.world = create_world('chapter1')
         gs.player.x = 123.0
         gs.player.y = 456.0
         gs.player.hp = 77.0
@@ -37,8 +36,7 @@ def test_save_and_load_state():
         gs2 = GameState(stats=stats2, auto_load=False)
         
         # 4. Verify state restored
-        assert gs2.world.name == 'outside'
-        assert isinstance(gs2.world, OutsideWorld)
+        assert gs2.world.name == 'chapter1'
         assert gs2.player.x == 123.0
         assert gs2.player.y == 456.0
         assert gs2.player.hp == 77.0
@@ -55,5 +53,5 @@ def test_new_game_clears_state():
     
     gs = GameState(stats=stats, auto_load=False)
     assert gs.world.name == 'sanctuary'
-    assert gs.player.x == PLAYER_START_X
-    assert gs.player.y == PLAYER_START_Y
+    assert gs.player.x == gs.world.player_start[0]
+    assert gs.player.y == gs.world.player_start[1]
