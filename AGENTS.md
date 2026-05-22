@@ -1,6 +1,10 @@
 ## Current Phase & Execution Rules
 * **Current Project Phase:** CODING
 * **Goal:** Phase 1: Core Gameplay Loop (Combat, Physics, and Map Generation).
+* **Task Lifecycle Rule (Continuous Cleanup Protocol):** The moment an active task is fully verified, functional, and complete, you must instantly execute a documentation pass before moving to the next phase:
+  1. Cut the entire task block out of the active slot in `AGENTS.md`.
+  2. Append it to the bottom of `docs/CHANGELOG.md` as a past-tense historical entry (e.g., `## [ARCHIVED] Core Map JSON Migration - May 2026`).
+  3. Leave the active section in `AGENTS.md` clean, blank, and completely primed for the next action.
 
 ## Architectural Constraints
 - **Constants Only:** No magic numbers; all config must be in specialized constants files.
@@ -32,6 +36,7 @@
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
+
 ## Active Task: [Awaiting Next Phase]
 
-The Macro-Map foundation and Radial Lotus-Wheel Protocol have been successfully implemented and verified. Standing by for the next architectural directive (e.g., Climate Engine implementation or Enemy AI enhancement).
+The Core Map JSON Migration and Native Pygame Editor Script have been successfully implemented and verified. Standing by for the next architectural directive.

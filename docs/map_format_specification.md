@@ -20,7 +20,14 @@ Every map file saved by our editor must compile to a standard structured JSON do
     "#..................#",
     "#..B............S..#",
     "####################"
-  ]
+  ],
+  "entities": {
+    "15,9": {
+        "target": "macro_world",
+        "name": "The Chronicle"
+    }
+  }
 }
 ```
+*Note: Entity keys are stored as "x,y" strings to remain JSON-compliant.*
 

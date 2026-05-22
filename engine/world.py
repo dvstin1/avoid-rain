@@ -2,6 +2,8 @@
 Handles world grid, map sections, and static obstacles.
 """
 import math
+import json
+import os
 from constants import (
     GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP,
     PLAYER_START_X, PLAYER_START_Y, MACRO_MAP_SIZE
@@ -13,13 +15,17 @@ def generate_macro_lotus_world():
     Creates a central courtyard, an outer ring, and 6 connecting spokes.
     Nests replicated chapter1 modules within the radial sectors.
     """
-    from engine.room_definitions import ROOM_PROTOTYPES
-    chapter1 = ROOM_PROTOTYPES.get("chapter1", ["#"])
-    
+    json_path = os.path.join("maps", "chapter1.json")
+    chapter1 = ["#"]
+    if os.path.exists(json_path):
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            chapter1 = data["grid"]
+
     # Initialize 120x120 with '#' (Walls)
     world_grid = [['#' for _ in range(MACRO_MAP_SIZE)] for _ in range(MACRO_MAP_SIZE)]
     center_x, center_y = MACRO_MAP_SIZE // 2, MACRO_MAP_SIZE // 2
-    
+
     for y in range(MACRO_MAP_SIZE):
         for x in range(MACRO_MAP_SIZE):
             dx = x - center_x
@@ -277,9 +283,27 @@ class LoreFragment(GameObject):
 
 class LevelLoader:
     """
-    Dedicated parser for 2D text matrix strings.
+    Dedicated parser for 2D text matrix strings or JSON map definitions.
     Translates symbols into spatial entities and initial layout.
     """
+    @staticmethod
+    def load_json_map(file_path):
+        """Loads a JSON map file and parses it."""
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        # Convert "x,y" string keys back to (x, y) tuples for LevelLoader
+        raw_entities = data.get("entities", {})
+        entity_data = {}
+        for k, v in raw_entities.items():
+            try:
+                x, y = map(int, k.split(','))
+                entity_data[(x, y)] = v
+            except ValueError:
+                continue
+
+        return LevelLoader.parse_map(data["grid"], entity_data)
+
     @staticmethod
     def parse_map(prototype_array, entity_data=None):
         """
@@ -304,12 +328,14 @@ class LevelLoader:
             print("[DEBUG] Actively rendering Chapter 1 Production Grid")
 
         for y, row in enumerate(prototype_array):
-            if y >= GRID_HEIGHT: break
+            if y >= GRID_HEIGHT:
+                break
             for x, char in enumerate(row):
-                if x >= GRID_WIDTH: break
+                if x >= GRID_WIDTH:
+                    break
 
                 # Only static walls, frame, and empty space go into the grid
-                if char == '#' or char == 'X':
+                if char in ('#', 'X'):
                     grid[y][x] = TILE_WALL
                 elif char == 'M':
                     from constants import TILE_LOTUS_FRAME

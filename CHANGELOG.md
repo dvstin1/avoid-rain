@@ -153,3 +153,10 @@
 - **Cinematic Spawn:** Relocated the initial player spawn anchor to `(60, 50)`, placing the reader at the threshold of the central courtyard.
 - **Documentation:** Created `docs/weather_and_world_progression.md` defining the 4-stage climate lifecycle ("The Bleed") and environmental damage rules.
 
+## [ARCHIVED] Core Map JSON Migration - May 2026
+- **External Map Directory:** Created a dedicated `maps/` directory to host all level asset files.
+- **JSON Migration:** Successfully exported `sanctuary`, `chapter1`, and `chapter1_start` layouts from hardcoded Python definitions into clean, portable JSON files.
+- **LevelLoader Evolution:** Refactored `LevelLoader.load_json_map` and `engine/maps.py` to dynamically ingest external JSON assets, completely decoupling map data from engine logic.
+- **Map Specification:** Authored `docs/map_format_specification.md` defining the standard JSON schema for level interchange.
+- **Native Editor Tool:** Built `tools/edit_map.py`, a standalone Pygame utility for click-and-drag map creation, canvas resizing, and live JSON export.
+
