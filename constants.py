@@ -20,6 +20,11 @@ COLOR_CYAN = (0, 255, 255)
 COLOR_PURPLE = (150, 50, 250)
 COLOR_DARK_GREY = (40, 40, 40)
 
+# Scriptorium Noir Palette
+COLOR_SEPIA_AMBER = (40, 30, 20)  # Warm, low-contrast dark sepia
+COLOR_CHARCOAL = (15, 15, 20)     # Cold, stark dark charcoal
+COLOR_DEEP_SLATE = (45, 55, 70)   # Deep slate blue for Ink Urns
+
 # Player Configuration
 PLAYER_WIDTH = 40
 PLAYER_HEIGHT = 40
@@ -93,6 +98,8 @@ MINIMAP_PADDING = 8
 # Minimap tile marker color
 MINIMAP_WALL_COLOR = (120, 120, 120)
 MINIMAP_PLAYER_COLOR = (200, 50, 50)
+MINIMAP_ENEMY_COLOR = (255, 0, 0)
+MINIMAP_LOOT_COLOR = (220, 200, 50)
 # Fraction of the world shown in the minimap viewport. Values >1 are
 # allowed and will result in the minimap showing the full world (clamped).
 # A value around 1.2 is useful for showing some context while still
@@ -125,6 +132,8 @@ TILE_KEY = {
     'M': TILE_LOTUS_FRAME,
     'X': TILE_WALL, # X also acts as a wall boundary
     'L': TILE_LORE,
+    'h': TILE_PROP, # Heavy Bookcase
+    'd': TILE_PROP, # Ink-Drip Urn
 }
 
 # Colors for Tiles

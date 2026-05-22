@@ -19,6 +19,9 @@ from constants import (
     COLOR_RED,
     COLOR_CYAN,
     COLOR_DARK_GREY,
+    COLOR_SEPIA_AMBER,
+    COLOR_CHARCOAL,
+    COLOR_DEEP_SLATE,
     TILE_LOTUS_FRAME
 )
 from engine.player import PlayerStateEnum
@@ -46,10 +49,10 @@ class Renderer:
         # Draw The Libram (The Chronicle)
         book_rect = pygame.Rect(screen_x + 8, screen_y + 10, ww - 16, 20)
         pygame.draw.rect(self.screen, (139, 69, 19), book_rect) # Brown cover
-        
+
         # Iron binding detail
         pygame.draw.rect(self.screen, COLOR_GREY, (screen_x + 8, screen_y + 10, 4, 20))
-        
+
         # Glowing Glyph (Cyan/Neon)
         import math
         import time
@@ -57,7 +60,7 @@ class Renderer:
         pulse = (math.sin(time.time() * 4) + 1) / 2
         glow_alpha = 100 + int(pulse * 155)
         glyph_color = (0, 255, 255) # Cyan
-        
+
         # Draw small glowing sigil on the book
         pulse_size = int(pulse * 4)
         sigil_rect = pygame.Rect(0, 0, 4 + pulse_size, 4 + pulse_size)
@@ -67,7 +70,7 @@ class Renderer:
     def draw_interaction_prompt(self, player, offset_x, offset_y):
         """Draw a text prompt above the player's head."""
         target = player.current_interactable
-        
+
         # Determine the action verb based on the object type or name
         if target.name == "The Chronicler":
             prompt_text = f"Speak to {target.name}"
@@ -75,7 +78,7 @@ class Renderer:
             prompt_text = f"Read {target.name}"
         else:
             prompt_text = f"Interact with {target.name}" if hasattr(target, 'name') else "Interact"
-            
+
         # AGENTS.md specifies "Press [ATTACK] to Speak"
         prompt_surf = self.font.render(f"Press [SPACE] to {prompt_text}", True, COLOR_WHITE)
         rect = prompt_surf.get_rect()
@@ -99,23 +102,23 @@ class Renderer:
         try:
             ticks = pygame.time.get_ticks()
             offset = (ticks // 200) % TILE_SIZE
-            
+
             for i in range(4):
                 line_y = screen_y + (i + 1) * (oh // 5)
                 # Alternate direction
                 line_offset = offset if i % 2 == 0 else -offset
-                
+
                 # Draw segments to simulate flowing water
                 segment_len = 15
                 gap = 10
                 for lx in range(-TILE_SIZE, ow + TILE_SIZE, segment_len + gap):
                     start_x = screen_x + lx + line_offset
                     end_x = start_x + segment_len
-                    
+
                     # Clamp to basin width
                     final_start_x = max(screen_x + 2, min(screen_x + ow - 2, start_x))
                     final_end_x = max(screen_x + 2, min(screen_x + ow - 2, end_x))
-                    
+
                     if final_start_x < final_end_x:
                         pygame.draw.line(self.screen, COLOR_CYAN, (final_start_x, line_y), (final_end_x, line_y), 2)
         except Exception:
@@ -126,11 +129,11 @@ class Renderer:
         dialogue = state.active_dialogue
         if not dialogue:
             return
-            
+
         mode = getattr(state, 'dialogue_mode', "STANDARD")
         speaker = dialogue.get("speaker", "Unknown")
         text = dialogue.get("text", "")
-        
+
         if mode == "EXPANDED":
             # Large, centralized screen overlay
             margin_x = 100
@@ -152,16 +155,16 @@ class Renderer:
             bg_color = (20, 20, 20)
             line_spacing = 30
             text_y_offset = 50
-        
+
         # Draw background panel
         panel_rect = pygame.Rect(x, y, width, height)
         pygame.draw.rect(self.screen, bg_color, panel_rect)
         pygame.draw.rect(self.screen, COLOR_WHITE, panel_rect, 2)
-        
+
         # Draw speaker name
         speaker_surf = self.font.render(speaker, True, COLOR_YELLOW)
         self.screen.blit(speaker_surf, (x + 20, y + 10))
-        
+
         # Draw text (wrapped, respecting newlines)
         raw_lines = text.split('\n')
         lines = []
@@ -177,11 +180,11 @@ class Renderer:
                     lines.append(' '.join(current_line))
                     current_line = [word]
             lines.append(' '.join(current_line))
-        
+
         for i, line in enumerate(lines):
             line_surf = self.font.render(line, True, COLOR_WHITE)
             self.screen.blit(line_surf, (x + 20, y + text_y_offset + i * line_spacing))
-            
+
         # Instruction to close
         close_surf = self.font.render("Press [SPACE] to continue", True, COLOR_GREY)
         self.screen.blit(close_surf, (x + width - close_surf.get_width() - 20, y + height - 30))
@@ -189,45 +192,45 @@ class Renderer:
     def draw_choice_of_fates(self, choice):
         """Draw the Choice of Fates UI overlay."""
         from constants import COLOR_WHITE, COLOR_YELLOW, COLOR_GREY, COLOR_PURPLE
-        
+
         # Dim background
         overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 180))
         self.screen.blit(overlay, (0, 0))
-        
+
         sw, sh = self.screen.get_width(), self.screen.get_height()
-        
+
         # Draw title
         title_surf = self.font.render(choice["title"], True, COLOR_PURPLE)
         self.screen.blit(title_surf, (sw // 2 - title_surf.get_width() // 2, sh // 4))
-        
+
         # Draw options
         card_w, card_h = 300, 200
         padding = 50
-        
+
         for i, option in enumerate(choice["options"]):
             x = sw // 2 - (card_w + padding // 2) + i * (card_w + padding)
             y = sh // 2 - card_h // 2
-            
+
             rect = pygame.Rect(x, y, card_w, card_h)
             color = (40, 40, 40)
             border_color = COLOR_GREY
-            
+
             if i == choice["selected_index"]:
                 color = (60, 60, 80)
                 border_color = COLOR_YELLOW
-            
+
             pygame.draw.rect(self.screen, color, rect)
             pygame.draw.rect(self.screen, border_color, rect, 3)
-            
+
             # Draw option name
             name_surf = self.font.render(option["name"], True, COLOR_WHITE)
             self.screen.blit(name_surf, (x + card_w // 2 - name_surf.get_width() // 2, y + 20))
-            
+
             # Draw bias
             bias_surf = self.font.render(f"({option['bias']})", True, COLOR_GREY)
             self.screen.blit(bias_surf, (x + card_w // 2 - bias_surf.get_width() // 2, y + 50))
-            
+
             # Draw description
             desc_surf = self.font.render(option["description"], True, COLOR_YELLOW)
             self.screen.blit(desc_surf, (x + card_w // 2 - desc_surf.get_width() // 2, y + card_h - 50))
@@ -242,7 +245,14 @@ class Renderer:
         The camera attempts to center on the player but is clamped to the world
         bounds so the viewport never shows outside the world.
         """
-        self.screen.fill(COLOR_BLACK)
+        # Select background color based on world zone
+        bg_color = COLOR_BLACK
+        if getattr(state.world, 'name', 'sanctuary') == "sanctuary":
+            bg_color = COLOR_SEPIA_AMBER
+        else:
+            bg_color = COLOR_CHARCOAL
+
+        self.screen.fill(bg_color)
 
         # Use camera from the game state if available; otherwise create a transient one
         screen_w = self.screen.get_width()
@@ -305,17 +315,33 @@ class Renderer:
                 pygame.draw.rect(self.screen, COLOR_BLACK, (ox - offset_x, oy - offset_y, ow, oh), 1)
             elif obj.name == "The Wellspring":
                 self.draw_wellspring(obj, offset_x, offset_y)
+            elif obj.name == "Heavy Bookcase":
+                ox, oy, ow, oh = obj.rect
+                # Draw Heavy Bookcase (Dark charcoal rectangle)
+                pygame.draw.rect(self.screen, COLOR_DARK_GREY, (ox - offset_x, oy - offset_y, ow, oh))
+                pygame.draw.rect(self.screen, COLOR_BLACK, (ox - offset_x, oy - offset_y, ow, oh), 2)
+                # Simple shelf lines (using rect for compatibility with current test mocks)
+                shelf_y = oy + oh // 2 - offset_y
+                pygame.draw.rect(self.screen, COLOR_BLACK, (ox - offset_x, shelf_y, ow, 1))
+            elif obj.name == "Ink Urn":
+                ox, oy, ow, oh = obj.rect
+                # Draw Ink Urn (Deep slate blue square)
+                pygame.draw.rect(self.screen, COLOR_DEEP_SLATE, (ox - offset_x, oy - offset_y, ow, oh))
+                pygame.draw.rect(self.screen, COLOR_BLACK, (ox - offset_x, oy - offset_y, ow, oh), 1)
+                # Rim detail
+                rim_rect = (ox + 4 - offset_x, oy + 2 - offset_y, ow - 8, 4)
+                pygame.draw.rect(self.screen, COLOR_BLACK, rim_rect)
             elif obj.name == "Bench":
                 ox, oy, ow, oh = obj.rect
                 # Draw Bench (Dark brown base with backrest line)
                 pygame.draw.rect(self.screen, (101, 67, 33), (ox - offset_x, oy - offset_y, ow, oh))
-                pygame.draw.line(self.screen, (60, 40, 20), (ox - offset_x, oy + 5 - offset_y), (ox + ow - offset_x, oy + 5 - offset_y), 2)
+                pygame.draw.rect(self.screen, (60, 40, 20), (ox - offset_x, oy + 5 - offset_y, ow, 2))
             elif obj.name == "Rock":
                 ox, oy, ow, oh = obj.rect
                 # Draw Rock (Irregular grey block)
                 pygame.draw.rect(self.screen, (80, 80, 80), (ox - offset_x, oy - offset_y, ow, oh))
-                # Add some highlight detail
-                pygame.draw.line(self.screen, (120, 120, 120), (ox + 5 - offset_x, oy + 5 - offset_y), (ox + 15 - offset_x, oy + 10 - offset_y), 2)
+                # Add some highlight detail (using rect for test compatibility)
+                pygame.draw.rect(self.screen, (120, 120, 120), (ox + 5 - offset_x, oy + 5 - offset_y, 10, 5))
 
         # 1c. Draw Loot (Torn Pages)
         for item in getattr(state, 'loot', []):
@@ -347,7 +373,7 @@ class Renderer:
             for enemy in getattr(state, 'enemies', []):
                 er = pygame.Rect(enemy.get_rect())
                 ed = pygame.Rect(er.x - offset_x, er.y - offset_y, er.width, er.height)
-                
+
                 if isinstance(enemy, BatEnemy):
                     pygame.draw.rect(self.screen, COLOR_PURPLE, ed)
                     # Draw small wings
@@ -414,7 +440,7 @@ class Renderer:
             overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
             overlay.fill((200, 200, 200, 150)) # semi-transparent light grey
             self.screen.blit(overlay, (0, 0))
-            
+
             # Message
             msg_surf = self.font.render("TEXT BLEACHING...", True, COLOR_BLACK)
             msg_rect = msg_surf.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2))
@@ -427,7 +453,7 @@ class Renderer:
         player = state.player
         hp_text = f"HP: {int(player.hp)} / {int(player.max_hp)}"
         flask_text = f"Flasks: {player.flask_charges}"
-        
+
         pages = 0
         if state.stats:
             try:
@@ -473,7 +499,11 @@ class Renderer:
         The minimap scales the entire world to MINIMAP_WIDTH x MINIMAP_HEIGHT and
         draws a small rectangle for wall tiles and a distinct marker for the player.
         """
-        from constants import MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, MINIMAP_WALL_COLOR, MINIMAP_PLAYER_COLOR
+        from constants import (
+            MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING, TILE_SIZE, GRID_WIDTH,
+            GRID_HEIGHT, MINIMAP_WALL_COLOR, MINIMAP_PLAYER_COLOR,
+            MINIMAP_ENEMY_COLOR, MINIMAP_LOOT_COLOR
+        )
 
         # Background rect for minimap
         bg_rect = (MINIMAP_PADDING, MINIMAP_PADDING, MINIMAP_WIDTH, MINIMAP_HEIGHT)
@@ -529,6 +559,22 @@ class Renderer:
                     h = max(1, int(TILE_SIZE * scale_y))
                     pygame.draw.rect(self.screen, MINIMAP_WALL_COLOR, (wx, wy, w, h))
 
+        # Draw enemies on the minimap
+        for enemy in getattr(state, 'enemies', []):
+            ex, ey = enemy.x + enemy.width // 2, enemy.y + enemy.height // 2
+            if vp_x0 <= ex <= vp_x0 + vp_w and vp_y0 <= ey <= vp_y0 + vp_h:
+                emx = MINIMAP_PADDING + int((ex - vp_x0) * scale_x)
+                emy = MINIMAP_PADDING + int((ey - vp_y0) * scale_y)
+                pygame.draw.rect(self.screen, MINIMAP_ENEMY_COLOR, (emx-1, emy-1, 3, 3))
+
+        # Draw loot on the minimap
+        for item in getattr(state, 'loot', []):
+            lx, ly = item.x + item.width // 2, item.y + item.height // 2
+            if vp_x0 <= lx <= vp_x0 + vp_w and vp_y0 <= ly <= vp_y0 + vp_h:
+                lmx = MINIMAP_PADDING + int((lx - vp_x0) * scale_x)
+                lmy = MINIMAP_PADDING + int((ly - vp_y0) * scale_y)
+                pygame.draw.rect(self.screen, MINIMAP_LOOT_COLOR, (lmx-1, lmy-1, 3, 3))
+
         # Draw player marker centered in the viewport
         mx = MINIMAP_PADDING + int((px_c - vp_x0) * scale_x)
         my = MINIMAP_PADDING + int((py_c - vp_y0) * scale_y)
@@ -581,7 +627,7 @@ class Renderer:
         the displayed options (e.g., New Game / Continue / Quit).
         """
         self.screen.fill(COLOR_BLACK)
-        
+
         # 1. Draw the base title background/void mask
         title_surf = self.font.render("AVOID RAIN", True, COLOR_WHITE)
         instr_surf = self.font.render("Use ARROW KEYS and ENTER to choose", True, COLOR_WHITE)
@@ -596,9 +642,9 @@ class Renderer:
         options = ["New Game", "Quit"]
         selected_index = 0
         menu_state = None
-        
+
         from engine.title_menu import TitleMenuState
-        
+
         try:
             # If passed an object with get_options, use it
             if hasattr(selected_index_or_menu, 'get_options'):
@@ -626,25 +672,25 @@ class Renderer:
             overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 200))
             self.screen.blit(overlay, (0, 0))
-            
+
             # Confirmation box (card box)
             box_w, box_h = 600, 150
             box_rect = pygame.Rect(0, 0, box_w, box_h)
             box_rect.center = self.screen.get_rect().center
-            
+
             pygame.draw.rect(self.screen, (30, 30, 30), box_rect)
             pygame.draw.rect(self.screen, COLOR_WHITE, box_rect, 2)
-            
+
             # Confirmation text - anchor to center of viewport
             msg = "Are you sure you want to start a New Game? (Y/N)"
             confirm_surf = self.font.render(msg, True, COLOR_WHITE)
             confirm_rect = confirm_surf.get_rect(center=self.screen.get_rect().center)
-            
+
             # Warning about losing progress
             warning_msg = "This will permanently remove old progress."
             warning_surf = self.font.render(warning_msg, True, COLOR_RED)
             warning_rect = warning_surf.get_rect(center=(self.screen.get_rect().centerx, self.screen.get_rect().centery + 30))
-            
+
             self.screen.blit(confirm_surf, confirm_rect)
             self.screen.blit(warning_surf, warning_rect)
 

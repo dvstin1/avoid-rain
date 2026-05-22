@@ -15,13 +15,13 @@ class GameObject:
     def __init__(self, position, dimensions):
         self.x, self.y = position
         self.width, self.height = dimensions
-        
+
         # Core Architectural Trait Flags
         self.is_solid = True         # Blocks player/enemy kinematics
         self.is_breakable = False     # Listens to damage vectors; links to LootManager
         self.is_interactive = False   # Listens to player input triggers
         self.is_kinematic = False     # Modifies passenger velocity vectors (platforms)
-        
+
         self.health = 1.0            # Default health for breakables
         self.name = "Object"
         self.data = {}
@@ -60,11 +60,11 @@ class WarpPortal(GameObject):
         try:
             from engine.maps import create_world
             game_state.world = create_world(self.target_name)
-            
+
             # State Reset Rule: When starting a new run through the book, reset result to INIT
             if self.target_name != "sanctuary" and game_state.stats:
                 game_state.stats.data["last_run_result"] = "INIT"
-            
+
             # Position player at spawn coords
             game_state.player.x = float(self.spawn_x)
             game_state.player.y = float(self.spawn_y)
@@ -73,7 +73,7 @@ class WarpPortal(GameObject):
                 game_state.camera.instant_center(game_state.player.get_center())
             # Update enemies list from the new world
             game_state.enemies = getattr(game_state.world, 'enemies', []) if hasattr(game_state.world, 'enemies') else []
-            
+
             # [Milestone] Flush state immediately upon returning to sanctuary
             is_to_sanctuary = self.target_name == "sanctuary"
             game_state.save_stats(wait=is_to_sanctuary)
@@ -94,12 +94,12 @@ class Chronicler(GameObject):
         """Select dialogue based on state and display it."""
         from constants import DIALOGUE_MANIFEST
         manifest = DIALOGUE_MANIFEST.get("chronicler", [])
-        
+
         # Get current state from stats
         last_result = "INIT"
         if game_state.stats:
             last_result = game_state.stats.data.get("last_run_result", "INIT")
-            
+
         # Filter and sort by priority
         valid_nodes = []
         for node in manifest:
@@ -116,13 +116,13 @@ class Chronicler(GameObject):
                     if story_flags.get(key) != value:
                         match = False
                         break
-            
+
             if match:
                 valid_nodes.append(node)
-        
+
         # Sort by priority (descending)
         valid_nodes.sort(key=lambda x: int(x.get("priority", 0)), reverse=True)
-        
+
         if valid_nodes:
             self.current_dialogue = valid_nodes[0]["text"]
             # Trigger dialogue box in GameState
@@ -159,7 +159,7 @@ class Wellspring(GameObject):
         text += f"Bleed Wipes: {stats.get('losses_bleed_wipes', 0)}\n"
         text += f"Standard Respawns: {stats.get('deaths_standard_respawns', 0)}\n"
         text += f"Torn Pages: {stats.get('pages_collected', 0)}\n"
-        
+
         discovered_count = sum(1 for v in bestiary.values() if v)
         text += f"Syntax Blocks: {discovered_count}"
 
@@ -182,7 +182,7 @@ class LoreFragment(GameObject):
         from constants import DIALOGUE_MANIFEST
         manifest = DIALOGUE_MANIFEST.get("lore_fragments", {})
         snippet = manifest.get(self.fragment_id, "The text is faded beyond recognition.")
-        
+
         game_state.dialogue_mode = "STANDARD"
         game_state.active_dialogue = {
             "speaker": self.name,
@@ -210,7 +210,7 @@ class LevelLoader:
         has_lotus = any('M' in row or 'X' in row for row in prototype_array)
         if has_lotus:
             print("[DEBUG] LevelLoader actively building Lotus Topography Grid")
-        
+
         # Check for Chapter 1 specifically for Production Grid verification
         # For simplicity, we can pass the room_id or just check a unique pattern.
         # Let's check for 'T' (trees) which are prominent in Chapter 1.
@@ -221,7 +221,7 @@ class LevelLoader:
             if y >= GRID_HEIGHT: break
             for x, char in enumerate(row):
                 if x >= GRID_WIDTH: break
-                
+
                 # Only static walls, frame, and empty space go into the grid
                 if char == '#' or char == 'X':
                     grid[y][x] = TILE_WALL
@@ -230,20 +230,20 @@ class LevelLoader:
                     grid[y][x] = TILE_LOTUS_FRAME
                 else:
                     grid[y][x] = TILE_EMPTY
-                
+
                 pos = (x * TILE_SIZE, y * TILE_SIZE)
                 dim = (TILE_SIZE, TILE_SIZE)
-                
+
                 if char == 'W':
                     # Warp Portal
                     data = entity_data.get((x, y), {})
                     target = data.get('target', 'sanctuary')
                     sx = data.get('spawn_x', PLAYER_START_X)
                     sy = data.get('spawn_y', PLAYER_START_Y)
-                    
+
                     warp_tiles[(x, y)] = (target, sx, sy)
                     interactables.append(WarpPortal(target, sx, sy, (pos[0], pos[1], dim[0], dim[1]), name=data.get('name', "The Chronicle")))
-                
+
                 elif char == 'R':
                     # Respite
                     respite = GameObject(pos, dim)
@@ -251,24 +251,24 @@ class LevelLoader:
                     respite.is_solid = True
                     respite.name = "Respite"
                     interactables.append(respite)
-                
+
                 elif char == 'T':
                     # Static Obstacle / Tree
                     tree = GameObject(pos, dim)
                     tree.is_solid = True
                     tree.name = "Structure"
                     interactables.append(tree)
-                
+
                 elif char == 'C':
                     # The Chronicler NPC
                     chronicler = Chronicler(pos, dim)
                     interactables.append(chronicler)
-                
+
                 elif char == 'F':
                     # The Wellspring (Fountain)
                     wellspring = Wellspring(pos, dim)
                     interactables.append(wellspring)
-                
+
                 elif char == 'L':
                     # Lore Fragment
                     data = entity_data.get((x, y), {})
@@ -276,7 +276,7 @@ class LevelLoader:
                     frag_name = data.get('name', 'Lost Passage')
                     fragment = LoreFragment(pos, dim, frag_id, name=frag_name)
                     interactables.append(fragment)
-                
+
                 elif char == 'B':
                     # Placeholder Prop / Barrel
                     prop = GameObject(pos, dim)
@@ -285,7 +285,22 @@ class LevelLoader:
                     prop.health = 1.0
                     prop.name = "Barrel"
                     interactables.append(prop)
-                
+
+                elif char == 'h':
+                    # Heavy Bookcase - Horizontal 2x1
+                    bookcase_dim = (TILE_SIZE * 2, TILE_SIZE)
+                    bookcase = GameObject(pos, bookcase_dim)
+                    bookcase.is_solid = True
+                    bookcase.name = "Heavy Bookcase"
+                    interactables.append(bookcase)
+
+                elif char == 'd':
+                    # Ink-Drip Urn - 1x1
+                    urn = GameObject(pos, dim)
+                    urn.is_solid = True
+                    urn.name = "Ink Urn"
+                    interactables.append(urn)
+
                 elif char == 'S':
                     # Seat / Bench - Vertical 1x2
                     bench_dim = (TILE_SIZE, TILE_SIZE * 2)
@@ -293,29 +308,29 @@ class LevelLoader:
                     bench.is_solid = True
                     bench.name = "Bench"
                     interactables.append(bench)
-                
+
                 elif char == 'E':
                     # Miniboss Spawn
                     from engine.enemy import Miniboss
                     enemies.append(Miniboss(pos[0], pos[1]))
-                
+
                 elif char == 'K':
                     # Rock
                     rock = GameObject(pos, dim)
                     rock.is_solid = True
                     rock.name = "Rock"
                     interactables.append(rock)
-                
+
                 elif char == 'Z':
                     # SlugEnemy Spawn
                     from engine.enemy import SlugEnemy
                     enemies.append(SlugEnemy(pos[0], pos[1]))
-                
+
                 elif char == 'A':
                     # BatEnemy Spawn
                     from engine.enemy import BatEnemy
                     enemies.append(BatEnemy(pos[0], pos[1]))
-                
+
                 elif char == 'P':
                     # Player Start hook
                     player_start = (pos[0], pos[1])
@@ -337,7 +352,7 @@ class World:
 
     def _init_sanctuary_walls(self):
         """Creates a simple border and some internal walls for the Sanctuary.
-        
+
         Maintains legacy behavior for the default hub.
         """
         # Top and Bottom walls
@@ -368,11 +383,11 @@ class World:
         door_y = island_y0 + island_h // 2
         door_x = island_x0
         self.grid[door_y][door_x] = TILE_WARP
-        
+
         spawn_px = (GRID_WIDTH - 3) * TILE_SIZE
         spawn_py = (GRID_HEIGHT // 2) * TILE_SIZE
         self.warp_tiles[(door_x, door_y)] = ('outside', spawn_px, spawn_py)
-        
+
         rect = (door_x * TILE_SIZE, door_y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
         self.interactables.append(WarpPortal('outside', spawn_px, spawn_py, rect, name="The Chronicle"))
 
@@ -397,13 +412,13 @@ class World:
             for x in range(start_x, end_x):
                 if self.grid[y][x] == TILE_WALL:
                     walls.append((x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE))
-        
+
         # Solid GameObjects
         from engine.physics import check_aabb_collision
         for obj in self.interactables:
             if obj.is_solid and check_aabb_collision(player_rect, obj.rect):
                 walls.append((obj.rect[0], obj.rect[1], obj.rect[2], obj.rect[3]))
-                
+
         return walls
 
     def get_nearby_interactables(self, player_rect):
