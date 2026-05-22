@@ -186,3 +186,20 @@ Verify the exact file import path the main execution loop uses to fetch level la
 ### 2. Explicit Override
 - Force the scene transition logic to directly assign `LOTUS_POD_TEST_GRID` (containing the `M` and `X` characters) as the structural source for `chapter1_start`.
 - Print a debugging string to the terminal console upon map initialization: `"[DEBUG] LevelLoader actively building Lotus Topography Grid"`.
+
+## Active Task: Chapter 1 Map Realignment & Arena Expansion
+
+Redirect the Chronicle warp trigger away from the structural test grid and map it directly to the pre-existing `chapter1` layout array, optimizing it for immediate combat and exploration testing.
+
+### 1. Warp Route Realignment
+- Locate the transaction logic inside the Sanctuary scene where interacting with *The Chronicle* initializes the next zone.
+- Change the target layout array pointer from `LOTUS_POD_TEST_GRID` to point directly to the `chapter1` map definition matrix.
+
+### 2. Map Expansion & Prop Injection
+- Open the file containing the `chapter1` string grid matrix.
+- Ensure the boundaries are clearly sealed using wall symbols (`#`).
+- Manually inject a few clusters of your newly programmed breakable barrels (`B`) into the open floor pathways (`.`) so they are available to smash.
+- Place a clear enemy spawn point symbol near the center or far end of the room to serve as your combat target.
+
+### 3. Verification Print
+- Ensure the terminal console outputs a clean layout check upon entry: `"[DEBUG] Actively rendering Chapter 1 Production Grid"`.

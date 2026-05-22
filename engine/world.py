@@ -95,6 +95,12 @@ class LevelLoader:
         has_lotus = any('M' in row or 'X' in row for row in prototype_array)
         if has_lotus:
             print("[DEBUG] LevelLoader actively building Lotus Topography Grid")
+        
+        # Check for Chapter 1 specifically for Production Grid verification
+        # For simplicity, we can pass the room_id or just check a unique pattern.
+        # Let's check for 'T' (trees) which are prominent in Chapter 1.
+        if any('T' in row for row in prototype_array) and not has_lotus:
+            print("[DEBUG] Actively rendering Chapter 1 Production Grid")
 
         for y, row in enumerate(prototype_array):
             if y >= GRID_HEIGHT: break
