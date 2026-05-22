@@ -135,3 +135,18 @@ Implement the destruction state engine for the placeholder Barrel (`B`) prop and
 ### 3. Destruction Clean-Up
 - Upon a barrel's health hitting 0, instantly remove the entity instance from the active `is_solid` collision tracking group so it no longer blocks player/enemy kinematics.
 - Trigger a brief 3-frame fading or shrinking primitive animation sequence before entirely purging the object instance from active memory loops.
+
+## Active Task: Map Data Layout Population
+
+Populate the `ROOM_PROTOTYPES` dictionary inside your map data files with distinct structural test layouts to verify the physical distribution of walls, trees, and breakable barrels across both zones.
+
+### 1. Layout Blueprints
+
+#### Room 1: The Sanctuary / Scriptorium Hub
+- A safe square chamber containing a centralized Respite anchor and a clear path to the Chapter 1 Warp portal.
+
+#### Room 2: Chapter 1 - The Ink-Stained Wilds
+- A larger room structured with perimeter stone walls (`#`), organic clusters of static trees (`T`), clusters of destructible barrels (`B`) tucked into corners or blocking narrow pathways, and a hostile enemy spawn coordinate.
+
+### 2. Layout Integration Constraint
+- Ensure the character parsing loops match your tile dimensions exactly so the player doesn't spawn inside a solid stone wall block (`#`).

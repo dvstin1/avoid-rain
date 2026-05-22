@@ -91,9 +91,9 @@ def test_world_interactable_detection():
     assert interactables[0].name == "Respite"
 
 def test_room_prototypes_registry():
-    assert "chapter1_start" in ROOM_PROTOTYPES
-    assert len(ROOM_PROTOTYPES["chapter1_start"]) == 6
-    assert ROOM_PROTOTYPES["chapter1_start"][0] == "##########"
+    assert "chapter1" in ROOM_PROTOTYPES
+    assert len(ROOM_PROTOTYPES["chapter1"]) == 14
+    assert ROOM_PROTOTYPES["chapter1"][0] == "################################"
 
 @pytest.mark.parametrize("room_id", ROOM_PROTOTYPES.keys())
 def test_all_prototypes_loadable(room_id):

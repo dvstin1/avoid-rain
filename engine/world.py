@@ -156,10 +156,6 @@ class World:
         self.warp_tiles = {}  # Legacy mapping (x,y) -> (target_name, spawn_x_px, spawn_y_px)
         self.interactables = []
         self.player_start = (PLAYER_START_X, PLAYER_START_Y)
-        
-        # Default to legacy hardcoded sanctuary if no prototype is used
-        if name == 'sanctuary':
-            self._init_sanctuary_walls()
 
     def _init_sanctuary_walls(self):
         """Creates a simple border and some internal walls for the Sanctuary.

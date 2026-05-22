@@ -20,8 +20,9 @@ class GameState:
     """Master state object for the game engine."""
     def __init__(self, stats: Optional[StatisticsTracker] = None, stats_path: Optional[str] = None, auto_load: bool = True):
         # 1. Initialize core components with defaults
-        self.world = World()
-        self.player = Player(PLAYER_START_X, PLAYER_START_Y)
+        from engine.maps import create_world
+        self.world = create_world("sanctuary")
+        self.player = Player(self.world.player_start[0], self.world.player_start[1])
         self.enemies = []
 
         # 2. Statistics tracker: prefer injected tracker; otherwise optionally auto-load
