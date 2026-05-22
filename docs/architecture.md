@@ -254,6 +254,20 @@ To handle both narrative character dialogue and expansive dataset ledger present
 - **Standard Dialog Window:** A lower-third horizontal banner (approx. 25-30% screen height) reserved exclusively for active NPC banter (e.g., The Chronicler).
 - **Expanded Manuscript overlay:** A centralized, large modal window (occupying approx. 70-80% of total screen dimensions) featuring a parchment or high-contrast background mask. This mode is explicitly triggered by architectural data-log systems (e.g., The Wellspring Fountain Ledger, The Chronicle Profile Screen) to present dense multiline metrics without string clipping.
 
+## 15. Advanced Entity Architecture: Multi-Tile & Elite Entities
+
+To support diverse map topography and challenging combat encounters, the engine supports entities larger than the standard 1x1 tile grid.
+
+### 1. Multi-Tile Static Props
+- **Vertical Occupancy:** Certain symbols in the `LevelLoader` (e.g., `S` for Benches) instantiate `GameObject` instances with a 1x2 footprint (`TILE_SIZE` x `TILE_SIZE * 2`).
+- **Collision:** Solid multi-tile props are treated as a single unified AABB for collision resolution.
+
+### 2. Elite Entities: The Miniboss
+- **Dimensions:** Minibosses occupy a 2x2 tile area (`TILE_SIZE * 2` x `TILE_SIZE * 2`).
+- **Detection & Pursuit:** Minibosses feature an expanded detection radius (default 12 tiles) and use a standardized pursuit vector to track the player.
+- **Combat Stats:** Higher health pools and increased contact damage compared to standard enemies.
+- **Loot:** Guaranteed Tier 2 drops upon defeat.
+
 ### 2. Procedural Animation Constraints (The Wellspring Surface)
 - Non-image placeholder structures must utilize frame-relative math or time-based sine vectors to simulate life.
 - **The Water Primitive:** A bounding block mapped to the Wellspring position that dynamically alternates rendering layers of primary cyan/blue color bars offset by moving horizontal highlight strokes to mimic continuous liquid currents.

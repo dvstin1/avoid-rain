@@ -15,6 +15,18 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Minimap Entity Markers
+- Implemented markers for enemies and loot on the minimap.
+- Added `MINIMAP_ENEMY_COLOR` and `MINIMAP_LOOT_COLOR` constants.
+- Updated `Renderer.draw_minimap` to render small markers for entities within the minimap viewport.
+- Added unit tests to verify markers appear correctly on the minimap.
+
+### Arena Sprawl Expansion, Multi-Tile Props, & 2x2 Miniboss
+- **Corridor Sprawl:** Expanded the `chapter1` map layout to include a starting room, a narrow corridor, and a grand final chamber.
+- **Bench Refactor:** Updated `LevelLoader` to support vertical 1x2 multi-tile Benches (`S`).
+- **Miniboss Entity:** Implemented a 2x2 elite enemy with pursuit behavior and an expanded health pool.
+- **Entity Population:** Integrated the Miniboss into the `chapter1` layout.
+
 ### Bat Visibility Patch & Test Area Asset Population
 - **Visibility Fix:** Added missing `COLOR_PURPLE` constant to `constants.py`, resolving a rendering pipeline `ImportError`.
 - **Exhibition Layout:** Rearranged the `chapter1` map to cluster a Rock, Bench, Barrel, Tree, and Bat enemy directly in front of the player's spawn point for immediate testing.
@@ -95,7 +107,7 @@
 
 ### Lotus Layout Instantiation
 - Implemented the "Lotus Pod" blueprint in `map_data.py`.
-- Established correct spawn orientations and boundary logic for the macro Lotus grid.
+- Established correct orientations and boundary logic for the macro Lotus grid.
 
 ### Level Hook & Main Loop Verification
 - Audited and verified file import paths for level layouts.
