@@ -103,10 +103,12 @@ class Renderer:
 
         pygame.display.flip()
 
-    def draw_title_screen(self, selected_index: int = 0):
+    def draw_title_screen(self, selected_index_or_menu=0):
         """Draw the title screen with a simple menu.
 
-        selected_index highlights the current selection (0 = Start, 1 = Quit).
+        Accepts either a selected index (int) or a menu object implementing
+        get_options() and get_selected_index(). This allows TitleMenu to drive
+        the displayed options (e.g., New Game / Continue / Quit).
         """
         self.screen.fill(COLOR_BLACK)
         title_surf = self.font.render("AVOID RAIN", True, COLOR_WHITE)
@@ -118,7 +120,21 @@ class Renderer:
         self.screen.blit(title_surf, title_rect)
         self.screen.blit(instr_surf, instr_rect)
 
-        options = ["Start Game", "Quit"]
+        # Resolve options and selected index from parameter
+        options = ["New Game", "Quit"]
+        selected_index = 0
+        try:
+            # If passed an object with get_options, use it
+            if hasattr(selected_index_or_menu, 'get_options'):
+                options = selected_index_or_menu.get_options()
+                selected_index = selected_index_or_menu.get_selected_index()
+            else:
+                # treat as integer index
+                selected_index = int(selected_index_or_menu)
+        except Exception:
+            options = ["New Game", "Quit"]
+            selected_index = 0
+
         for idx, opt in enumerate(options):
             color = COLOR_YELLOW if idx == selected_index else COLOR_WHITE
             opt_surf = self.font.render(opt, True, color)
