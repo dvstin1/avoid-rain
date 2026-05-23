@@ -65,6 +65,7 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                 from engine.pause_menu import PauseMenuState
                 if event.key == pygame.K_ESCAPE:
                     pause_menu.state = PauseMenuState.MAIN
+                # Swallow all other keys while in controls modal
                 continue
 
             if event.key == pygame.K_ESCAPE:

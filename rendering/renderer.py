@@ -755,7 +755,7 @@ class Renderer:
             self.screen.blit(confirm_surf, confirm_rect)
             self.screen.blit(warning_surf, warning_rect)
         elif getattr(menu_state, 'name', '') == 'CONTROLS':
-            self.draw_controls_overlay()
+            self.draw_controls_overlay(show_editor_keys=True)
             return
 
         pygame.display.flip()
@@ -846,7 +846,7 @@ class Renderer:
             self.screen.blit(opt_surf, opt_rect)
         pygame.display.flip()
 
-    def draw_controls_overlay(self):
+    def draw_controls_overlay(self, show_editor_keys=True):
         """Draw the Controls overlay used by Title and Pause menus."""
         overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, UI_ALPHA))
@@ -870,9 +870,12 @@ class Renderer:
             ("Movement:", "WASD / Arrows"),
             ("Attack / Interact:", "Space / E"),
             ("Pause Run:", "Escape"),
-            ("Editor Box Fill:", "B / Click-and-Drag"),
-            ("Canvas Stretch:", "+/- and Ctrl + +/-")
         ]
+        if show_editor_keys:
+            inputs.extend([
+                ("Editor Box Fill:", "B / Click-and-Drag"),
+                ("Canvas Stretch:", "+/- and Ctrl + +/-")
+            ])
 
         start_y = tab_y + 120
         spacing = 40
@@ -892,3 +895,4 @@ class Renderer:
         self.screen.blit(back_surf, back_surf.get_rect(center=(cx, start_y + len(inputs) * spacing + 40)))
         
         pygame.display.flip()
+
