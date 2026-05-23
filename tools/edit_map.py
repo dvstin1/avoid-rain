@@ -340,7 +340,9 @@ class MapEditor:
         if event.type == pygame.MOUSEBUTTONDOWN:
             if mx >= SCREEN_WIDTH:
                 # Sidebar click
-                click_idx = (my - 115) // 25
+                # Palette start y_off is 145 (20+30+30+40+25)
+                palette_y_start = 145
+                click_idx = (my - palette_y_start) // 25
                 if 0 <= click_idx < len(PALETTE):
                     self.brush_idx = click_idx
             elif self.active_tool == "RECTANGLE" and event.button == 1:
