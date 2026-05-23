@@ -332,3 +332,13 @@ The macro-world map ($120 \times 120$ tiles) is generated using explicit geometr
 - **The Tissue Framework (The Spokes):** Distinct, multi-tile wide avenues that radiate outward at specific angular intervals (e.g., $0^\circ, 60^\circ, 120^\circ, 180^\circ, 240^\circ, 300^\circ$).
 - **The Outer Rim Ring (Radius 50 to 55):** A continuous circular pathway running along the perimeter of the map. Every radial spoke links directly into this ring, guaranteeing a closed topological loop with zero dead ends.
 - **The Vault Cells:** The $20 \times 20$ modular modular content zones are nested in the negative spaces trapped between the radiating spokes.
+
+## Physics Architecture: Entity Overlap & Repulsion Mechanics
+
+To prevent overlapping graphic clipping and maintain combat readability, active mobile entities (Player and Enemies) must execute dynamic repulsion checks.
+
+### 1. The Soft-Body Repulsion Formula
+When a moving threat's bounding box (`enemy.rect`) intersects the player's bounding box (`player.rect`), the physics loop must calculate a separation vector:
+- **Direction:** Compute the angle or directional sign vector pointing from the center of the player to the center of the enemy.
+- **Displacement:** Apply a minor fractional velocity pushback to the enemy's coordinates along that vector to instantly slide them out of the player's interior space.
+- This ensures enemies remain visible, targetable, and positioned at a readable melee engagement distance.

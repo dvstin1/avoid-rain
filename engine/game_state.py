@@ -11,7 +11,7 @@ from constants import (
 from engine.player import Player, PlayerStateEnum
 from engine.world import World
 from engine.combat import get_sword_hitbox
-from engine.physics import check_aabb_collision
+from engine.physics import check_aabb_collision, resolve_enemy_player_collision
 from engine.camera import Camera
 from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED
 from engine.stats import StatisticsTracker
@@ -537,6 +537,9 @@ class GameState:
                 enemy.attempt_damage_player(self)
             except Exception:
                 pass
+
+        # Apply soft pushback to separate enemies from the player's bounding box
+        resolve_enemy_player_collision(self.player, self.enemies)
 
         # 5. Update Timers
         if self.dummy_stagger_timer > 0:

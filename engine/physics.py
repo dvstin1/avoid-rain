@@ -2,6 +2,8 @@
 Pure math implementation of AABB collision and physics resolution.
 """
 
+import random
+
 def check_aabb_collision(rect_a, rect_b):
     """
     Checks if two rectangles are overlapping.
@@ -43,3 +45,32 @@ def resolve_wall_collision(player_rect, wall_rects):
                     py += overlap_y # Move down
 
     return px, py
+
+def resolve_enemy_player_collision(player, enemies):
+    """
+    Implement a soft-body repulsion loop to prevent enemies from clipping directly inside the player.
+    """
+    player_rect = (player.x, player.y, player.width, player.height)
+    
+    for enemy in enemies:
+        enemy_rect = enemy.get_rect()
+        if check_aabb_collision(player_rect, enemy_rect):
+            dx = (enemy.x + enemy.width / 2) - (player.x + player.width / 2)
+            dy = (enemy.y + enemy.height / 2) - (player.y + player.height / 2)
+            
+            if dx == 0 and dy == 0:
+                dx = random.uniform(-0.1, 0.1)
+                dy = random.uniform(-0.1, 0.1)
+                
+            dist = (dx * dx + dy * dy) ** 0.5
+            push_x = (dx / dist) * 2.0
+            push_y = (dy / dist) * 2.0
+            
+            iterations = 0
+            while check_aabb_collision(
+                (player.x, player.y, player.width, player.height),
+                (enemy.x, enemy.y, enemy.width, enemy.height)
+            ) and iterations < 20:
+                enemy.x += push_x
+                enemy.y += push_y
+                iterations += 1

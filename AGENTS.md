@@ -39,4 +39,4 @@
 
 ## Active Task: [Awaiting Next Phase]
 
-The Semi-Transparent Alpha UI Overlays task has been successfully implemented and verified. Standing by for the next architectural directive.
+The Player-Enemy Collision Separation & Pushback Mechanics have been successfully implemented and verified. Standing by for the next architectural directive.

@@ -184,3 +184,9 @@
 - **Minimap Visibility:** Converted the opaque `draw_minimap` bounding box to leverage the same transparent `SRCALPHA` surface blending technique.
 - **Opacity Preservation:** Ensured critical metrics (HP strings, active gauges, entity blips) are independently drawn at maximum opacity over the washed-out alpha surfaces for uncompromising legibility.
 
+## [ARCHIVED] Player-Enemy Collision Separation & Pushback Mechanics - May 2026
+- **Physics Expansion:** Implemented a soft-body repulsion loop (`resolve_enemy_player_collision`) in `engine/physics.py` to prevent enemies from overlapping completely with the player sprite.
+- **Vector Math:** Calculates distance deltas and applies a symmetric pushback vector normalized by distance to force separation.
+- **Symmetry Breaking:** Introduced a tiny randomized sub-pixel offset to prevent infinite loop stalemates on perfect coordinate overlap (0, 0).
+- **Engine Hook:** Integrated the separation loop directly into `GameState.update()` after standard enemy logic to maintain fluid combat visibility without jitter.
+
