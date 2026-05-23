@@ -25,6 +25,12 @@ def handle_title_events(renderer, title_menu: TitleMenu):
         if event.type == pygame.QUIT:
             return False, False
         if event.type == pygame.KEYDOWN:
+            # If we are in controls state, handle SPACE/ENTER/ESCAPE as 'back'
+            if getattr(title_menu.state, 'name', '') == 'CONTROLS':
+                if event.key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
+                    title_menu.state = TitleMenuState.MAIN
+                return True, True
+
             # If we are in confirmation state, handle ESC as 'cancel'
             if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
                 if event.key in (pygame.K_ESCAPE, pygame.K_n):
@@ -60,10 +66,10 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYDOWN:
-            # If we are in controls state in the pause menu, ESC returns to MAIN
+            # If we are in controls state in the pause menu, SPACE/ENTER/ESCAPE returns to MAIN
             if pause_menu is not None and pause_menu.is_open() and getattr(pause_menu.state, 'name', '') == 'CONTROLS':
                 from engine.pause_menu import PauseMenuState
-                if event.key == pygame.K_ESCAPE:
+                if event.key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
                     pause_menu.state = PauseMenuState.MAIN
                 # Swallow all other keys while in controls modal
                 continue

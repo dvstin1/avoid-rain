@@ -891,7 +891,7 @@ class Renderer:
             self.screen.blit(keys_surf, keys_rect)
 
         # Draw Back instruction
-        back_surf = self.font.render("Press ESCAPE to go back", True, COLOR_WHITE)
+        back_surf = self.font.render("Press SPACE or ENTER to go back", True, COLOR_WHITE)
         self.screen.blit(back_surf, back_surf.get_rect(center=(cx, start_y + len(inputs) * spacing + 40)))
         
         pygame.display.flip()
