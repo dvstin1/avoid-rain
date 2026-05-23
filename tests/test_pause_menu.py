@@ -35,7 +35,8 @@ def test_request_quit_flag():
     pm.open()
     # Navigate to Quit and confirm
     pm.navigate('down')
-    assert pm.get_selected_index() == 1
+    pm.navigate('down')
+    assert pm.get_selected_index() == 2
     pm.confirm()
     assert pm.should_quit()
     pm.clear_quit()

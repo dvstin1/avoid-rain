@@ -754,6 +754,9 @@ class Renderer:
 
             self.screen.blit(confirm_surf, confirm_rect)
             self.screen.blit(warning_surf, warning_rect)
+        elif getattr(menu_state, 'name', '') == 'CONTROLS':
+            self.draw_controls_overlay()
+            return
 
         pygame.display.flip()
 
@@ -788,11 +791,32 @@ class Renderer:
         # Ensure the loading screen is visible for at least min_time
         sleep(min_time)
 
-    def draw_pause_menu(self, selected_index: int = 0):
+    def draw_pause_menu(self, pause_menu_or_index=0):
         """Draw a simple pause overlay with 'Paused' text.
 
-        selected_index controls which menu option is highlighted.
+        Accepts either a selected index (int) or a menu object implementing
+        get_options() and get_selected_index().
         """
+        options = ["Resume", "Controls", "Quit"]
+        selected_index = 0
+        menu_state = None
+
+        try:
+            from engine.pause_menu import PauseMenuState
+            if hasattr(pause_menu_or_index, 'get_options'):
+                options = pause_menu_or_index.get_options()
+                selected_index = pause_menu_or_index.get_selected_index()
+                menu_state = getattr(pause_menu_or_index, 'state', PauseMenuState.MAIN)
+            else:
+                selected_index = int(pause_menu_or_index)
+                menu_state = PauseMenuState.MAIN
+        except Exception:
+            pass
+
+        if menu_state and getattr(menu_state, 'name', '') == 'CONTROLS':
+            self.draw_controls_overlay()
+            return
+
         overlay = pygame.Surface(
             (self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA
         )
@@ -801,7 +825,7 @@ class Renderer:
         pause_surf = self.font.render("PAUSED", True, COLOR_WHITE)
         # Show instructions and menu options
         instr_surf = self.font.render("Use ARROW KEYS and ENTER to choose", True, COLOR_WHITE)
-        options = ["Resume", "Quit"]
+        
         # Draw main pause text
         pause_rect = pause_surf.get_rect(
             center=(self.screen.get_width()//2, self.screen.get_height()//2 - 50)
@@ -820,4 +844,51 @@ class Renderer:
                 center=(self.screen.get_width()//2, self.screen.get_height()//2 + 10 + idx * 30)
             )
             self.screen.blit(opt_surf, opt_rect)
+        pygame.display.flip()
+
+    def draw_controls_overlay(self):
+        """Draw the Controls overlay used by Title and Pause menus."""
+        overlay = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, UI_ALPHA))
+        self.screen.blit(overlay, (0, 0))
+
+        # Render Tabs
+        tab_y = 60
+        kb_surf = self.font.render("[ Keyboard ]", True, COLOR_WHITE)
+        ctrl_surf = self.font.render("[ Controller ] (Not Implemented)", True, COLOR_GREY)
+        
+        cx = self.screen.get_width() // 2
+        self.screen.blit(kb_surf, kb_surf.get_rect(center=(cx - 150, tab_y)))
+        self.screen.blit(ctrl_surf, ctrl_surf.get_rect(center=(cx + 150, tab_y)))
+
+        # Draw Title
+        title_surf = self.font.render("CONTROLS", True, COLOR_YELLOW)
+        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, tab_y + 60)))
+
+        # Draw Inputs
+        inputs = [
+            ("Movement:", "WASD / Arrows"),
+            ("Attack / Interact:", "Space / E"),
+            ("Pause Run:", "Escape"),
+            ("Editor Box Fill:", "B / Click-and-Drag"),
+            ("Canvas Stretch:", "+/- and Ctrl + +/-")
+        ]
+
+        start_y = tab_y + 120
+        spacing = 40
+        for i, (action, keys) in enumerate(inputs):
+            action_surf = self.font.render(action, True, COLOR_WHITE)
+            keys_surf = self.font.render(keys, True, COLOR_CYAN)
+            
+            # Align action to the right of center-10, keys to the left of center+10
+            action_rect = action_surf.get_rect(midright=(cx - 20, start_y + i * spacing))
+            keys_rect = keys_surf.get_rect(midleft=(cx + 20, start_y + i * spacing))
+            
+            self.screen.blit(action_surf, action_rect)
+            self.screen.blit(keys_surf, keys_rect)
+
+        # Draw Back instruction
+        back_surf = self.font.render("Press ESCAPE to go back", True, COLOR_WHITE)
+        self.screen.blit(back_surf, back_surf.get_rect(center=(cx, start_y + len(inputs) * spacing + 40)))
+        
         pygame.display.flip()

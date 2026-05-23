@@ -60,6 +60,13 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYDOWN:
+            # If we are in controls state in the pause menu, ESC returns to MAIN
+            if pause_menu is not None and pause_menu.is_open() and getattr(pause_menu.state, 'name', '') == 'CONTROLS':
+                from engine.pause_menu import PauseMenuState
+                if event.key == pygame.K_ESCAPE:
+                    pause_menu.state = PauseMenuState.MAIN
+                continue
+
             if event.key == pygame.K_ESCAPE:
                 if pause_menu is not None:
                     pause_menu.toggle()
@@ -216,6 +223,10 @@ def main():
                             in_title = False
                             continue
 
+                    if selected == 'Controls':
+                        title_menu.state = TitleMenuState.CONTROLS
+                        continue
+
                     if selected == 'Quit':
                         running = False
                 clock.tick(FPS)
@@ -224,7 +235,7 @@ def main():
                 running, attack, flask, dash = handle_game_events(pause_menu=pause_menu)
                 if pause_menu.is_open():
                     # When paused, draw the pause menu and skip updates
-                    renderer.draw_pause_menu(pause_menu.get_selected_index())
+                    renderer.draw_pause_menu(pause_menu)
                     # If the user confirmed 'Quit' in the pause menu, exit the loop
                     if pause_menu.should_quit():
                         # [Milestone] Auto-save synchronously before transitioning

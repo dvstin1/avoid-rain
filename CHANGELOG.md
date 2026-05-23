@@ -203,3 +203,11 @@
 - **Damage Mitigation:** Implemented logic in `Player.take_damage()` to reduce incoming damage by `BLOCK_DAMAGE_REDUCTION` (currently 100% block / 0.0x multiplier) while also providing stagger immunity for fully blocked attacks.
 - **Testing:** Added isolated unit tests in `tests/test_block.py` verifying state toggles, accurate speed penalization, and full damage reduction validation.
 
+## [ARCHIVED] Pause Menu Controls Overlay & Tabbed Layout - May 2026
+- **State Machine Registration:** Introduced `CONTROLS` states to both `TitleMenuState` and `PauseMenuState` to manage UI navigation depth.
+- **Menu Integration:** Added a "Controls" button option to the Main Title Screen and Mid-game Pause Menu loops.
+- **Input Stack Handling:** Bound `Escape` to correctly pop the state stack and return from the Controls overlay back to the previous menu context without exiting the menus.
+- **Layout Drawing:** Implemented `draw_controls_overlay` in `renderer.py` using a semi-transparent dark overlay matching `UI_ALPHA`.
+- **Tabbed Interface:** Rendered distinct `[ Keyboard ]` and `[ Controller ] (Not Implemented)` tab buttons.
+- **Controls List:** Drew a beautifully spaced vertical list detailing game mechanics (Movement, Attack, Pause, Editor tools) strictly conforming to the 120-character line limit.
+

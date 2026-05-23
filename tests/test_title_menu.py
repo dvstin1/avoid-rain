@@ -7,9 +7,11 @@ def test_navigation_and_confirm():
     tm.navigate('down')
     assert tm.get_selected_index() == 1
     tm.navigate('down')
+    assert tm.get_selected_index() == 2
+    tm.navigate('down')
     assert tm.get_selected_index() == 0
     tm.navigate('up')
-    assert tm.get_selected_index() == 1
+    assert tm.get_selected_index() == 2
     assert not tm.was_confirmed()
     tm.confirm()
     assert tm.was_confirmed()
