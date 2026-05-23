@@ -172,3 +172,9 @@
 - **JSON Realignment:** Repointed the `macro_world` identifier to load exclusively from the manually crafted `world_map1.json` asset.
 - **Modular Specification:** Updated `docs/map_format_specification.md` to outline the future architectural goals for manual multi-size modular splicing.
 
+## [ARCHIVED] Marquee Box Selection Tool - May 2026
+- **Rectangle Fill Tool:** Implemented a new tool mode in `tools/edit_map.py` for drawing multi-tile areas simultaneously.
+- **Marquee Preview:** Added a semi-transparent alpha-blended overlay that renders the selection box during a drag operation.
+- **Tool Toggling:** Added the `B` hotkey and sidebar UI labels to switch between Pencil and Rectangle modes.
+- **Architectural Polish:** Further modularized the editor's input and rendering logic into focused helper methods to maintain high code quality (Pylint 9.7+).
+

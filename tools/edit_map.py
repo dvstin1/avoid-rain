@@ -67,6 +67,12 @@ class MapEditor:
         self.input_mode = None  # 'SAVE' or 'LOAD'
         self.input_buffer = ""
 
+        # Tool State
+        self.active_tool = "PENCIL"  # "PENCIL" or "RECTANGLE"
+        self.is_dragging = False
+        self.drag_start = (0, 0)
+        self.drag_current = (0, 0)
+
     def load_map(self, name):
         """Loads a map from the maps/ directory."""
         if not name.endswith(".json"):
@@ -111,6 +117,18 @@ class MapEditor:
         except Exception as e:
             print(f"Failed to save map: {e}")
 
+    def fill_rectangle(self):
+        """Fills the selected rectangle with the current brush."""
+        x1, y1 = self.drag_start
+        x2, y2 = self.drag_current
+        gx1, gx2 = min(x1, x2), max(x1, x2)
+        gy1, gy2 = min(y1, y2), max(y1, y2)
+
+        char = PALETTE[self.brush_idx][0]
+        for y in range(max(0, gy1), min(self.map_h, gy2 + 1)):
+            for x in range(max(0, gx1), min(self.map_w, gx2 + 1)):
+                self.grid[y][x] = char
+
     def draw_grid(self, ts):
         """Draws the map grid."""
         for y in range(self.map_h):
@@ -139,6 +157,30 @@ class MapEditor:
                     sym_surf = self.font.render(char, True, COLOR_WHITE)
                     self.screen.blit(sym_surf, (rect.x + 2, rect.y + 2))
 
+    def draw_selection_preview(self, ts):
+        """Draws a transparent preview of the rectangle being drawn."""
+        if not self.is_dragging or self.active_tool != "RECTANGLE":
+            return
+
+        x1, y1 = self.drag_start
+        x2, y2 = self.drag_current
+        gx1, gx2 = min(x1, x2), max(x1, x2)
+        gy1, gy2 = min(y1, y2), max(y1, y2)
+
+        rect = pygame.Rect(
+            gx1 * ts - self.camera_x,
+            gy1 * ts - self.camera_y,
+            (gx2 - gx1 + 1) * ts,
+            (gy2 - gy1 + 1) * ts
+        )
+
+        # Draw transparent fill
+        preview_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        preview_surf.fill((0, 120, 255, 80))
+        self.screen.blit(preview_surf, (rect.x, rect.y))
+        # Draw opaque outline
+        pygame.draw.rect(self.screen, (0, 120, 255), rect, 2)
+
     def draw_sidebar(self, sidebar_x):
         """Draws the UI sidebar."""
         pygame.draw.rect(self.screen, (20, 20, 20), (sidebar_x, 0, self.sidebar_width, SCREEN_HEIGHT))
@@ -146,6 +188,9 @@ class MapEditor:
 
         y_off = 20
         self.screen.blit(self.font.render(f"File: {self.filename}", True, COLOR_WHITE), (sidebar_x + 10, y_off))
+        y_off += 30
+        tool_text = f"Tool: {self.active_tool} [B]"
+        self.screen.blit(self.font.render(tool_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
         y_off += 30
         brush_text = f"Brush: {PALETTE[self.brush_idx][1]} ({PALETTE[self.brush_idx][0]})"
         self.screen.blit(self.font.render(brush_text, True, COLOR_YELLOW), (sidebar_x + 10, y_off))
@@ -201,7 +246,9 @@ class MapEditor:
     def draw(self):
         """Draws the editor state to the screen."""
         self.screen.fill(COLOR_CHARCOAL)
-        self.draw_grid(int(TILE_SIZE * self.zoom))
+        ts = int(TILE_SIZE * self.zoom)
+        self.draw_grid(ts)
+        self.draw_selection_preview(ts)
         self.draw_sidebar(SCREEN_WIDTH)
         if self.input_mode:
             self.draw_input_banner()
@@ -260,6 +307,10 @@ class MapEditor:
                 self.input_buffer = ""
                 return
 
+        if event.key == pygame.K_b:
+            self.active_tool = "RECTANGLE" if self.active_tool == "PENCIL" else "PENCIL"
+            return
+
         if pygame.K_0 <= event.key <= pygame.K_9:
             idx = event.key - pygame.K_0
             if idx < len(PALETTE):
@@ -278,7 +329,30 @@ class MapEditor:
                 gx = (mx + self.camera_x) // ts
                 gy = (my + self.camera_y) // ts
                 if 0 <= gx < self.map_w and 0 <= gy < self.map_h:
-                    self.grid[gy][gx] = PALETTE[self.brush_idx][0]
+                    if self.active_tool == "PENCIL":
+                        self.grid[gy][gx] = PALETTE[self.brush_idx][0]
+                    elif self.active_tool == "RECTANGLE":
+                        self.drag_current = (gx, gy)
+
+    def handle_mouse_event(self, event):
+        """Handles discrete mouse button events."""
+        mx, my = pygame.mouse.get_pos()
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if mx >= SCREEN_WIDTH:
+                # Sidebar click
+                click_idx = (my - 115) // 25
+                if 0 <= click_idx < len(PALETTE):
+                    self.brush_idx = click_idx
+            elif self.active_tool == "RECTANGLE" and event.button == 1:
+                ts = int(TILE_SIZE * self.zoom)
+                self.is_dragging = True
+                self.drag_start = ((mx + self.camera_x) // ts, (my + self.camera_y) // ts)
+                self.drag_current = self.drag_start
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if self.active_tool == "RECTANGLE" and event.button == 1:
+                if self.is_dragging:
+                    self.fill_rectangle()
+                    self.is_dragging = False
 
     def handle_input(self):
         """Handles user input for the editor."""
@@ -290,12 +364,8 @@ class MapEditor:
             else:
                 if event.type == pygame.KEYDOWN:
                     self.handle_keyboard(event)
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    mx, my = pygame.mouse.get_pos()
-                    if mx >= SCREEN_WIDTH:
-                        click_idx = (my - 115) // 25
-                        if 0 <= click_idx < len(PALETTE):
-                            self.brush_idx = click_idx
+                else:
+                    self.handle_mouse_event(event)
 
         if not self.input_mode:
             keys = pygame.key.get_pressed()
@@ -310,7 +380,6 @@ class MapEditor:
                 self.camera_y += move_speed
             self.handle_mouse()
         return True
-
     def run(self):
         """Main loop for the editor."""
         running = True
