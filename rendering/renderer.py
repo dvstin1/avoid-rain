@@ -869,6 +869,9 @@ class Renderer:
         inputs = [
             ("Movement:", "WASD / Arrows"),
             ("Attack / Interact:", "Space / E"),
+            ("Dash:", "Left Shift"),
+            ("Flask:", "1"),
+            ("Block:", "K"),
             ("Pause Run:", "Escape"),
         ]
         if show_editor_keys:
