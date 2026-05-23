@@ -166,3 +166,9 @@
 - **Dimensional Controls:** Added support for bidirectional canvas resizing, using standard `+/-` for horizontal and `Ctrl +/-` for vertical adjustments.
 - **Code Refactor:** Optimized `tools/edit_map.py` structure into focused helper methods to maintain a high Pylint score (9.6+).
 
+## [ARCHIVED] Radial Code Purge & World Map JSON Realignment - May 2026
+- **Algorithmic Purge:** Decommissioned the procedural Radial Lotus-Wheel generation system from `engine/world.py`.
+- **Dynamic Dimensions:** Refactored `LevelLoader.parse_map` to support variable map sizes based on input file dimensions, removing hardcoded grid constraints.
+- **JSON Realignment:** Repointed the `macro_world` identifier to load exclusively from the manually crafted `world_map1.json` asset.
+- **Modular Specification:** Updated `docs/map_format_specification.md` to outline the future architectural goals for manual multi-size modular splicing.
+

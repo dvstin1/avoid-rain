@@ -1,11 +1,16 @@
 """Map factory for creating world instances from prototypes.
 """
 import os
-from engine.world import World, generate_macro_lotus_world, LevelLoader
+from engine.world import World, LevelLoader
 
 def create_world(name: str) -> World:
     """Factory function to create and populate a World instance by name."""
     print(f"[DEBUG] Fetching room prototype: {name}")
+
+    # Realignment Rule: 'macro_world' identifier now maps to 'world_map1.json'
+    if name == "macro_world":
+        name = "world_map1"
+
     world = World(name=name)
 
     # Check for external JSON map first
@@ -16,10 +21,7 @@ def create_world(name: str) -> World:
         return world
 
     # Fallback to programmatic/hardcoded prototypes
-    if name == "macro_world":
-        prototype = generate_macro_lotus_world()
-        world.load_from_prototype(prototype)
-    elif name == "outside":
+    if name == "outside":
         return create_world("macro_world")
 
     return world

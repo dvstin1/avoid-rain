@@ -1,99 +1,11 @@
 """
 Handles world grid, map sections, and static obstacles.
 """
-import math
 import json
-import os
 from constants import (
     GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP,
-    PLAYER_START_X, PLAYER_START_Y, MACRO_MAP_SIZE
+    PLAYER_START_X, PLAYER_START_Y
 )
-
-def generate_macro_lotus_world():
-    """
-    Refactors the macro-level generation to a distance-based radial algorithm.
-    Creates a central courtyard, an outer ring, and 6 connecting spokes.
-    Nests replicated chapter1 modules within the radial sectors.
-    """
-    json_path = os.path.join("maps", "chapter1.json")
-    chapter1 = ["#"]
-    if os.path.exists(json_path):
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            chapter1 = data["grid"]
-
-    # Initialize 120x120 with '#' (Walls)
-    world_grid = [['#' for _ in range(MACRO_MAP_SIZE)] for _ in range(MACRO_MAP_SIZE)]
-    center_x, center_y = MACRO_MAP_SIZE // 2, MACRO_MAP_SIZE // 2
-
-    for y in range(MACRO_MAP_SIZE):
-        for x in range(MACRO_MAP_SIZE):
-            dx = x - center_x
-            dy = y - center_y
-            dist = math.sqrt(dx*dx + dy*dy)
-
-            # 1. Central Courtyard
-            if dist < 15:
-                world_grid[y][x] = '.'
-
-            # 2. Outer Rim Ring
-            if 50 < dist < 55:
-                world_grid[y][x] = '.'
-
-            # 3. 6 Radial Spoke Hallways
-            # Angles: 0, 60, 120, 180, 240, 300 degrees
-            if 15 <= dist <= 50:
-                angle = math.degrees(math.atan2(dy, dx))
-                # Normalize angle to [0, 360)
-                if angle < 0:
-                    angle += 360
-
-                # Check proximity to 6 target angles
-                for target in [0, 60, 120, 180, 240, 300]:
-                    # Handle wrap-around for 0/360
-                    diff = abs(angle - target)
-                    if diff > 180:
-                        diff = 360 - diff
-
-                    # Hallway width threshold (approx 2-3 tiles wide at dist 15-50)
-                    # angle_threshold = width / dist * (180 / pi)
-                    # Let's use a simpler fixed angle width for now, or scale it.
-                    if diff < (120 / max(1, dist)):
-                        world_grid[y][x] = '.'
-
-    # 4. Nest Replicated Modules
-    # We place 4 modules in the larger gaps between spokes
-    # Positions roughly at 30, 90, 210, 270 degrees
-    module_angles = [30, 105, 210, 285] # Adjusted to miss spokes better
-    for m_angle in module_angles:
-        rad = math.radians(m_angle)
-        # Place module center at distance ~35
-        mx = int(center_x + math.cos(rad) * 35) - 10
-        my = int(center_y + math.sin(rad) * 35) - 10
-
-        for y_offset in range(20):
-            if y_offset >= len(chapter1):
-                break
-            for x_offset in range(20):
-                if x_offset >= len(chapter1[y_offset]):
-                    break
-                char = chapter1[y_offset][x_offset]
-                if char == 'P':
-                    char = '.'
-
-                # Only overwrite if it's within map bounds
-                if 0 <= my + y_offset < MACRO_MAP_SIZE and 0 <= mx + x_offset < MACRO_MAP_SIZE:
-                    # Carve into walls
-                    if char != '#':
-                        world_grid[my + y_offset][mx + x_offset] = char
-
-    # 5. Anchor player spawn point
-    # LAND at (60, 50) as requested
-    world_grid[50][60] = 'P'
-
-    print("[WORLD MATRIX] Initialized 120x120 Radial Lotus-Wheel with 6 spokes and 4 modules.")
-
-    return ["".join(row) for row in world_grid]
 
 class GameObject:
     """
@@ -309,7 +221,9 @@ class LevelLoader:
         """
         Parses a string array and returns (grid, interactables, warp_tiles, player_start, enemies).
         """
-        grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+        h = len(prototype_array)
+        w = len(prototype_array[0]) if h > 0 else 0
+        grid = [[TILE_EMPTY for _ in range(w)] for _ in range(h)]
         interactables = []
         enemies = []
         warp_tiles = {}
@@ -322,17 +236,11 @@ class LevelLoader:
             print("[DEBUG] LevelLoader actively building Lotus Topography Grid")
 
         # Check for Chapter 1 specifically for Production Grid verification
-        # For simplicity, we can pass the room_id or just check a unique pattern.
-        # Let's check for 'T' (trees) which are prominent in Chapter 1.
         if any('T' in row for row in prototype_array) and not has_lotus:
             print("[DEBUG] Actively rendering Chapter 1 Production Grid")
 
         for y, row in enumerate(prototype_array):
-            if y >= GRID_HEIGHT:
-                break
             for x, char in enumerate(row):
-                if x >= GRID_WIDTH:
-                    break
 
                 # Only static walls, frame, and empty space go into the grid
                 if char in ('#', 'X'):
@@ -529,10 +437,12 @@ class World:
     def get_nearby_walls(self, player_rect):
         """Returns wall rectangles (grid or solid GameObjects) near the player."""
         px, py, pw, ph = player_rect
+        h = len(self.grid)
+        w = len(self.grid[0]) if h > 0 else 0
         start_x = max(0, int(px // TILE_SIZE))
         start_y = max(0, int(py // TILE_SIZE))
-        end_x = min(GRID_WIDTH, int((px + pw) // TILE_SIZE) + 1)
-        end_y = min(GRID_HEIGHT, int((py + ph) // TILE_SIZE) + 1)
+        end_x = min(w, int((px + pw) // TILE_SIZE) + 1)
+        end_y = min(h, int((py + ph) // TILE_SIZE) + 1)
 
         walls = []
         # Grid-based walls
