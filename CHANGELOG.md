@@ -197,3 +197,9 @@
 - **Cooldown System:** Added `DASH_COOLDOWN` (0.5s) to prevent continuous spamming of the dash, ensuring balanced combat pacing.
 - **Test Coverage:** Added comprehensive unit tests in `tests/test_dash.py` to verify state transitions, movement speed scaling, and the cooldown logic.
 
+## [ARCHIVED] Player Block Mechanic - May 2026
+- **Input Handling:** Integrated continuous keyboard polling for `K_k` in the main loop to capture held block states.
+- **Player State & Physics:** Added the `BLOCKING` state to `PlayerStateEnum`. When active, movement speed is dynamically scaled by `BLOCK_SPEED_MULTIPLIER` (currently 0.5x).
+- **Damage Mitigation:** Implemented logic in `Player.take_damage()` to reduce incoming damage by `BLOCK_DAMAGE_REDUCTION` (currently 100% block / 0.0x multiplier) while also providing stagger immunity for fully blocked attacks.
+- **Testing:** Added isolated unit tests in `tests/test_block.py` verifying state toggles, accurate speed penalization, and full damage reduction validation.
+

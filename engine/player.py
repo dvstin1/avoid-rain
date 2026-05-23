@@ -19,6 +19,7 @@ class PlayerStateEnum(Enum):
     ATTACKING = "attacking"
     DASHING = "dashing"
     STAGGERED = "staggered"
+    BLOCKING = "blocking"
 
 class Player:
     """Represents the player in the game engine."""
@@ -45,12 +46,12 @@ class Player:
 
     def update(
         self, dt, move_dir, walls, attack_pressed=False, flask_pressed=False,
-        dash_pressed=False, speed_multiplier=1.0
+        dash_pressed=False, block_pressed=False, speed_multiplier=1.0
     ):
         """
         Update player position and state.
         """
-        from constants import DASH_DURATION, DASH_COOLDOWN, DASH_SPEED_MULTIPLIER
+        from constants import DASH_DURATION, DASH_COOLDOWN, DASH_SPEED_MULTIPLIER, BLOCK_SPEED_MULTIPLIER
 
         if self.state == PlayerStateEnum.STAGGERED:
             self.stagger_timer -= dt
@@ -111,17 +112,24 @@ class Player:
             self.vx, self.vy = 0, 0
             return
 
+        # Apply blocking state
+        if block_pressed:
+            self.state = PlayerStateEnum.BLOCKING
+            speed_multiplier *= BLOCK_SPEED_MULTIPLIER
+
         # 3. Normalize movement
         magnitude = math.sqrt(dx*dx + dy*dy)
         if magnitude > 0:
             current_speed = self.speed * speed_multiplier
             self.vx = (dx / magnitude) * current_speed
             self.vy = (dy / magnitude) * current_speed
-            self.state = PlayerStateEnum.MOVING
+            if not block_pressed:
+                self.state = PlayerStateEnum.MOVING
         else:
             self.vx = 0.0
             self.vy = 0.0
-            self.state = PlayerStateEnum.IDLE
+            if not block_pressed:
+                self.state = PlayerStateEnum.IDLE
 
         # 4. Apply velocity with dt scaling
         self.x += self.vx * dt
@@ -164,8 +172,13 @@ class Player:
         This method is intentionally simple; death/respawn handling is
         managed by GameState to keep responsibilities decoupled.
         """
+        if self.state == PlayerStateEnum.BLOCKING:
+            from constants import BLOCK_DAMAGE_REDUCTION
+            amount *= BLOCK_DAMAGE_REDUCTION
+
         self.hp = max(0.0, self.hp - amount)
-        if self.hp > 0:
+        # Only stagger if they took actual damage
+        if self.hp > 0 and amount > 0:
             self.state = PlayerStateEnum.STAGGERED
             self.stagger_timer = STAGGER_DURATION
             self.vx, self.vy = 0, 0

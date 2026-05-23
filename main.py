@@ -254,7 +254,8 @@ def main():
                         'move': get_movement_actions(),
                         'attack': attack,
                         'flask': flask,
-                        'dash': dash
+                        'dash': dash,
+                        'block': pygame.key.get_pressed()[pygame.K_k]
                     }
                     state.update(dt, actions)
 
