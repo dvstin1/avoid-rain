@@ -53,14 +53,14 @@ def test_chronicler_state_reset_on_warp():
     gs.stats = StatisticsTracker()
     gs.stats.data["last_run_result"] = "DEFEAT"
     
-    # Find the warp portal to chapter1
+    # Find the warp portal to world_map1
     from engine.world import WarpPortal
-    warp = next((obj for obj in gs.world.interactables if isinstance(obj, WarpPortal) and obj.target_name == "chapter1"), None)
+    warp = next((obj for obj in gs.world.interactables if isinstance(obj, WarpPortal) and obj.target_name == "macro_world"), None)
     assert warp is not None
     
     warp.execute_interaction(gs)
     assert gs.stats.data["last_run_result"] == "INIT"
-    assert gs.world.name == "chapter1"
+    assert gs.world.name == "world_map1"
 
 def test_dialogue_stasis_blocks_movement():
     """Verify that active dialogue blocks game updates."""

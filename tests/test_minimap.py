@@ -16,8 +16,10 @@ def test_minimap_draws_player_and_walls(monkeypatch):
     state.player.x = 1 * 40 + 5
     state.player.y = 1 * 40 + 5
     # Also place a distant wall far away that should be outside the minimap viewport
-    far_x = min( max(2, GRID_WIDTH - 3), GRID_WIDTH - 1)
-    far_y = min( max(2, GRID_HEIGHT - 3), GRID_HEIGHT - 1)
+    h = len(state.world.grid)
+    w = len(state.world.grid[0]) if h > 0 else 0
+    far_x = min( max(2, w - 3), w - 1)
+    far_y = min( max(2, h - 3), h - 1)
     state.world.grid[far_y][far_x] = 1
 
     class DummyScreen:

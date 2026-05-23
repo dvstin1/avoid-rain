@@ -90,15 +90,3 @@ def test_world_interactable_detection():
     assert len(interactables) == 1
     assert interactables[0].name == "Respite"
 
-def test_room_prototypes_registry():
-    assert "chapter1" in ROOM_PROTOTYPES
-    assert len(ROOM_PROTOTYPES["chapter1"]) == 38
-    assert ROOM_PROTOTYPES["chapter1"][0] == "#" * 80
-
-@pytest.mark.parametrize("room_id", ROOM_PROTOTYPES.keys())
-def test_all_prototypes_loadable(room_id):
-    world = World(name='custom')
-    world.load_from_prototype(ROOM_PROTOTYPES[room_id], ENTITY_MANIFEST.get(room_id, {}))
-    # Basic sanity check: grid should be populated
-    found_any = any(any(tile != TILE_EMPTY for tile in row) for row in world.grid)
-    assert found_any

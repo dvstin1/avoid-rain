@@ -12,7 +12,7 @@ def test_enemy_repopulation_on_warp():
     assert len(gs.enemies) == 0
     
     # 2. Warp to Chapter 1
-    gs.world = create_world("chapter1")
+    gs.world = create_world("world_map1")
     # According to our updated parse_map, enemies should be populated from the prototype
     gs.enemies = gs.world.enemies
     assert len(gs.enemies) > 0
@@ -29,7 +29,7 @@ def test_enemy_repopulation_on_warp():
     assert len(gs.enemies) == 0
     
     # 5. Warp back to Chapter 1 (enemies should be FRESH)
-    gs.world = create_world("chapter1")
+    gs.world = create_world("world_map1")
     gs.enemies = gs.world.enemies
     assert len(gs.enemies) == initial_enemy_count
     # Verify they are fresh instances (not the same object ID as the one we "killed")

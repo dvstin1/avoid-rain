@@ -12,8 +12,6 @@ from constants import (
     TILE_WALL,
     COLOR_WALL,
     COLOR_FLOOR,
-    GRID_WIDTH,
-    GRID_HEIGHT,
     COLOR_YELLOW,
     COLOR_GREY,
     COLOR_RED,
@@ -260,8 +258,12 @@ class Renderer:
         # Use camera from the game state if available; otherwise create a transient one
         screen_w = self.screen.get_width()
         screen_h = self.screen.get_height()
-        world_w = GRID_WIDTH * TILE_SIZE
-        world_h = GRID_HEIGHT * TILE_SIZE
+        
+        # Dynamic World Dimensions
+        h = len(state.world.grid)
+        w = len(state.world.grid[0]) if h > 0 else 0
+        world_w = w * TILE_SIZE
+        world_h = h * TILE_SIZE
 
         if hasattr(state, 'camera'):
             # Ensure camera screen size matches the current screen (window resize)
@@ -269,6 +271,9 @@ class Renderer:
             if state.camera.screen_w != screen_w or state.camera.screen_h != screen_h:
                 state.camera.screen_w = screen_w
                 state.camera.screen_h = screen_h
+            # Also update world bounds in camera for correct clamping
+            state.camera.world_w = world_w
+            state.camera.world_h = world_h
             offset_x, offset_y = state.camera.get_offset()
         else:
             camera = Camera(screen_w, screen_h, world_w, world_h)
@@ -283,8 +288,8 @@ class Renderer:
         # Visible tile range (add +1 to ensure partial tiles at edges are drawn)
         start_x = int(max(0, offset_x // TILE_SIZE))
         start_y = int(max(0, offset_y // TILE_SIZE))
-        end_x = int(min(GRID_WIDTH, (offset_x + screen_w) // TILE_SIZE + 1))
-        end_y = int(min(GRID_HEIGHT, (offset_y + screen_h) // TILE_SIZE + 1))
+        end_x = int(min(w, (offset_x + screen_w) // TILE_SIZE + 1))
+        end_y = int(min(h, (offset_y + screen_h) // TILE_SIZE + 1))
 
         # 1. Draw World Grid (only visible tiles)
         for y in range(start_y, end_y):
@@ -548,16 +553,19 @@ class Renderer:
         """
         from constants import (
             MINIMAP_WIDTH, MINIMAP_HEIGHT, MINIMAP_PADDING, TILE_SIZE,
-            GRID_WIDTH, GRID_HEIGHT, MINIMAP_WALL_COLOR, MINIMAP_PLAYER_COLOR,
+            MINIMAP_WALL_COLOR, MINIMAP_PLAYER_COLOR,
             MINIMAP_ENEMY_COLOR, MINIMAP_LOOT_COLOR
         )
+
+        h = len(state.world.grid)
+        w = len(state.world.grid[0]) if h > 0 else 0
 
         # Background rect for minimap
         bg_rect = (MINIMAP_PADDING, MINIMAP_PADDING, MINIMAP_WIDTH, MINIMAP_HEIGHT)
         pygame.draw.rect(self.screen, (10, 10, 10), bg_rect)
 
-        world_w = GRID_WIDTH * TILE_SIZE
-        world_h = GRID_HEIGHT * TILE_SIZE
+        world_w = w * TILE_SIZE
+        world_h = h * TILE_SIZE
         if world_w == 0 or world_h == 0:
             return
 
@@ -589,8 +597,8 @@ class Renderer:
         scale_y = MINIMAP_HEIGHT / vp_h
 
         # Draw walls that fall within the viewport
-        for y in range(GRID_HEIGHT):
-            for x in range(GRID_WIDTH):
+        for y in range(h):
+            for x in range(w):
                 if state.world.grid[y][x] == TILE_WALL:
                     wx_world = x * TILE_SIZE
                     wy_world = y * TILE_SIZE

@@ -42,8 +42,8 @@ def test_lore_fragment_unknown_id():
     assert "faded beyond recognition" in gs.active_dialogue["text"]
 
 def test_chapter1_lore_fragment():
-    """Verify LoreFragment is placed in chapter1."""
-    world = create_world("chapter1")
+    """Verify LoreFragment is placed in world_map1."""
+    world = create_world("world_map1")
     fragment = next((obj for obj in world.interactables if isinstance(obj, LoreFragment)), None)
     assert fragment is not None
     assert fragment.name == "Torn Page"

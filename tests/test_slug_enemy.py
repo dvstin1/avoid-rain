@@ -30,7 +30,7 @@ def test_slug_spawns_and_moves_toward_player():
 def test_slug_damage_player_and_respawn_on_death():
     gs = GameState(auto_load=False)
     from engine.maps import create_world
-    gs.world = create_world('chapter1')
+    gs.world = create_world('world_map1')
     gs.enemies = getattr(gs.world, 'enemies', [])
     # Place an enemy directly on top of the player to force contact
     if not gs.enemies:
