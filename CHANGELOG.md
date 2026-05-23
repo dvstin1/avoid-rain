@@ -178,3 +178,9 @@
 - **Tool Toggling:** Added the `B` hotkey and sidebar UI labels to switch between Pencil and Rectangle modes.
 - **Architectural Polish:** Further modularized the editor's input and rendering logic into focused helper methods to maintain high code quality (Pylint 9.7+).
 
+## [ARCHIVED] Semi-Transparent Alpha UI Overlays (HUD & Minimap) - May 2026
+- **Alpha Layer Configuration:** Introduced the `UI_ALPHA` constant (set to 160) to dictate global transparency constraints.
+- **HUD Blending:** Rewrote `Renderer.draw_hud` to construct the status panel on a temporary `SRCALPHA` surface, allowing background combat layers to remain visible underneath.
+- **Minimap Visibility:** Converted the opaque `draw_minimap` bounding box to leverage the same transparent `SRCALPHA` surface blending technique.
+- **Opacity Preservation:** Ensured critical metrics (HP strings, active gauges, entity blips) are independently drawn at maximum opacity over the washed-out alpha surfaces for uncompromising legibility.
+

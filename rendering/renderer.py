@@ -23,7 +23,8 @@ from constants import (
     COLOR_INK_PUDDLE,
     COLOR_CANDLE_AMBER,
     TILE_LOTUS_FRAME,
-    SCREEN_SHAKE_INTENSITY
+    SCREEN_SHAKE_INTENSITY,
+    UI_ALPHA
 )
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -258,7 +259,7 @@ class Renderer:
         # Use camera from the game state if available; otherwise create a transient one
         screen_w = self.screen.get_width()
         screen_h = self.screen.get_height()
-        
+
         # Dynamic World Dimensions
         h = len(state.world.grid)
         w = len(state.world.grid[0]) if h > 0 else 0
@@ -519,13 +520,16 @@ class Renderer:
         pages_surf = self.font.render(pages_text, True, COLOR_YELLOW)
 
         # Draw background panel
-        panel_rect = pygame.Rect(10, self.screen.get_height() - 95, 200, 85)
-        pygame.draw.rect(self.screen, (30, 30, 30), panel_rect)
-        pygame.draw.rect(self.screen, (100, 100, 100), panel_rect, 2)
+        panel_w, panel_h = 200, 85
+        hud_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        hud_surf.fill((20, 20, 25, UI_ALPHA))
+        pygame.draw.rect(hud_surf, (100, 100, 100), (0, 0, panel_w, panel_h), 2)
 
-        self.screen.blit(hp_surf, (20, self.screen.get_height() - 85))
-        self.screen.blit(flask_surf, (20, self.screen.get_height() - 60))
-        self.screen.blit(pages_surf, (20, self.screen.get_height() - 35))
+        hud_surf.blit(hp_surf, (10, 10))
+        hud_surf.blit(flask_surf, (10, 35))
+        hud_surf.blit(pages_surf, (10, 60))
+
+        self.screen.blit(hud_surf, (10, self.screen.get_height() - panel_h - 10))
 
     def draw_loot(self, item, offset_x, offset_y):
         """Draw loot items with prototype graphics."""
@@ -561,8 +565,9 @@ class Renderer:
         w = len(state.world.grid[0]) if h > 0 else 0
 
         # Background rect for minimap
-        bg_rect = (MINIMAP_PADDING, MINIMAP_PADDING, MINIMAP_WIDTH, MINIMAP_HEIGHT)
-        pygame.draw.rect(self.screen, (10, 10, 10), bg_rect)
+        minimap_bg = pygame.Surface((MINIMAP_WIDTH, MINIMAP_HEIGHT), pygame.SRCALPHA)
+        minimap_bg.fill((10, 10, 10, UI_ALPHA))
+        self.screen.blit(minimap_bg, (MINIMAP_PADDING, MINIMAP_PADDING))
 
         world_w = w * TILE_SIZE
         world_h = h * TILE_SIZE

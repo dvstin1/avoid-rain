@@ -100,6 +100,9 @@ AUTOSAVE_INTERVAL = 30.0
 # How long (seconds) a "Saved" indicator is shown after an autosave
 AUTOSAVE_INDICATOR_DURATION = 2.0
 
+# UI Overlay Constants
+UI_ALPHA = 160
+
 # Minimap configuration (pixels)
 MINIMAP_WIDTH = 200
 MINIMAP_HEIGHT = 150
