@@ -86,6 +86,11 @@ class Player:
         if hasattr(self, 'dash_cooldown_timer') and self.dash_cooldown_timer > 0:
             self.dash_cooldown_timer -= dt
 
+        # Update bind (slowdown) timer
+        if hasattr(self, 'bind_timer') and self.bind_timer > 0:
+            self.bind_timer -= dt
+            speed_multiplier *= 0.4 # 60% slow while bound
+
         # 0. Handle Flask
         if flask_pressed:
             self.use_flask()

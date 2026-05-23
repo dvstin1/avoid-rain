@@ -372,6 +372,11 @@ class LevelLoader:
                     from engine.enemy import FlutterEnemy
                     enemies.append(FlutterEnemy(pos[0], pos[1]))
 
+                elif char == 'b':
+                    # BindlingEnemy Spawn
+                    from engine.enemy import BindlingEnemy
+                    enemies.append(BindlingEnemy(pos[0], pos[1]))
+
                 elif char == 'P':
                     # Player Start hook
                     player_start = (pos[0], pos[1])

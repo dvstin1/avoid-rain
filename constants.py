@@ -91,6 +91,16 @@ FLUTTER_DETECT_METERS = 6  # detection radius for fleeing
 FLUTTER_DAMAGE = 2  # very low contact damage
 FLUTTER_DAMAGE_COOLDOWN = 1.0
 
+# Harasser Bindling enemy configuration
+BINDLING_MAX_HP = 50
+BINDLING_SPEED = 120.0  # Moderate speed
+BINDLING_DETECT_METERS = 8
+BINDLING_DAMAGE = 8
+BINDLING_DAMAGE_COOLDOWN = 1.5
+BINDLING_HEAL_RATE = 5.0  # HP per second near margins
+BINDLING_HEAL_RADIUS = 2.0 # Tiles away from wall to trigger healing
+BINDLING_BIND_DURATION = 1.0 # Duration of movement penalty applied to player
+
 # Grid & World Configuration
 TILE_SIZE = 40
 MACRO_MAP_SIZE = 120
@@ -158,6 +168,8 @@ TILE_KEY = {
     'Z': 101, # SlugEnemy Spawn
     'A': 102, # BatEnemy Spawn
     'E': 103, # Miniboss Spawn
+    'f': 104, # FlutterEnemy Spawn
+    'b': 105, # BindlingEnemy Spawn
     'P': 100, # Special marker for player start
     'M': TILE_LOTUS_FRAME,
     'X': TILE_WALL, # X also acts as a wall boundary

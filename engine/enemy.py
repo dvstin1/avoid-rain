@@ -394,3 +394,121 @@ class FlutterEnemy(Enemy):
             self._damage_timer = self.damage_cooldown
             return True
         return False
+
+
+class BindlingEnemy(Enemy):
+    """A mid-tier harasser enemy that heals when near margins (walls).
+
+    - Moves toward the player at moderate speed.
+    - Heals if within BINDLING_HEAL_RADIUS of a TILE_WALL or TILE_LOTUS_FRAME.
+    - Attacks apply a "bind" effect that slows the player.
+    """
+    loot_tier = 2
+    def __init__(self, x, y, hp=None):
+        from constants import (
+            BINDLING_MAX_HP, BINDLING_SPEED, BINDLING_DETECT_METERS,
+            BINDLING_DAMAGE, BINDLING_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
+        )
+        initial_hp = hp if hp is not None else BINDLING_MAX_HP
+        super().__init__(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, initial_hp)
+        self.speed = BINDLING_SPEED
+        self.detect_radius = BINDLING_DETECT_METERS * TILE_SIZE
+        self.damage = BINDLING_DAMAGE
+        self.damage_cooldown = BINDLING_DAMAGE_COOLDOWN
+        self._damage_timer = 0.0
+
+    def to_dict(self):
+        d = super().to_dict()
+        d["type"] = "BindlingEnemy"
+        return d
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(data["x"], data["y"], hp=data["hp"])
+
+    def _is_near_margin(self, world):
+        """Check if any walls are within the healing radius."""
+        from constants import BINDLING_HEAL_RADIUS, TILE_WALL, TILE_LOTUS_FRAME
+        
+        # Check a slightly expanded rect
+        margin = BINDLING_HEAL_RADIUS * TILE_SIZE
+        check_rect = (self.x - margin, self.y - margin, self.width + margin * 2, self.height + margin * 2)
+        
+        h = len(world.grid)
+        w = len(world.grid[0]) if h > 0 else 0
+        start_x = max(0, int(check_rect[0] // TILE_SIZE))
+        start_y = max(0, int(check_rect[1] // TILE_SIZE))
+        end_x = min(w, int((check_rect[0] + check_rect[2]) // TILE_SIZE) + 1)
+        end_y = min(h, int((check_rect[1] + check_rect[3]) // TILE_SIZE) + 1)
+
+        for gy in range(start_y, end_y):
+            for gx in range(start_x, end_x):
+                if world.grid[gy][gx] in (TILE_WALL, TILE_LOTUS_FRAME):
+                    return True
+        return False
+
+    def update(self, dt, state):
+        """Standard pursuit behavior + healing logic."""
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+            return
+
+        # 1. Healing Logic
+        if self.hp < self.max_hp:
+            if self._is_near_margin(state.world):
+                from constants import BINDLING_HEAL_RATE
+                self.hp = min(self.max_hp, self.hp + BINDLING_HEAL_RATE * dt)
+
+        # 2. Movement Logic (Pursuit)
+        player_cx, player_cy = state.player.get_center()
+        cx = self.x + self.width / 2
+        cy = self.y + self.height / 2
+        dx = player_cx - cx
+        dy = player_cy - cy
+        dist_sq = dx * dx + dy * dy
+
+        if dist_sq <= (self.detect_radius * self.detect_radius):
+            dist = math.sqrt(dist_sq) if dist_sq > 0 else 0.0
+            if dist > 0.0:
+                nx = dx / dist
+                ny = dy / dist
+                self.vx = nx * self.speed
+                self.vy = ny * self.speed
+                self.x += self.vx * dt
+                self.y += self.vy * dt
+                
+                # Resolve wall collisions
+                try:
+                    walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
+                    self.x, self.y = resolve_wall_collision(
+                        (self.x, self.y, self.width, self.height), walls
+                    )
+                except Exception:
+                    pass
+        else:
+            self.vx = 0.0
+            self.vy = 0.0
+
+        if self._damage_timer > 0.0:
+            self._damage_timer -= dt
+
+    def attempt_damage_player(self, state):
+        """Apply damage and movement bind on contact."""
+        if self._damage_timer > 0.0:
+            return False
+        if check_aabb_collision(
+            self.get_rect(),
+            (state.player.x, state.player.y, state.player.width, state.player.height)
+        ):
+            try:
+                state.player.take_damage(self.damage)
+                # Apply Bind Effect
+                from constants import BINDLING_BIND_DURATION
+                if not hasattr(state.player, 'bind_timer'):
+                    state.player.bind_timer = 0.0
+                state.player.bind_timer = max(state.player.bind_timer, BINDLING_BIND_DURATION)
+            except Exception:
+                pass
+            self._damage_timer = self.damage_cooldown
+            return True
+        return False
