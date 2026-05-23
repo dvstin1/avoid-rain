@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cutscenes & Animations — Preview</title>
+  <style>
+    :root{--bg:#0f1220;--panel:#11141b;--accent:#84e1ff;--ink:#03040a;--paper:#f7f5ef}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#e6edf3;margin:0;padding:24px}
+    h1{font-size:20px;margin:0 0 12px;color:var(--paper)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:14px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+    .scene-title{font-weight:700;color:var(--accent);margin-bottom:8px}
+    .preview{height:160px;background:linear-gradient(180deg,var(--paper) 0%, #fff4 60%);border-radius:6px;overflow:hidden;position:relative;border:6px solid #0b0d12}
+    .caption{font-size:13px;color:#bcd4e6;margin-top:8px}
+    /* simple ink animation */
+    .ink{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+    .ink svg{width:100%;height:100%;}
+    .page-turn{position:absolute;left:0;top:0;bottom:0;width:40%;background:linear-gradient(90deg,rgba(0,0,0,0.12),rgba(0,0,0,0.02));transform-origin:left;animation:turn 2.4s ease-in-out both}
+    @keyframes turn{0%{transform:skewY(0) translateX(0)}50%{transform:skewY(-6deg) translateX(8%)}100%{transform:skewY(0) translateX(-12%)}}
+    .ink-flow{animation:flow 3s ease-in-out infinite}
+    @keyframes flow{0%{transform:translateY(8px);opacity:.9}50%{transform:translateY(-6px);opacity:1}100%{transform:translateY(8px);opacity:.9}}
+    .button{display:inline-block;padding:6px 10px;background:#071025;border-radius:6px;color:var(--accent);font-weight:600;margin-top:10px;text-decoration:none;border:1px solid rgba(132,225,255,0.12)}
+    .footer{margin-top:18px;color:#9fb7c8;font-size:13px}
+    /* small responsive tweak */
+    @media (max-width:420px){.preview{height:140px}}
+  </style>
+</head>
+<body>
+  <h1>Cutscenes & Animations — Visual Sketches</h1>
+  <div class="grid">
+    <section class="card">
+      <div class="scene-title">First Spawn — Variant: Page Turn</div>
+      <div class="preview" role="img" aria-label="Page-turn spawn">
+        <div class="ink">
+          <svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="200" height="100" fill="#efe9dc"/>
+            <g id="glyphs" fill="#0b1220" opacity="0.95">
+              <path d="M12 78c6-8 18-22 36-28 22-7 42-6 68 2 18 6 34 18 40 28H12z"/>
+            </g>
+            <g transform="translate(46,10)">
+              <circle cx="60" cy="44" r="10" fill="#071022" opacity="0.95"/>
+              <rect x="52" y="28" width="16" height="4" fill="#84e1ff" opacity="0.9"/>
+            </g>
+            <g>
+              <rect x="0" y="0" width="80" height="100" fill="#fff" opacity="0.02" transform="skewY(-6)" />
+            </g>
+          </svg>
+        </div>
+        <div class="page-turn" aria-hidden="true"></div>
+      </div>
+      <div class="caption">A large curtain-like page peels, revealing warm paper. Timing: 1.8–2.5s; sound: single quill-stroke.</div>
+    </section>
+
+    <section class="card">
+      <div class="scene-title">Reading the Chronicle — Variant: Typographic Bloom</div>
+      <div class="preview">
+        <div class="ink">
+          <svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
+            <rect width="200" height="100" fill="#0b0f15" />
+            <g fill="#84e1ff" font-family="serif" font-size="14" opacity="0.95">
+              <text x="6" y="32">• • •</text>
+              <text x="38" y="54">▣ ▣ ▣ ▣</text>
+              <text x="82" y="24">✦ ✦</text>
+              <text x="120" y="68">▸ ▸ ▸</text>
+            </g>
+            <g class="ink-flow" opacity="0.9">
+              <circle cx="46" cy="68" r="6" fill="#fff4" />
+              <path d="M110 18c8 6 20 12 36 10" stroke="#84e1ff" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <div class="caption">Letters fall into place to draw the map. Use staggered opacity for readable assembly; keep the effect under 2s.</div>
+    </section>
+
+    <section class="card">
+      <div class="scene-title">World Arrival — Variant: Gatefold Open</div>
+      <div class="preview">
+        <div class="ink">
+          <svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
+            <rect width="200" height="100" fill="#efe9dc" />
+            <g>
+              <rect x="6" y="10" width="188" height="80" rx="6" fill="#fff8" stroke="#0c0f14"/>
+              <g transform="translate(4,6)">
+                <path d="M20 80 C40 20, 160 20, 180 80" fill="#f1e8d9" stroke="#0c0f14" stroke-width="0.6"/>
+              </g>
+            </g>
+            <g opacity="0.85">
+              <text x="24" y="46" font-family="monospace" font-size="10" fill="#0b1220">─╴ village ─╴ ruins ─╴ wells</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <div class="caption">World folds out like pop-up paper. Consider small parallax during camera pullback.</div>
+    </section>
+
+    <section class="card">
+      <div class="scene-title">Boss Room Entrance — Variant: Margins Contract</div>
+      <div class="preview">
+        <div class="ink">
+          <svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
+            <rect width="200" height="100" fill="#0b0f15" />
+            <g fill="#0a0f12" opacity="0.95">
+              <rect x="18" y="10" width="164" height="80" rx="8"/>
+            </g>
+            <g>
+              <circle cx="100" cy="52" r="18" fill="#000" stroke="#84e1ff" stroke-width="1.5" opacity="0.9"/>
+              <g opacity="0.7">
+                <path d="M84 56c6-10 28-12 32 0" stroke="#000" stroke-width="1.4" fill="none"/>
+              </g>
+            </g>
+            <g opacity="0.9" transform="translate(0,0)">
+              <text x="10" y="94" font-size="9" fill="#6fa6bf">margins crawl ⋯</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <div class="caption">Ambient quiet then glyphs pull toward center. Cue low drone and a thin pulse at 0.6s before reveal.</div>
+    </section>
+
+    <section class="card">
+      <div class="scene-title">Final Portal — Variant: Typographic Eclipse</div>
+      <div class="preview">
+        <div class="ink">
+          <svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
+            <rect width="200" height="100" fill="#0b0f15" />
+            <g>
+              <circle cx="100" cy="46" r="30" fill="#fff" opacity="0.04"/>
+              <g transform="translate(100,46)">
+                <path d="M-18 0 L-6 -18 L6 -18 L18 0 L6 18 L-6 18 Z" fill="#fff" opacity="0.06"/>
+              </g>
+            </g>
+            <g>
+              <text x="52" y="78" font-size="10" fill="#84e1ff">The Appendix opens</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <div class="caption">White seam or glyph-ring. Consider sound: choir pad + a single metallic rattle on aperture.</div>
+    </section>
+
+  </div>
+
+  <div class="footer">This static HTML is a quick visual reference. Use SVG glyphs and CSS keyframes for low-cost prototyping.</div>
+
+</body>
+</html>
