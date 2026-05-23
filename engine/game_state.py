@@ -418,6 +418,7 @@ class GameState:
         move_dir = actions.get('move', (0, 0))
         attack_pressed = actions.get('attack', False)
         flask_pressed = actions.get('flask', False)
+        dash_pressed = actions.get('dash', False)
 
         # 0. Handle Dialogue Stasis
         if self.active_dialogue:
@@ -465,7 +466,9 @@ class GameState:
                     speed_multiplier = 0.5 # 50% slow
                     break
 
-        self.player.update(dt, move_dir, walls, attack_pressed, flask_pressed, speed_multiplier)
+        self.player.update(
+            dt, move_dir, walls, attack_pressed, flask_pressed, dash_pressed, speed_multiplier
+        )
 
         # Update camera smoothing now that player moved
         self.camera.update(self.player.get_center(), dt)

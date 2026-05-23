@@ -43,10 +43,15 @@ class Player:
         self.hp = PLAYER_MAX_HP
         self.flask_charges = FLASK_MAX_CHARGES
 
-    def update(self, dt, move_dir, walls, attack_pressed=False, flask_pressed=False, speed_multiplier=1.0):
+    def update(
+        self, dt, move_dir, walls, attack_pressed=False, flask_pressed=False,
+        dash_pressed=False, speed_multiplier=1.0
+    ):
         """
         Update player position and state.
         """
+        from constants import DASH_DURATION, DASH_COOLDOWN, DASH_SPEED_MULTIPLIER
+
         if self.state == PlayerStateEnum.STAGGERED:
             self.stagger_timer -= dt
             if self.stagger_timer <= 0:
@@ -59,6 +64,27 @@ class Player:
                 self.state = PlayerStateEnum.IDLE
             return
 
+        if self.state == PlayerStateEnum.DASHING:
+            self.dash_timer -= dt
+            if self.dash_timer <= 0:
+                self.state = PlayerStateEnum.IDLE
+            else:
+                # Continue dash movement
+                current_speed = self.speed * speed_multiplier * DASH_SPEED_MULTIPLIER
+                self.vx = self.facing[0] * current_speed
+                self.vy = self.facing[1] * current_speed
+                self.x += self.vx * dt
+                self.y += self.vy * dt
+                self.x, self.y = resolve_wall_collision(
+                    (self.x, self.y, self.width, self.height),
+                    walls
+                )
+            return
+
+        # Update dash cooldown
+        if hasattr(self, 'dash_cooldown_timer') and self.dash_cooldown_timer > 0:
+            self.dash_cooldown_timer -= dt
+
         # 0. Handle Flask
         if flask_pressed:
             self.use_flask()
@@ -70,6 +96,13 @@ class Player:
             # Normalize for facing
             mag = math.sqrt(dx*dx + dy*dy)
             self.facing = (dx/mag, dy/mag)
+
+        # Handle Dash Initialization
+        if dash_pressed and getattr(self, 'dash_cooldown_timer', 0) <= 0:
+            self.state = PlayerStateEnum.DASHING
+            self.dash_timer = DASH_DURATION
+            self.dash_cooldown_timer = DASH_COOLDOWN
+            return
 
         # 2. Check for attack start
         if attack_pressed:

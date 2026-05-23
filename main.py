@@ -55,6 +55,7 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
     running = True
     attack = False
     flask = False
+    dash = False
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -68,6 +69,8 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                 attack = True
             if event.key == pygame.K_1:
                 flask = True
+            if event.key == pygame.K_LSHIFT:
+                dash = True
             # When the pause menu is open, allow navigation and confirm via arrow keys and Enter
             if pause_menu is not None and pause_menu.is_open():
                 if event.key in (pygame.K_UP, pygame.K_w):
@@ -76,7 +79,8 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                     pause_menu.navigate('down')
                 elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                     pause_menu.confirm()
-    return running, attack, flask
+    return running, attack, flask, dash
+
 
 def get_movement_actions():
     """Poll keyboard for movement actions."""
@@ -217,7 +221,7 @@ def main():
                 clock.tick(FPS)
             else:
                 dt = clock.tick(FPS) / 1000.0
-                running, attack, flask = handle_game_events(pause_menu=pause_menu)
+                running, attack, flask, dash = handle_game_events(pause_menu=pause_menu)
                 if pause_menu.is_open():
                     # When paused, draw the pause menu and skip updates
                     renderer.draw_pause_menu(pause_menu.get_selected_index())
@@ -249,9 +253,11 @@ def main():
                     actions = {
                         'move': get_movement_actions(),
                         'attack': attack,
-                        'flask': flask
+                        'flask': flask,
+                        'dash': dash
                     }
                     state.update(dt, actions)
+
                     # Run the autosave manager each frame
                     try:
                         autosave.update(dt, state)

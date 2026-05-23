@@ -190,3 +190,10 @@
 - **Symmetry Breaking:** Introduced a tiny randomized sub-pixel offset to prevent infinite loop stalemates on perfect coordinate overlap (0, 0).
 - **Engine Hook:** Integrated the separation loop directly into `GameState.update()` after standard enemy logic to maintain fluid combat visibility without jitter.
 
+## [ARCHIVED] Player Dash Mechanic - May 2026
+- **Input Handling:** Implemented the `L_SHIFT` event capture in `handle_game_events` to register dash inputs without blocking the main loop.
+- **Player State:** Introduced the `DASHING` state in `PlayerStateEnum` and integrated transition logic in `Player.update`.
+- **Dash Physics:** Configured `DASH_DURATION` (0.2s) and `DASH_SPEED_MULTIPLIER` (3.0x) to provide a brief but high-speed burst of movement in the current facing direction.
+- **Cooldown System:** Added `DASH_COOLDOWN` (0.5s) to prevent continuous spamming of the dash, ensuring balanced combat pacing.
+- **Test Coverage:** Added comprehensive unit tests in `tests/test_dash.py` to verify state transitions, movement speed scaling, and the cooldown logic.
+

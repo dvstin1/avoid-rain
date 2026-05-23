@@ -39,4 +39,4 @@
 
 ## Active Task: [Awaiting Next Phase]
 
-The Player-Enemy Collision Separation & Pushback Mechanics have been successfully implemented and verified. Standing by for the next architectural directive.
+The Player Dash Mechanic has been successfully implemented and verified. Standing by for the next architectural directive.
