@@ -1,5 +1,8 @@
 # Weather and World Progression
 
+> [!IMPORTANT]
+> **DEVELOPMENT HOLD:** Implementation of "The Bleed" (Climate Engine) is deferred to a later phase. This system requires a sufficiently large and dense map topology, along with established exploration incentives, to avoid a "fast-storm" feel that contradicts the intended pacing. Do not implement until the Macro-Grid framework and core combat loop are fully stable.
+
 This document defines the environmental evolution and mechanical shifts that occur during a standard gameplay cycle.
 
 ## 1. The Climate Engine Lifecycle

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bat — Enemy Preview</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#07101a;color:#eaf6ff;padding:18px}
+  h1{color:#ffd7b0}
+  svg{width:100%;height:160px}
+  .note{color:#a9cfe0;font-family:monospace}
+</style>
+</head><body>
+<h1>Bat</h1>
+<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="100" fill="#041018" />
+  <!-- body -->
+  <g transform="translate(100,50)">
+    <ellipse cx="0" cy="0" rx="10" ry="8" fill="#27292b"/>
+    <!-- wings -->
+    <path d="M-10 0 C-40 -24 -60 -6 -80 -6 C-60 6 -40 18 -10 6 Z" fill="#1f2b31"/>
+    <path d="M10 0 C40 -24 60 -6 80 -6 C60 6 40 18 10 6 Z" fill="#1f2b31"/>
+    <!-- eyes -->
+    <circle cx="-3" cy="-1" r="1.6" fill="#fff"/>
+    <circle cx="3" cy="-1" r="1.6" fill="#fff"/>
+    <!-- fangs -->
+    <path d="M-2 4 L-1 7 L0 4" fill="#fff"/>
+  </g>
+  <text x="10" y="92" class="note">Fast flier; swoops in arcs and harasses from above. Low HP, quick evasion.</text>
+</svg>
+<p class="note">Drops: torn pages (currency). Spawn: caves, caverns. Design note: classic bat silhouette — avoids typographic motif.</p>
+</body></html>

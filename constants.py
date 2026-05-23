@@ -84,6 +84,13 @@ BAT_DETECT_METERS = 7  # detection radius
 BAT_DAMAGE = 5  # damage dealt on contact
 BAT_DAMAGE_COOLDOWN = 0.5  # seconds between contact damage attempts
 
+# Skittish Flutter enemy configuration
+FLUTTER_MAX_HP = 5
+FLUTTER_SPEED = 200.0  # pixels per second (fast flee)
+FLUTTER_DETECT_METERS = 6  # detection radius for fleeing
+FLUTTER_DAMAGE = 2  # very low contact damage
+FLUTTER_DAMAGE_COOLDOWN = 1.0
+
 # Grid & World Configuration
 TILE_SIZE = 40
 MACRO_MAP_SIZE = 120

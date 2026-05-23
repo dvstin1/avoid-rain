@@ -32,7 +32,12 @@ Every map file saved by our editor must compile to a standard structured JSON do
 *Note: Entity keys are stored as "x,y" strings to remain JSON-compliant.*
 
 ## 2. Macro-World Map Protocol
-Macro-world maps (such as `world_map1.json`) are no longer procedurally generated. They are hand-designed directly within the map editor to maintain absolute control over the world layout, atmospheric corridors, and non-linear looping pathways.
+
+> [!IMPORTANT]
+> **DEVELOPMENT HOLD:** The "Master Loom" modular splicing system is deferred. While architectural goals are defined, implementation is blocked until a sufficient library of hand-designed map modules is created. Avoid implementing splicing logic until manual level design standards are finalized.
+
+Macro-world maps (such as `world_map1.json`) are no longer procedurally generated.
+ They are hand-designed directly within the map editor to maintain absolute control over the world layout, atmospheric corridors, and non-linear looping pathways.
 
 ### Future Specification: Manual Multi-Size Modular Splicing
 While the game engine expands, macro-world files will support stitching sub-maps of **variable coordinate footprints** (e.g., small $10 \times 10$ alcoves, standard $20 \times 20$ chambers, or massive $40 \times 40$ arenas).

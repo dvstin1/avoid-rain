@@ -342,3 +342,15 @@ When a moving threat's bounding box (`enemy.rect`) intersects the player's bound
 - **Direction:** Compute the angle or directional sign vector pointing from the center of the player to the center of the enemy.
 - **Displacement:** Apply a minor fractional velocity pushback to the enemy's coordinates along that vector to instantly slide them out of the player's interior space.
 - This ensures enemies remain visible, targetable, and positioned at a readable melee engagement distance.
+
+## UI Architecture: Input Mapping & Menu Sub-States
+
+To accommodate growing input configurations (Keyboard and future Gamepad support) without causing text layout crowding, the interface engine must process controls through a dedicated sub-state modal.
+
+### 1. Tabbed Input Presentation
+- The Controls Overlay must occupy a large, centralized screen space using the expanded UI overlay specifications.
+- **State Partitioning:** The overlay manages an internal state variable: `controls_tab` (default: `"KEYBOARD"`).
+- **Future-Proofing Layouts:** 
+  - `"KEYBOARD"` mode displays a vertical two-column table aligning mapped actions with their respective key constants.
+  - `"GAMEPAD"` mode is reserved to render a visual controller mapping template, entirely isolated from the keyboard layout metrics.
+- Pressing `Left` / `Right` arrow keys or a mouse-click event on localized header text buttons toggles the `controls_tab` value.

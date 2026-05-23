@@ -308,3 +308,89 @@ class Miniboss(Enemy):
             self._damage_timer = self.damage_cooldown
             return True
         return False
+
+
+class FlutterEnemy(Enemy):
+    """A skittish enemy that flees from the player.
+
+    - Detects player within FLUTTER_DETECT_METERS * TILE_SIZE
+    - Moves directly away from the player at high speed
+    - Low HP, designed to be more of a nuisance than a direct threat
+    """
+    loot_tier = 4 # Small torn margins
+    def __init__(self, x, y, hp=None):
+        from constants import (
+            FLUTTER_MAX_HP, FLUTTER_SPEED, FLUTTER_DETECT_METERS,
+            FLUTTER_DAMAGE, FLUTTER_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
+        )
+        initial_hp = hp if hp is not None else FLUTTER_MAX_HP
+        # Flutters are small (16x16)
+        super().__init__(x, y, 16, 16, initial_hp)
+        self.speed = FLUTTER_SPEED
+        self.detect_radius = FLUTTER_DETECT_METERS * TILE_SIZE
+        self.damage = FLUTTER_DAMAGE
+        self.damage_cooldown = FLUTTER_DAMAGE_COOLDOWN
+        self._damage_timer = 0.0
+
+    def to_dict(self):
+        d = super().to_dict()
+        d["type"] = "FlutterEnemy"
+        return d
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(data["x"], data["y"], hp=data["hp"])
+
+    def update(self, dt, state):
+        """Move away from the player if within detection radius."""
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+            return
+
+        player_cx, player_cy = state.player.get_center()
+        cx = self.x + self.width / 2
+        cy = self.y + self.height / 2
+        dx = cx - player_cx # Vector AWAY from player
+        dy = cy - player_cy
+        dist_sq = dx * dx + dy * dy
+
+        if dist_sq <= (self.detect_radius * self.detect_radius):
+            dist = math.sqrt(dist_sq) if dist_sq > 0 else 0.0
+            if dist > 0.0:
+                nx = dx / dist
+                ny = dy / dist
+                self.vx = nx * self.speed
+                self.vy = ny * self.speed
+                self.x += self.vx * dt
+                self.y += self.vy * dt
+                
+                # Resolve wall collisions
+                try:
+                    walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
+                    self.x, self.y = resolve_wall_collision(
+                        (self.x, self.y, self.width, self.height), walls
+                    )
+                except Exception:
+                    pass
+        else:
+            self.vx = 0.0
+            self.vy = 0.0
+
+        if self._damage_timer > 0.0:
+            self._damage_timer -= dt
+
+    def attempt_damage_player(self, state):
+        """Apply damage on contact (rare since they flee)."""
+        if self._damage_timer > 0.0:
+            return False
+        if check_aabb_collision(
+            self.get_rect(),
+            (state.player.x, state.player.y, state.player.width, state.player.height)
+        ):
+            try:
+                state.player.take_damage(self.damage)
+            except Exception:
+                pass
+            self._damage_timer = self.damage_cooldown
+            return True
+        return False
