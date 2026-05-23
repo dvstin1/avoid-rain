@@ -92,7 +92,11 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                 elif event.key in (pygame.K_DOWN, pygame.K_s):
                     pause_menu.navigate('down')
                 elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                    pause_menu.confirm()
+                    if pause_menu.get_selected() == "Controls":
+                        from engine.pause_menu import PauseMenuState
+                        pause_menu.state = PauseMenuState.CONTROLS
+                    else:
+                        pause_menu.confirm()
     return running, attack, flask, dash
 
 

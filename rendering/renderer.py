@@ -814,7 +814,7 @@ class Renderer:
             pass
 
         if menu_state and getattr(menu_state, 'name', '') == 'CONTROLS':
-            self.draw_controls_overlay()
+            self.draw_controls_overlay(show_editor_keys=False)
             return
 
         overlay = pygame.Surface(
