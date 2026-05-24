@@ -960,6 +960,3 @@ class Renderer:
         self.screen.blit(back_surf, back_surf.get_rect(center=(cx, start_y + len(inputs) * spacing + 40)))
         
         pygame.display.flip()
-inputs) * spacing + 40)))
-        
-        pygame.display.flip()
