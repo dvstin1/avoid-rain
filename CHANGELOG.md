@@ -290,18 +290,21 @@ Upgraded the map editor utility to support the new modular map nesting protocol 
 - Verification: Confirmed successful runtime assembly through prototype instantiation tests, verifying both tile layout and entity population.
 
 ## [ARCHIVED] Tiered Module Pools & Rare "Special Edition" Runway Logic - May 2026
-
-Implemented a tiered randomization system for level modules, introducing rare "Special Edition" run variants.
-
-### 1. Dual-Pool Registration
-- **Pool Definitions:** Established `POOL_MONTHLY_REPORT` and `POOL_SPECIAL_EDITION` in `constants.py` as central registries for modular sub-maps.
-- **Monthly Report (Standard):** Contains `maps/test_m1.json`.
-- **Special Edition (Rare):** Contains `maps/test_m2.json`.
-
-### 2. Chronicle Randomization Loop
-- **Trigger Event:** Updated "The Chronicle" interaction to perform a 1 in 10 (10%) probability roll when starting a new run.
-- **Pool Selection:** Successfully rolled runs now pull modules exclusively from the `POOL_SPECIAL_EDITION`, while standard runs default to the `POOL_MONTHLY_REPORT`.
-- **Persistence:** Integrated `active_module_pool` into the `GameState` and persistent `run_state` JSON, ensuring the chosen run variant survives application restarts and manual saves.
-
-### 3. LevelLoader Pool Overrides
+... (rest of entry) ...
 - **Stitching Pass:** Updated the `LevelLoader` to support dynamic pool-based overrides. When a pool is specified, the system ignores hardcoded `active_plug` values and selects random modules from the active pool for every available socket.
+
+## [ARCHIVED] Granular Per-Socket Anomaly Rolls for Module Selection - May 2026
+
+Refactored the modular generation pipeline to execute anomaly rolls independently for every available socket, enabling mixed-pool environments.
+
+### 1. Decentralized Random Selection
+- **Per-Socket Rolls:** Moved the 10% "Special Edition" probability check inside the `LevelLoader.load_json_map` socket iteration loop.
+- **Independent Calculations:** Each socket now performs its own unique roll, meaning a single run can contain both standard Monthly Report modules and rare Special Edition challenges simultaneously.
+
+### 2. HUD & Logging Updates
+- **Diagnostic Tracing:** Implemented specific terminal logs to distinguish between standard generation and anomaly injection:
+    - `[Generation] Socket <Name> compiled as Standard Monthly Report.`
+    - `[ANOMALY INJECTION] Socket <Name> rolled a rare Special Edition!`
+
+### 3. State Simplification
+- **Persistence Refactor:** Removed `active_module_pool` from the global `GameState` and persistence layers. Since selection is now a generative property of the world load pass, it no longer requires run-wide tracking.

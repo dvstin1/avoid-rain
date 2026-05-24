@@ -35,7 +35,6 @@ class GameState:
         self.world = create_world("sanctuary")
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
         self.enemies = []
-        self.active_module_pool = None
 
         # 2. Statistics tracker: prefer injected tracker; otherwise optionally auto-load
         self.stats = stats
@@ -65,8 +64,7 @@ class GameState:
                 from engine.maps import create_world
                 world_name = run_data.get("world_name", "sanctuary")
                 saved_enemies = run_data.get("enemies", [])
-                self.active_module_pool = run_data.get("module_pool")
-                self.world = create_world(world_name, saved_enemies=saved_enemies, module_pool=self.active_module_pool)
+                self.world = create_world(world_name, saved_enemies=saved_enemies)
 
                 # Restore Player
                 p_data = run_data.get("player", {})
@@ -138,8 +136,7 @@ class GameState:
         if run_data:
             world_name = run_data.get("world_name", "sanctuary")
             saved_enemies = run_data.get("enemies", [])
-            self.active_module_pool = run_data.get("module_pool")
-            self.world = create_world(world_name, saved_enemies=saved_enemies, module_pool=self.active_module_pool)
+            self.world = create_world(world_name, saved_enemies=saved_enemies)
             p_data = run_data.get("player", {})
             spawn_x = float(p_data.get("x", self.world.player_start[0]))
             spawn_y = float(p_data.get("y", self.world.player_start[1]))
@@ -190,11 +187,9 @@ class GameState:
                 if world_name == "sanctuary":
                     self.stats.data["run_state"] = None
                     self.stats.data["active_session_in_progress"] = False
-                    self.active_module_pool = None
                 else:
                     self.stats.data["run_state"] = {
                         "world_name": world_name,
-                        "module_pool": self.active_module_pool,
                         "player": {
                             "x": self.player.x, "y": self.player.y, "hp": self.player.hp,
                             "flask_charges": self.player.flask_charges,
