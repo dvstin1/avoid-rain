@@ -262,3 +262,19 @@ Resolved a critical `UnboundLocalError` that occurred when interacting with NPCs
 
 ## [ARCHIVED] Pause Menu Controls Overlay & Tabbed Layout - May 2026
 - **UI Navigation:** Built a tabbed controls interface accessible from both the Title and Pause menus.
+
+## [ARCHIVED] Save Path Verification & Title Menu Alignment Audit - May 2026
+
+Audited and resolved the regression preventing the 'Continue' option from appearing on the Main Menu, ensuring save writes and boot reads target the exact same absolute path.
+
+### 1. Unified Absolute Path Constancy
+- Audited both `engine/session.py` (or save management script) and the Title Screen menu code in `ui/menu.py` / `main.py`.
+- **The Absolute Path Requirement:** Ensured both files utilize the identical path string construction for reading and writing (`~/.config/avoid_rain/save_data.json`).
+
+### 2. Defensive Folder Initialization
+- Implemented explicit folder generation (`os.makedirs`) right before serialization to ensure the configuration directory exists.
+
+### 3. Hard Disk Save Detection Override for Title Menu Initialization
+- Corrected the cold-boot title menu state logic to evaluate the physical presence of `save_data.json` on disk.
+- **Hard Disk File Inspection on Launch:** Implemented a physical disk check in `main.py` / menu initialization to determine "Continue" visibility, rather than relying solely on volatile runtime memory.
+- **Runtime Flag Synchronization:** Ensured that if a valid save is detected, the `active_session_in_progress` runtime flag is synchronized immediately.
