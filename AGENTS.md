@@ -39,17 +39,3 @@
 ## Active Task: 
 
 ### 1. 
-## Active Task: Emergency Scope Fix & Input Event Order Realignment
-
-Resolve the `COLOR_WHITE` local variable scope crash during combat and fix the input blocking preventing the Chronicle gateway from processing Spacebar interactions.
-
-### 1. Global Color Scope Correction
-- Audit the combat interaction and damage display functions (likely inside `engine/enemy.py`, `engine/player.py`, or `rendering/renderer.py`).
-- Ensure any color constants like `COLOR_WHITE` are read strictly from your global configuration/rendering module, or explicitly declare them at the very top of the local function to resolve the `UnboundLocalError`.
-
-### 2. Event Loop Ordering (Interaction vs. Attack)
-- Inspect the core input handler or event polling loop in `engine/input.py` / `main.py`.
-- **The Event Priority Rule:** When the player presses `pygame.K_SPACE`, the engine must *first* check for contextual proximity interactions (Is the player standing on the Chronicle? Is the player next to an NPC/Wellspring?). 
-  - If an interaction prompt is active, execute the interaction block and **consume the input event** (`return` or `break`) so it doesn't trigger an attack.
-  - If no interactable entity is within range, default the spacebar input to trigger the standard weapon attack swing.
-- Ensure the player can successfully warp into `world_map1` from the Sanctuary by hitting Spacebar.
