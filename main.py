@@ -102,7 +102,7 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                         pause_menu.state = PauseMenuState.CONTROLS
                     else:
                         pause_menu.confirm()
-    return running, attack, flask, dash
+    return running, attack, flask, dash, swap, mouse_click
 
 
 def get_movement_actions():
@@ -248,7 +248,7 @@ def main():
                 clock.tick(FPS)
             else:
                 dt = clock.tick(FPS) / 1000.0
-                running, attack, flask, dash = handle_game_events(pause_menu=pause_menu)
+                running, attack, flask, dash, swap, mouse_click = handle_game_events(pause_menu=pause_menu)
                 if pause_menu.is_open():
                     # When paused, draw the pause menu and skip updates
                     renderer.draw_pause_menu(pause_menu)
@@ -282,6 +282,8 @@ def main():
                         'attack': attack,
                         'flask': flask,
                         'dash': dash,
+                        'swap': swap,
+                        'mouse_click': mouse_click,
                         'block': pygame.key.get_pressed()[pygame.K_k]
                     }
                     state.update(dt, actions)

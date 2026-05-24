@@ -2,7 +2,7 @@
 import pytest
 from engine.player import Player, PlayerStateEnum
 from engine.enemy import Miniboss
-from engine.loot import WeaponItem
+from engine.world import WeaponPickup
 from engine.game_state import GameState
 
 class MockWorld:
@@ -12,7 +12,7 @@ class MockWorld:
         self.interactables = []
         self.enemies = []
     def get_nearby_interactables(self, rect):
-        return []
+        return self.interactables
     def get_nearby_walls(self, rect):
         return []
 
@@ -34,7 +34,6 @@ def test_weapon_inventory_limit():
 
 def test_weapon_pickup_swap_logic():
     """Verify picking up a weapon when full swaps it with the active one."""
-    from engine.game_state import GameState
     state = GameState(auto_load=False)
     state.world = MockWorld()
     state.player = Player(0, 0)
@@ -46,17 +45,17 @@ def test_weapon_pickup_swap_logic():
     
     # Pickup a third weapon
     weapon3 = {"name": "Weapon 3", "damage": 25}
-    pickup = WeaponItem(100, 100, weapon3)
-    state.loot.append(pickup)
+    pickup = WeaponPickup((100, 100), weapon3)
+    state.world.interactables.append(pickup)
     
-    pickup.execute_pickup(state)
+    pickup.execute_interaction(state)
     
     # Inventory should still be 2
     assert len(state.player.weapons) == 2
     # Active weapon (index 0) should now be Weapon 3
     assert state.player.weapons[0]["name"] == "Weapon 3"
-    # Old active weapon (Initial Quill) should be dropped in state.loot
-    dropped = [item for item in state.loot if isinstance(item, WeaponItem) and item.name == "Initial Quill"]
+    # Old active weapon (Initial Quill) should be dropped in world interactables
+    dropped = [item for item in state.world.interactables if isinstance(item, WeaponPickup) and item.name == "Initial Quill"]
     assert len(dropped) > 0
 
 def test_full_cradle_rule():
@@ -69,30 +68,28 @@ def test_full_cradle_rule():
     miniboss1 = Miniboss(50, 50)
     miniboss1.on_death(state)
     
-    standard_drops = [item for item in state.loot if isinstance(item, WeaponItem) and item.name == "Refined Quill"]
+    standard_drops = [item for item in state.world.interactables if isinstance(item, WeaponPickup) and item.name == "Refined Quill"]
     assert len(standard_drops) == 1
     
     # Case 2: Player has 2 weapons (Full Cradle)
     state.player.weapons.append({"name": "Refined Quill", "damage": 15})
-    state.loot = [] # Clear previous drops
+    state.world.interactables = [] # Clear previous drops
     
     miniboss2 = Miniboss(50, 50)
     miniboss2.on_death(state)
     
-    anomalous_drops = [item for item in state.loot if isinstance(item, WeaponItem) and "Anomalous" in item.name]
-    # Note: WeaponItem is now WeaponPickup in state.world.interactables in the actual engine, 
-    # but the logic for standard drops was updated in engine/enemy.py.
-    # We should update this test to reflect the new WeaponPickup architecture.
-    pass
+    anomalous_drops = [item for item in state.world.interactables if isinstance(item, WeaponPickup) and "Anomalous" in item.name]
+    assert len(anomalous_drops) == 1
+    assert "modifiers" in anomalous_drops[0].weapon_data
 
 def test_miniboss_variants():
     """Verify that M2 and M3 variants exist and can be instantiated."""
     from engine.enemy import MinibossM2, MinibossM3
     m2 = MinibossM2(10, 10)
     m3 = MinibossM3(20, 20)
-    assert m2.name == "Miniboss M2"
-    assert m3.name == "Miniboss M3"
-    assert m3.speed > 100.0 # Standard speed is 100
+    assert m2.name == "Bleeding Scribe"
+    assert m3.name == "Forgotten Binder"
+    assert m3.speed < 100.0 # Standard speed is 100, M3 is 70
 
 def test_sanctuary_reset():
     """Verify that entering the sanctuary resets health and weapons."""

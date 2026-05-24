@@ -435,7 +435,6 @@ class Renderer:
         # 2b. Draw Enemies
         try:
             from engine.enemy import BatEnemy
-            from constants import COLOR_PURPLE
             for enemy in getattr(state, 'enemies', []):
                 er = pygame.Rect(enemy.get_rect())
                 ed = pygame.Rect(er.x - offset_x, er.y - offset_y, er.width, er.height)
@@ -959,5 +958,8 @@ class Renderer:
         # Draw Back instruction
         back_surf = self.font.render("Press SPACE or ENTER to go back", True, COLOR_WHITE)
         self.screen.blit(back_surf, back_surf.get_rect(center=(cx, start_y + len(inputs) * spacing + 40)))
+        
+        pygame.display.flip()
+inputs) * spacing + 40)))
         
         pygame.display.flip()

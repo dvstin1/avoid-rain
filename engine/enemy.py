@@ -312,14 +312,14 @@ class Miniboss(Enemy):
     def on_death(self, state):
         """Implement the Full-Cradle Rule for weapon drops."""
         import random
-        from engine.loot import WeaponItem
+        from engine.world import WeaponPickup
         
         player_weapons_count = len(state.player.weapons)
         
         if player_weapons_count < 2:
             # Drop Standard Weapon
             weapon_data = {"name": "Refined Quill", "damage": 15}
-            state.loot.append(WeaponItem(self.x, self.y, weapon_data))
+            state.world.interactables.append(WeaponPickup((self.x, self.y), weapon_data))
         else:
             # Full-Cradle Rule: Drop Anomalous Weapon
             anomalies = [

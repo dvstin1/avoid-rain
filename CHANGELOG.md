@@ -87,6 +87,21 @@
 - **Session Lifecycle:** Enforced `active_session_in_progress` boundaries; non-hub states flush to disk, while hub returns clear the session.
 - **Verification:** Added `tests/test_architectural_sync.py` to ensure AI and lifecycle stability.
 
+## [ARCHIVED] Emergency Logic Reordering & Scope Crash Resolution - May 2026
+
+Resolved critical combat scope crashes and re-prioritized interaction inputs.
+
+### 1. Interaction Priority Reordering
+- **High-Priority Spacebar:** Moved interaction logic (Nearby Interactables & Unified Filter) to the very top of the `GameState.update()` loop.
+- **Conflict Resolution:** Proximity interactions (like entering the Chronicle or picking up weapons) now take precedence over weapon attacks, preventing combat animations from blocking world transitions.
+
+### 2. Scope Crash & Import Consolidation
+- **UnboundLocalError Fix:** Resolved the `COLOR_WHITE` scope crash during combat by consolidating imports and removing redundant local `from constants import...` statements that were causing variable shadowing.
+- **Visual Standardization:** Unified the use of `COLOR_WHITE` for training dummy hits and standard equipment prompts.
+
+### 3. Import & Test Stability
+- **WeaponPickup Migration:** Completed the global migration from `WeaponItem` to `WeaponPickup`, resolving all lingering `ImportError` issues in `engine/enemy.py` and `tests/test_weapon_system.py`.
+
 ## [ARCHIVED] Player Dash Mechanic - May 2026
 - **Dash Physics:** Implemented a high-speed directional dash burst (3.0x speed) with a 0.2s duration.
 - **Cooldown:** Established a 0.5s recovery window to balance combat mobility.
