@@ -74,8 +74,8 @@ class MapEditor:
         self.camera_y = 0
         self.zoom = 1.0
 
-        self.filename = "new_map.json"
-        self.input_mode = None  # 'SAVE', 'LOAD', 'PICKER', or 'SOCKET_NAME'
+        self.filename = None
+        self.input_mode = None  # 'SAVE', 'LOAD', 'PICKER', 'SOCKET_NAME', 'RESIZE_W', 'RESIZE_H'
         self.input_buffer = ""
         
         # File Picker State
@@ -89,6 +89,25 @@ class MapEditor:
         self.drag_start = (0, 0)
         self.drag_current = (0, 0)
         self.pending_socket_bounds = None
+        self.selected_socket_idx = -1
+
+    def reset_canvas(self, width=40, height=30):
+        """Creates a blank canvas and resets all variables."""
+        self.map_w = width
+        self.map_h = height
+        self.grid = [['#' for _ in range(width)] for _ in range(height)]
+        self.entities = {}
+        self.module_sockets = []
+        self.filename = None
+        self.camera_x = 0
+        self.camera_y = 0
+        self.zoom = 1.0
+        self.input_mode = None
+        self.input_buffer = ""
+        self.active_tool = "PENCIL"
+        self.is_dragging = False
+        self.selected_socket_idx = -1
+        print("Canvas reset to blank.")
 
     def load_map(self, name):
         """Loads a map from the maps/ directory."""
@@ -185,7 +204,7 @@ class MapEditor:
                     self.screen.blit(sym_surf, (rect.x + 2, rect.y + 2))
 
         # Draw Module Sockets
-        for socket in self.module_sockets:
+        for i, socket in enumerate(self.module_sockets):
             b = socket["bounds"]
             s_rect = pygame.Rect(
                 b["x"] * ts - self.camera_x,
@@ -193,9 +212,14 @@ class MapEditor:
                 b["width"] * ts,
                 b["height"] * ts
             )
-            pygame.draw.rect(self.screen, COLOR_CYAN, s_rect, 3)
-            name_surf = self.font.render(socket["name"], True, COLOR_CYAN)
+            color = COLOR_YELLOW if i == self.selected_socket_idx else COLOR_CYAN
+            pygame.draw.rect(self.screen, color, s_rect, 3)
+
+            # HUD Label: Name + Dimensions
+            label = f"{socket['name']} ({b['width']}x{b['height']})"
+            name_surf = self.font.render(label, True, color)
             self.screen.blit(name_surf, (s_rect.x + 5, s_rect.y + 5))
+
 
     def draw_selection_preview(self, ts):
         """Draws a transparent preview of the rectangle being drawn."""
@@ -234,7 +258,8 @@ class MapEditor:
         pygame.draw.line(self.screen, COLOR_GREY, (sidebar_x, 0), (sidebar_x, SCREEN_HEIGHT), 2)
 
         y_off = 20
-        self.screen.blit(self.font.render(f"File: {self.filename}", True, COLOR_WHITE), (sidebar_x + 10, y_off))
+        fname = self.filename if self.filename else "UNTITLED"
+        self.screen.blit(self.font.render(f"File: {fname}", True, COLOR_WHITE), (sidebar_x + 10, y_off))
         y_off += 25
         size_text = f"Size: {self.map_w}x{self.map_h}"
         self.screen.blit(self.font.render(size_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
@@ -245,6 +270,22 @@ class MapEditor:
         brush_text = f"Brush: {PALETTE[self.brush_idx][1]} ({PALETTE[self.brush_idx][0]})"
         self.screen.blit(self.font.render(brush_text, True, COLOR_YELLOW), (sidebar_x + 10, y_off))
         y_off += 40
+
+        # Socket Info
+        if self.selected_socket_idx >= 0:
+            sock = self.module_sockets[self.selected_socket_idx]
+            b = sock["bounds"]
+            self.screen.blit(self.font.render("Selected Socket:", True, COLOR_CYAN), (sidebar_x + 10, y_off))
+            y_off += 25
+            self.screen.blit(self.font.render(f"Name: {sock['name']}", True, COLOR_WHITE), (sidebar_x + 20, y_off))
+            y_off += 25
+            self.screen.blit(self.font.render(f"Pos: {b['x']},{b['y']}", True, COLOR_WHITE), (sidebar_x + 20, y_off))
+            y_off += 25
+            dim_text = f"Dim: {b['width']}x{b['height']}"
+            self.screen.blit(self.font.render(dim_text, True, COLOR_WHITE), (sidebar_x + 20, y_off))
+            y_off += 25
+            self.screen.blit(self.font.render("[DEL] Remove, [E] Rename", True, COLOR_RED), (sidebar_x + 20, y_off))
+            y_off += 40
 
         self.screen.blit(self.font.render("Palette (Click to select):", True, COLOR_GREY), (sidebar_x + 10, y_off))
         y_off += 25
@@ -279,13 +320,15 @@ class MapEditor:
             if y_off > SCREEN_HEIGHT - 130:
                 break
 
-        self.screen.blit(self.font.render("Controls:", True, COLOR_GREY), (sidebar_x + 10, SCREEN_HEIGHT - 100))
-        ctrl_w = "WASD: Pan, +/-: Resize W"
-        self.screen.blit(self.font.render(ctrl_w, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 80))
-        ctrl_h = "Ctrl +/-: Resize H"
-        self.screen.blit(self.font.render(ctrl_h, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 60))
+        self.screen.blit(self.font.render("Controls:", True, COLOR_GREY), (sidebar_x + 10, SCREEN_HEIGHT - 120))
+        ctrl_w = "WASD: Pan, Ctrl+N: New"
+        self.screen.blit(self.font.render(ctrl_w, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 100))
+        ctrl_h = "Ctrl+R: Resize Canvas"
+        self.screen.blit(self.font.render(ctrl_h, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 80))
         ctrl_f = "Ctrl+S: Save, Ctrl+O: Load"
-        self.screen.blit(self.font.render(ctrl_f, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 40))
+        self.screen.blit(self.font.render(ctrl_f, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 60))
+        ctrl_q = "Esc: Unselect/Tool"
+        self.screen.blit(self.font.render(ctrl_q, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 40))
 
     def draw_file_picker(self):
         """Draws a scrollable list of maps for selection."""
@@ -322,7 +365,14 @@ class MapEditor:
         pygame.draw.rect(self.screen, (30, 30, 30), b_rect)
         pygame.draw.rect(self.screen, COLOR_WHITE, b_rect, 3)
 
-        prompt = f"ENTER FILENAME TO {self.input_mode}:"
+        prompts = {
+            'SAVE': "ENTER FILENAME TO SAVE:",
+            'LOAD': "ENTER FILENAME TO LOAD:",
+            'SOCKET_NAME': "ENTER NAME FOR SOCKET:",
+            'RESIZE_W': "ENTER NEW WIDTH:",
+            'RESIZE_H': "ENTER NEW HEIGHT:"
+        }
+        prompt = prompts.get(self.input_mode, "ENTER INPUT:")
         p_surf = self.large_font.render(prompt, True, COLOR_YELLOW)
         self.screen.blit(p_surf, (b_rect.centerx - p_surf.get_width() // 2, b_rect.y + 20))
 
@@ -370,12 +420,44 @@ class MapEditor:
                 elif self.input_mode == 'LOAD':
                     self.load_map(self.input_buffer)
                 elif self.input_mode == 'SOCKET_NAME':
-                    if self.input_buffer and self.pending_socket_bounds:
-                        self.module_sockets.append({
-                            "name": self.input_buffer,
-                            "bounds": self.pending_socket_bounds
-                        })
+                    if self.input_buffer:
+                        if self.selected_socket_idx >= 0:
+                            self.module_sockets[self.selected_socket_idx]["name"] = self.input_buffer
+                        elif self.pending_socket_bounds:
+                            self.module_sockets.append({
+                                "name": self.input_buffer,
+                                "bounds": self.pending_socket_bounds
+                            })
                     self.pending_socket_bounds = None
+                elif self.input_mode == 'RESIZE_W':
+                    try:
+                        new_w = int(self.input_buffer)
+                        if new_w > 0:
+                            # Adjust grid width
+                            for row in self.grid:
+                                if new_w > self.map_w:
+                                    row.extend(['.' for _ in range(new_w - self.map_w)])
+                                else:
+                                    del row[new_w:]
+                            self.map_w = new_w
+                    except ValueError:
+                        pass
+                    self.input_mode = 'RESIZE_H'
+                    self.input_buffer = str(self.map_h)
+                    return
+                elif self.input_mode == 'RESIZE_H':
+                    try:
+                        new_h = int(self.input_buffer)
+                        if new_h > 0:
+                            if new_h > self.map_h:
+                                for _ in range(new_h - self.map_h):
+                                    self.grid.append(['.' for _ in range(self.map_w)])
+                            else:
+                                del self.grid[new_h:]
+                            self.map_h = new_h
+                    except ValueError:
+                        pass
+
                 self.input_mode = None
                 self.input_buffer = ""
             elif event.key == pygame.K_ESCAPE:
@@ -387,26 +469,6 @@ class MapEditor:
             elif event.unicode.isprintable():
                 self.input_buffer += event.unicode
 
-    def handle_resizing(self, event, ctrl_pressed):
-        """Handles map resizing events."""
-        if event.key == pygame.K_EQUALS:
-            if ctrl_pressed:
-                self.grid.append(['#' for _ in range(self.map_w)])
-                self.map_h += 1
-            else:
-                for row in self.grid:
-                    row.append('#')
-                self.map_w += 1
-        elif event.key == pygame.K_MINUS:
-            if ctrl_pressed:
-                if self.map_h > 1:
-                    self.grid.pop()
-                    self.map_h -= 1
-            elif self.map_w > 1:
-                for row in self.grid:
-                    row.pop()
-                self.map_w -= 1
-
     def handle_keyboard(self, event):
         """Handles discrete keyboard events."""
         ctrl_pressed = pygame.key.get_mods() & pygame.KMOD_CTRL
@@ -414,7 +476,7 @@ class MapEditor:
         if ctrl_pressed:
             if event.key == pygame.K_s:
                 self.input_mode = 'SAVE'
-                self.input_buffer = self.filename
+                self.input_buffer = self.filename if self.filename else ""
                 return
             if event.key == pygame.K_o:
                 # Scan for maps
@@ -425,6 +487,30 @@ class MapEditor:
                 self.input_mode = 'PICKER'
                 self.file_picker_idx = 0
                 self.scroll_offset = 0
+                return
+            if event.key == pygame.K_n:
+                self.reset_canvas()
+                return
+            if event.key == pygame.K_r:
+                self.input_mode = 'RESIZE_W'
+                self.input_buffer = str(self.map_w)
+                return
+
+        if event.key == pygame.K_ESCAPE:
+            if self.selected_socket_idx >= 0:
+                self.selected_socket_idx = -1
+            else:
+                self.active_tool = "PENCIL"
+            return
+
+        if self.selected_socket_idx >= 0:
+            if event.key == pygame.K_DELETE:
+                self.module_sockets.pop(self.selected_socket_idx)
+                self.selected_socket_idx = -1
+                return
+            if event.key == pygame.K_e:
+                self.input_mode = 'SOCKET_NAME'
+                self.input_buffer = self.module_sockets[self.selected_socket_idx]["name"]
                 return
 
         if event.key == pygame.K_b:
@@ -441,8 +527,6 @@ class MapEditor:
             if idx < len(PALETTE):
                 self.brush_idx = idx
             return
-
-        self.handle_resizing(event, ctrl_pressed)
 
     def handle_mouse(self):
         """Handles continuous mouse interaction."""
@@ -469,17 +553,33 @@ class MapEditor:
             if mx >= SCREEN_WIDTH:
                 # Sidebar click
                 palette_y_start = 175 # Adjusted for Size display
+                # Adjust for potential Socket Info if selected
+                if self.selected_socket_idx >= 0:
+                    palette_y_start += 140
+
                 click_idx = (my - palette_y_start) // 25
                 if 0 <= click_idx < len(PALETTE):
                     if click_idx == self.brush_idx and PALETTE[click_idx][0] == 'MONSTER':
                         # Cycle if already selected
                         self.current_enemy_idx = (self.current_enemy_idx + 1) % len(ENEMY_TYPES)
                     self.brush_idx = click_idx
-            elif self.active_tool in ("RECTANGLE", "SOCKET") and event.button == 1:
+            elif event.button == 1:
                 ts = int(TILE_SIZE * self.zoom)
-                self.is_dragging = True
-                self.drag_start = ((mx + self.camera_x) // ts, (my + self.camera_y) // ts)
-                self.drag_current = self.drag_start
+                gx = (mx + self.camera_x) // ts
+                gy = (my + self.camera_y) // ts
+
+                # Try to select a socket
+                self.selected_socket_idx = -1
+                for i, socket in enumerate(self.module_sockets):
+                    b = socket["bounds"]
+                    if b["x"] <= gx < b["x"] + b["width"] and b["y"] <= gy < b["y"] + b["height"]:
+                        self.selected_socket_idx = i
+                        break
+
+                if self.active_tool in ("RECTANGLE", "SOCKET"):
+                    self.is_dragging = True
+                    self.drag_start = (gx, gy)
+                    self.drag_current = self.drag_start
         elif event.type == pygame.MOUSEBUTTONUP:
             if self.active_tool in ("RECTANGLE", "SOCKET") and event.button == 1:
                 if self.is_dragging:
