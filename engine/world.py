@@ -60,6 +60,7 @@ class WarpPortal(GameObject):
         """Perform the map transition."""
         try:
             from engine.maps import create_world
+            print(f"[DEBUG] WarpPortal targeting: {self.target_name}")
             game_state.world = create_world(self.target_name)
 
             # Sanctuary Reset Rule: Enforce automatic item and health reset
@@ -79,6 +80,7 @@ class WarpPortal(GameObject):
                     game_state.stats.data["last_run_result"] = "INIT"
 
             # Position player at spawn coords
+            print(f"[DEBUG] Setting player spawn: ({self.spawn_x}, {self.spawn_y})")
             game_state.player.x = float(self.spawn_x)
             game_state.player.y = float(self.spawn_y)
             # Recenter camera instantly
@@ -93,9 +95,11 @@ class WarpPortal(GameObject):
             # [Milestone] Flush state immediately upon returning to sanctuary
             is_to_sanctuary = self.target_name == "sanctuary"
             game_state.save_stats(wait=is_to_sanctuary)
-        except Exception:
-            # If transition fails, ignore to maintain robustness
-            pass
+            print(f"[DEBUG] Warp to {self.target_name} complete.")
+        except Exception as e:
+            print(f"[ERROR] Warp failed: {e}")
+            import traceback
+            traceback.print_exc()
 
 class Chronicler(GameObject):
     """NPC that provides dialogue based on the player's last run result."""
@@ -440,7 +444,7 @@ class LevelLoader:
                     # SlugEnemy Spawn (Bypassed if loading from save)
                     if not saved_enemies:
                         from engine.enemy import SlugEnemy
-                        enemies.append(SlugEnemy.from_dict(e_data))
+                        enemies.append(SlugEnemy(pos[0], pos[1]))
 
                 elif char == 'A':
                     # BatEnemy Spawn (Bypassed if loading from save)
