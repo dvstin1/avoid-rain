@@ -120,8 +120,8 @@ Migrated from internal in-memory session tracking to absolute, physical JSON dis
 - **Payload Coverage:** Ensured that player coordinates, HP, flasks, weapons, and all living enemy states (position, health, type) are serialized.
 
 ### 2. Main Boot Initialization Check
-- **Launch Hydration:** Refactored the main application entry point to perform an `os.path.exists()` check for `save_data.json` immediately upon startup.
-- **Dynamic Menu Reconstruction:** Updated the Title Menu to accurately detect the `active_session_in_progress` flag and inject the "Continue" option only when a valid run is available.
+- **Launch Hydration:** Refactored the main application entry point to perform an explicit `json.load()` check on `~/.config/avoid_rain/save_data.json` immediately upon startup.
+- **Physical Detection:** The "Continue" button now relies on an absolute physical disk check instead of volatile runtime memory, ensuring accurate session detection after cold boots.
 - **Resilience:** Implemented exception handling for `json.JSONDecodeError` to gracefully manage malformed save files without crashing the application.
 
 ### 3. Session Cleanup Rules

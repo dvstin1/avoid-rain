@@ -190,10 +190,21 @@ def main():
     autosave = AutosaveManager(AUTOSAVE_INTERVAL)
     # PauseMenu will auto-save on open via a lightweight callback
     pause_menu = PauseMenu(on_open=lambda: state.save_stats())
-    # Title menu should reflect whether a resume-able save exists
-    has_run = (getattr(state, 'stats', None) is not None and 
-               state.stats.data.get("active_session_in_progress", False))
-    title_menu = TitleMenu(has_save=has_run)
+
+    # [DISK CHECK] Explicitly verify physical save file for Title Menu detection
+    from engine.stats import DEFAULT_PATH
+    import json
+    import os
+    has_physical_run = False
+    if DEFAULT_PATH.exists():
+        try:
+            with open(DEFAULT_PATH, 'r', encoding='utf-8') as f:
+                save_payload = json.load(f)
+                has_physical_run = save_payload.get("active_session_in_progress", False)
+        except Exception:
+            pass
+    
+    title_menu = TitleMenu(has_save=has_physical_run)
 
     in_title = True
     running = True

@@ -61,3 +61,38 @@ Audit and resolve the regression preventing the 'Continue' option from appearing
 ```python
 os.makedirs(SAVE_DIR, exist_ok=True)
 ```
+
+### Active Task (cont): Hard Disk Save Detection Override for Title Menu Initialization
+
+Correct the cold-boot title menu state logic to evaluate the physical presence of `save_data.json` on disk rather than relying solely on the volatile `active_session_in_progress` runtime memory variable.
+
+#### 1. Hard Disk File Inspection on Launch
+- Open `main.py` or your main menu initialization module.
+- Locate the code block that determines whether to append the `"Continue"` option to the visible title screen choices.
+- **The Core Correction:** Before drawing the menu options array, explicitly run a physical disk check. Do not rely exclusively on the `active_session_in_progress` memory flag.
+
+~~~python
+  import os
+  import json
+
+  # Target the standardized absolute configuration path
+  save_path = os.path.expanduser("~/.config/avoid_rain/save_data.json")
+  
+  # Default the menu visibility boolean based on actual hard storage reality
+  has_valid_save = False
+  if os.path.exists(save_path):
+      try:
+          with open(save_path, "r") as f:
+              data = json.load(f)
+              # If the file exists and the internal JSON tracks an active run, toggle true
+              if data.get("in_progress") or data.get("active_session_in_progress"):
+                  has_valid_save = True
+      except (json.JSONDecodeError, FileNotFoundError):
+          has_valid_save = False
+
+  # Inject the "Continue" option if has_valid_save is True
+~~~
+
+2. Runtime Flag Synchronization
+
+Ensure that if has_valid_save evaluates to true during boot, the engine sets your internal runtime memory variable active_session_in_progress = True right then and there so that subsequent state evaluations stay completely in sync.
