@@ -66,6 +66,7 @@ class MapEditor:
         self.map_h = height
         self.grid = [['#' for _ in range(width)] for _ in range(height)]
         self.entities = {}
+        self.module_sockets = []
 
         self.brush_idx = 0
         self.current_enemy_idx = 0
@@ -74,7 +75,7 @@ class MapEditor:
         self.zoom = 1.0
 
         self.filename = "new_map.json"
-        self.input_mode = None  # 'SAVE', 'LOAD', or 'PICKER'
+        self.input_mode = None  # 'SAVE', 'LOAD', 'PICKER', or 'SOCKET_NAME'
         self.input_buffer = ""
         
         # File Picker State
@@ -83,10 +84,11 @@ class MapEditor:
         self.scroll_offset = 0
 
         # Tool State
-        self.active_tool = "PENCIL"  # "PENCIL" or "RECTANGLE"
+        self.active_tool = "PENCIL"  # "PENCIL", "RECTANGLE", or "SOCKET"
         self.is_dragging = False
         self.drag_start = (0, 0)
         self.drag_current = (0, 0)
+        self.pending_socket_bounds = None
 
     def load_map(self, name):
         """Loads a map from the maps/ directory."""
@@ -105,6 +107,7 @@ class MapEditor:
             self.map_h = data["dimensions"]["height"]
             self.grid = [list(row) for row in data["grid"]]
             self.entities = data.get("entities", {})
+            self.module_sockets = data.get("module_sockets", [])
             self.filename = name
             print(f"Loaded {self.filename}")
         except Exception as e:
@@ -126,7 +129,8 @@ class MapEditor:
             "dimensions": {"width": self.map_w, "height": self.map_h},
             "legend": full_legend,
             "grid": ["".join(row) for row in self.grid],
-            "entities": self.entities
+            "entities": self.entities,
+            "module_sockets": self.module_sockets
         }
 
         os.makedirs("maps", exist_ok=True)
@@ -180,9 +184,22 @@ class MapEditor:
                     sym_surf = self.font.render(char, True, COLOR_WHITE)
                     self.screen.blit(sym_surf, (rect.x + 2, rect.y + 2))
 
+        # Draw Module Sockets
+        for socket in self.module_sockets:
+            b = socket["bounds"]
+            s_rect = pygame.Rect(
+                b["x"] * ts - self.camera_x,
+                b["y"] * ts - self.camera_y,
+                b["width"] * ts,
+                b["height"] * ts
+            )
+            pygame.draw.rect(self.screen, COLOR_CYAN, s_rect, 3)
+            name_surf = self.font.render(socket["name"], True, COLOR_CYAN)
+            self.screen.blit(name_surf, (s_rect.x + 5, s_rect.y + 5))
+
     def draw_selection_preview(self, ts):
         """Draws a transparent preview of the rectangle being drawn."""
-        if not self.is_dragging or self.active_tool != "RECTANGLE":
+        if not self.is_dragging or self.active_tool not in ("RECTANGLE", "SOCKET"):
             return
 
         x1, y1 = self.drag_start
@@ -199,10 +216,17 @@ class MapEditor:
 
         # Draw transparent fill
         preview_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-        preview_surf.fill((0, 120, 255, 80))
+        if self.active_tool == "RECTANGLE":
+            color = (0, 120, 255, 80)
+            outline_color = (0, 120, 255)
+        else:
+            color = (0, 255, 255, 80)
+            outline_color = (0, 255, 255)
+        
+        preview_surf.fill(color)
         self.screen.blit(preview_surf, (rect.x, rect.y))
         # Draw opaque outline
-        pygame.draw.rect(self.screen, (0, 120, 255), rect, 2)
+        pygame.draw.rect(self.screen, outline_color, rect, 2)
 
     def draw_sidebar(self, sidebar_x):
         """Draws the UI sidebar."""
@@ -211,8 +235,11 @@ class MapEditor:
 
         y_off = 20
         self.screen.blit(self.font.render(f"File: {self.filename}", True, COLOR_WHITE), (sidebar_x + 10, y_off))
+        y_off += 25
+        size_text = f"Size: {self.map_w}x{self.map_h}"
+        self.screen.blit(self.font.render(size_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
         y_off += 30
-        tool_text = f"Tool: {self.active_tool} [B]"
+        tool_text = f"Tool: {self.active_tool} [B/J]"
         self.screen.blit(self.font.render(tool_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
         y_off += 30
         brush_text = f"Brush: {PALETTE[self.brush_idx][1]} ({PALETTE[self.brush_idx][0]})"
@@ -222,7 +249,7 @@ class MapEditor:
         self.screen.blit(self.font.render("Palette (Click to select):", True, COLOR_GREY), (sidebar_x + 10, y_off))
         y_off += 25
         for i, (char, name) in enumerate(PALETTE):
-            is_active = (i == self.brush_idx)
+            is_active = i == self.brush_idx
             color = COLOR_YELLOW if is_active else COLOR_WHITE
 
             p_rect = pygame.Rect(sidebar_x + 15, y_off, 200, 22)
@@ -342,11 +369,19 @@ class MapEditor:
                     self.save_map()
                 elif self.input_mode == 'LOAD':
                     self.load_map(self.input_buffer)
+                elif self.input_mode == 'SOCKET_NAME':
+                    if self.input_buffer and self.pending_socket_bounds:
+                        self.module_sockets.append({
+                            "name": self.input_buffer,
+                            "bounds": self.pending_socket_bounds
+                        })
+                    self.pending_socket_bounds = None
                 self.input_mode = None
                 self.input_buffer = ""
             elif event.key == pygame.K_ESCAPE:
                 self.input_mode = None
                 self.input_buffer = ""
+                self.pending_socket_bounds = None
             elif event.key == pygame.K_BACKSPACE:
                 self.input_buffer = self.input_buffer[:-1]
             elif event.unicode.isprintable():
@@ -393,7 +428,12 @@ class MapEditor:
                 return
 
         if event.key == pygame.K_b:
+            # Cycle through PENCIL and RECTANGLE
             self.active_tool = "RECTANGLE" if self.active_tool == "PENCIL" else "PENCIL"
+            return
+        
+        if event.key == pygame.K_j:
+            self.active_tool = "SOCKET"
             return
 
         if pygame.K_0 <= event.key <= pygame.K_9:
@@ -419,7 +459,7 @@ class MapEditor:
                         if char == 'MONSTER':
                             char = ENEMY_TYPES[self.current_enemy_idx][0]
                         self.grid[gy][gx] = char
-                    elif self.active_tool == "RECTANGLE":
+                    elif self.active_tool in ("RECTANGLE", "SOCKET"):
                         self.drag_current = (gx, gy)
 
     def handle_mouse_event(self, event):
@@ -428,22 +468,34 @@ class MapEditor:
         if event.type == pygame.MOUSEBUTTONDOWN:
             if mx >= SCREEN_WIDTH:
                 # Sidebar click
-                palette_y_start = 145
+                palette_y_start = 175 # Adjusted for Size display
                 click_idx = (my - palette_y_start) // 25
                 if 0 <= click_idx < len(PALETTE):
                     if click_idx == self.brush_idx and PALETTE[click_idx][0] == 'MONSTER':
                         # Cycle if already selected
                         self.current_enemy_idx = (self.current_enemy_idx + 1) % len(ENEMY_TYPES)
                     self.brush_idx = click_idx
-            elif self.active_tool == "RECTANGLE" and event.button == 1:
+            elif self.active_tool in ("RECTANGLE", "SOCKET") and event.button == 1:
                 ts = int(TILE_SIZE * self.zoom)
                 self.is_dragging = True
                 self.drag_start = ((mx + self.camera_x) // ts, (my + self.camera_y) // ts)
                 self.drag_current = self.drag_start
         elif event.type == pygame.MOUSEBUTTONUP:
-            if self.active_tool == "RECTANGLE" and event.button == 1:
+            if self.active_tool in ("RECTANGLE", "SOCKET") and event.button == 1:
                 if self.is_dragging:
-                    self.fill_rectangle()
+                    if self.active_tool == "RECTANGLE":
+                        self.fill_rectangle()
+                    elif self.active_tool == "SOCKET":
+                        x1, y1 = self.drag_start
+                        x2, y2 = self.drag_current
+                        gx1, gx2 = min(x1, x2), max(x1, x2)
+                        gy1, gy2 = min(y1, y2), max(y1, y2)
+                        self.pending_socket_bounds = {
+                            "x": gx1, "y": gy1,
+                            "width": gx2 - gx1 + 1, "height": gy2 - gy1 + 1
+                        }
+                        self.input_mode = 'SOCKET_NAME'
+                        self.input_buffer = f"M{len(self.module_sockets) + 1}"
                     self.is_dragging = False
 
     def handle_input(self):

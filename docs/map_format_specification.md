@@ -26,10 +26,16 @@ Every map file saved by our editor must compile to a standard structured JSON do
         "target": "macro_world",
         "name": "The Chronicle"
     }
-  }
+  },
+  "module_sockets": [
+    {
+      "name": "M1",
+      "bounds": { "x": 4, "y": 2, "width": 8, "height": 8 }
+    }
+  ]
 }
 ```
-*Note: Entity keys are stored as "x,y" strings to remain JSON-compliant.*
+*Note: Entity keys are stored as "x,y" strings to remain JSON-compliant. Module sockets define regions where sub-maps can be dynamically injected.*
 
 2. Modular Map Nesting Schema
 
@@ -38,11 +44,19 @@ JSON
 
 {
   "macro_id": "lotus_world_run_01",
-  "dimensions": { "width": 120, "height": 120 },
-  "nested_modules": [
-    { "map_file": "maps/sanctuary_hub.json", "anchor_offset": [0, 0] },
-    { "map_file": "maps/chapter1_arena_alpha.json", "anchor_offset": [30, 40] },
-    { "map_file": "maps/chapter1_corridor_beta.json", "anchor_offset": [60, 40] }
+  "dimensions": { "width": 40, "height": 30 },
+  "grid": [ ... ],
+  "module_sockets": [
+    {
+      "name": "M1",
+      "bounds": { "x": 4, "y": 2, "width": 8, "height": 8 },
+      "active_plug": "maps/industrial_core.json"
+    },
+    {
+      "name": "M2",
+      "bounds": { "x": 16, "y": 2, "width": 10, "height": 8 },
+      "active_plug": "maps/flooded_archive.json"
+    }
   ]
 }
 
@@ -62,3 +76,5 @@ While the game engine expands, macro-world files will support stitching sub-maps
 - **Variable Footprints:** The engine will support modules of any size, dynamically carving out the required space in the master grid at runtime.
 - **Portals & Seamless Flow:** Module boundaries will be designed to align perfectly with the Master Loom's corridors, ensuring seamless player movement without loading screens within a chapter.
 - **Manual Control:** This replaces procedural noise-based generation with intentional, high-quality level design that guarantees a balanced flow of combat and respite zones.
+
+
