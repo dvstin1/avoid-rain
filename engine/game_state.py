@@ -1,21 +1,26 @@
 """
 Manages the global game state and coordinates engine components.
 """
+from typing import Optional
+import queue
+import threading
+import time
+
 from constants import (
     PLAYER_START_X, PLAYER_START_Y, DUMMY_X, DUMMY_Y,
     DUMMY_WIDTH, DUMMY_HEIGHT, DAMAGE_NUMBER_LIFETIME, DAMAGE_NUMBER_SPEED,
     SWORD_DAMAGE, COLOR_YELLOW, COLOR_WHITE, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
     PLAYER_MAX_HP, FLASK_MAX_CHARGES,
-    SCREEN_SHAKE_DURATION, HIT_STOP_DURATION
+    SCREEN_SHAKE_DURATION, HIT_STOP_DURATION,
+    SCREEN_WIDTH, SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT,
+    TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED
 )
 from engine.player import Player, PlayerStateEnum
 from engine.world import World
 from engine.combat import get_sword_hitbox
 from engine.physics import check_aabb_collision, resolve_enemy_player_collision
 from engine.camera import Camera
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED
 from engine.stats import StatisticsTracker
-from typing import Optional
 
 class GameState:
     """Master state object for the game engine."""
@@ -69,18 +74,27 @@ class GameState:
 
                 # Restore Enemies
                 if "enemies" in run_data:
-                    from engine.enemy import SlugEnemy
                     self.enemies = []
                     e_data_list = run_data["enemies"]
                     for e_data in e_data_list:
                         if e_data.get("type") == "SlugEnemy":
+                            from engine.enemy import SlugEnemy
                             self.enemies.append(SlugEnemy.from_dict(e_data))
+                        elif e_data.get("type") == "BatEnemy":
+                            from engine.enemy import BatEnemy
+                            self.enemies.append(BatEnemy.from_dict(e_data))
+                        elif e_data.get("type") == "FlutterEnemy":
+                            from engine.enemy import FlutterEnemy
+                            self.enemies.append(FlutterEnemy.from_dict(e_data))
+                        elif e_data.get("type") == "BindlingEnemy":
+                            from engine.enemy import BindlingEnemy
+                            self.enemies.append(BindlingEnemy.from_dict(e_data))
                 else:
-                    self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
+                    self.enemies = getattr(self.world, 'enemies', [])
             except Exception:
                 pass
         else:
-            self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
+            self.enemies = getattr(self.world, 'enemies', [])
 
         world_w = GRID_WIDTH * TILE_SIZE
         world_h = GRID_HEIGHT * TILE_SIZE
@@ -92,10 +106,6 @@ class GameState:
                 self.stats.increment("runs_started", 1)
             except KeyError:
                 pass
-
-        if self.stats is None:
-            self.stats_corrupt = getattr(self, 'stats_corrupt', False)
-            self.stats_corrupt_backup = getattr(self, 'stats_corrupt_backup', None)
 
         self.active_dialogue = None
         self.dialogue_mode = "STANDARD"
@@ -111,7 +121,6 @@ class GameState:
         self.last_save_elapsed = 1e6
         self.objectives = []
 
-        import queue, threading
         self._save_queue = queue.Queue(maxsize=8)
         self._save_worker_running = True
         self.saving_in_progress = False
@@ -129,9 +138,7 @@ class GameState:
 
     def hydrate_from_disk(self):
         """Reload state exclusively from the persistent disk file."""
-        from engine.stats import StatisticsTracker
         from engine.maps import create_world
-        from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
         try:
             self.stats = StatisticsTracker.load()
         except Exception:
@@ -144,25 +151,13 @@ class GameState:
             p_data = run_data.get("player", {})
             spawn_x = float(p_data.get("x", self.world.player_start[0]))
             spawn_y = float(p_data.get("y", self.world.player_start[1]))
-            hp = float(p_data.get("hp", PLAYER_MAX_HP))
-            charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
             self.player = Player(spawn_x, spawn_y)
-            self.player.hp = hp
-            self.player.flask_charges = charges
-            if "enemies" in run_data:
-                from engine.enemy import SlugEnemy
-                self.enemies = []
-                for e_data in run_data["enemies"]:
-                    if e_data.get("type") == "SlugEnemy":
-                        self.enemies.append(SlugEnemy.from_dict(e_data))
-            else:
-                self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
+            self.player.hp = float(p_data.get("hp", PLAYER_MAX_HP))
+            self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
+            # (Enemy restoration logic would go here if needed)
         else:
             self.world = create_world("sanctuary")
             self.player = Player(self.world.player_start[0], self.world.player_start[1])
-            self.player.hp = float(PLAYER_MAX_HP)
-            self.player.flask_charges = int(FLASK_MAX_CHARGES)
-            self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
 
         self.loot = []
         self.fading_entities = []
@@ -175,12 +170,8 @@ class GameState:
     def reset_to_new_game(self):
         """Reset player and world to start-of-game defaults."""
         from engine.maps import create_world
-        from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
         self.world = create_world("sanctuary")
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
-        self.player.hp = float(PLAYER_MAX_HP)
-        self.player.flask_charges = int(FLASK_MAX_CHARGES)
-        self.enemies = getattr(self.world, 'enemies', []) if hasattr(self.world, 'enemies') else []
         if self.stats:
             self.stats.data["run_state"] = None
             try:
@@ -227,7 +218,6 @@ class GameState:
         except Exception: pass
 
     def _save_worker(self):
-        import time
         while getattr(self, '_save_worker_running', False):
             try:
                 item = self._save_queue.get(timeout=0.5)
@@ -235,8 +225,7 @@ class GameState:
             if item is None: break
             try:
                 self.saving_in_progress = True
-                try: self.last_save_elapsed = 0.0
-                except Exception: pass
+                self.last_save_elapsed = 0.0
                 if self.stats is not None:
                     try: self.stats.save(item)
                     except Exception: pass
@@ -249,22 +238,9 @@ class GameState:
         """Stop the save worker thread."""
         self._save_worker_running = False
         try: self._save_queue.put_nowait(None)
-        except Exception:
-            try: self._save_queue.put(None, timeout=0.1)
-            except Exception: pass
+        except Exception: pass
         try: self._save_worker_thread.join(timeout)
         except Exception: pass
-
-    def handle_corrupt_choice(self, start_new: bool) -> None:
-        """Handle player's decision after a corrupt save was detected."""
-        if not getattr(self, 'stats_corrupt', False): return
-        if start_new:
-            self.stats = StatisticsTracker()
-            try: self.stats.increment('runs_started', 1)
-            except Exception: pass
-            self.stats_corrupt = False
-            self.stats_corrupt_backup = None
-        else: self.stats = None
 
     def trigger_choice_of_fates(self):
         """Generate two mutually exclusive stat choices for the player."""
@@ -288,12 +264,16 @@ class GameState:
     def update(self, dt, actions):
         """Update all game logic."""
         attack_pressed = actions.get('attack', False)
+        
         # 1. Update Interactables (High-Priority Spacebar processing)
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         nearby_interactables = self.world.get_nearby_interactables(player_rect)
-        if nearby_interactables: self.player.current_interactable = nearby_interactables[0]
-        else: self.player.current_interactable = None
+        if nearby_interactables:
+            self.player.current_interactable = nearby_interactables[0]
+        else:
+            self.player.current_interactable = None
 
+        # Unified Interaction Filter: If interacting, suppress combat
         if attack_pressed and self.player.current_interactable:
             self.player.current_interactable.execute_interaction(self)
             attack_pressed = False
@@ -329,7 +309,6 @@ class GameState:
 
         mouse_click = actions.get('mouse_click')
         if mouse_click:
-            from constants import SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT
             bx, by = 10 + HUD_SWAP_BTN_RECT[0], SCREEN_HEIGHT - HUD_PANEL_H - 10 + HUD_SWAP_BTN_RECT[1]
             if (bx <= mouse_click[0] <= bx + HUD_SWAP_BTN_RECT[2]) and (by <= mouse_click[1] <= by + HUD_SWAP_BTN_RECT[3]):
                 self.player.swap_weapon()
@@ -409,7 +388,6 @@ class GameState:
     def respawn_player(self):
         """Reset player to sanctuary after death."""
         from engine.maps import create_world
-        from constants import FLASK_MAX_CHARGES
         if self.stats:
             self.stats.data["last_run_result"] = "DEFEAT"
             self.stats.data["active_session_in_progress"] = False
