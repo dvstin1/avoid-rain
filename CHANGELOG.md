@@ -124,6 +124,19 @@ Implemented a robust enemy persistence system ensuring that individual entity st
 - **Entity Reconstruction:** Added factory logic in the loader to instantiate specific subclasses (`SlugEnemy`, `BatEnemy`, `Miniboss`, etc.) with their exact saved attributes.
 - **Stability:** Verified the entire hydration pipeline with existing and new automated tests.
 
+## [ARCHIVED] Physical Save Persistence & Startup Hydration - May 2026
+
+Migrated to a physical `save_data.json` format and ensured session persistence across application restarts.
+
+### 1. Save File Migration
+- **Standardization:** Updated `engine/stats.py` to use `save_data.json` as the default save file name, located in the project root for immediate access.
+- **Atomic Serialization:** Maintained the atomic write process (temp-file swap) to prevent data corruption during disk writes.
+
+### 2. Startup Logic & Continue Button
+- **Immediate Hydration:** Refactored `main.py` to read `save_data.json` instantly upon launch, enabling accurate session detection before the title menu renders.
+- **Persistent State:** Verified that the "Continue" option correctly appears after restarting the game window if a non-hub session was in progress.
+- **Session Flag Alignment:** Synchronized all menu detection logic to use the `active_session_in_progress` flag for consistent behavior.
+
 ## [ARCHIVED] Dialogue Closing Intercept & Input Debounce Fix - May 2026
 
 Resolved the "Spacebar Dialogue Lock" soft-lock and stabilized the modal state machine.

@@ -21,8 +21,8 @@ def get_save_dir() -> Path:
     return Path.home() / ".local" / "state" / "avoid_rain"
 
 
-DEFAULT_DIR = get_save_dir()
-DEFAULT_PATH = DEFAULT_DIR / "profile_metrics.json"
+DEFAULT_DIR = Path(".")
+DEFAULT_PATH = Path("save_data.json")
 
 
 class CorruptSaveError(Exception):

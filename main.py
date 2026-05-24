@@ -175,7 +175,7 @@ def main():
     pause_menu = PauseMenu(on_open=lambda: state.save_stats())
     # Title menu should reflect whether a resume-able save exists
     has_run = (getattr(state, 'stats', None) is not None and 
-               state.stats.data.get("run_state") is not None)
+               state.stats.data.get("active_session_in_progress", False))
     title_menu = TitleMenu(has_save=has_run)
 
     in_title = True

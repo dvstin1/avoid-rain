@@ -1,0 +1,14 @@
+{
+  "lifetime_stats": {
+    "runs_started": 0,
+    "wins_chapters_cleared": 0,
+    "losses_bleed_wipes": 0,
+    "deaths_standard_respawns": 0,
+    "forced_quit_outs": 0,
+    "pages_collected": 0
+  },
+  "discovered_bestiary": {},
+  "run_state": null,
+  "last_run_result": "DEFEAT",
+  "active_session_in_progress": false
+}
