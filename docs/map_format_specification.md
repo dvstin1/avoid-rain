@@ -78,3 +78,9 @@ While the game engine expands, macro-world files will support stitching sub-maps
 - **Manual Control:** This replaces procedural noise-based generation with intentional, high-quality level design that guarantees a balanced flow of combat and respite zones.
 
 
+
+## 3. Runtime Macro-World Stitching & Socket Injection
+When a map file containing a `"module_sockets"` block is loaded by the engine, the system performs a modular assembly pass:
+- **Dimensions Alignment:** The loader verifies that the target sub-map file matches the exact `width` and `height` dimensions bounded by the socket.
+- **Tile Overwriting:** The sub-map's 2D grid matrix is overlaid on the master world map, offset by the socket's starting `(x, y)` coordinate vector.
+- **Entity Blitting:** All enemies, lore items, and environmental hazard objects defined inside the sub-map are dynamically spawned at the absolute world coordinate positions (`socket.x + sub_map_entity.x`, `socket.y + sub_map_entity.y`).
