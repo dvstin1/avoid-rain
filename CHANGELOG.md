@@ -110,6 +110,24 @@ Restored the session persistence pipeline and synchronized the Title Menu with t
 - **True Hydration:** Verified that selecting "Continue" triggers `GameState.hydrate_from_disk()`, restoring the player exactly where they left off in the hostile zone.
 - **Verification:** Added `tests/test_session_persistence.py` to ensure the session lifecycle flag is correctly managed.
 
+## [ARCHIVED] Hard Persistent Save File Serialization & Startup Boot Hook - May 2026
+
+Migrated from internal in-memory session tracking to absolute, physical JSON disk persistence to ensure game state survival across application restarts.
+
+### 1. Hard Disk Serialization on Exit
+- **Physical Persistence:** Updated the session saving module to write directly to `save_data.json` in the project root.
+- **Data Integrity:** Implemented atomic write operations (using temporary files and `os.replace`) to prevent data corruption during unexpected exits.
+- **Payload Coverage:** Ensured that player coordinates, HP, flasks, weapons, and all living enemy states (position, health, type) are serialized.
+
+### 2. Main Boot Initialization Check
+- **Launch Hydration:** Refactored the main application entry point to perform an `os.path.exists()` check for `save_data.json` immediately upon startup.
+- **Dynamic Menu Reconstruction:** Updated the Title Menu to accurately detect the `active_session_in_progress` flag and inject the "Continue" option only when a valid run is available.
+- **Resilience:** Implemented exception handling for `json.JSONDecodeError` to gracefully manage malformed save files without crashing the application.
+
+### 3. Session Cleanup Rules
+- **Death Clearance:** Verified that player death or a clean warp-out to the Sanctuary correctly clears the `active_session_in_progress` flag and resets the `run_state` on disk.
+- **Verification:** Confirmed fix with comprehensive unit tests ensuring sessions are correctly set, cleared, and restored.
+
 ## [ARCHIVED] Dynamic Enemy Serialization & Level Restoration - May 2026
 
 Implemented a robust enemy persistence system ensuring that individual entity states are preserved across save sessions.

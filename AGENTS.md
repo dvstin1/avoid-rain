@@ -38,38 +38,4 @@
 
 ## Active Task: 
 
-### 1. Active Task: Hard Persistent Save File Serialization & Startup Boot Hook
-
-Ensure the game state fully survives application closure by replacing internal in-memory session tracking with absolute, physical JSON disk persistence.
-
-#### 1. Hard Disk Serialization on Exit
-- In your session saving module or main application exit event interceptor (where `pygame.QUIT` or Escape quit events are handled):
-  - Do not merely write variables to a local state class instance dictionary.
-  - Force a hard file serialize block to write directly to a local file (e.g., `save_data.json` or `.save_session.json`):
-    ~~~python
-    import json
-    save_payload = {
-        "in_progress": True,
-        "player_stats": player.serialize(),
-        "active_enemies": [e.serialize() for e in enemy_group]
-    }
-    with open("save_data.json", "w") as f:
-        json.dump(save_payload, f, indent=4)
-    ~~~
-
-#### 2. Main Boot Initialization Check
-- Update your main game loop initializer or main menu state startup hook (where the game first opens from the desktop terminal context):
-  - At the very top of execution, check if `save_data.json` exists on disk using `os.path.exists()`.
-  - If the file is present, safely open, read, and parse it:
-    ~~~python
-    try:
-        with open("save_data.json", "r") as f:
-            data = json.load(f)
-            if data.get("in_progress"):
-                # Append 'Continue' to the valid menu list arrays
-    except (FileNotFoundError, json.JSONDecodeError):
-        # Gracefully handle broken or missing files without crashing
-    ~~~
-
-#### 3. Clear Session State on Proper Death
-- Ensure that if the player experiences a clean run termination (death or manual game reset inside the Sanctuary), the file code overwrites `in_progress` to `False` or safely removes the file entirely (`os.remove()`) so a broken dead run cannot be indefinitely loaded.
+### 1. 
