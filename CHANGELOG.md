@@ -245,6 +245,14 @@ Refactored the map editor sidebar UI to use a compact, cyclic toggle for all ene
 - **Palette Divergence Law:** Ensured that all current engine enemy symbols are automatically registered in the editor palette.
 - **Rendering Alignment:** Updated the editor's grid and sidebar drawing code to correctly color-code all specialized spawner symbols.
 
+## [ARCHIVED] Interaction Prompt Scope Fix - May 2026
+
+Resolved a critical `UnboundLocalError` that occurred when interacting with NPCs and world objects.
+
+### 1. Renderer Correction
+- **Logic Consolidation:** Refactored `Renderer.draw_interaction_prompt()` to ensure `prompt_surf` is always initialized before use.
+- **Stability:** Fixed the crash reported when talking to the Chronicler or reading the Chronicle book in the Sanctuary.
+
 ## [ARCHIVED] Player Dash Mechanic - May 2026
 - **Dash Physics:** Implemented a high-speed directional dash burst (3.0x speed) with a 0.2s duration.
 - **Cooldown:** Established a 0.5s recovery window to balance combat mobility.

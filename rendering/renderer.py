@@ -38,12 +38,10 @@ class Renderer:
         if target.name == "The Chronicler": prompt_text = f"Speak to {target.name}"
         elif "Chronicle" in target.name or "Return" in target.name: prompt_text = f"Read {target.name}"
         elif hasattr(target, 'weapon_data'):
-            # Weapon pickup is now a HUD button
             prompt_text = "[Click [PICK UP] on HUD to claim weapon]"
-            prompt_surf = self.font.render(prompt_text, True, constants.COLOR_WHITE)
-            px, py = player.get_center()
-            self.screen.blit(prompt_surf, (px - prompt_surf.get_width() // 2 - offset_x, py - player.height - 20 - offset_y))
-            return
+        else: prompt_text = f"Interact with {target.name}" if hasattr(target, 'name') else "Interact"
+        
+        prompt_surf = self.font.render(prompt_text, True, constants.COLOR_WHITE)
         px, py = player.get_center()
         self.screen.blit(prompt_surf, (px - prompt_surf.get_width() // 2 - offset_x, py - player.height - 20 - offset_y))
 
