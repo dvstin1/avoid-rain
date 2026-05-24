@@ -38,6 +38,4 @@
 
 ## Active Task: 
 
-### 1. 4. Expansion of Test Minibosses
-
-    In engine/enemy.py and maps/world_map1.json, introduce and place two new distinct elite symbols (M2 for Bleeding Scribe, M3 for Forgotten Binder) in separate large rooms so they can be hunted and tested independently during a single run.
+### 1. 
