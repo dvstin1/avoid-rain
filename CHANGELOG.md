@@ -168,6 +168,20 @@ Updated the save system to use XDG-compliant configuration paths and guaranteed 
 - **Hard Persistence:** The shutdown handler performs a final synchronous `save_stats(wait=True)` call, ensuring that session data is perfectly flushed to the hard drive even if the game window is abruptly closed.
 - **Verification:** Verified path resolution and session flag persistence with automated tests.
 
+## [ARCHIVED] Map Editor Overhaul & Interaction Prompt Refinement - May 2026
+
+Enhanced the developer toolset with a visual file picker and dynamic palette synchronization, while refining player-facing interaction strings.
+
+### 1. Map Editor Visual Overhaul
+- **Visual Map Picker (Ctrl+O):** Replaced text-buffer loading with a scrollable overlay containing all discovered `.json` map files. Added Arrow key navigation and `Enter` selection.
+- **Palette Divergence Law:** Refactored the palette to dynamically include all engine-supported enemy variants, including the new `M2` (Bleeding Scribe) and `M3` (Forgotten Binder) elites.
+- **Palette Coloring:** Updated editor rendering to correctly color-code all specialized spawners and structural tiles.
+
+### 2. UI & Interaction Strings
+- **Prompt Refinement:** Updated `Renderer.draw_interaction_prompt()` to remove weapon collection from the `SPACE` key instruction.
+- **HUD Guidance:** The ground weapon prompt now explicitly reads: `"[Click [PICK UP] on HUD to claim weapon]"`, aligning with the recently decoupled input scheme.
+- **Stability:** Verified that interaction modals and prompt layers correctly prioritize player focus without overlapping instructions.
+
 ## [ARCHIVED] Dialogue Closing Intercept & Input Debounce Fix - May 2026
 
 Resolved the "Spacebar Dialogue Lock" soft-lock and stabilized the modal state machine.

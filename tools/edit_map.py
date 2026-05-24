@@ -18,7 +18,7 @@ from constants import (
     COLOR_PURPLE, COLOR_GREY
 )
 
-# Legend for the editor palette
+# Legend for the editor palette - Synchronized with constants.py
 PALETTE = [
     ('#', 'WALL'),
     ('.', 'EMPTY'),
@@ -38,7 +38,11 @@ PALETTE = [
     ('R', 'RESPITE'),
     ('A', 'BAT_SPAWN'),
     ('Z', 'SLUG_SPAWN'),
-    ('E', 'MINIBOSS_SPAWN')
+    ('f', 'FLUTTER_SPAWN'),
+    ('b', 'BINDLING_SPAWN'),
+    ('E', 'MINIBOSS_M1'),
+    ('2', 'MINIBOSS_M2'),
+    ('3', 'MINIBOSS_M3')
 ]
 
 class MapEditor:
@@ -64,8 +68,13 @@ class MapEditor:
         self.zoom = 1.0
 
         self.filename = "new_map.json"
-        self.input_mode = None  # 'SAVE' or 'LOAD'
+        self.input_mode = None  # 'SAVE', 'LOAD', or 'PICKER'
         self.input_buffer = ""
+        
+        # File Picker State
+        self.map_files = []
+        self.file_picker_idx = 0
+        self.scroll_offset = 0
 
         # Tool State
         self.active_tool = "PENCIL"  # "PENCIL" or "RECTANGLE"
@@ -147,7 +156,7 @@ class MapEditor:
                     color = COLOR_PURPLE
                 elif char == 'P':
                     color = COLOR_BLUE
-                elif char in ('A', 'Z', 'E'):
+                elif char in ('A', 'Z', 'E', '2', '3', 'f', 'b'):
                     color = COLOR_RED
 
                 pygame.draw.rect(self.screen, color, rect)
@@ -209,7 +218,7 @@ class MapEditor:
                 p_color = COLOR_PURPLE
             elif char == 'P':
                 p_color = COLOR_BLUE
-            elif char in ('A', 'Z', 'E'):
+            elif char in ('A', 'Z', 'E', '2', '3', 'f', 'b'):
                 p_color = COLOR_RED
             pygame.draw.rect(self.screen, p_color, p_rect)
             pygame.draw.rect(self.screen, COLOR_WHITE, p_rect, 1)
@@ -226,6 +235,32 @@ class MapEditor:
         self.screen.blit(self.font.render(ctrl_h, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 60))
         ctrl_f = "Ctrl+S: Save, Ctrl+O: Load"
         self.screen.blit(self.font.render(ctrl_f, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 40))
+
+    def draw_file_picker(self):
+        """Draws a scrollable list of maps for selection."""
+        overlay_w, overlay_h = 400, 500
+        x, y = (SCREEN_WIDTH + self.sidebar_width) // 2 - overlay_w // 2, SCREEN_HEIGHT // 2 - overlay_h // 2
+        rect = pygame.Rect(x, y, overlay_w, overlay_h)
+        
+        pygame.draw.rect(self.screen, (30, 30, 40), rect)
+        pygame.draw.rect(self.screen, COLOR_WHITE, rect, 2)
+        
+        title = self.large_font.render("Select Map (Enter to Load)", True, COLOR_YELLOW)
+        self.screen.blit(title, (rect.centerx - title.get_width() // 2, rect.y + 10))
+        
+        # Draw scrollable list
+        start_y = rect.y + 70
+        visible_count = 12
+        for i in range(self.scroll_offset, min(len(self.map_files), self.scroll_offset + visible_count)):
+            color = COLOR_YELLOW if i == self.file_picker_idx else COLOR_WHITE
+            file_name = self.map_files[i]
+            surf = self.font.render(file_name, True, color)
+            
+            row_rect = pygame.Rect(rect.x + 20, start_y + (i - self.scroll_offset) * 30, overlay_w - 40, 25)
+            if i == self.file_picker_idx:
+                pygame.draw.rect(self.screen, (60, 60, 80), row_rect)
+            
+            self.screen.blit(surf, (row_rect.x + 5, row_rect.y + 2))
 
     def draw_input_banner(self):
         """Draws the input banner overlay."""
@@ -250,9 +285,29 @@ class MapEditor:
         self.draw_grid(ts)
         self.draw_selection_preview(ts)
         self.draw_sidebar(SCREEN_WIDTH)
-        if self.input_mode:
+        if self.input_mode == 'PICKER':
+            self.draw_file_picker()
+        elif self.input_mode:
             self.draw_input_banner()
         pygame.display.flip()
+
+    def handle_file_picker(self, event):
+        """Handles navigation and selection in the file picker."""
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP:
+                self.file_picker_idx = max(0, self.file_picker_idx - 1)
+                if self.file_picker_idx < self.scroll_offset:
+                    self.scroll_offset = self.file_picker_idx
+            elif event.key == pygame.K_DOWN:
+                self.file_picker_idx = min(len(self.map_files) - 1, self.file_picker_idx + 1)
+                if self.file_picker_idx >= self.scroll_offset + 12:
+                    self.scroll_offset = self.file_picker_idx - 11
+            elif event.key == pygame.K_RETURN:
+                if self.map_files:
+                    self.load_map(self.map_files[self.file_picker_idx])
+                self.input_mode = None
+            elif event.key == pygame.K_ESCAPE:
+                self.input_mode = None
 
     def handle_input_mode(self, event):
         """Handles events when in input mode."""
@@ -303,8 +358,14 @@ class MapEditor:
                 self.input_buffer = self.filename
                 return
             if event.key == pygame.K_o:
-                self.input_mode = 'LOAD'
-                self.input_buffer = ""
+                # Scan for maps
+                maps_dir = "maps"
+                if os.path.exists(maps_dir):
+                    self.map_files = [f for f in os.listdir(maps_dir) if f.endswith(".json")]
+                    self.map_files.sort()
+                self.input_mode = 'PICKER'
+                self.file_picker_idx = 0
+                self.scroll_offset = 0
                 return
 
         if event.key == pygame.K_b:
@@ -361,7 +422,9 @@ class MapEditor:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
-            if self.input_mode:
+            if self.input_mode == 'PICKER':
+                self.handle_file_picker(event)
+            elif self.input_mode:
                 self.handle_input_mode(event)
             else:
                 if event.type == pygame.KEYDOWN:

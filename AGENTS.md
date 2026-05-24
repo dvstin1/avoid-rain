@@ -18,6 +18,8 @@
 - Always create a single git commit for each user prompt that requires code or documentation changes. Each commit should be atomic, include a clear message, and include the required Co-authored-by trailer.
 - Do NOT push commits to remote automatically. Pushing is not needed unless explicitly requested.
 - Keep changes low-coupled and limited to the files required by the user's request.
+- **Map Editor Architecture Rules:**
+  1. **Palette Divergence Law:** Whenever a new structural tile, item type, or enemy symbol (e.g., Miniboss strains) is added to the core game engine, you must instantly update the map editor's palette loading dictionary to mirror that addition. The palette layout must never fall out of synchronization with engine configurations.
 
 ## Definition of Ready (DoR) Checklist
 1. [X] **Application Architecture Defined:** See `docs/architecture.md`.
