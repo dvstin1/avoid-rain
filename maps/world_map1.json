@@ -70,7 +70,8 @@
         "y": 3,
         "width": 7,
         "height": 7
-      }
+      },
+      "active_plug": "maps/test_m1.json"
     },
     {
       "name": "M2",
@@ -79,7 +80,8 @@
         "y": 3,
         "width": 7,
         "height": 7
-      }
+      },
+      "active_plug": "maps/test_m2.json"
     }
   ]
 }

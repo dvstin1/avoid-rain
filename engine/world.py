@@ -1,6 +1,7 @@
 """
 Handles world grid, map sections, and static obstacles.
 """
+import os
 import json
 from constants import (
     GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP,
@@ -243,12 +244,65 @@ class LevelLoader:
     """
     @staticmethod
     def load_json_map(file_path, saved_enemies=None):
-        """Loads a JSON map file and parses it."""
+        """Loads a JSON map file and parses it, supporting modular stitching."""
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
-        # Convert "x,y" string keys back to (x, y) tuples for LevelLoader
+        grid = [list(row) for row in data["grid"]]
         raw_entities = data.get("entities", {})
+        
+        # 1. Modular Assembly Pass
+        module_sockets = data.get("module_sockets", [])
+        for socket in module_sockets:
+            active_plug = socket.get("active_plug")
+            if not active_plug:
+                continue
+            
+            # Resolve path relative to project root or maps dir
+            if not os.path.exists(active_plug):
+                alt_path = os.path.join("maps", os.path.basename(active_plug))
+                if os.path.exists(alt_path):
+                    active_plug = alt_path
+                else:
+                    print(f"[WARNING] Sub-map {active_plug} not found for socket {socket['name']}")
+                    continue
+
+            try:
+                with open(active_plug, 'r', encoding='utf-8') as f:
+                    sub_data = json.load(f)
+                
+                b = socket["bounds"]
+                sw = sub_data["dimensions"]["width"]
+                sh = sub_data["dimensions"]["height"]
+
+                # Dimensions Alignment Rule
+                if sw != b["width"] or sh != b["height"]:
+                    print(f"[WARNING] Dimension mismatch for socket {socket['name']}: "
+                          f"Expected {b['width']}x{b['height']}, got {sw}x{sh}")
+                    continue
+
+                # Tile Overwriting
+                sub_grid = sub_data["grid"]
+                for sy in range(sh):
+                    for sx in range(sw):
+                        grid[b["y"] + sy][b["x"] + sx] = sub_grid[sy][sx]
+
+                # Entity Blitting (Absolute World Coordinates)
+                sub_entities = sub_data.get("entities", {})
+                for k, v in sub_entities.items():
+                    try:
+                        ex, ey = map(int, k.split(','))
+                        abs_x = b["x"] + ex
+                        abs_y = b["y"] + ey
+                        raw_entities[f"{abs_x},{abs_y}"] = v
+                    except ValueError:
+                        continue
+                
+                print(f"[DEBUG] Stitched sub-map {active_plug} into socket {socket['name']}")
+            except Exception as e:
+                print(f"[ERROR] Failed to stitch sub-map {active_plug}: {e}")
+
+        # Convert "x,y" string keys back to (x, y) tuples for LevelLoader
         entity_data = {}
         for k, v in raw_entities.items():
             try:
@@ -257,7 +311,7 @@ class LevelLoader:
             except ValueError:
                 continue
 
-        return LevelLoader.parse_map(data["grid"], entity_data, saved_enemies=saved_enemies)
+        return LevelLoader.parse_map(["".join(row) for row in grid], entity_data, saved_enemies=saved_enemies)
 
     @staticmethod
     def parse_map(prototype_array, entity_data=None, saved_enemies=None):
