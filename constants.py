@@ -238,9 +238,16 @@ DIALOGUE_MANIFEST = {
             "the Chronicler was the entity designed to record history with clarity and care."
         ),
         "lotus_page": (
-            "Within the Libram, reality follows typography. The master map structure is called "
-            "the Lotus Page. The solid frame represents the immutable, preserved margins. "
-            "The hollow cells are literal blank windows where stories are drafted."
+        "Within the Libram, reality follows typography. The master map structure is called "
+        "the Lotus Page. The solid frame represents the immutable, preserved margins. "
+        "The hollow cells are literal blank windows where stories are drafted."
+        ),
+        "half_cleft_manuscript": (
+        "The quill was never meant to be a weapon. It was a tool of preservation. "
+        "But when the ink began to boil, we had no choice but to sharpen the nibs. "
+        "Half the world is now Cleft, separated by a margin that no longer holds its shape. "
+        "If you are reading this, you are the last Editor. Please... finish the sentence we could not."
         )
-    }
-}
+        }
+        }
+
