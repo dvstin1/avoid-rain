@@ -176,6 +176,20 @@ Resolved a critical `NameError` that occurred when rendering loot items dropped 
 - **Typo Fix:** Corrected a variable reference in `Renderer.draw_loot()` where `draw_rect.width` was used instead of the correctly defined `dr.width`.
 - **Stability:** Verified that `HealItem` icons (Red cross on white background) render correctly without crashing the engine.
 
+## [ARCHIVED] HUD Proximity Pickup Button & Spacebar De-confliction - May 2026
+
+Decoupled weapon collection from the keyboard combat input layer, replacing it with an interactive HUD element.
+
+### 1. Interaction Refactor
+- **Spacebar De-confliction:** Removed the ability to pick up or swap weapons via the `SPACE` key. Spacebar is now exclusively reserved for attacks and non-item interactions (NPCs, Lore Lecterns).
+- **HUD [PICK UP] Button:** Implemented a new clickable HUD button that appears only when the player is standing within proximity of a `WeaponPickup` object.
+- **Contextual Visuals:** The button outline dynamically matches the weapon's tier color (White for Common, Purple for Anomalous).
+
+### 2. Click Handling & Inventory Logic
+- **UI Interaction:** Added mouse click detection for the new button region. 
+- **Inventory Integration:** Clicking `[PICK UP]` correctly handles adding the weapon to an empty slot or swapping/dropping the currently active weapon if the Cradle is full.
+- **Verification:** Added `tests/test_pickup_button.py` to confirm input suppression and button functionality.
+
 ## [ARCHIVED] Player Dash Mechanic - May 2026
 - **Dash Physics:** Implemented a high-speed directional dash burst (3.0x speed) with a 0.2s duration.
 - **Cooldown:** Established a 0.5s recovery window to balance combat mobility.

@@ -272,6 +272,19 @@ class Renderer:
         pygame.draw.rect(hud_surf, constants.COLOR_WHITE, swr, 1)
         swt = pygame.font.SysFont("Arial", 14, bold=True).render("SWAP", True, constants.COLOR_WHITE)
         hud_surf.blit(swt, (swr.centerx - swt.get_width()//2, swr.centery - swt.get_height()//2))
+
+        # [PICK UP] Button - only visible if standing over a WeaponPickup
+        from engine.world import WeaponPickup
+        target = state.player.current_interactable
+        if isinstance(target, WeaponPickup):
+            pkr = pygame.Rect(constants.HUD_PICKUP_BTN_RECT)
+            # Use tier color for button outline
+            col = constants.COLOR_PURPLE if "modifiers" in target.weapon_data else constants.COLOR_WHITE
+            pygame.draw.rect(hud_surf, (40, 60, 40), pkr) # Dark green tint for pickup
+            pygame.draw.rect(hud_surf, col, pkr, 2)
+            pkt = pygame.font.SysFont("Arial", 14, bold=True).render("PICK UP", True, constants.COLOR_WHITE)
+            hud_surf.blit(pkt, (pkr.centerx - pkt.get_width()//2, pkr.centery - pkt.get_height()//2))
+
         self.screen.blit(hud_surf, (10, self.screen.get_height() - constants.HUD_PANEL_H - 10))
 
     def draw_loot(self, item, offset_x, offset_y):

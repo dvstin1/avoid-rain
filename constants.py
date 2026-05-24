@@ -134,8 +134,11 @@ HUD_SLOT_W = 100
 HUD_SLOT_H = 60
 HUD_SWAP_BTN_W = 60
 HUD_SWAP_BTN_H = 30
-# Pre-calculate the swap button rect relative to HUD panel (will be adjusted in renderer)
-HUD_SWAP_BTN_RECT = (110, 45, HUD_SWAP_BTN_W, HUD_SWAP_BTN_H) 
+HUD_PICKUP_BTN_W = 80
+HUD_PICKUP_BTN_H = 30
+# Position buttons adjacent to each other in the HUD panel
+HUD_SWAP_BTN_RECT = (110, 45, HUD_SWAP_BTN_W, HUD_SWAP_BTN_H)
+HUD_PICKUP_BTN_RECT = (180, 45, HUD_PICKUP_BTN_W, HUD_PICKUP_BTN_H)
 
 # Minimap configuration (pixels)
 MINIMAP_WIDTH = 200

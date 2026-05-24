@@ -12,7 +12,7 @@ from constants import (
     SWORD_DAMAGE, COLOR_YELLOW, COLOR_WHITE, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
     PLAYER_MAX_HP, FLASK_MAX_CHARGES,
     SCREEN_SHAKE_DURATION, HIT_STOP_DURATION,
-    SCREEN_HEIGHT, SCREEN_WIDTH, HUD_PANEL_H, HUD_SWAP_BTN_RECT,
+    SCREEN_WIDTH, SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT, HUD_PICKUP_BTN_RECT,
     TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED
 )
 from engine.player import Player, PlayerStateEnum
@@ -276,7 +276,10 @@ class GameState:
         else:
             self.player.current_interactable = None
 
-        if attack_pressed and self.player.current_interactable:
+        # Unified Interaction Filter: If interacting, suppress combat
+        # WeaponPickup is excluded from SPACE bar (now handled via HUD button)
+        from engine.world import WeaponPickup
+        if attack_pressed and self.player.current_interactable and not isinstance(self.player.current_interactable, WeaponPickup):
             self.player.current_interactable.execute_interaction(self)
             attack_pressed = False
 
@@ -305,9 +308,18 @@ class GameState:
 
         mouse_click = actions.get('mouse_click')
         if mouse_click:
-            bx, by = 10 + HUD_SWAP_BTN_RECT[0], SCREEN_HEIGHT - HUD_PANEL_H - 10 + HUD_SWAP_BTN_RECT[1]
-            if (bx <= mouse_click[0] <= bx + HUD_SWAP_BTN_RECT[2]) and (by <= mouse_click[1] <= by + HUD_SWAP_BTN_RECT[3]):
+            # HUD Button Collision Check
+            bx, by = 10, SCREEN_HEIGHT - HUD_PANEL_H - 10
+            # [SWAP] Button check
+            sb = HUD_SWAP_BTN_RECT
+            if (bx + sb[0] <= mouse_click[0] <= bx + sb[0] + sb[2]) and (by + sb[1] <= mouse_click[1] <= by + sb[1] + sb[3]):
                 self.player.swap_weapon()
+            # [PICK UP] Button check
+            pb = HUD_PICKUP_BTN_RECT
+            if (bx + pb[0] <= mouse_click[0] <= bx + pb[0] + pb[2]) and (by + pb[1] <= mouse_click[1] <= by + pb[1] + pb[3]):
+                target = self.player.current_interactable
+                if isinstance(target, WeaponPickup):
+                    target.execute_interaction(self)
 
         walls = self.world.get_nearby_walls(player_rect)
         speed_multiplier = 1.0
