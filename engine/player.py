@@ -8,7 +8,7 @@ from constants import (
     PLAYER_WIDTH, PLAYER_HEIGHT, SWORD_DURATION,
     GRID_WIDTH, GRID_HEIGHT, TILE_SIZE,
     PLAYER_MAX_HP, FLASK_MAX_CHARGES, FLASK_HEAL_AMOUNT,
-    STAGGER_DURATION
+    STAGGER_DURATION, SWORD_DAMAGE
 )
 from engine.physics import resolve_wall_collision
 
@@ -43,9 +43,21 @@ class Player:
         }
         self.hp = PLAYER_MAX_HP
         self.flask_charges = FLASK_MAX_CHARGES
+        # Dual-Weapon Inventory Management
+        self.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
+        self.active_weapon_idx = 0
+
+    def swap_weapon(self):
+        """Toggle the active weapon slot if the player is not currently attacking."""
+        if self.state != PlayerStateEnum.ATTACKING and len(self.weapons) > 1:
+            self.active_weapon_idx = (self.active_weapon_idx + 1) % len(self.weapons)
+
+    def get_active_weapon(self):
+        """Return the currently selected weapon dictionary."""
+        return self.weapons[self.active_weapon_idx]
 
     def update(
-        self, dt, move_dir, walls, attack_pressed=False, flask_pressed=False,
+        self, dt, move_dir, walls, actions, attack_pressed=False, flask_pressed=False,
         dash_pressed=False, block_pressed=False, speed_multiplier=1.0
     ):
         """
@@ -94,6 +106,10 @@ class Player:
         # 0. Handle Flask
         if flask_pressed:
             self.use_flask()
+
+        # Handle Weapon Swap
+        if actions.get('swap', False):
+            self.swap_weapon()
 
         dx, dy = move_dir
 

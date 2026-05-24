@@ -181,3 +181,34 @@ class ChoiceOfFates:
         """Trigger the Choice of Fates UI in GameState."""
         if hasattr(state, 'trigger_choice_of_fates'):
             state.trigger_choice_of_fates()
+
+
+class WeaponItem:
+    """A weapon dropped in the world that can be equipped by the player."""
+    def __init__(self, x, y, weapon_data: dict):
+        self.x = x
+        self.y = y
+        self.width = 20
+        self.height = 20
+        self.name = weapon_data.get("name", "Unknown Weapon")
+        self.weapon_data = weapon_data
+
+    def get_rect(self):
+        """Returns the bounding box."""
+        return (self.x, self.y, self.width, self.height)
+
+    def execute_pickup(self, state):
+        """
+        Implementation of the Two-Slot Cradle logic:
+        - If space available (< 2), add to weapons.
+        - If full (== 2), swap active weapon and drop the old one.
+        """
+        player = state.player
+        if len(player.weapons) < 2:
+            player.weapons.append(self.weapon_data)
+        else:
+            # Swap: Replace active weapon and drop the old one
+            old_weapon = player.get_active_weapon()
+            player.weapons[player.active_weapon_idx] = self.weapon_data
+            # Drop old weapon at player's current position
+            state.loot.append(WeaponItem(player.x, player.y, old_weapon))

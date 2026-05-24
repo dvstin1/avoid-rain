@@ -468,7 +468,7 @@ class GameState:
                     break
 
         self.player.update(
-            dt, move_dir, walls, attack_pressed, flask_pressed,
+            dt, move_dir, walls, actions, attack_pressed, flask_pressed,
             dash_pressed, block_pressed, speed_multiplier
         )
 
@@ -487,7 +487,8 @@ class GameState:
                     self.shake_timer = SCREEN_SHAKE_DURATION
 
             # Apply hits to enemies
-            damage = SWORD_DAMAGE + getattr(self.player, 'stats', {}).get('attack_modifier', 0)
+            active_weapon = self.player.get_active_weapon()
+            damage = active_weapon.get("damage", SWORD_DAMAGE) + getattr(self.player, 'stats', {}).get('attack_modifier', 0)
             for enemy in list(self.enemies):
                 try:
                     if check_aabb_collision(hitbox, enemy.get_rect()):
@@ -525,6 +526,10 @@ class GameState:
         for enemy in list(self.enemies):
             if enemy.is_dead():
                 try:
+                    # Trigger death-specific logic (like the Full-Cradle Rule)
+                    if hasattr(enemy, 'on_death'):
+                        enemy.on_death(self)
+                    
                     self.enemies.remove(enemy)
                     # Trigger Tiered Loot Roll
                     from engine.loot import roll_drop

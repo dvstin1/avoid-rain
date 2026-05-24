@@ -309,6 +309,32 @@ class Miniboss(Enemy):
             return True
         return False
 
+    def on_death(self, state):
+        """Implement the Full-Cradle Rule for weapon drops."""
+        import random
+        from engine.loot import WeaponItem
+        
+        player_weapons_count = len(state.player.weapons)
+        
+        if player_weapons_count < 2:
+            # Drop Standard Weapon
+            weapon_data = {"name": "Refined Quill", "damage": 15}
+            state.loot.append(WeaponItem(self.x, self.y, weapon_data))
+        else:
+            # Full-Cradle Rule: Drop Anomalous Weapon
+            anomalies = [
+                {"effect": "INK_BLEED", "damage_bonus": 5},
+                {"effect": "VOID_STRIKE", "damage_bonus": 3},
+                {"effect": "CHRONICLE_ECHO", "damage_bonus": 4}
+            ]
+            anomaly = random.choice(anomalies)
+            weapon_data = {
+                "name": f"Anomalous {anomaly['effect'].replace('_', ' ').title()}",
+                "damage": 20 + anomaly["damage_bonus"],
+                "modifiers": anomaly
+            }
+            state.loot.append(WeaponItem(self.x, self.y, weapon_data))
+
 
 class FlutterEnemy(Enemy):
     """A skittish enemy that flees from the player.
