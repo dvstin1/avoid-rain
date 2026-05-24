@@ -110,6 +110,20 @@ Restored the session persistence pipeline and synchronized the Title Menu with t
 - **True Hydration:** Verified that selecting "Continue" triggers `GameState.hydrate_from_disk()`, restoring the player exactly where they left off in the hostile zone.
 - **Verification:** Added `tests/test_session_persistence.py` to ensure the session lifecycle flag is correctly managed.
 
+## [ARCHIVED] Dynamic Enemy Serialization & Level Restoration - May 2026
+
+Implemented a robust enemy persistence system ensuring that individual entity states are preserved across save sessions.
+
+### 1. Enemy State Capture
+- **Dynamic Serialization:** Updated `GameState.save_stats()` to iterate through all active enemies and capture their `type`, `(x, y)` float coordinates, and current `hp`.
+- **Loot Integration:** Ensured that dead enemies (removed from the state) are naturally excluded from the save file, preventing respawns on load.
+
+### 2. Level Loading & Override Rule
+- **Loader Refactor:** Updated `LevelLoader.parse_map()` and `World.load_from_prototype()` to accept an optional `saved_enemies` list.
+- **The Override Rule:** Implemented logic to bypass default grid-symbol spawning when saved entity data is provided. This ensures that reconstruction only occurs from the persistent save state, preventing duplication.
+- **Entity Reconstruction:** Added factory logic in the loader to instantiate specific subclasses (`SlugEnemy`, `BatEnemy`, `Miniboss`, etc.) with their exact saved attributes.
+- **Stability:** Verified the entire hydration pipeline with existing and new automated tests.
+
 ## [ARCHIVED] Dialogue Closing Intercept & Input Debounce Fix - May 2026
 
 Resolved the "Spacebar Dialogue Lock" soft-lock and stabilized the modal state machine.

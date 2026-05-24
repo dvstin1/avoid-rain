@@ -12,7 +12,7 @@ from constants import (
     SWORD_DAMAGE, COLOR_YELLOW, COLOR_WHITE, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
     PLAYER_MAX_HP, FLASK_MAX_CHARGES,
     SCREEN_SHAKE_DURATION, HIT_STOP_DURATION,
-    SCREEN_WIDTH, SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT,
+    SCREEN_HEIGHT, SCREEN_WIDTH, HUD_PANEL_H, HUD_SWAP_BTN_RECT,
     TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED
 )
 from engine.player import Player, PlayerStateEnum
@@ -63,7 +63,8 @@ class GameState:
                 # Restore World
                 from engine.maps import create_world
                 world_name = run_data.get("world_name", "sanctuary")
-                self.world = create_world(world_name)
+                saved_enemies = run_data.get("enemies", [])
+                self.world = create_world(world_name, saved_enemies=saved_enemies)
 
                 # Restore Player
                 p_data = run_data.get("player", {})
@@ -71,26 +72,11 @@ class GameState:
                 self.player.y = float(p_data.get("y", PLAYER_START_Y))
                 self.player.hp = float(p_data.get("hp", PLAYER_MAX_HP))
                 self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
+                self.player.active_weapon_idx = int(p_data.get("active_weapon_idx", 0))
+                self.player.weapons = p_data.get("weapons", self.player.weapons)
 
                 # Restore Enemies
-                if "enemies" in run_data:
-                    self.enemies = []
-                    e_data_list = run_data["enemies"]
-                    for e_data in e_data_list:
-                        if e_data.get("type") == "SlugEnemy":
-                            from engine.enemy import SlugEnemy
-                            self.enemies.append(SlugEnemy.from_dict(e_data))
-                        elif e_data.get("type") == "BatEnemy":
-                            from engine.enemy import BatEnemy
-                            self.enemies.append(BatEnemy.from_dict(e_data))
-                        elif e_data.get("type") == "FlutterEnemy":
-                            from engine.enemy import FlutterEnemy
-                            self.enemies.append(FlutterEnemy.from_dict(e_data))
-                        elif e_data.get("type") == "BindlingEnemy":
-                            from engine.enemy import BindlingEnemy
-                            self.enemies.append(BindlingEnemy.from_dict(e_data))
-                else:
-                    self.enemies = getattr(self.world, 'enemies', [])
+                self.enemies = getattr(self.world, 'enemies', [])
             except Exception:
                 pass
         else:
@@ -139,6 +125,7 @@ class GameState:
 
     def hydrate_from_disk(self):
         """Reload state exclusively from the persistent disk file."""
+        from engine.stats import StatisticsTracker
         from engine.maps import create_world
         try:
             self.stats = StatisticsTracker.load()
@@ -148,16 +135,21 @@ class GameState:
         run_data = self.stats.data.get("run_state")
         if run_data:
             world_name = run_data.get("world_name", "sanctuary")
-            self.world = create_world(world_name)
+            saved_enemies = run_data.get("enemies", [])
+            self.world = create_world(world_name, saved_enemies=saved_enemies)
             p_data = run_data.get("player", {})
             spawn_x = float(p_data.get("x", self.world.player_start[0]))
             spawn_y = float(p_data.get("y", self.world.player_start[1]))
             self.player = Player(spawn_x, spawn_y)
             self.player.hp = float(p_data.get("hp", PLAYER_MAX_HP))
             self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
+            self.player.active_weapon_idx = int(p_data.get("active_weapon_idx", 0))
+            self.player.weapons = p_data.get("weapons", self.player.weapons)
+            self.enemies = getattr(self.world, 'enemies', [])
         else:
             self.world = create_world("sanctuary")
             self.player = Player(self.world.player_start[0], self.world.player_start[1])
+            self.enemies = getattr(self.world, 'enemies', [])
 
         self.loot = []
         self.fading_entities = []
@@ -174,6 +166,7 @@ class GameState:
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
         if self.stats:
             self.stats.data["run_state"] = None
+            self.stats.data["active_session_in_progress"] = False
             try:
                 self.stats.increment("runs_started", 1)
             except Exception: pass
