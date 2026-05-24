@@ -18,7 +18,7 @@ To maintain the **Decoupled Design** constraint, input must be translated from r
 
 ## 3. Discrete & Charged Input (Actions/Combat)
 - **Mechanism:** Hybrid Event/Polling.
-- **Keys:** Spacebar (Attack), Shift (Dash), E (Interact).
+- **Keys:** Spacebar (Attack / Interact), Shift (Dash), Q (Weapon Swap), 1 (Flask), K (Block).
 - **Behavior:**
     - **Initial Trigger:** `pygame.KEYDOWN` starts the action sequence.
     - **Charged Attack (Hold):** 

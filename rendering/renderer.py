@@ -931,7 +931,7 @@ class Renderer:
         # Draw Inputs
         inputs = [
             ("Movement:", "WASD / Arrows"),
-            ("Attack / Interact:", "Space / E"),
+            ("Attack / Interact:", "Space"),
             ("Dash:", "Left Shift"),
             ("Flask:", "1"),
             ("Block:", "K"),
@@ -962,3 +962,4 @@ class Renderer:
         self.screen.blit(back_surf, back_surf.get_rect(center=(cx, start_y + len(inputs) * spacing + 40)))
         
         pygame.display.flip()
+p()
