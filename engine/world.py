@@ -69,6 +69,10 @@ class WarpPortal(GameObject):
                 game_state.player.flask_charges = int(FLASK_MAX_CHARGES)
                 game_state.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
                 game_state.player.active_weapon_idx = 0
+                # Lifecycle Boundary: Permanent Sanctuary return clears session
+                if game_state.stats:
+                    game_state.stats.data["active_session_in_progress"] = False
+                    game_state.stats.data["run_state"] = None
             else:
                 # State Reset Rule: When starting a new run through the book, reset result to INIT
                 if game_state.stats:

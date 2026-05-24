@@ -338,31 +338,103 @@ class Miniboss(Enemy):
 
 
 class MinibossM2(Miniboss):
-    """Variant M2: High-health tank miniboss."""
+    """Variant M2: Bleeding Scribe - Fast, erratic pursuit miniboss."""
     def __init__(self, x, y, hp=None):
-        from constants import MINIBOSS_MAX_HP
-        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP * 2
+        from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
+        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
         super().__init__(x, y, initial_hp)
-        self.name = "Miniboss M2"
+        self.name = "Bleeding Scribe"
+        self.speed = MINIBOSS_SPEED * 1.3
+        self._sine_timer = 0.0
 
     def to_dict(self):
         d = super().to_dict()
         d["type"] = "MinibossM2"
         return d
 
+    def update(self, dt, state):
+        """Move toward the player with erratic sine-wave oscillation."""
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+            return
+
+        player_cx, player_cy = state.player.get_center()
+        cx, cy = self.x + self.width / 2, self.y + self.height / 2
+        dx, dy = player_cx - cx, player_cy - cy
+        dist_sq = dx * dx + dy * dy
+
+        if dist_sq <= (self.detect_radius * self.detect_radius):
+            dist = math.sqrt(dist_sq) if dist_sq > 0 else 0.0
+            if dist > 0.0:
+                nx, ny = dx / dist, dy / dist
+                # Erratic oscillation component
+                self._sine_timer += dt * 8.0
+                osc = math.sin(self._sine_timer) * 120.0
+                self.vx = nx * self.speed + (-ny) * osc
+                self.vy = ny * self.speed + nx * osc
+                self.x += self.vx * dt
+                self.y += self.vy * dt
+                try:
+                    walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
+                    self.x, self.y = resolve_wall_collision((self.x, self.y, self.width, self.height), walls)
+                except Exception: pass
+        else:
+            self.vx, self.vy = 0.0, 0.0
+        if self._damage_timer > 0.0: self._damage_timer -= dt
+
 
 class MinibossM3(Miniboss):
-    """Variant M3: High-speed pursuit miniboss."""
+    """Variant M3: Forgotten Binder - Area-denial and teleporting miniboss."""
     def __init__(self, x, y, hp=None):
-        from constants import MINIBOSS_SPEED
-        super().__init__(x, y, hp)
-        self.speed = MINIBOSS_SPEED * 1.5
-        self.name = "Miniboss M3"
+        from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
+        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
+        super().__init__(x, y, initial_hp)
+        self.name = "Forgotten Binder"
+        self.speed = MINIBOSS_SPEED * 0.7
+        self.teleport_cooldown = 4.0
+        self._tele_timer = 0.0
 
     def to_dict(self):
         d = super().to_dict()
         d["type"] = "MinibossM3"
         return d
+
+    def update(self, dt, state):
+        """Standard pursuit + teleporting when player is too close."""
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+            return
+
+        player_cx, player_cy = state.player.get_center()
+        cx, cy = self.x + self.width / 2, self.y + self.height / 2
+        dx, dy = player_cx - cx, player_cy - cy
+        dist_sq = dx * dx + dy * dy
+
+        if self._tele_timer > 0: self._tele_timer -= dt
+
+        # Teleport away if player is too close and cooldown is up
+        if dist_sq < (120**2) and self._tele_timer <= 0:
+            import random
+            angle = random.uniform(0, 2 * math.pi)
+            self.x = player_cx + math.cos(angle) * 300 - self.width / 2
+            self.y = player_cy + math.sin(angle) * 300 - self.height / 2
+            self._tele_timer = self.teleport_cooldown
+            self.vx, self.vy = 0, 0
+            return
+
+        if dist_sq <= (self.detect_radius * self.detect_radius):
+            dist = math.sqrt(dist_sq) if dist_sq > 0 else 0.0
+            if dist > 0.0:
+                self.vx, self.vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+                self.x += self.vx * dt
+                self.y += self.vy * dt
+                try:
+                    walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
+                    self.x, self.y = resolve_wall_collision((self.x, self.y, self.width, self.height), walls)
+                except Exception: pass
+        else:
+            self.vx, self.vy = 0.0, 0.0
+        if self._damage_timer > 0.0: self._damage_timer -= dt
 
 
 class FlutterEnemy(Enemy):

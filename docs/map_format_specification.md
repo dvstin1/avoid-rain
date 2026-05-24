@@ -31,6 +31,21 @@ Every map file saved by our editor must compile to a standard structured JSON do
 ```
 *Note: Entity keys are stored as "x,y" strings to remain JSON-compliant.*
 
+2. Modular Map Nesting Schema
+
+To generate massive 10-minute exploration areas without relying on chaotic procedural math, a Macro-World File maps coordinate matrices directly to sub-maps:
+JSON
+
+{
+  "macro_id": "lotus_world_run_01",
+  "dimensions": { "width": 120, "height": 120 },
+  "nested_modules": [
+    { "map_file": "maps/sanctuary_hub.json", "anchor_offset": [0, 0] },
+    { "map_file": "maps/chapter1_arena_alpha.json", "anchor_offset": [30, 40] },
+    { "map_file": "maps/chapter1_corridor_beta.json", "anchor_offset": [60, 40] }
+  ]
+}
+
 ## 2. Macro-World Map Protocol
 
 > [!IMPORTANT]

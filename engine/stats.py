@@ -60,6 +60,7 @@ class StatisticsTracker:
                 "discovered_bestiary": {},
                 "run_state": None,
                 "last_run_result": "INIT",
+                "active_session_in_progress": False,
             }
         else:
             self.data = data
@@ -67,6 +68,8 @@ class StatisticsTracker:
                 self.data["run_state"] = None
             if "last_run_result" not in self.data:
                 self.data["last_run_result"] = "INIT"
+            if "active_session_in_progress" not in self.data:
+                self.data["active_session_in_progress"] = False
 
     def increment(self, key: str, amount: int = 1) -> None:
         """Increment a lifetime stat. Raises KeyError if the stat key is unknown."""

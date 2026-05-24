@@ -261,6 +261,13 @@ The JSON document structure must explicitly track whether a run is currently sus
     "torn_pages_collected": 3
   }
 }
+```
+
+2. The Lifecycle Boundaries
+
+    Mid-Run Auto-Save: Every time the player transitions maps, clears a room, or exits via the Escape pause menu, active_session.in_progress is set to true, and all current player statistics and coordinates are flushed to disk.
+
+    Run Conclusion (Death or Clean Warp-Out): The moment the player dies or successfully triggers a narrative "End Run" event to permanently return to the Sanctuary, active_session.in_progress must be flipped instantly to false and cleared.
 
 ## UI Rendering Architecture: Dialog Scaling & Entity Primitives
 

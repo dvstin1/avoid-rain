@@ -235,29 +235,32 @@ class GameState:
             self.camera.instant_center(self.player.get_center())
 
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
-        """Persist the attached StatisticsTracker to disk.
-
-        By default, this enqueues the save for a background thread. If wait=True
-        is passed, the save is performed synchronously on the main thread.
-        """
+        """Persist the attached StatisticsTracker to disk."""
         if self.stats is None:
             return
 
         # Collect current run state into StatisticsTracker if a session is active
         if self.player is not None and self.world is not None:
+            world_name = getattr(self.world, 'name', 'sanctuary')
             try:
-                self.stats.data["run_state"] = {
-                    "world_name": getattr(self.world, 'name', 'sanctuary'),
-                    "player": {
-                        "x": self.player.x,
-                        "y": self.player.y,
-                        "hp": self.player.hp,
-                        "flask_charges": self.player.flask_charges
-                    },
-                    "enemies": [e.to_dict() for e in self.enemies]
-                }
+                if world_name == "sanctuary":
+                    self.stats.data["run_state"] = None
+                    self.stats.data["active_session_in_progress"] = False
+                else:
+                    self.stats.data["run_state"] = {
+                        "world_name": world_name,
+                        "player": {
+                            "x": self.player.x,
+                            "y": self.player.y,
+                            "hp": self.player.hp,
+                            "flask_charges": self.player.flask_charges,
+                            "active_weapon_idx": getattr(self.player, 'active_weapon_idx', 0),
+                            "weapons": getattr(self.player, 'weapons', [])
+                        },
+                        "enemies": [e.to_dict() for e in self.enemies]
+                    }
+                    self.stats.data["active_session_in_progress"] = True
             except Exception:
-                # If state collection fails, we still try to save whatever was there
                 pass
 
         if wait:
@@ -594,7 +597,6 @@ class GameState:
                 self.death_timer = 5.0 # 5 second monochrome freeze
         except Exception:
             pass
-
     def respawn_player(self):
         """Reset player to sanctuary after 'Text Bleaching' completes."""
         from engine.maps import create_world
@@ -603,6 +605,9 @@ class GameState:
         # Set persistent result for dialogue branching
         if self.stats:
             self.stats.data["last_run_result"] = "DEFEAT"
+            # Lifecycle Boundary: Death clears session
+            self.stats.data["active_session_in_progress"] = False
+            self.stats.data["run_state"] = None
 
         self.world = create_world("sanctuary")
         self.player.x = float(self.world.player_start[0])
