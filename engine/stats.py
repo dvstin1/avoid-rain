@@ -14,15 +14,12 @@ import tempfile
 from typing import Dict, Any
 
 def get_save_dir() -> Path:
-    """Resolve the XDG-compliant local storage directory for save data."""
-    xdg_state = os.environ.get("XDG_STATE_HOME")
-    if xdg_state:
-        return Path(xdg_state) / "avoid_rain"
-    return Path.home() / ".local" / "state" / "avoid_rain"
+    """Resolve the dedicated configuration dotfile directory for save data."""
+    return Path("~/.config/avoid_rain").expanduser()
 
 
-DEFAULT_DIR = Path(".")
-DEFAULT_PATH = Path("save_data.json")
+DEFAULT_DIR = get_save_dir()
+DEFAULT_PATH = DEFAULT_DIR / "save_data.json"
 
 
 class CorruptSaveError(Exception):

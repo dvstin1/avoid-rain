@@ -155,6 +155,19 @@ Migrated to a physical `save_data.json` format and ensured session persistence a
 - **Persistent State:** Verified that the "Continue" option correctly appears after restarting the game window if a non-hub session was in progress.
 - **Session Flag Alignment:** Synchronized all menu detection logic to use the `active_session_in_progress` flag for consistent behavior.
 
+## [ARCHIVED] Config-Dir Save Persistence & Exit Safety - May 2026
+
+Updated the save system to use XDG-compliant configuration paths and guaranteed data integrity during shutdowns.
+
+### 1. Dedicated Dotfile Directory
+- **Path Migration:** Updated `engine/stats.py` to store `save_data.json` inside `~/.config/avoid_rain/`, ensuring proper isolation from project source files.
+- **Path Expansion:** Implemented `Path.expanduser()` to correctly resolve the home directory across different system environments.
+
+### 2. Exit Safety & Flush Guarantee
+- **Atexit Integration:** Registered a shutdown handler using Python's `atexit` module in `main.py`.
+- **Hard Persistence:** The shutdown handler performs a final synchronous `save_stats(wait=True)` call, ensuring that session data is perfectly flushed to the hard drive even if the game window is abruptly closed.
+- **Verification:** Verified path resolution and session flag persistence with automated tests.
+
 ## [ARCHIVED] Dialogue Closing Intercept & Input Debounce Fix - May 2026
 
 Resolved the "Spacebar Dialogue Lock" soft-lock and stabilized the modal state machine.

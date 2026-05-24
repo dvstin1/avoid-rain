@@ -39,3 +39,25 @@
 ## Active Task: 
 
 ### 1. 
+## Active Task: XDG Config Home Save Redirection & Persistent Flush Fix
+
+Redirect all game session save states to a clean dotfile configuration folder within the user's Home directory, and ensure absolute disk serialization before application termination.
+
+### 1. Dynamic Path Expansion (~/.config/avoid_rain/)
+- Do not use relative paths like `"save_data.json"`. Use Python's `os.path.expanduser` or `pathlib.Path.home()` to dynamically resolve the platform-native configuration directory.
+- Define your absolute save destination path string as: **`~/.config/avoid_rain/save_data.json`**.
+- Before opening a write stream, explicitly invoke `os.makedirs(os.path.dirname(save_path), exist_ok=True)` to safely construct the underlying directory tree if it doesn't exist on boot.
+
+### 2. Guaranteed Disk Serialization Hook
+- To prevent the OS from killing the script memory before data hits the disk when closing the window frame, register a formal shutdown function using Python's native `atexit` module:
+  ~~~python
+  import atexit
+
+  def force_final_save():
+      if session_is_active:
+          # Open explicit file handler and run json.dump()
+          # Force an immediate physical storage sync using f.flush() and os.fsync(f.fileno())
+
+  atexit.register(force_final_save)
+
+    Ensure that your Title Screen's startup check reads from this absolute ~/.config/avoid_rain/save_data.json location so the "Continue" option displays accurately across reboots.

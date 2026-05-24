@@ -127,7 +127,7 @@ def main():
     clock = pygame.time.Clock()
 
     renderer = Renderer(screen)
-    # Create a provisional GameState so we can handle corrupt-save dialogs during startup
+
     # Defer auto-loading until we can present UI. Create GameState with auto_load=False first.
     provisional_state = GameState(stats=None, auto_load=False)
     # Now attempt to load stats with UI handling
@@ -136,6 +136,22 @@ def main():
     except Exception:
         # Fall back to provisional if something unexpected happened
         state = provisional_state
+
+    # Register exit handler for Hard Persistence
+    def shutdown_handler():
+        """Perfectly flush save data to the hard drive on any exit event."""
+        try:
+            if 'state' in locals() or 'state' in globals():
+                # We need to access the active 'state' object
+                target_state = state if 'state' in locals() else globals().get('state')
+                if target_state and hasattr(target_state, 'save_stats'):
+                    print("[SHUTDOWN] Executing final synchronous save flush...")
+                    target_state.save_stats(wait=True)
+                    if hasattr(target_state, 'shutdown_save_worker'):
+                        target_state.shutdown_save_worker()
+        except Exception:
+            pass
+    atexit.register(shutdown_handler)
 
     # If a corrupt save was detected during auto-load, present the user a choice
     if getattr(state, 'stats_corrupt', False):
