@@ -64,6 +64,27 @@
 - Ensured the Title Screen "Continue" button accurately reflects the presence of a resume-able run state.
 - Verified restoration accuracy with comprehensive unit tests in `tests/test_hydration.py`.
 
+## [ARCHIVED] Dual-Weapon Inventory Management & Full-Cradle Manifestation Loop - May 2026
+
+Implement the twin equipment slot pipeline for the player entity and program the conditional logic that spawns Anomalous weapon drops from Miniboss entities.
+
+### 1. Player Inventory Expansion
+- Update the `Player` class in `engine/player.py` to manage an inventory array containing a maximum of two weapon objects: `self.weapons = [InitialWeapon]` and an active pointer tracking index `self.active_weapon_idx = 0`.
+- Bind the `Q` key or mouse wheel scroll to switch the active weapon focus.
+- If a player walks over a weapon dropped on a floor tile (`.`) and presses `E`:
+  - If `len(self.weapons) < 2`, append the weapon directly to the list.
+  - If `len(self.weapons) == 2`, swap the currently selected active weapon out, instantiating a ground item pickup object for the discarded weapon at the player's current coordinate block.
+
+### 2. Miniboss Conditional Drop Engine
+- Update the death evaluation block for `Miniboss` in `engine/enemy.py`:
+  - Inspect the player's current weapon array length.
+  - If `len(player.weapons) < 2`, the Miniboss drops a standard tier weapon.
+  - If `len(player.weapons) == 2`, trigger the Full-Cradle Rule: generate a weapon instance appended with a randomly selected modifiers table dictionary (e.g., `{"effect": "INK_BLEED", "damage_bonus": 3}`).
+  
+### 3. Rendering Integration
+- Update `rendering/renderer.py` to display two small bounding icons at the edge of the HUD representing Slot A and Slot B, highlighting the currently active weapon index.
+- All code segments must respect the 120-character line length constraint.
+
 ### State Hydration & Scene Deallocation Lifecycle
 - Implemented `GameState.deallocate()` to purge runtime memory (Player, World, enemies) when exiting to the Title Screen.
 - Implemented `GameState.hydrate_from_disk()` to ensure "Continue" loads exclusively from persistent disk storage.

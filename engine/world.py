@@ -62,9 +62,17 @@ class WarpPortal(GameObject):
             from engine.maps import create_world
             game_state.world = create_world(self.target_name)
 
-            # State Reset Rule: When starting a new run through the book, reset result to INIT
-            if self.target_name != "sanctuary" and game_state.stats:
-                game_state.stats.data["last_run_result"] = "INIT"
+            # Sanctuary Reset Rule: Enforce automatic item and health reset
+            if self.target_name == "sanctuary":
+                from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, SWORD_DAMAGE
+                game_state.player.hp = float(PLAYER_MAX_HP)
+                game_state.player.flask_charges = int(FLASK_MAX_CHARGES)
+                game_state.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
+                game_state.player.active_weapon_idx = 0
+            else:
+                # State Reset Rule: When starting a new run through the book, reset result to INIT
+                if game_state.stats:
+                    game_state.stats.data["last_run_result"] = "INIT"
 
             # Position player at spawn coords
             game_state.player.x = float(self.spawn_x)
@@ -192,6 +200,33 @@ class LoreFragment(GameObject):
             "speaker": self.name,
             "text": snippet
         }
+
+class WeaponPickup(GameObject):
+    """An interactable weapon drop that can be swapped with the player's current weapon."""
+    def __init__(self, position, weapon_data):
+        super().__init__(position, (24, 24))
+        self.weapon_data = weapon_data
+        self.name = weapon_data.get("name", "Unknown Weapon")
+        self.is_interactive = True
+        self.is_solid = False
+
+    def execute_interaction(self, game_state):
+        """Perform the swap/pickup logic."""
+        player = game_state.player
+        if len(player.weapons) < 2:
+            player.weapons.append(self.weapon_data)
+            # Remove from world
+            if self in game_state.world.interactables:
+                game_state.world.interactables.remove(self)
+        else:
+            # Swap: Replace active weapon and drop the old one
+            old_weapon = player.get_active_weapon()
+            player.weapons[player.active_weapon_idx] = self.weapon_data
+            # Drop old weapon at current position
+            game_state.world.interactables.append(WeaponPickup((player.x, player.y), old_weapon))
+            # Remove this pickup from world
+            if self in game_state.world.interactables:
+                game_state.world.interactables.remove(self)
 
 class LevelLoader:
     """
@@ -349,6 +384,16 @@ class LevelLoader:
                     # Miniboss Spawn
                     from engine.enemy import Miniboss
                     enemies.append(Miniboss(pos[0], pos[1]))
+
+                elif char == '2':
+                    # Miniboss M2 Spawn
+                    from engine.enemy import MinibossM2
+                    enemies.append(MinibossM2(pos[0], pos[1]))
+
+                elif char == '3':
+                    # Miniboss M3 Spawn
+                    from engine.enemy import MinibossM3
+                    enemies.append(MinibossM3(pos[0], pos[1]))
 
                 elif char == 'K':
                     # Rock

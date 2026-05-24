@@ -25,3 +25,15 @@ Minibosses are manifestations of intense, corrupted focus. Under normal conditio
 - **INK_BLEED:** The weapon leaves a trail of corrosive ink on the target, dealing damage over time.
 - **VOID_STRIKE:** Attacks have a chance to briefly delete the enemy's collision, allowing the player to pass through them.
 - **CHRONICLE_ECHO:** Every third hit creates a shadow-swing that mimics the previous attack.
+
+## 3. The Sanctuary Purge & Resource Reset Lifecycle
+The Sanctuary Hub operates as an immutable reality anchor. Stepping through a warp gate back into the Hub instantly triggers a complete inventory and health flush:
+- **Weapon Stripping:** The player's weapon list is completely cleared and reset to a single, baseline `Common` tier starter weapon. Slot B is completely emptied.
+- **Vitals Restoration:** Player health is fully replenished to maximum capacity.
+- **Heal Reservoir:** The player's active healing flask counter is refilled to its standard baseline starting capacity.
+
+## 4. Elite Enemy Strains (The Devoured Authors)
+To fully stress-test the weapon drop matrix and the Full-Cradle Rule, the engine maintains three distinct Miniboss variants:
+1. `Ink-Stained Miniboss` (M1): Heavy pursuit vector, drops blunt-force sweeping weapons.
+2. `Bleeding Scribe` (M2): Fast erratic vector, drops sharp piercing or bleeding rapier variants.
+3. `The Forgotten Binder` (M3): Teleporting or area-denial vector, drops wide-range anomalous cleavers.

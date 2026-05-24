@@ -443,6 +443,16 @@ class GameState:
                 self.active_choice = None
             return
 
+        # Handle HUD Weapon Swap Click
+        mouse_click = actions.get('mouse_click')
+        if mouse_click:
+            from constants import SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT
+            bx = 10 + HUD_SWAP_BTN_RECT[0]
+            by = SCREEN_HEIGHT - HUD_PANEL_H - 10 + HUD_SWAP_BTN_RECT[1]
+            bw, bh = HUD_SWAP_BTN_RECT[2], HUD_SWAP_BTN_RECT[3]
+            if (bx <= mouse_click[0] <= bx + bw) and (by <= mouse_click[1] <= by + bh):
+                self.player.swap_weapon()
+
         # 1. Update Interactables
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         nearby_interactables = self.world.get_nearby_interactables(player_rect)

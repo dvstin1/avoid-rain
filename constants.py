@@ -128,6 +128,14 @@ AUTOSAVE_INDICATOR_DURATION = 2.0
 
 # UI Overlay Constants
 UI_ALPHA = 160
+HUD_PANEL_W = 320
+HUD_PANEL_H = 120
+HUD_SLOT_W = 100
+HUD_SLOT_H = 60
+HUD_SWAP_BTN_W = 60
+HUD_SWAP_BTN_H = 30
+# Pre-calculate the swap button rect relative to HUD panel (will be adjusted in renderer)
+HUD_SWAP_BTN_RECT = (110, 45, HUD_SWAP_BTN_W, HUD_SWAP_BTN_H) 
 
 # Minimap configuration (pixels)
 MINIMAP_WIDTH = 200

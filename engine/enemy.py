@@ -333,7 +333,36 @@ class Miniboss(Enemy):
                 "damage": 20 + anomaly["damage_bonus"],
                 "modifiers": anomaly
             }
-            state.loot.append(WeaponItem(self.x, self.y, weapon_data))
+            from engine.world import WeaponPickup
+            state.world.interactables.append(WeaponPickup((self.x, self.y), weapon_data))
+
+
+class MinibossM2(Miniboss):
+    """Variant M2: High-health tank miniboss."""
+    def __init__(self, x, y, hp=None):
+        from constants import MINIBOSS_MAX_HP
+        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP * 2
+        super().__init__(x, y, initial_hp)
+        self.name = "Miniboss M2"
+
+    def to_dict(self):
+        d = super().to_dict()
+        d["type"] = "MinibossM2"
+        return d
+
+
+class MinibossM3(Miniboss):
+    """Variant M3: High-speed pursuit miniboss."""
+    def __init__(self, x, y, hp=None):
+        from constants import MINIBOSS_SPEED
+        super().__init__(x, y, hp)
+        self.speed = MINIBOSS_SPEED * 1.5
+        self.name = "Miniboss M3"
+
+    def to_dict(self):
+        d = super().to_dict()
+        d["type"] = "MinibossM3"
+        return d
 
 
 class FlutterEnemy(Enemy):

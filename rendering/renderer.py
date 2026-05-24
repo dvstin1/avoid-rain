@@ -385,6 +385,21 @@ class Renderer:
                 pygame.draw.rect(self.screen, (80, 80, 80), (ox - offset_x, oy - offset_y, ow, oh))
                 # Add some highlight detail (using rect for test compatibility)
                 pygame.draw.rect(self.screen, (120, 120, 120), (ox + 5 - offset_x, oy + 5 - offset_y, 10, 5))
+            elif hasattr(obj, 'weapon_data'):
+                # Draw Weapon Drop
+                from constants import COLOR_PURPLE, COLOR_WHITE
+                ox, oy, ow, oh = obj.rect
+                color = COLOR_PURPLE if "modifiers" in obj.weapon_data else COLOR_WHITE
+                
+                # Draw as a glowing book icon
+                pygame.draw.rect(self.screen, color, (ox - offset_x, oy - offset_y, ow, oh))
+                pygame.draw.rect(self.screen, COLOR_BLACK, (ox - offset_x, oy - offset_y, ow, oh), 1)
+                
+                # Add "gaze" glow
+                import math
+                import time
+                glow = (math.sin(time.time() * 5) + 1) / 2
+                pygame.draw.rect(self.screen, color, (ox - 2 - offset_x, oy - 2 - offset_y, ow + 4, oh + 4), 1)
 
         # 1c. Draw Loot (Torn Pages)
         for item in getattr(state, 'loot', []):
@@ -868,6 +883,38 @@ class Renderer:
         # Draw Inputs
         inputs = [
             ("Movement:", "WASD / Arrows"),
+            ("Attack / Interact:", "Space / E"),
+            ("Dash:", "Left Shift"),
+            ("Flask:", "1"),
+            ("Block:", "K"),
+            ("Pause Run:", "Escape"),
+        ]
+        if show_editor_keys:
+            inputs.extend([
+                ("Editor Box Fill:", "B / Click-and-Drag"),
+                ("Canvas Stretch:", "+/- and Ctrl + +/-")
+            ])
+
+        start_y = tab_y + 120
+        spacing = 40
+        for i, (action, keys) in enumerate(inputs):
+            action_surf = self.font.render(action, True, COLOR_WHITE)
+            keys_surf = self.font.render(keys, True, COLOR_CYAN)
+            
+            # Align action to the right of center-10, keys to the left of center+10
+            action_rect = action_surf.get_rect(midright=(cx - 20, start_y + i * spacing))
+            keys_rect = keys_surf.get_rect(midleft=(cx + 20, start_y + i * spacing))
+            
+            self.screen.blit(action_surf, action_rect)
+            self.screen.blit(keys_surf, keys_rect)
+
+        # Draw Back instruction
+        back_surf = self.font.render("Press SPACE or ENTER to go back", True, COLOR_WHITE)
+        self.screen.blit(back_surf, back_surf.get_rect(center=(cx, start_y + len(inputs) * spacing + 40)))
+        
+        pygame.display.flip()
+
+:", "WASD / Arrows"),
             ("Attack / Interact:", "Space / E"),
             ("Dash:", "Left Shift"),
             ("Flask:", "1"),

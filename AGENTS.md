@@ -34,9 +34,9 @@
 - **`docs/asset_manifest.md`**: Registry of sprites and tile sets.
 - **`docs/world_lore.md`**: Narrative background and world rules.
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
-
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
 ## Active Task: 
 
 ### 1. 
+

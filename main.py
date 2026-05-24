@@ -62,9 +62,14 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
     attack = False
     flask = False
     dash = False
+    swap = False
+    mouse_click = None
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1: # Left click
+                mouse_click = event.pos
         if event.type == pygame.KEYDOWN:
             # If we are in controls state in the pause menu, SPACE/ENTER/ESCAPE returns to MAIN
             if pause_menu is not None and pause_menu.is_open() and getattr(pause_menu.state, 'name', '') == 'CONTROLS':
