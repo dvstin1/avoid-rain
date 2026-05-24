@@ -96,6 +96,20 @@
 - **Map Integration:** Placed a Lore Lectern ('L') at the start of `world_map1.json`.
 - **Interaction:** Verified Lectern triggers UI text with Spacebar interaction.
 
+## [ARCHIVED] Auto-Save Hooks & Main Menu Continue Restoration - May 2026
+
+Restored the session persistence pipeline and synchronized the Title Menu with the active run state.
+
+### 1. Mid-Run Auto-Save Integration
+- **Lifecycle Injection:** Updated the Pause Menu "Quit" handler in `main.py` to trigger a synchronous `state.save_stats(wait=True)` before returning to the title screen.
+- **Session Tracking:** Ensured `active_session_in_progress` is set to `True` for all non-hub saves and cleared to `False` upon return to the Sanctuary or player death.
+- **State Capture:** Verified that player coordinates, HP, flasks, and inventory (weapons) are correctly serialized into the `run_state` JSON block.
+
+### 2. Main Menu Logic & Restoration
+- **Dynamic Options:** Updated the Title Screen initialization to use the `active_session_in_progress` flag for displaying the "Continue" button.
+- **True Hydration:** Verified that selecting "Continue" triggers `GameState.hydrate_from_disk()`, restoring the player exactly where they left off in the hostile zone.
+- **Verification:** Added `tests/test_session_persistence.py` to ensure the session lifecycle flag is correctly managed.
+
 ## [ARCHIVED] Dialogue Closing Intercept & Input Debounce Fix - May 2026
 
 Resolved the "Spacebar Dialogue Lock" soft-lock and stabilized the modal state machine.

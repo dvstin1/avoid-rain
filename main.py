@@ -270,7 +270,7 @@ def main():
                         # Update title menu
                         try:
                             has_run_now = (getattr(state, 'stats', None) is not None and 
-                                           state.stats.data.get("run_state") is not None)
+                                           state.stats.data.get("active_session_in_progress", False))
                             title_menu.set_has_save(has_run_now)
                         except Exception:
                             pass
