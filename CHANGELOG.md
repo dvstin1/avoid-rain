@@ -231,6 +231,20 @@ Redirected all game session save states to a platform-native dotfile configurati
 - **Absolute Persistence:** The shutdown hook forces a final synchronous save flush (`os.fsync`) whenever the game window is closed or the process terminates.
 - **Verification:** Confirmed that the "Continue" option accurately persists across application reboots by reading directly from the absolute configuration path.
 
+## [ARCHIVED] Map Editor Sub-Palette Component Cycling Layout - May 2026
+
+Refactored the map editor sidebar UI to use a compact, cyclic toggle for all enemy entities.
+
+### 1. Cyclic Interaction Logic
+- **Monster Brush Array:** Consolidated all active enemy types (`Bat`, `M1`, `M2`, `M3`, `Flutter`, `Bindling`) into a sequential internal array.
+- **Single Widget Interface:** Replaced multiple redundant entity buttons with a single interactive button: `[ Monster: <Type> ]`.
+- **Cyclic Selection:** Clicking the monster button while it is active now increments an internal index, rotating through every available elite strain.
+- **Hover Metadata:** Implemented a contextual hover block that displays the full descriptive name (e.g., "M2 - Bleeding Scribe") when the mouse is over the cyclic widget.
+
+### 2. UI Synchronization
+- **Palette Divergence Law:** Ensured that all current engine enemy symbols are automatically registered in the editor palette.
+- **Rendering Alignment:** Updated the editor's grid and sidebar drawing code to correctly color-code all specialized spawner symbols.
+
 ## [ARCHIVED] Player Dash Mechanic - May 2026
 - **Dash Physics:** Implemented a high-speed directional dash burst (3.0x speed) with a 0.2s duration.
 - **Cooldown:** Established a 0.5s recovery window to balance combat mobility.

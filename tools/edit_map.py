@@ -15,8 +15,19 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_WHITE, COLOR_BLUE, COLOR_YELLOW,
     COLOR_RED, COLOR_CHARCOAL, COLOR_WALL, COLOR_FLOOR, TILE_SIZE,
-    COLOR_PURPLE, COLOR_GREY
+    COLOR_PURPLE, COLOR_GREY, COLOR_CYAN
 )
+
+# List of enemy types for the cyclic button
+ENEMY_TYPES = [
+    ('A', 'Bat'),
+    ('Z', 'Slug'),
+    ('f', 'Flutter'),
+    ('b', 'Bindling'),
+    ('E', 'M1 - Ink-Stained'),
+    ('2', 'M2 - Bleeding Scribe'),
+    ('3', 'M3 - Forgotten Binder')
+]
 
 # Legend for the editor palette - Synchronized with constants.py
 PALETTE = [
@@ -36,13 +47,7 @@ PALETTE = [
     ('F', 'WELLSPRING'),
     ('L', 'LORE'),
     ('R', 'RESPITE'),
-    ('A', 'BAT_SPAWN'),
-    ('Z', 'SLUG_SPAWN'),
-    ('f', 'FLUTTER_SPAWN'),
-    ('b', 'BINDLING_SPAWN'),
-    ('E', 'MINIBOSS_M1'),
-    ('2', 'MINIBOSS_M2'),
-    ('3', 'MINIBOSS_M3')
+    ('MONSTER', 'Monster (Cyclic)')
 ]
 
 class MapEditor:
@@ -63,6 +68,7 @@ class MapEditor:
         self.entities = {}
 
         self.brush_idx = 0
+        self.current_enemy_idx = 0
         self.camera_x = 0
         self.camera_y = 0
         self.zoom = 1.0
@@ -109,10 +115,16 @@ class MapEditor:
         if not self.filename.endswith(".json"):
             self.filename += ".json"
 
+        # Construct full legend including all cyclic enemies
+        full_legend = dict(PALETTE)
+        del full_legend['MONSTER']
+        for char, name in ENEMY_TYPES:
+            full_legend[char] = name
+
         data = {
             "map_id": self.filename.replace(".json", ""),
             "dimensions": {"width": self.map_w, "height": self.map_h},
-            "legend": dict(PALETTE),
+            "legend": full_legend,
             "grid": ["".join(row) for row in self.grid],
             "entities": self.entities
         }
@@ -134,6 +146,8 @@ class MapEditor:
         gy1, gy2 = min(y1, y2), max(y1, y2)
 
         char = PALETTE[self.brush_idx][0]
+        if char == 'MONSTER':
+            char = ENEMY_TYPES[self.current_enemy_idx][0]
         for y in range(max(0, gy1), min(self.map_h, gy2 + 1)):
             for x in range(max(0, gx1), min(self.map_w, gx2 + 1)):
                 self.grid[y][x] = char
@@ -208,24 +222,34 @@ class MapEditor:
         self.screen.blit(self.font.render("Palette (Click to select):", True, COLOR_GREY), (sidebar_x + 10, y_off))
         y_off += 25
         for i, (char, name) in enumerate(PALETTE):
-            color = COLOR_YELLOW if i == self.brush_idx else COLOR_WHITE
+            is_active = (i == self.brush_idx)
+            color = COLOR_YELLOW if is_active else COLOR_WHITE
 
-            p_rect = pygame.Rect(sidebar_x + 15, y_off, 20, 20)
-            p_color = COLOR_FLOOR
-            if char == '#':
-                p_color = COLOR_WALL
-            elif char == 'W':
-                p_color = COLOR_PURPLE
-            elif char == 'P':
-                p_color = COLOR_BLUE
-            elif char in ('A', 'Z', 'E', '2', '3', 'f', 'b'):
-                p_color = COLOR_RED
-            pygame.draw.rect(self.screen, p_color, p_rect)
-            pygame.draw.rect(self.screen, COLOR_WHITE, p_rect, 1)
+            p_rect = pygame.Rect(sidebar_x + 15, y_off, 200, 22)
+            if is_active:
+                pygame.draw.rect(self.screen, (40, 40, 60), p_rect)
+                pygame.draw.rect(self.screen, COLOR_YELLOW, p_rect, 1)
 
-            self.screen.blit(self.font.render(f"{char} - {name}", True, color), (sidebar_x + 45, y_off))
+            if char == 'MONSTER':
+                e_char, e_name = ENEMY_TYPES[self.current_enemy_idx]
+                text = f"[ Monster: {e_char} ]"
+                self.screen.blit(self.font.render(text, True, color), (sidebar_x + 20, y_off + 2))
+                # Hover descriptor
+                if p_rect.collidepoint(pygame.mouse.get_pos()):
+                    desc_surf = self.font.render(f"Type: {e_name}", True, COLOR_CYAN)
+                    self.screen.blit(desc_surf, (sidebar_x + 20, SCREEN_HEIGHT - 120))
+            else:
+                p_box = pygame.Rect(sidebar_x + 20, y_off + 2, 18, 18)
+                p_color = COLOR_FLOOR
+                if char == '#': p_color = COLOR_WALL
+                elif char == 'W': p_color = COLOR_PURPLE
+                elif char == 'P': p_color = COLOR_BLUE
+                pygame.draw.rect(self.screen, p_color, p_box)
+                pygame.draw.rect(self.screen, COLOR_WHITE, p_box, 1)
+                self.screen.blit(self.font.render(f"{char} - {name}", True, color), (sidebar_x + 45, y_off + 2))
+
             y_off += 25
-            if y_off > SCREEN_HEIGHT - 120:
+            if y_off > SCREEN_HEIGHT - 130:
                 break
 
         self.screen.blit(self.font.render("Controls:", True, COLOR_GREY), (sidebar_x + 10, SCREEN_HEIGHT - 100))
@@ -391,7 +415,10 @@ class MapEditor:
                 gy = (my + self.camera_y) // ts
                 if 0 <= gx < self.map_w and 0 <= gy < self.map_h:
                     if self.active_tool == "PENCIL":
-                        self.grid[gy][gx] = PALETTE[self.brush_idx][0]
+                        char = PALETTE[self.brush_idx][0]
+                        if char == 'MONSTER':
+                            char = ENEMY_TYPES[self.current_enemy_idx][0]
+                        self.grid[gy][gx] = char
                     elif self.active_tool == "RECTANGLE":
                         self.drag_current = (gx, gy)
 
@@ -401,10 +428,12 @@ class MapEditor:
         if event.type == pygame.MOUSEBUTTONDOWN:
             if mx >= SCREEN_WIDTH:
                 # Sidebar click
-                # Palette start y_off is 145 (20+30+30+40+25)
                 palette_y_start = 145
                 click_idx = (my - palette_y_start) // 25
                 if 0 <= click_idx < len(PALETTE):
+                    if click_idx == self.brush_idx and PALETTE[click_idx][0] == 'MONSTER':
+                        # Cycle if already selected
+                        self.current_enemy_idx = (self.current_enemy_idx + 1) % len(ENEMY_TYPES)
                     self.brush_idx = click_idx
             elif self.active_tool == "RECTANGLE" and event.button == 1:
                 ts = int(TILE_SIZE * self.zoom)
