@@ -284,3 +284,17 @@ Upgraded the map editor utility to support the new modular map nesting protocol 
 - Implemented persistent rendering for all registered sockets as cyan outlines on the map grid.
 - Added dynamic label rendering to display socket identifiers directly on the canvas for better spatial orientation.
 - Verified that socket visualization persists through save/load cycles.
+
+## [ARCHIVED] Modular Map Stitching & Socket Injection - May 2026
+
+Implemented the "Master Loom" modular assembly system, allowing for seamless injection of sub-maps into macro-world environments.
+
+### 1. LevelLoader Refactor (Stitching Pass)
+- **Modular Assembly Logic:** Refactored `LevelLoader.load_json_map` to perform a pre-parsing assembly pass.
+- **Tile Overwriting:** The system now overlays sub-map grid matrices onto the master macro-grid using socket bounds.
+- **Absolute Entity Blitting:** Implemented logic to transpose sub-map entity coordinates into absolute world-space coordinates during the stitching phase.
+
+### 2. Macro-World Integration
+- **Socket Configuration:** Updated `world_map1.json` with `active_plug` references for the `M1` and `M2` sockets.
+- **Dimensions Alignment:** Enforced a dimensions validation rule to ensure sub-maps perfectly fit their designated sockets.
+- **Verification:** Confirmed successful runtime assembly through prototype instantiation tests, verifying both tile layout and entity population.
