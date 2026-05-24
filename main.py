@@ -3,6 +3,7 @@ Main entry point for Avoid Rain.
 Handles the application lifecycle and top-level loops.
 """
 import sys
+import atexit
 import pygame
 from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS, AUTOSAVE_INTERVAL
 from engine.game_state import GameState
