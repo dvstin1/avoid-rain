@@ -294,17 +294,23 @@ Upgraded the map editor utility to support the new modular map nesting protocol 
 - **Stitching Pass:** Updated the `LevelLoader` to support dynamic pool-based overrides. When a pool is specified, the system ignores hardcoded `active_plug` values and selects random modules from the active pool for every available socket.
 
 ## [ARCHIVED] Granular Per-Socket Anomaly Rolls for Module Selection - May 2026
-
-Refactored the modular generation pipeline to execute anomaly rolls independently for every available socket, enabling mixed-pool environments.
-
-### 1. Decentralized Random Selection
-- **Per-Socket Rolls:** Moved the 10% "Special Edition" probability check inside the `LevelLoader.load_json_map` socket iteration loop.
-- **Independent Calculations:** Each socket now performs its own unique roll, meaning a single run can contain both standard Monthly Report modules and rare Special Edition challenges simultaneously.
-
-### 2. HUD & Logging Updates
-- **Diagnostic Tracing:** Implemented specific terminal logs to distinguish between standard generation and anomaly injection:
-    - `[Generation] Socket <Name> compiled as Standard Monthly Report.`
-    - `[ANOMALY INJECTION] Socket <Name> rolled a rare Special Edition!`
-
-### 3. State Simplification
+... (rest of entry) ...
 - **Persistence Refactor:** Removed `active_module_pool` from the global `GameState` and persistence layers. Since selection is now a generative property of the world load pass, it no longer requires run-wide tracking.
+
+## [ARCHIVED] Map Editor Expansion — Visual Sockets Management, Resizing, & Safe Canvas Creation - May 2026
+
+Overhauled the map editor utility with robust socket management, precise canvas resizing, and a safe workflow for new map creation.
+
+### 1. In-Editor Socket Inspector & Modification
+- **Visual Feedback:** Implemented enhanced HUD labels that display socket names and dimensions (`Width x Height`) directly on the canvas.
+- **Socket Selection:** Enabled clicking on a socket to select it, highlighting its boundaries in yellow and displaying detailed metadata in the sidebar.
+- **Editing & Deletion:** Added `[E]` key to rename the selected socket and `[DEL]` key to remove it from the map's `module_sockets` array.
+
+### 2. Canvas Resizing Control Interface
+- **Sidebar Integration:** Integrated a permanent `Size: WxH` readout in the sidebar for real-time monitoring.
+- **Precise Resizing ([Ctrl+R]):** Implemented a dedicated input menu that allows users to type specific numerical dimensions for the map grid.
+- **Data Preservation:** Ensured the resizing logic correctly pads with empty tiles (`.`) when expanding and safely truncates when shrinking.
+
+### 3. Safe Blank Map Canvas Sequence ([Ctrl+N])
+- **Clean Slate:** Added a `Ctrl+N` shortcut that flushes the grid, clears all entities/sockets, and resets the camera/zoom to defaults.
+- **The Overwrite Guard:** Implemented an explicit file path reset to `None` upon creating a new map. This prevents `Ctrl+S` from overwriting the previously loaded file, forcing a naming prompt for the new asset.
