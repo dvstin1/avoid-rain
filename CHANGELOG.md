@@ -286,15 +286,22 @@ Upgraded the map editor utility to support the new modular map nesting protocol 
 - Verified that socket visualization persists through save/load cycles.
 
 ## [ARCHIVED] Modular Map Stitching & Socket Injection - May 2026
+... (rest of entry) ...
+- Verification: Confirmed successful runtime assembly through prototype instantiation tests, verifying both tile layout and entity population.
 
-Implemented the "Master Loom" modular assembly system, allowing for seamless injection of sub-maps into macro-world environments.
+## [ARCHIVED] Tiered Module Pools & Rare "Special Edition" Runway Logic - May 2026
 
-### 1. LevelLoader Refactor (Stitching Pass)
-- **Modular Assembly Logic:** Refactored `LevelLoader.load_json_map` to perform a pre-parsing assembly pass.
-- **Tile Overwriting:** The system now overlays sub-map grid matrices onto the master macro-grid using socket bounds.
-- **Absolute Entity Blitting:** Implemented logic to transpose sub-map entity coordinates into absolute world-space coordinates during the stitching phase.
+Implemented a tiered randomization system for level modules, introducing rare "Special Edition" run variants.
 
-### 2. Macro-World Integration
-- **Socket Configuration:** Updated `world_map1.json` with `active_plug` references for the `M1` and `M2` sockets.
-- **Dimensions Alignment:** Enforced a dimensions validation rule to ensure sub-maps perfectly fit their designated sockets.
-- **Verification:** Confirmed successful runtime assembly through prototype instantiation tests, verifying both tile layout and entity population.
+### 1. Dual-Pool Registration
+- **Pool Definitions:** Established `POOL_MONTHLY_REPORT` and `POOL_SPECIAL_EDITION` in `constants.py` as central registries for modular sub-maps.
+- **Monthly Report (Standard):** Contains `maps/test_m1.json`.
+- **Special Edition (Rare):** Contains `maps/test_m2.json`.
+
+### 2. Chronicle Randomization Loop
+- **Trigger Event:** Updated "The Chronicle" interaction to perform a 1 in 10 (10%) probability roll when starting a new run.
+- **Pool Selection:** Successfully rolled runs now pull modules exclusively from the `POOL_SPECIAL_EDITION`, while standard runs default to the `POOL_MONTHLY_REPORT`.
+- **Persistence:** Integrated `active_module_pool` into the `GameState` and persistent `run_state` JSON, ensuring the chosen run variant survives application restarts and manual saves.
+
+### 3. LevelLoader Pool Overrides
+- **Stitching Pass:** Updated the `LevelLoader` to support dynamic pool-based overrides. When a pool is specified, the system ignores hardcoded `active_plug` values and selects random modules from the active pool for every available socket.

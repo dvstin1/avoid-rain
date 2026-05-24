@@ -3,6 +3,7 @@ Handles world grid, map sections, and static obstacles.
 """
 import os
 import json
+import random
 from constants import (
     GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP,
     PLAYER_START_X, PLAYER_START_Y
@@ -62,7 +63,21 @@ class WarpPortal(GameObject):
         try:
             from engine.maps import create_world
             print(f"[DEBUG] WarpPortal targeting: {self.target_name}")
-            game_state.world = create_world(self.target_name)
+            
+            # Run Type Randomization: 1 in 10 chance for Special Edition
+            module_pool = None
+            if self.target_name == "macro_world":
+                from constants import POOL_MONTHLY_REPORT, POOL_SPECIAL_EDITION
+                if random.random() < 0.1:
+                    module_pool = POOL_SPECIAL_EDITION
+                    print("[DEBUG] ROLL SUCCESS: Starting Special Edition Run!")
+                else:
+                    module_pool = POOL_MONTHLY_REPORT
+                    print("[DEBUG] Starting Standard Monthly Report Run.")
+                # Persist the choice in the game state for future saves/loads
+                game_state.active_module_pool = module_pool
+            
+            game_state.world = create_world(self.target_name, module_pool=module_pool)
 
             # Sanctuary Reset Rule: Enforce automatic item and health reset
             if self.target_name == "sanctuary":
@@ -243,7 +258,7 @@ class LevelLoader:
     Translates symbols into spatial entities and initial layout.
     """
     @staticmethod
-    def load_json_map(file_path, saved_enemies=None):
+    def load_json_map(file_path, saved_enemies=None, module_pool=None):
         """Loads a JSON map file and parses it, supporting modular stitching."""
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -255,6 +270,12 @@ class LevelLoader:
         module_sockets = data.get("module_sockets", [])
         for socket in module_sockets:
             active_plug = socket.get("active_plug")
+            
+            # If a module pool is provided, override the hardcoded plug with a random selection
+            if module_pool:
+                active_plug = random.choice(module_pool)
+                print(f"[DEBUG] Pool Override: Socket {socket['name']} using {active_plug}")
+
             if not active_plug:
                 continue
             

@@ -155,6 +155,10 @@ MINIMAP_LOOT_COLOR = (220, 200, 50)
 # demonstrating panning in many world sizes.
 MINIMAP_VIEWPORT_FRAC = 1.2
 
+# Map Module Pools
+POOL_MONTHLY_REPORT = ["maps/test_m1.json"]
+POOL_SPECIAL_EDITION = ["maps/test_m2.json"]
+
 # Tile Types
 TILE_EMPTY = 0
 TILE_WALL = 1
