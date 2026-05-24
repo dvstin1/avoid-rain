@@ -203,6 +203,20 @@ Decoupled weapon collection from the keyboard combat input layer, replacing it w
 - **Inventory Integration:** Clicking `[PICK UP]` correctly handles adding the weapon to an empty slot or swapping/dropping the currently active weapon if the Cradle is full.
 - **Verification:** Added `tests/test_pickup_button.py` to confirm input suppression and button functionality.
 
+## [ARCHIVED] XDG Config Home Save Redirection & Persistent Flush Fix - May 2026
+
+Redirected all game session save states to a platform-native dotfile configuration folder and ensured absolute disk synchronization before application exit.
+
+### 1. Dynamic Path Resolution (~/.config/avoid_rain/)
+- **XDG Compliance:** Updated `engine/stats.py` to store `save_data.json` within a dedicated `~/.config/avoid_rain/` directory.
+- **Path Expansion:** Implemented `os.path.expanduser` to ensure the absolute save destination is dynamically resolved regardless of the system environment.
+- **Directory Management:** Enforced explicit directory construction on boot to guarantee the configuration tree exists before any write operations occur.
+
+### 2. Guaranteed Disk Serialization
+- **Atexit Integration:** Registered a formal shutdown function using Python's `atexit` module in `main.py`.
+- **Absolute Persistence:** The shutdown hook forces a final synchronous save flush (`os.fsync`) whenever the game window is closed or the process terminates.
+- **Verification:** Confirmed that the "Continue" option accurately persists across application reboots by reading directly from the absolute configuration path.
+
 ## [ARCHIVED] Player Dash Mechanic - May 2026
 - **Dash Physics:** Implemented a high-speed directional dash burst (3.0x speed) with a 0.2s duration.
 - **Cooldown:** Established a 0.5s recovery window to balance combat mobility.
