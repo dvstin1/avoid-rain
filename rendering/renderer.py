@@ -78,11 +78,19 @@ class Renderer:
             prompt_text = f"Speak to {target.name}"
         elif "Chronicle" in target.name or "Return" in target.name:
             prompt_text = f"Read {target.name}"
+        elif hasattr(target, 'weapon_data'):
+            # Weapon swap prompt
+            current_wpn = player.get_active_weapon().get("name", "Current")
+            new_wpn = target.weapon_data.get("name", "New")
+            if len(player.weapons) < 2:
+                prompt_text = f"Pick up {new_wpn}"
+            else:
+                prompt_text = f"Swap {current_wpn} for {new_wpn}"
         else:
             prompt_text = f"Interact with {target.name}" if hasattr(target, 'name') else "Interact"
 
         # AGENTS.md specifies "Press [ATTACK] to Speak"
-        prompt_surf = self.font.render(f"Press [SPACE] to {prompt_text}", True, COLOR_WHITE)
+        prompt_surf = self.font.render(f"Press [E] to {prompt_text}", True, COLOR_WHITE)
         rect = prompt_surf.get_rect()
         # Position above player center
         px, py = player.get_center()
@@ -517,9 +525,13 @@ class Renderer:
         pygame.display.flip()
 
     def draw_hud(self, state):
-        """Draw player HP and Flask charges in the bottom-left corner."""
+        """Draw player HP, Flask, and Dual Weapon slots with a [SWAP] button."""
+        from constants import (
+            COLOR_WHITE, COLOR_BLUE, COLOR_YELLOW, UI_ALPHA, COLOR_GREY, COLOR_PURPLE,
+            HUD_PANEL_W, HUD_PANEL_H, HUD_SLOT_W, HUD_SLOT_H, HUD_SWAP_BTN_RECT
+        )
         player = state.player
-        hp_text = f"HP: {int(player.hp)} / {int(player.max_hp)}"
+        hp_text = f"HP: {int(player.hp)}/{int(player.max_hp)}"
         flask_text = f"Flasks: {player.flask_charges}"
 
         pages = 0
@@ -530,21 +542,57 @@ class Renderer:
                 pass
         pages_text = f"Pages: {pages}"
 
+        # Draw background panel
+        hud_surf = pygame.Surface((HUD_PANEL_W, HUD_PANEL_H), pygame.SRCALPHA)
+        hud_surf.fill((20, 20, 25, UI_ALPHA))
+        pygame.draw.rect(hud_surf, (100, 100, 100), (0, 0, HUD_PANEL_W, HUD_PANEL_H), 2)
+
+        # Basic Stats
         hp_surf = self.font.render(hp_text, True, COLOR_WHITE)
         flask_surf = self.font.render(flask_text, True, COLOR_BLUE)
         pages_surf = self.font.render(pages_text, True, COLOR_YELLOW)
-
-        # Draw background panel
-        panel_w, panel_h = 200, 85
-        hud_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
-        hud_surf.fill((20, 20, 25, UI_ALPHA))
-        pygame.draw.rect(hud_surf, (100, 100, 100), (0, 0, panel_w, panel_h), 2)
-
         hud_surf.blit(hp_surf, (10, 10))
-        hud_surf.blit(flask_surf, (10, 35))
-        hud_surf.blit(pages_surf, (10, 60))
+        hud_surf.blit(flask_surf, (140, 10))
+        hud_surf.blit(pages_surf, (240, 10))
 
-        self.screen.blit(hud_surf, (10, self.screen.get_height() - panel_h - 10))
+        # Weapon Slots
+        for i in range(2):
+            slot_x = 10 + i * (HUD_SLOT_W + 100)
+            slot_y = 45
+            slot_rect = pygame.Rect(slot_x, slot_y, HUD_SLOT_W, HUD_SLOT_H)
+            
+            # Highlight active slot
+            border_color = COLOR_YELLOW if i == player.active_weapon_idx else COLOR_GREY
+            pygame.draw.rect(hud_surf, (40, 40, 50), slot_rect)
+            pygame.draw.rect(hud_surf, border_color, slot_rect, 2)
+            
+            # Slot Label
+            label = "SLOT A" if i == 0 else "SLOT B"
+            label_surf = pygame.font.SysFont("Arial", 12).render(label, True, COLOR_GREY)
+            hud_surf.blit(label_surf, (slot_x + 5, slot_y + 2))
+            
+            # Weapon Content
+            if i < len(player.weapons):
+                wpn = player.weapons[i]
+                wpn_name = wpn.get("name", "Unknown")
+                # Tier color: Anomalous = Purple, else White
+                name_color = COLOR_PURPLE if "modifiers" in wpn else COLOR_WHITE
+                
+                # Render name (possibly truncated)
+                name_surf = pygame.font.SysFont("Arial", 14).render(wpn_name[:12], True, name_color)
+                hud_surf.blit(name_surf, (slot_x + 5, slot_y + 20))
+                
+                dmg_surf = pygame.font.SysFont("Arial", 12).render(f"DMG: {wpn.get('damage', 0)}", True, COLOR_GREY)
+                hud_surf.blit(dmg_surf, (slot_x + 5, slot_y + 40))
+
+        # [SWAP] Button
+        swap_rect = pygame.Rect(HUD_SWAP_BTN_RECT)
+        pygame.draw.rect(hud_surf, (60, 60, 80), swap_rect)
+        pygame.draw.rect(hud_surf, COLOR_WHITE, swap_rect, 1)
+        swap_text = pygame.font.SysFont("Arial", 14, bold=True).render("SWAP", True, COLOR_WHITE)
+        hud_surf.blit(swap_text, (swap_rect.centerx - swap_text.get_width()//2, swap_rect.centery - swap_text.get_height()//2))
+
+        self.screen.blit(hud_surf, (10, self.screen.get_height() - HUD_PANEL_H - 10))
 
     def draw_loot(self, item, offset_x, offset_y):
         """Draw loot items with prototype graphics."""
@@ -887,6 +935,7 @@ class Renderer:
             ("Dash:", "Left Shift"),
             ("Flask:", "1"),
             ("Block:", "K"),
+            ("Weapon Swap:", "Q"),
             ("Pause Run:", "Escape"),
         ]
         if show_editor_keys:
@@ -913,36 +962,3 @@ class Renderer:
         self.screen.blit(back_surf, back_surf.get_rect(center=(cx, start_y + len(inputs) * spacing + 40)))
         
         pygame.display.flip()
-
-:", "WASD / Arrows"),
-            ("Attack / Interact:", "Space / E"),
-            ("Dash:", "Left Shift"),
-            ("Flask:", "1"),
-            ("Block:", "K"),
-            ("Pause Run:", "Escape"),
-        ]
-        if show_editor_keys:
-            inputs.extend([
-                ("Editor Box Fill:", "B / Click-and-Drag"),
-                ("Canvas Stretch:", "+/- and Ctrl + +/-")
-            ])
-
-        start_y = tab_y + 120
-        spacing = 40
-        for i, (action, keys) in enumerate(inputs):
-            action_surf = self.font.render(action, True, COLOR_WHITE)
-            keys_surf = self.font.render(keys, True, COLOR_CYAN)
-            
-            # Align action to the right of center-10, keys to the left of center+10
-            action_rect = action_surf.get_rect(midright=(cx - 20, start_y + i * spacing))
-            keys_rect = keys_surf.get_rect(midleft=(cx + 20, start_y + i * spacing))
-            
-            self.screen.blit(action_surf, action_rect)
-            self.screen.blit(keys_surf, keys_rect)
-
-        # Draw Back instruction
-        back_surf = self.font.render("Press SPACE or ENTER to go back", True, COLOR_WHITE)
-        self.screen.blit(back_surf, back_surf.get_rect(center=(cx, start_y + len(inputs) * spacing + 40)))
-        
-        pygame.display.flip()
-
