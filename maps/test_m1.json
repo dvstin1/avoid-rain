@@ -1,0 +1,43 @@
+{
+  "map_id": "test_m1",
+  "dimensions": {
+    "width": 7,
+    "height": 7
+  },
+  "legend": {
+    "#": "WALL",
+    ".": "EMPTY",
+    "B": "BARREL",
+    "S": "BENCH",
+    "l": "CANDELABRA",
+    "v": "INK_PUDDLE",
+    "d": "INK_URN",
+    "h": "BOOKCASE",
+    "T": "STRUCTURE",
+    "K": "ROCK",
+    "W": "WARP",
+    "P": "PLAYER_START",
+    "C": "CHRONICLER",
+    "F": "WELLSPRING",
+    "L": "LORE",
+    "R": "RESPITE",
+    "A": "Bat",
+    "Z": "Slug",
+    "f": "Flutter",
+    "b": "Bindling",
+    "E": "M1 - Ink-Stained",
+    "2": "M2 - Bleeding Scribe",
+    "3": "M3 - Forgotten Binder"
+  },
+  "grid": [
+    "#######",
+    "#######",
+    "####...",
+    "####...",
+    "#####..",
+    "######.",
+    "#####.f"
+  ],
+  "entities": {},
+  "module_sockets": []
+}
