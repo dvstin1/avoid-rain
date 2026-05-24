@@ -40,4 +40,24 @@
 
 ## Active Task: 
 
-### 1. 
+### Active Task: Save Path Verification & Title Menu Alignment Audit
+
+Audit and resolve the regression preventing the 'Continue' option from appearing on the Main Menu, ensuring save writes and boot reads target the exact same absolute path.
+
+#### 1. Unified Absolute Path Constancy
+- Audit both `engine/session.py` (or your save management script) and the Title Screen menu code in `ui/menu.py` / `main.py`.
+- **The Absolute Path Requirement:** Ensure both files utilize the identical path string construction for reading and writing:
+```python
+  import os
+  SAVE_DIR = os.path.expanduser("~/.config/avoid_rain")
+  SAVE_PATH = os.path.join(SAVE_DIR, "save_data.json")
+```
+
+#### 2. Defensive Folder Initialization
+
+    Right before the code executes a with open(SAVE_PATH, "w") serialization call inside your save loop or atexit routine, explicitly force folder generation:
+    Python
+
+```python
+os.makedirs(SAVE_DIR, exist_ok=True)
+```

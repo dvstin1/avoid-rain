@@ -241,7 +241,7 @@ def main():
                         
                         # If a persistent run exists, ask for confirmation
                         has_run = (getattr(state, 'stats', None) is not None and 
-                                   state.stats.data.get("run_state") is not None)
+                                   state.stats.data.get("active_session_in_progress", False))
                         if has_run:
                             # Transition to confirmation state instead of blocking
                             title_menu.state = TitleMenuState.CONFIRM_NEW_GAME

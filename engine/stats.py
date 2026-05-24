@@ -95,8 +95,8 @@ class StatisticsTracker:
         # [DISK WRITE] Target path resolved to: {absolute_path}
         print(f"[DISK WRITE] Target path resolved to: {target.absolute()}")
 
-        # Ensure parent exists
-        target.parent.mkdir(parents=True, exist_ok=True)
+        # Ensure parent exists explicitly via os.makedirs
+        os.makedirs(str(target.parent), exist_ok=True)
 
         # Serialize to bytes first
         payload = json.dumps(self.data, indent=2).encode('utf-8')
