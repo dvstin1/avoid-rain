@@ -89,8 +89,8 @@ class Renderer:
         else:
             prompt_text = f"Interact with {target.name}" if hasattr(target, 'name') else "Interact"
 
-        # AGENTS.md specifies "Press [ATTACK] to Speak"
-        prompt_surf = self.font.render(f"Press [E] to {prompt_text}", True, COLOR_WHITE)
+        # Unified Input: All interactions use SPACE
+        prompt_surf = self.font.render(f"Press [SPACE] to {prompt_text}", True, COLOR_WHITE)
         rect = prompt_surf.get_rect()
         # Position above player center
         px, py = player.get_center()
@@ -527,7 +527,6 @@ class Renderer:
     def draw_hud(self, state):
         """Draw player HP, Flask, and Dual Weapon slots with a [SWAP] button."""
         from constants import (
-            COLOR_WHITE, COLOR_BLUE, COLOR_YELLOW, UI_ALPHA, COLOR_GREY, COLOR_PURPLE,
             HUD_PANEL_W, HUD_PANEL_H, HUD_SLOT_W, HUD_SLOT_H, HUD_SWAP_BTN_RECT
         )
         player = state.player
