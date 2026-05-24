@@ -96,6 +96,19 @@
 - **Map Integration:** Placed a Lore Lectern ('L') at the start of `world_map1.json`.
 - **Interaction:** Verified Lectern triggers UI text with Spacebar interaction.
 
+## [ARCHIVED] Dialogue Closing Intercept & Input Debounce Fix - May 2026
+
+Resolved the "Spacebar Dialogue Lock" soft-lock and stabilized the modal state machine.
+
+### 1. Dialog State & Input Logic
+- **Priority Closure:** Updated `GameState.update()` to handle active dialogue closure at the absolute beginning of the frame.
+- **Input Consumption:** Closing a dialogue now consumes the `SPACE` input for that frame, preventing it from leaking into the combat or interaction blocks.
+- **Input Debouncing:** Implemented an `input_debounce_timer` that provides a 0.2s window after closing a modal during which new interactions are suppressed. This ensures that textboxes do not instantly re-open.
+
+### 2. Engine Stability & Scope Fixes
+- **Refactoring:** Completed a full consolidation of constants in `engine/game_state.py` and `rendering/renderer.py`, resolving all reported `UnboundLocalError` and `NameError` crashes.
+- **Verification:** Confirmed fix with the `repro_dummy_crash.py` test suite, ensuring stable combat and UI interactions.
+
 ## [ARCHIVED] Combat Rendering Stability Restored - May 2026
 
 Resolved a critical `NameError` that occurred when rendering loot items dropped after combat.

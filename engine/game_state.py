@@ -120,6 +120,7 @@ class GameState:
         self.hit_stop_timer = 0.0
         self.last_save_elapsed = 1e6
         self.objectives = []
+        self.input_debounce_timer = 0.0
 
         self._save_queue = queue.Queue(maxsize=8)
         self._save_worker_running = True
@@ -154,7 +155,6 @@ class GameState:
             self.player = Player(spawn_x, spawn_y)
             self.player.hp = float(p_data.get("hp", PLAYER_MAX_HP))
             self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
-            # (Enemy restoration logic would go here if needed)
         else:
             self.world = create_world("sanctuary")
             self.player = Player(self.world.player_start[0], self.world.player_start[1])
@@ -265,7 +265,17 @@ class GameState:
         """Update all game logic."""
         attack_pressed = actions.get('attack', False)
         
-        # 1. Update Interactables (High-Priority Spacebar processing)
+        if self.input_debounce_timer > 0:
+            self.input_debounce_timer -= dt
+            attack_pressed = False
+
+        if self.active_dialogue:
+            if attack_pressed:
+                self.active_dialogue = None
+                self.input_debounce_timer = 0.2
+                self.save_stats(wait=True)
+            return
+
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         nearby_interactables = self.world.get_nearby_interactables(player_rect)
         if nearby_interactables:
@@ -273,7 +283,6 @@ class GameState:
         else:
             self.player.current_interactable = None
 
-        # Unified Interaction Filter: If interacting, suppress combat
         if attack_pressed and self.player.current_interactable:
             self.player.current_interactable.execute_interaction(self)
             attack_pressed = False
@@ -290,12 +299,6 @@ class GameState:
         flask_pressed = actions.get('flask', False)
         dash_pressed = actions.get('dash', False)
         block_pressed = actions.get('block', False)
-
-        if self.active_dialogue:
-            if attack_pressed:
-                self.active_dialogue = None
-                self.save_stats(wait=True)
-            return
 
         if getattr(self, 'active_choice', None):
             if move_dir[0] > 0: self.active_choice["selected_index"] = 1
