@@ -96,6 +96,14 @@
 - **Map Integration:** Placed a Lore Lectern ('L') at the start of `world_map1.json`.
 - **Interaction:** Verified Lectern triggers UI text with Spacebar interaction.
 
+## [ARCHIVED] Combat Rendering Stability Restored - May 2026
+
+Resolved a critical `NameError` that occurred when rendering loot items dropped after combat.
+
+### 1. Renderer Correction
+- **Typo Fix:** Corrected a variable reference in `Renderer.draw_loot()` where `draw_rect.width` was used instead of the correctly defined `dr.width`.
+- **Stability:** Verified that `HealItem` icons (Red cross on white background) render correctly without crashing the engine.
+
 ## [ARCHIVED] Player Dash Mechanic - May 2026
 - **Dash Physics:** Implemented a high-speed directional dash burst (3.0x speed) with a 0.2s duration.
 - **Cooldown:** Established a 0.5s recovery window to balance combat mobility.

@@ -285,7 +285,7 @@ class Renderer:
         elif isinstance(item, HealItem):
             pygame.draw.rect(self.screen, (200, 50, 50), dr)
             pygame.draw.rect(self.screen, constants.COLOR_WHITE, (dr.centerx - 2, dr.y + 2, 4, dr.height - 4))
-            pygame.draw.rect(self.screen, constants.COLOR_WHITE, (dr.x + 2, dr.centery - 2, draw_rect.width - 4, 4))
+            pygame.draw.rect(self.screen, constants.COLOR_WHITE, (dr.x + 2, dr.centery - 2, dr.width - 4, 4))
 
     def draw_minimap(self, state):
         """Draw minimap."""
