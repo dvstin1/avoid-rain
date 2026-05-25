@@ -361,3 +361,30 @@ To accommodate growing input configurations (Keyboard and future Gamepad support
   - `"KEYBOARD"` mode displays a vertical two-column table aligning mapped actions with their respective key constants.
   - `"GAMEPAD"` mode is reserved to render a visual controller mapping template, entirely isolated from the keyboard layout metrics.
 - Pressing `Left` / `Right` arrow keys or a mouse-click event on localized header text buttons toggles the `controls_tab` value.
+
+## 18. Dynamic State Hooks: Post-Miniboss Modular Cleansing
+
+To facilitate progression within a massive run, the engine utilizes a **Modular Event Listener** pattern to trigger environment shifts upon elite defeat.
+
+### 1. The Kill-Signal Hook
+Every Miniboss entity (`M1`, `M2`, `M3`) is instantiated with a link to its parent `ModuleSocket` index. Upon the successful execution of its `on_death()` resolution:
+- The entity broadcasts a `SIG_CLEANSE_MODULE` event.
+- The event payload includes the specific `SocketID` and `AbsoluteCoordinates`.
+
+### 2. State Transition & Persistence
+The `World` state intercepts the signal and executes the following:
+- **Flag Modification:** Toggles the specific socket's `is_cleansed` boolean to `True`.
+- **Entity Realization:** The dormant `RespiteAnchor` at the module's designated center executes a `Materialize()` call, transitioning from an invisible metadata point into an active, interactable `Respite` object.
+
+### 3. Respawn Suppression Rules
+The `LevelLoader` checks the `is_cleansed` flag during subsequent map re-entries:
+- **The Peace Rule:** If `is_cleansed` is active, the parser bypasses all enemy instantiation symbols within the socket's bounding box.
+- **Static Persistence:** Props and lore remains, but the "Bleed" cannot re-manifest threats in a blotted, dried region.
+
+## Dynamic Module Cleansing & Respite Architecture (Future Specification)
+Each modular sub-map registers a hidden coordinate point designated as a `Respite Anchor`.
+- **The Sealed State:** On initial load, the Respite entity is dormant, invisible, and non-functional.
+- **The Cleansing Trigger:** When the local Miniboss (`M1`, `M2`, or `M3`) assigned to that module's instance is successfully struck down:
+  - The module enters a "Cleansed" state flag.
+  - The Respite Anchor materializes a permanent healing fountain or saving lectern.
+  - Enemies within this specific sub-map's bounds are permanently suppressed from respawning for the remainder of the active run.
