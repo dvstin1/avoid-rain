@@ -42,21 +42,4 @@
 
 ## Active Task: 
 
-### Active Task: Respite Level-Up Lock, Input Ratchet Debounce, & HUD Font Scaling Alignment
-
-Resolve input spamming inside menu overlays, enforce the single-use level-up restriction per rest cycle, and align HUD layout text fonts.
-
-#### 1. Level-Up Lock State Integration
-- In `ui/menu.py` or your respite loop handler, track the state variable `player.has_rested_this_session`.
-- Toggle it to `True` strictly when the player triggers the active "Rest" routine (which resets the standard enemies).
-- Once the level-up transaction executes or the menu closes, immediately flag `player.has_rested_this_session = False`. 
-- Gray out or display an interactive message block reading `"[Must Rest to Unblock Level Up]"` if they try to access the option again without resting.
-
-#### 2. UI Input Ratchet (Key-Up Release Safeguard)
-- In your UI input listener system, add a debounce condition to prevent rapid menu selections:
-  - Do not process continuous held inputs for transaction triggers.
-  - Require the user to fully lift their interaction key or mouse click button before allowing a subsequent `Level Up` purchase to process.
-
-#### 3. HUD Status Metric Font Realignment
-- In `rendering/renderer.py`, locate the top-level HUD drawing module where player parameters (`HP`, `Flasks`, `Pages`) are written to the screen.
-- **The Typography Fix:** Downgrade the font size used for this text object line to exactly match the smaller, compact font assets utilized by your lower action panels (such as `[SWAP]` and `[PICK UP]`). Ensure clean vertical padding so everything sits perfectly contained inside the HUD margin boundaries.
+### 

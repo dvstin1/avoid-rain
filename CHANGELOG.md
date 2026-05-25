@@ -381,3 +381,21 @@ Refactored the enemy architecture to eliminate hardcoded string checks for speci
 - **Respite Reset Filter:** Updated the `Respite.execute_rest` logic in `engine/world.py` to filter entities using `getattr(enemy, 'is_miniboss', False)`, ensuring all elite types are preserved across rests without manual string lookups.
 - **Loot Drop Module:** Refactored `GameState.update` to dynamically assign Tier 2 loot rewards based on the `is_miniboss` flag, standardizing the reward pipeline for all high-value targets.
 - **Save State Reconstruction:** Implemented `ENEMY_REGISTRY` and `SYMBOL_REGISTRY` in `engine/enemy.py`, allowing the `LevelLoader` to reconstruct enemies from persistent data or map symbols without hardcoded type branches.
+
+## [ARCHIVED] Respite Level-Up Lock, Input Ratchet Debounce, & HUD Font Scaling Alignment - May 2026
+
+Resolved input spamming inside menu overlays, enforced the single-use level-up restriction per rest cycle, and aligned HUD layout text fonts.
+
+### 1. Level-Up Lock State Integration
+- **Resting Mandate:** Implemented `player.has_rested_this_session` to track the single-use level-up restriction.
+- **Unlock Trigger:** The flag is toggled to `True` strictly upon triggering a "Rest" action at a Respite.
+- **Transaction Lock:** Completing an edification upgrade or closing the menu instantly clears the flag, preventing repeated level-ups without accepting the risk of a world reset.
+- **Visual Feedback:** Added an interactive message block reading `"[Must Rest to Unblock Level Up]"` when the edification menu is locked.
+
+### 2. UI Input Ratchet (Debounce Safeguard)
+- **Transaction Security:** Implemented an input ratchet in `engine/game_state.py` to prevent rapid menu selections and accidental double-purchases.
+- **Event-Driven Latching:** UI actions now require a distinct `KEYUP` or `MOUSEBUTTONUP` signal from the OS to reset the input latch, blocking continuous held-input triggers.
+
+### 3. HUD Status Metric Font Realignment
+- **Typography Standardization:** Scaled down the font size for the top-level HUD parameters (`HP`, `Flasks`, `Pages`) to match the compact 14pt assets used for action prompts.
+- **Visual Alignment:** Improved vertical padding and boundary containment within the HUD panel for a cleaner, professional interface.
