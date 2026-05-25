@@ -42,21 +42,4 @@
 
 ## Active Task: 
 
-### Active Task: Expanding world_map1.json into a Large-Scale Modular Testing Layout
-
-Scale up the macro-world testing grounds to verify the performance and aesthetic consistency of the "Master Loom" modular assembly system at scale.
-
-#### 1. Macro-World Scaling
-- Open `maps/world_map1.json` in the Map Editor (`tools/edit_map.py`).
-- Resize the canvas to a significantly larger footprint (e.g., 100x100 or larger) to simulate a full exploration chapter.
-- Design a high-quality "Lotus Topography" frame that links multiple disparate regions.
-
-#### 2. Socket Population & Anomaly Testing
-- Place at least 8-10 independent module sockets throughout the expanded map.
-- Assign a variety of `active_plug` targets, including specialized combat arenas, lore-heavy respite zones, and hazard-dense corridors.
-- Verify that the per-socket 10% Special Edition roll correctly populates the world with a mix of standard and rare modules.
-
-#### 3. Stress Test & Refinement
-- Run the game and verify the initialization time for a large-scale modular load.
-- Ensure that the player's camera and minimap handle the expanded dimensions without artifacting.
-- Audit the enemy density and loot distribution to ensure the world feels "alive" but balanced.
+### 

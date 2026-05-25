@@ -331,3 +331,20 @@ Overhauled the map editor utility with robust socket management, precise canvas 
 ### 3. Safe Blank Map Canvas Sequence ([Ctrl+N])
 - **Clean Slate:** Added a `Ctrl+N` shortcut that flushes the grid, clears all entities/sockets, and resets the camera/zoom to defaults.
 - **The Overwrite Guard:** Implemented an explicit file path reset to `None` upon creating a new map. This prevents `Ctrl+S` from overwriting the previously loaded file, forcing a naming prompt for the new asset.
+
+## [ARCHIVED] Expanding world_map1.json into a Large-Scale Modular Testing Layout - May 2026
+
+Scaled up the macro-world testing grounds to verify the performance and aesthetic consistency of the "Master Loom" modular assembly system at scale.
+
+### 1. Macro-World Scaling
+- **Canvas Expansion:** Resized `maps/world_map1.json` to a significantly larger footprint ($100 \times 100$) using the new editor resizing tools.
+- **Topology Design:** Developed a high-quality "Lotus Topography" frame that links multiple disparate regions via intentional corridors and pathways.
+
+### 2. Socket Population & Anomaly Testing
+- **Dense Sockets:** Placed 8-10 independent module sockets throughout the expanded map layout.
+- **Content Variety:** Assigned a diverse range of `active_plug` targets, including combat arenas, lore-heavy respite zones, and hazard corridors.
+- **Generative Verification:** Verified that the per-socket 10% Special Edition roll correctly populates the large-scale world with a mix of standard and rare modules.
+
+### 3. Stress Test & Performance
+- **Load Optimization:** Verified that the "Master Loom" assembly pass executes efficiently even with double-digit socket counts.
+- **Viewport Stability:** Ensured that the camera damping and minimap panning handle the expanded $100 \times 100$ grid without artifacting or lag.
