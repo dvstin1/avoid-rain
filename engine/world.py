@@ -63,7 +63,7 @@ class WarpPortal(GameObject):
         try:
             from engine.maps import create_world
             print(f"[DEBUG] WarpPortal targeting: {self.target_name}")
-            
+
             game_state.world = create_world(self.target_name)
 
             # Sanctuary Reset Rule: Enforce automatic item and health reset
@@ -252,7 +252,7 @@ class LevelLoader:
 
         grid = [list(row) for row in data["grid"]]
         raw_entities = data.get("entities", {})
-        
+
         # 1. Modular Assembly Pass
         module_sockets = data.get("module_sockets", [])
         for socket in module_sockets:
@@ -266,7 +266,7 @@ class LevelLoader:
 
             if not active_plug:
                 continue
-            
+
             # Resolve path relative to project root or maps dir
             if not os.path.exists(active_plug):
                 alt_path = os.path.join("maps", os.path.basename(active_plug))
@@ -279,7 +279,7 @@ class LevelLoader:
             try:
                 with open(active_plug, 'r', encoding='utf-8') as f:
                     sub_data = json.load(f)
-                
+
                 b = socket["bounds"]
                 sw = sub_data["dimensions"]["width"]
                 sh = sub_data["dimensions"]["height"]
@@ -306,7 +306,7 @@ class LevelLoader:
                         raw_entities[f"{abs_x},{abs_y}"] = v
                     except ValueError:
                         continue
-                
+
                 print(f"[DEBUG] Stitched sub-map {active_plug} into socket {socket['name']}")
             except Exception as e:
                 print(f"[ERROR] Failed to stitch sub-map {active_plug}: {e}")
@@ -362,6 +362,9 @@ class LevelLoader:
                 elif e_type == "MinibossM3":
                     from engine.enemy import MinibossM3
                     enemies.append(MinibossM3.from_dict(e_data))
+                elif e_type == "SmearEnemy":
+                    from engine.enemy import SmearEnemy
+                    enemies.append(SmearEnemy.from_dict(e_data))
 
         # Check for Lotus Topography symbols
         has_lotus = any('M' in row or 'X' in row for row in prototype_array)
@@ -526,6 +529,12 @@ class LevelLoader:
                     if not saved_enemies:
                         from engine.enemy import BindlingEnemy
                         enemies.append(BindlingEnemy(pos[0], pos[1]))
+
+                elif char == 's':
+                    # SmearEnemy Spawn (Bypassed if loading from save)
+                    if not saved_enemies:
+                        from engine.enemy import SmearEnemy
+                        enemies.append(SmearEnemy(pos[0], pos[1]))
 
                 elif char == 'P':
                     # Player Start hook

@@ -101,6 +101,14 @@ BINDLING_HEAL_RATE = 5.0  # HP per second near margins
 BINDLING_HEAL_RADIUS = 2.0 # Tiles away from wall to trigger healing
 BINDLING_BIND_DURATION = 1.0 # Duration of movement penalty applied to player
 
+# Amorphous Smear enemy configuration
+SMEAR_MAX_HP = 60
+SMEAR_SPEED = 60.0 # Slow, viscous movement
+SMEAR_DETECT_METERS = 6
+SMEAR_DAMAGE = 10
+SMEAR_DAMAGE_COOLDOWN = 1.2
+SMEAR_PUDDLE_CHANCE = 0.5 # Chance per second to drop a puddle
+
 # Grid & World Configuration
 TILE_SIZE = 40
 MACRO_MAP_SIZE = 120
@@ -185,6 +193,7 @@ TILE_KEY = {
     'E': 103, # Miniboss Spawn
     'f': 104, # FlutterEnemy Spawn
     'b': 105, # BindlingEnemy Spawn
+    's': 106, # SmearEnemy Spawn
     'P': 100, # Special marker for player start
     'M': TILE_LOTUS_FRAME,
     'X': TILE_WALL, # X also acts as a wall boundary
@@ -254,6 +263,12 @@ DIALOGUE_MANIFEST = {
         "But when the ink began to boil, we had no choice but to sharpen the nibs. "
         "Half the world is now Cleft, separated by a margin that no longer holds its shape. "
         "If you are reading this, you are the last Editor. Please... finish the sentence we could not."
+        ),
+        "smear_viscosity": (
+            "Smears are the most primitive of the Menagerie. They are little more than "
+            "unfocused intent—ink that refused to dry and instead began to crawl. "
+            "They are viscous and stubborn, often splitting into smaller blots when "
+            "severed, as if trying to rewrite themselves into multiple sentences."
         )
         }
         }

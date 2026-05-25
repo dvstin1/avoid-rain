@@ -24,6 +24,7 @@ ENEMY_TYPES = [
     ('Z', 'Slug'),
     ('f', 'Flutter'),
     ('b', 'Bindling'),
+    ('s', 'Smear'),
     ('E', 'M1 - Ink-Stained'),
     ('2', 'M2 - Bleeding Scribe'),
     ('3', 'M3 - Forgotten Binder')
@@ -47,6 +48,7 @@ PALETTE = [
     ('F', 'WELLSPRING'),
     ('L', 'LORE'),
     ('R', 'RESPITE'),
+    ('s', 'SMEAR'),
     ('MONSTER', 'Monster (Cyclic)')
 ]
 
@@ -77,7 +79,7 @@ class MapEditor:
         self.filename = None
         self.input_mode = None  # 'SAVE', 'LOAD', 'PICKER', 'SOCKET_NAME', 'RESIZE_W', 'RESIZE_H'
         self.input_buffer = ""
-        
+
         # File Picker State
         self.map_files = []
         self.file_picker_idx = 0
@@ -246,7 +248,7 @@ class MapEditor:
         else:
             color = (0, 255, 255, 80)
             outline_color = (0, 255, 255)
-        
+
         preview_surf.fill(color)
         self.screen.blit(preview_surf, (rect.x, rect.y))
         # Draw opaque outline
@@ -335,13 +337,13 @@ class MapEditor:
         overlay_w, overlay_h = 400, 500
         x, y = (SCREEN_WIDTH + self.sidebar_width) // 2 - overlay_w // 2, SCREEN_HEIGHT // 2 - overlay_h // 2
         rect = pygame.Rect(x, y, overlay_w, overlay_h)
-        
+
         pygame.draw.rect(self.screen, (30, 30, 40), rect)
         pygame.draw.rect(self.screen, COLOR_WHITE, rect, 2)
-        
+
         title = self.large_font.render("Select Map (Enter to Load)", True, COLOR_YELLOW)
         self.screen.blit(title, (rect.centerx - title.get_width() // 2, rect.y + 10))
-        
+
         # Draw scrollable list
         start_y = rect.y + 70
         visible_count = 12
@@ -349,11 +351,11 @@ class MapEditor:
             color = COLOR_YELLOW if i == self.file_picker_idx else COLOR_WHITE
             file_name = self.map_files[i]
             surf = self.font.render(file_name, True, color)
-            
+
             row_rect = pygame.Rect(rect.x + 20, start_y + (i - self.scroll_offset) * 30, overlay_w - 40, 25)
             if i == self.file_picker_idx:
                 pygame.draw.rect(self.screen, (60, 60, 80), row_rect)
-            
+
             self.screen.blit(surf, (row_rect.x + 5, row_rect.y + 2))
 
     def draw_input_banner(self):
@@ -517,7 +519,7 @@ class MapEditor:
             # Cycle through PENCIL and RECTANGLE
             self.active_tool = "RECTANGLE" if self.active_tool == "PENCIL" else "PENCIL"
             return
-        
+
         if event.key == pygame.K_j:
             self.active_tool = "SOCKET"
             return

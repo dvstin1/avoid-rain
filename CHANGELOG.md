@@ -297,6 +297,23 @@ Upgraded the map editor utility to support the new modular map nesting protocol 
 ... (rest of entry) ...
 - **Persistence Refactor:** Removed `active_module_pool` from the global `GameState` and persistence layers. Since selection is now a generative property of the world load pass, it no longer requires run-wide tracking.
 
+## [ARCHIVED] Implementation of the "Smear" Menagerie Anomaly - May 2026
+
+Introduced the Smear enemy type, a viscous ink-based threat that reinforces the Scriptorium Noir aesthetic and implements unique splitting and hazard-dropping mechanics.
+
+### 1. Mechanical Definition
+- **Thematic Stats:** Established slow, viscous movement profiles and high HP for Smear entities in `constants.py`.
+- **Lore Integration:** Added the `smear_viscosity` lore fragment to the Bestiary Reflection manifest, detailing the origin of these "crawling scrawls."
+- **Symbol Mapping:** Assigned the `s` symbol for modular map integration.
+
+### 2. Amorphous Behavior Logic
+- **The Trail Rule:** Implemented dynamic spawning of "Inkwell Puddle" hazards during Smear movement, creating persistent area-denial zones that slow the player.
+- **The Splitting Rule:** Engineered a self-replication mechanic where large Smear entities split into two smaller, faster "blots" upon death.
+
+### 3. Tooling Synchronization
+- **Map Editor:** Updated `tools/edit_map.py` to include the Smear in the palette and enemy cycle list, ensuring designers can place these anomalies in future modules.
+- **Level Loader:** Enhanced the `LevelLoader` to support Smear spawning and state reconstruction.
+
 ## [ARCHIVED] Map Editor Expansion — Visual Sockets Management, Resizing, & Safe Canvas Creation - May 2026
 
 Overhauled the map editor utility with robust socket management, precise canvas resizing, and a safe workflow for new map creation.

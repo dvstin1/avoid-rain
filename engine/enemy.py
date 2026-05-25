@@ -2,6 +2,7 @@
 Enemy classes for simple NPCs and monsters.
 """
 import math
+import random
 from engine.physics import resolve_wall_collision, check_aabb_collision
 from constants import TILE_SIZE, STAGGER_DURATION
 
@@ -63,7 +64,10 @@ class SlugEnemy(Enemy):
     """
     loot_tier = 3
     def __init__(self, x, y, hp=None):
-        from constants import SLUG_MAX_HP, SLUG_SPEED, SLUG_DETECT_METERS, SLUG_DAMAGE, SLUG_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
+        from constants import (
+            SLUG_MAX_HP, SLUG_SPEED, SLUG_DETECT_METERS, SLUG_DAMAGE,
+            SLUG_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
+        )
         initial_hp = hp if hp is not None else SLUG_MAX_HP
         super().__init__(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, initial_hp)
         self.speed = SLUG_SPEED
@@ -277,7 +281,7 @@ class Miniboss(Enemy):
                 self.vy = ny * self.speed
                 self.x += self.vx * dt
                 self.y += self.vy * dt
-                
+
                 # Resolve wall collisions
                 try:
                     walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
@@ -313,9 +317,9 @@ class Miniboss(Enemy):
         """Implement the Full-Cradle Rule for weapon drops."""
         import random
         from engine.world import WeaponPickup
-        
+
         player_weapons_count = len(state.player.weapons)
-        
+
         if player_weapons_count < 2:
             # Drop Standard Weapon
             weapon_data = {"name": "Refined Quill", "damage": 15}
@@ -377,10 +381,12 @@ class MinibossM2(Miniboss):
                 try:
                     walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
                     self.x, self.y = resolve_wall_collision((self.x, self.y, self.width, self.height), walls)
-                except Exception: pass
+                except Exception:
+                    pass
         else:
             self.vx, self.vy = 0.0, 0.0
-        if self._damage_timer > 0.0: self._damage_timer -= dt
+        if self._damage_timer > 0.0:
+            self._damage_timer -= dt
 
 
 class MinibossM3(Miniboss):
@@ -414,7 +420,6 @@ class MinibossM3(Miniboss):
 
         # Teleport away if player is too close and cooldown is up
         if dist_sq < (120**2) and self._tele_timer <= 0:
-            import random
             angle = random.uniform(0, 2 * math.pi)
             self.x = player_cx + math.cos(angle) * 300 - self.width / 2
             self.y = player_cy + math.sin(angle) * 300 - self.height / 2
@@ -431,10 +436,12 @@ class MinibossM3(Miniboss):
                 try:
                     walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
                     self.x, self.y = resolve_wall_collision((self.x, self.y, self.width, self.height), walls)
-                except Exception: pass
+                except Exception:
+                    pass
         else:
             self.vx, self.vy = 0.0, 0.0
-        if self._damage_timer > 0.0: self._damage_timer -= dt
+        if self._damage_timer > 0.0:
+            self._damage_timer -= dt
 
 
 class FlutterEnemy(Enemy):
@@ -490,7 +497,7 @@ class FlutterEnemy(Enemy):
                 self.vy = ny * self.speed
                 self.x += self.vx * dt
                 self.y += self.vy * dt
-                
+
                 # Resolve wall collisions
                 try:
                     walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
@@ -556,11 +563,11 @@ class BindlingEnemy(Enemy):
     def _is_near_margin(self, world):
         """Check if any walls are within the healing radius."""
         from constants import BINDLING_HEAL_RADIUS, TILE_WALL, TILE_LOTUS_FRAME
-        
+
         # Check a slightly expanded rect
         margin = BINDLING_HEAL_RADIUS * TILE_SIZE
         check_rect = (self.x - margin, self.y - margin, self.width + margin * 2, self.height + margin * 2)
-        
+
         h = len(world.grid)
         w = len(world.grid[0]) if h > 0 else 0
         start_x = max(0, int(check_rect[0] // TILE_SIZE))
@@ -603,7 +610,7 @@ class BindlingEnemy(Enemy):
                 self.vy = ny * self.speed
                 self.x += self.vx * dt
                 self.y += self.vy * dt
-                
+
                 # Resolve wall collisions
                 try:
                     walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
@@ -639,3 +646,114 @@ class BindlingEnemy(Enemy):
             self._damage_timer = self.damage_cooldown
             return True
         return False
+
+
+class SmearEnemy(Enemy):
+    """An amorphous ink blob that splits when hit and leaves ink trails.
+
+    - Slow pursuit behavior.
+    - Occasionally drops 'Inkwell Puddle' hazards.
+    - When killed at large size, splits into two smaller Smears.
+    """
+    loot_tier = 3
+    def __init__(self, x, y, hp=None, size_multiplier=1.0):
+        from constants import (
+            SMEAR_MAX_HP, SMEAR_SPEED, SMEAR_DETECT_METERS,
+            SMEAR_DAMAGE, SMEAR_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
+        )
+        initial_hp = hp if hp is not None else (SMEAR_MAX_HP * size_multiplier)
+        super().__init__(
+            x, y,
+            int(PLAYER_WIDTH * size_multiplier),
+            int(PLAYER_HEIGHT * size_multiplier),
+            initial_hp
+        )
+        self.size_multiplier = size_multiplier
+        self.speed = SMEAR_SPEED * (1.2 if size_multiplier < 1.0 else 1.0) # Small ones are faster
+        self.detect_radius = SMEAR_DETECT_METERS * TILE_SIZE
+        self.damage = int(SMEAR_DAMAGE * size_multiplier)
+        self.damage_cooldown = SMEAR_DAMAGE_COOLDOWN
+        self._damage_timer = 0.0
+        self._puddle_timer = 0.0
+
+    def to_dict(self):
+        d = super().to_dict()
+        d["type"] = "SmearEnemy"
+        d["size_multiplier"] = self.size_multiplier
+        return d
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            data["x"], data["y"],
+            hp=data["hp"],
+            size_multiplier=data.get("size_multiplier", 1.0)
+        )
+
+    def update(self, dt, state):
+        """Pursuit behavior and trail dropping."""
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+            return
+
+        # 1. Puddle Dropping Logic
+        self._puddle_timer += dt
+        from constants import SMEAR_PUDDLE_CHANCE
+        if self._puddle_timer >= 1.0: # Check once per second
+            self._puddle_timer = 0.0
+            if random.random() < SMEAR_PUDDLE_CHANCE:
+                from engine.world import GameObject
+                puddle = GameObject((self.x, self.y), (TILE_SIZE, TILE_SIZE))
+                puddle.is_solid = False
+                puddle.name = "Inkwell Puddle"
+                state.world.interactables.append(puddle)
+
+        # 2. Movement Logic (Pursuit)
+        player_cx, player_cy = state.player.get_center()
+        cx, cy = self.x + self.width / 2, self.y + self.height / 2
+        dx, dy = player_cx - cx, player_cy - cy
+        dist_sq = dx * dx + dy * dy
+
+        if dist_sq <= (self.detect_radius * self.detect_radius):
+            dist = math.sqrt(dist_sq) if dist_sq > 0 else 0.0
+            if dist > 0.0:
+                self.vx, self.vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+                self.x += self.vx * dt
+                self.y += self.vy * dt
+                try:
+                    walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
+                    from engine.physics import resolve_wall_collision
+                    self.x, self.y = resolve_wall_collision((self.x, self.y, self.width, self.height), walls)
+                except Exception:
+                    pass
+        else:
+            self.vx, self.vy = 0.0, 0.0
+
+        if self._damage_timer > 0.0:
+            self._damage_timer -= dt
+
+    def attempt_damage_player(self, state):
+        """Apply damage and slow on contact."""
+        if self._damage_timer > 0.0:
+            return False
+        if check_aabb_collision(
+            self.get_rect(),
+            (state.player.x, state.player.y, state.player.width, state.player.height)
+        ):
+            try:
+                state.player.take_damage(self.damage)
+            except Exception:
+                pass
+            self._damage_timer = self.damage_cooldown
+            return True
+        return False
+
+    def on_death(self, state):
+        """Split into smaller Smears if large enough."""
+        if self.size_multiplier >= 1.0:
+            print(f"[DEBUG] Smear at ({self.x}, {self.y}) splitting!")
+            # Spawn two smaller smears
+            s1 = SmearEnemy(self.x - 10, self.y, size_multiplier=0.5)
+            s2 = SmearEnemy(self.x + 10, self.y, size_multiplier=0.5)
+            state.enemies.append(s1)
+            state.enemies.append(s2)
