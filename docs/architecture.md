@@ -83,3 +83,14 @@ To prevent event spamming during transactions, UI controls require a distinct `u
 - **Typography Alignment:** Status metrics (`HP`, `Flasks`, `Pages`) must utilize the compact 14pt font assets to match action prompts (`[SWAP]`, `[PICK UP]`), ensuring consistent padding within the HUD panel boundaries.
 
 ## 11. Entity Inheritances & The Miniboss Classification Law
+
+
+## 12. Hub Persistence Boundaries & Notification Gatekeeper Rules
+
+### 1. The Sanctuary Persistence Rule (The Blank Slate)
+The Sanctuary acts as a transitional threshold between archival runs. 
+- Entering or quitting from the Sanctuary forces the player's runtime `edification_level` to immediately drop back to **1**.
+- **File Persistence:** The system must still write a valid session file to `~/.config/avoid_rain/save_data.json` when exiting from the Sanctuary. The main menu must render the **Continue** button if this file is present, bypassing the `in_progress` restriction so players can resume their session directly inside the hub.
+
+### 2. Notification System Debounce
+UI text popup alerts (such as `"Not enough pages!"`) must check the state of the `input_ratchet_latched` flag. No error notifications may be appended to the rendering stack if the input frame is currently locked or waiting for a key-release signal.
