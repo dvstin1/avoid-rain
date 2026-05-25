@@ -234,6 +234,13 @@ class Renderer:
         except Exception: pass
         try: self.draw_hud(state)
         except Exception: pass
+
+        # Audio Debug OSD
+        debug_font = pygame.font.SysFont("Arial", 14, bold=True)
+        debug_text = f"[DEBUG_AUDIO: Playing {state.player.active_track_name}]"
+        debug_surf = debug_font.render(debug_text, True, constants.COLOR_WHITE)
+        self.screen.blit(debug_surf, (sw // 2 - debug_surf.get_width() // 2, 5))
+
         if getattr(state, 'active_dialogue', None): self.draw_dialogue_box(state)
         if getattr(state, 'active_choice', None): self.draw_choice_of_fates(state.active_choice)
         if getattr(state, 'death_timer', 0) > 0:
@@ -405,6 +412,13 @@ class Renderer:
             self.screen.blit(w_surf, w_surf.get_rect(center=(sw//2, sh//2 + 30)))
         elif getattr(state, 'name', '') == 'CONTROLS':
             self.draw_controls_overlay(True)
+        
+        # Audio Debug OSD (Title Screen)
+        debug_font = pygame.font.SysFont("Arial", 14, bold=True)
+        debug_text = "[DEBUG_AUDIO: Playing title_theme.ogg]"
+        debug_surf = debug_font.render(debug_text, True, constants.COLOR_WHITE)
+        self.screen.blit(debug_surf, (sw // 2 - debug_surf.get_width() // 2, 5))
+
         pygame.display.flip()
 
     def fade_to_black(self):

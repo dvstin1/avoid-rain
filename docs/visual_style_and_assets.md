@@ -51,3 +51,21 @@ Every asset added to the registry must include:
 - **Dimensions:** Targeted pixel boundaries.
 - **Composition:** Geometric arrangement rules (e.g., "centered horizontally").
 - **Contrast Rule:** How the asset visually separates from the background.
+
+## 4. Audio Asset Manifest & Technical Layout Standards
+
+To ensure clean file discovery and gapless loops, the engine utilizes the OGG Vorbis (.ogg) container format for all music tracks. MP3 is avoided due to compression-induced silent padding frames which disrupt seamless repetition.
+
+### Asset Directory Tree Structure
+```text
+assets/
+└── audio/
+    └── music/
+        ├── title_theme.ogg       # Minimalist recorder & slow book slides
+        ├── sanctuary_hub.ogg     # Somber, hollow kalimba tracking
+        ├── world_exploration.ogg # Low ambient drone & distant percussion
+        ├── death_screen.ogg      # Single descending recorder tone & dead silence
+        ├── miniboss_combat.ogg   # Tense, rhythmic ad-hoc book slams
+        ├── night_boss_core.ogg   # Aggressive, building composition
+        └── final_reckoning.ogg   # Peak structural arrangement
+```

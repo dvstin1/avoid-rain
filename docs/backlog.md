@@ -35,3 +35,9 @@
 - **LAN Multiplayer:** Implement UDP broadcast (`SO_BROADCAST`) for automatic game discovery on the same subnet.
 - **Authoritative State:** Design the engine to treat the host's world as the single source of truth, synchronizing client positions via TCP streams.
 - **State Serialization:** Ensure player entities cleanly serialize position and movement vectors into lightweight JSON/byte structs for low-latency networking.
+
+## Phase 2: Combat Refinement & Physical Polishing
+- **Dynamic Proximity Music Trigger Modules:**
+  - **The Engagement Hook:** When an entity with `.is_miniboss == True` enters an aggressive/hostile state with the player, the engine fades down the exploration track and crossfades into `miniboss_combat.ogg`.
+  - **The 15-Meter Proximity Rule:** The engine continuously calculates the Euclidean distance between the active player sprite and the hostile miniboss. 
+  - **The 3-Second Ticking Cooldown:** If the distance exceeds 15 meters continuously for greater than or equal to 3.0 seconds, the engine flags the combat track to fade out and smoothly restores the regional exploration theme.

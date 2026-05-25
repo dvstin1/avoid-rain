@@ -42,3 +42,8 @@ Provides a spatial overview showing a window around the player rather than the f
 A centralized modal for remapping and reference.
 - **Tabs:** Internal state toggles between `KEYBOARD` and `GAMEPAD` layouts.
 - **Isolation:** Keeps different controller mapping metrics entirely separated.
+
+## 5. System Status Overlay & Diagnostic Telemetry (Top-Right HUD Stack)
+The top-right quadrant of the active display window is reserved for transient engine status indicators and persistent debug readouts. Text items in this stack use the compact, small font line size to prevent viewport crowding:
+- **Line 1 (Y-Offset: 10px):** Contextual save status indicator (`[Saving...]`).
+- **Line 2 (Y-Offset: 25px):** Active Audio Track state tracker readout (`[AUDIO: <track_name>]`).

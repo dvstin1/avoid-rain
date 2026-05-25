@@ -12,7 +12,8 @@ from constants import (
     PLAYER_MAX_HP, FLASK_MAX_CHARGES,
     SCREEN_SHAKE_DURATION, HIT_STOP_DURATION,
     SCREEN_WIDTH, SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT, HUD_PICKUP_BTN_RECT,
-    TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED
+    TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED,
+    SCREEN_SHAKE_INTENSITY, AUTOSAVE_INDICATOR_DURATION
 )
 from engine.player import Player, PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -370,9 +371,9 @@ class GameState:
             pb = HUD_PICKUP_BTN_RECT
             if (bx + pb[0] <= mouse_click[0] <= bx + pb[0] + pb[2]) and \
                (by + pb[1] <= mouse_click[1] <= by + pb[1] + pb[3]):
-                target = self.player.current_interactable
-                if isinstance(target, WeaponPickup):
-                    target.execute_interaction(self)
+                target_p = self.player.current_interactable
+                if isinstance(target_p, WeaponPickup):
+                    target_p.execute_interaction(self)
 
         walls = self.world.get_nearby_walls(player_rect)
         speed_multiplier = 1.0
@@ -385,6 +386,9 @@ class GameState:
             dt, move_dir, walls, actions, attack_pressed,
             flask_pressed, dash_pressed, block_pressed, speed_multiplier
         )
+        # Audio Track Manager logic
+        self._update_audio_track(dt)
+
         self.camera.update(self.player.get_center(), dt)
 
         if self.player.state == PlayerStateEnum.ATTACKING:
@@ -456,6 +460,43 @@ class GameState:
                 self.death_timer = 5.0
         except Exception:
             pass
+
+    def _update_audio_track(self, dt):
+        """Update active_track_name based on zone and miniboss proximity."""
+        world_name = getattr(self.world, 'name', 'sanctuary')
+
+        # 1. Zone Defaults
+        target_track = "world_exploration.ogg"
+        if world_name == "sanctuary":
+            target_track = "sanctuary_hub.ogg"
+
+        if self.player.hp <= 0:
+            target_track = "death_screen.ogg"
+
+        # 2. Miniboss Proximity Rule (15 meters = 600 pixels)
+        pixels_per_meter = TILE_SIZE
+        proximity_threshold = 15 * pixels_per_meter
+        cooldown_limit = 3.0
+
+        near_miniboss = False
+        px, py = self.player.get_center()
+        for enemy in self.enemies:
+            if getattr(enemy, 'is_miniboss', False):
+                ex, ey = enemy.x + enemy.width / 2, enemy.y + enemy.height / 2
+                dist_sq = (px - ex)**2 + (py - ey)**2
+                if dist_sq <= proximity_threshold**2:
+                    near_miniboss = True
+                    break
+
+        if near_miniboss:
+            self.player.active_track_name = "miniboss_combat.ogg"
+            self.player.miniboss_cooldown_accumulator = 0.0
+        elif self.player.active_track_name == "miniboss_combat.ogg":
+            self.player.miniboss_cooldown_accumulator += dt
+            if self.player.miniboss_cooldown_accumulator >= cooldown_limit:
+                self.player.active_track_name = target_track
+        else:
+            self.player.active_track_name = target_track
 
     def _handle_upgrade(self, stat_name, amount, cost_scale):
         """Helper to handle edification upgrades. Returns True on success."""

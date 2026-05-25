@@ -264,7 +264,9 @@ Resolved a critical `UnboundLocalError` that occurred when interacting with NPCs
 - **UI Navigation:** Built a tabbed controls interface accessible from both the Title and Pause menus.
 
 ## [ARCHIVED] Save Path Verification & Title Menu Alignment Audit - May 2026
-... (rest of entry) ...
+- **Unified Absolute Path Constancy:** Audited and resolved the regression preventing the 'Continue' option from appearing on the Main Menu, ensuring save writes and boot reads target the exact same absolute path.
+- **Defensive Folder Initialization:** Implemented explicit folder generation (`os.makedirs`) right before serialization to ensure the configuration directory exists.
+- **Hard Disk Save Detection Override for Title Menu Initialization:** Corrected the cold-boot title menu state logic to evaluate the physical presence of `save_data.json` on disk.
 - **Runtime Flag Synchronization:** Ensured that if a valid save is detected, the `active_session_in_progress` runtime flag is synchronized immediately.
 
 ## [ARCHIVED] Map Editor Socket Drawing Tool & Dimensions HUD - May 2026
@@ -286,33 +288,51 @@ Upgraded the map editor utility to support the new modular map nesting protocol 
 - Verified that socket visualization persists through save/load cycles.
 
 ## [ARCHIVED] Modular Map Stitching & Socket Injection - May 2026
-... (rest of entry) ...
-- Verification: Confirmed successful runtime assembly through prototype instantiation tests, verifying both tile layout and entity population.
+
+Implemented the "Master Loom" modular assembly system, allowing for seamless injection of sub-maps into macro-world environments.
+
+### 1. LevelLoader Refactor (Stitching Pass)
+- **Modular Assembly Logic:** Refactored `LevelLoader.load_json_map` to perform a pre-parsing assembly pass.
+- **Tile Overwriting:** The system now overlays sub-map grid matrices onto the master macro-grid using socket bounds.
+- **Absolute Entity Blitting:** Implemented logic to transpose sub-map entity coordinates into absolute world-space coordinates during the stitching phase.
+
+### 2. Macro-World Integration
+- **Socket Configuration:** Updated `world_map1.json` with `active_plug` references for the `M1` and `M2` sockets.
+- **Dimensions Alignment:** Enforced a dimensions validation rule to ensure sub-maps perfectly fit their designated sockets.
+- **Verification:** Confirmed successful runtime assembly through prototype instantiation tests, verifying both tile layout and entity population.
 
 ## [ARCHIVED] Tiered Module Pools & Rare "Special Edition" Runway Logic - May 2026
-... (rest of entry) ...
+
+Implemented a tiered randomization system for level modules, introducing rare "Special Edition" run variants.
+
+### 1. Dual-Pool Registration
+- **Pool Definitions:** Established `POOL_MONTHLY_REPORT` and `POOL_SPECIAL_EDITION` in `constants.py` as central registries for modular sub-maps.
+- **Monthly Report (Standard):** Contains `maps/test_m1.json`.
+- **Special Edition (Rare):** Contains `maps/test_m2.json`.
+
+### 2. Chronicle Randomization Loop
+- **Trigger Event:** Updated "The Chronicle" interaction to perform a 1 in 10 (10%) probability roll when starting a new run.
+- **Pool Selection:** Successfully rolled runs now pull modules exclusively from the `POOL_SPECIAL_EDITION`, while standard runs default to the `POOL_MONTHLY_REPORT`.
+- **Persistence:** Integrated `active_module_pool` into the `GameState` and persistent `run_state` JSON, ensuring the chosen run variant survives application restarts and manual saves.
+
+### 3. LevelLoader Pool Overrides
 - **Stitching Pass:** Updated the `LevelLoader` to support dynamic pool-based overrides. When a pool is specified, the system ignores hardcoded `active_plug` values and selects random modules from the active pool for every available socket.
 
 ## [ARCHIVED] Granular Per-Socket Anomaly Rolls for Module Selection - May 2026
-... (rest of entry) ...
+
+Refactored the modular generation pipeline to execute anomaly rolls independently for every available socket, enabling mixed-pool environments.
+
+### 1. Decentralized Random Selection
+- **Per-Socket Rolls:** Moved the 10% "Special Edition" probability check inside the `LevelLoader.load_json_map` socket iteration loop.
+- **Independent Calculations:** Each socket now performs its own unique roll, meaning a single run can contain both standard Monthly Report modules and rare Special Edition challenges simultaneously.
+
+### 2. HUD & Logging Updates
+- **Diagnostic Tracing:** Implemented specific terminal logs to distinguish between standard generation and anomaly injection:
+    - `[Generation] Socket <Name> compiled as Standard Monthly Report.`
+    - `[ANOMALY INJECTION] Socket <Name> rolled a rare Special Edition!`
+
+### 3. State Simplification
 - **Persistence Refactor:** Removed `active_module_pool` from the global `GameState` and persistence layers. Since selection is now a generative property of the world load pass, it no longer requires run-wide tracking.
-
-## [ARCHIVED] Implementation of the "Smear" Menagerie Anomaly - May 2026
-
-Introduced the Smear enemy type, a viscous ink-based threat that reinforces the Scriptorium Noir aesthetic and implements unique splitting and hazard-dropping mechanics.
-
-### 1. Mechanical Definition
-- **Thematic Stats:** Established slow, viscous movement profiles and high HP for Smear entities in `constants.py`.
-- **Lore Integration:** Added the `smear_viscosity` lore fragment to the Bestiary Reflection manifest, detailing the origin of these "crawling scrawls."
-- **Symbol Mapping:** Assigned the `s` symbol for modular map integration.
-
-### 2. Amorphous Behavior Logic
-- **The Trail Rule:** Implemented dynamic spawning of "Inkwell Puddle" hazards during Smear movement, creating persistent area-denial zones that slow the player.
-- **The Splitting Rule:** Engineered a self-replication mechanic where large Smear entities split into two smaller, faster "blots" upon death.
-
-### 3. Tooling Synchronization
-- **Map Editor:** Updated `tools/edit_map.py` to include the Smear in the palette and enemy cycle list, ensuring designers can place these anomalies in future modules.
-- **Level Loader:** Enhanced the `LevelLoader` to support Smear spawning and state reconstruction.
 
 ## [ARCHIVED] Map Editor Expansion — Visual Sockets Management, Resizing, & Safe Canvas Creation - May 2026
 
@@ -348,6 +368,23 @@ Scaled up the macro-world testing grounds to verify the performance and aestheti
 ### 3. Stress Test & Performance
 - **Load Optimization:** Verified that the "Master Loom" assembly pass executes efficiently even with double-digit socket counts.
 - **Viewport Stability:** Ensured that the camera damping and minimap panning handle the expanded $100 \times 100$ grid without artifacting or lag.
+
+## [ARCHIVED] Implementation of the "Smear" Menagerie Anomaly - May 2026
+
+Introduced the Smear enemy type, a viscous ink-based threat that reinforces the Scriptorium Noir aesthetic and implements unique splitting and hazard-dropping mechanics.
+
+### 1. Mechanical Definition
+- **Thematic Stats:** Established slow, viscous movement profiles and high HP for Smear entities in `constants.py`.
+- **Lore Integration:** Added the `smear_viscosity` lore fragment to the Bestiary Reflection manifest, detailing the origin of these "crawling scrawls."
+- **Symbol Mapping:** Assigned the `s` symbol for modular map integration.
+
+### 2. Amorphous Behavior Logic
+- **The Trail Rule:** Implemented dynamic spawning of "Inkwell Puddle" hazards during Smear movement, creating persistent area-denial zones that slow the player.
+- **The Splitting Rule:** Engineered a self-replication mechanic where large Smear entities split into two smaller, faster "blots" upon death.
+
+### 3. Tooling Synchronization
+- **Map Editor:** Updated `tools/edit_map.py` to include the Smear in the palette and enemy cycle list, ensuring designers can place these anomalies in future modules.
+- **Level Loader:** Enhanced the `LevelLoader` to support Smear spawning and state reconstruction.
 
 ## [ARCHIVED] Respite Progression UI Overlay & Fresh View Enemy Reset Loops - May 2026
 
@@ -399,23 +436,6 @@ Resolved input spamming inside menu overlays, enforced the single-use level-up r
 ### 3. HUD Status Metric Font Realignment
 - **Typography Standardization:** Scaled down the font size for the top-level HUD parameters (`HP`, `Flasks`, `Pages`) to match the compact 14pt assets used for action prompts.
 - **Visual Alignment:** Improved vertical padding and boundary containment within the HUD panel for a cleaner, professional interface.
-
-## [ARCHIVED] HUD Level Display, Notification Spam Silencing, & Sanctuary Save Preservation - May 2026
-
-Fixed UI message duplication during level-ups, integrated player level readouts across the HUD, and ensured the Main Menu displays 'Continue' for hub-world saves.
-
-### 1. Notification Event Gate
-- **Spam Prevention:** Silenced Respite notification spam by gating "Not enough pages!" messages behind the input ratchet.
-- **Initial Trigger Only:** Alert messages now only fire on the initial down-press frame, preventing text buffer flooding during held inputs.
-
-### 2. Universal Player Level HUD Integration
-- **HUD Update:** Added the player's current Edification level to the main gameplay HUD (e.g., `LVL: 1`) using standardized compact fonts.
-- **Menu Visibility:** Ensured the level metric is also clearly visible inside the Respite menu overlay text strings.
-
-### 3. Sanctuary Save Preservation & Level Reset Hooks
-- **Level Clamping:** Enforced a strict reset rule that clamps the player's Edification level to 1 whenever they are within the Sanctuary hub.
-- **Persistence Fix:** Resolved a bug where `player.stats` were not being correctly serialized into the `run_state`.
-- **Title Menu Logic:** Updated the boot sequence to allow the "Continue" option whenever `save_data.json` exists on disk, supporting resumption from Sanctuary saves.
 
 ## [ARCHIVED] Closed Volume Lore Integration - May 2026
 

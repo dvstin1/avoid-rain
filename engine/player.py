@@ -47,6 +47,8 @@ class Player:
         self.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
         self.active_weapon_idx = 0
         self.has_rested_this_session = False
+        self.active_track_name = "sanctuary_hub.ogg"
+        self.miniboss_cooldown_accumulator = 0.0
 
     def swap_weapon(self):
         """Toggle the active weapon slot if the player is not currently attacking."""
