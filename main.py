@@ -164,7 +164,7 @@ def main():
     if getattr(state, 'stats_corrupt', False):
         # Show loading screen explaining the issue and enforce minimum display
         msg = "Saved data appears corrupt. Start with new data? (Y/N)"
-        renderer.draw_loading_screen("Save Corrupt", msg, min_time=2.0)
+        renderer.draw_loading_screen("Save Corrupt", msg, min_t=2.0)
         # Wait for user to press Y or N
         waiting_choice = True
         choice = None
@@ -205,8 +205,9 @@ def main():
     if DEFAULT_PATH.exists():
         try:
             with open(DEFAULT_PATH, 'r', encoding='utf-8') as f:
-                save_payload = json.load(f)
-                has_physical_run = save_payload.get("active_session_in_progress", False)
+                json.load(f)
+                # Physical existence of save file is enough to allow Continue
+                has_physical_run = True
         except Exception:
             pass
 
@@ -256,14 +257,13 @@ def main():
                             in_title = False
                             continue
 
-                        # If a persistent run exists, ask for confirmation
-                        has_run = (getattr(state, 'stats', None) is not None and
-                                   state.stats.data.get("active_session_in_progress", False))
-                        if has_run:
+                        # If a persistent run or profile exists, ask for confirmation
+                        from engine.stats import DEFAULT_PATH
+                        if DEFAULT_PATH.exists():
                             # Transition to confirmation state instead of blocking
                             title_menu.state = TitleMenuState.CONFIRM_NEW_GAME
                         else:
-                            # No run exists: start fresh immediately
+                            # No data exists: start fresh immediately
                             try:
                                 state.reset_to_new_game()
                                 state.save_stats(wait=True) # Synchronous flush for first-run
@@ -304,8 +304,8 @@ def main():
 
                         # Update title menu
                         try:
-                            has_run_now = (getattr(state, 'stats', None) is not None and
-                                           state.stats.data.get("active_session_in_progress", False))
+                            from engine.stats import DEFAULT_PATH
+                            has_run_now = DEFAULT_PATH.exists()
                             title_menu.set_has_save(has_run_now)
                         except Exception:
                             pass

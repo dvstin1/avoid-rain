@@ -72,6 +72,7 @@ class GameState:
                 self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
                 self.player.active_weapon_idx = int(p_data.get("active_weapon_idx", 0))
                 self.player.weapons = p_data.get("weapons", self.player.weapons)
+                self.player.stats = p_data.get("stats", {})
 
                 # Restore Enemies
                 self.enemies = getattr(self.world, 'enemies', [])
@@ -144,6 +145,7 @@ class GameState:
             self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
             self.player.active_weapon_idx = int(p_data.get("active_weapon_idx", 0))
             self.player.weapons = p_data.get("weapons", self.player.weapons)
+            self.player.stats = p_data.get("stats", {})
             self.enemies = getattr(self.world, 'enemies', [])
         else:
             self.world = create_world("sanctuary")
@@ -193,7 +195,8 @@ class GameState:
                             "x": self.player.x, "y": self.player.y, "hp": self.player.hp,
                             "flask_charges": self.player.flask_charges,
                             "active_weapon_idx": getattr(self.player, 'active_weapon_idx', 0),
-                            "weapons": getattr(self.player, 'weapons', [])
+                            "weapons": getattr(self.player, 'weapons', []),
+                            "stats": getattr(self.player, 'stats', {})
                         },
                         "enemies": [e.to_dict() for e in self.enemies]
                     }
@@ -273,6 +276,11 @@ class GameState:
             self.input_debounce_timer -= dt
             attack_pressed = False
 
+        # Sanctuary Level Reset Rule
+        if getattr(self.world, 'name', '') == "sanctuary":
+            if self.player.stats.get("edification", 0) != 1:
+                self.player.stats["edification"] = 1
+
         if self.active_dialogue:
             if attack_pressed:
                 self.active_dialogue = None
@@ -292,15 +300,19 @@ class GameState:
 
                 # 1 - Edification (Only if rested and not latched)
                 elif not self.input_ratchet_latched and self.player.has_rested_this_session:
+                    upgrade_triggered = False
                     if actions.get('key_1'):
-                        if self._handle_upgrade("edification", 1, 50):
-                            self.input_ratchet_latched = True
+                        self._handle_upgrade("edification", 1, 50)
+                        upgrade_triggered = True
                     elif actions.get('key_2'):
-                        if self._handle_upgrade("attack_modifier", 5, 50):
-                            self.input_ratchet_latched = True
+                        self._handle_upgrade("attack_modifier", 5, 50)
+                        upgrade_triggered = True
                     elif actions.get('key_3'):
-                        if self._handle_upgrade("max_hp_modifier", 10, 50):
-                            self.input_ratchet_latched = True
+                        self._handle_upgrade("max_hp_modifier", 10, 50)
+                        upgrade_triggered = True
+
+                    if upgrade_triggered:
+                        self.input_ratchet_latched = True
 
             return
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)

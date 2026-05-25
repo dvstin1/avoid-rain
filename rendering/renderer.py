@@ -265,6 +265,10 @@ class Renderer:
         pages_text = f"Pages: {pages}"
         hud_surf.blit(hud_font.render(pages_text, True, constants.COLOR_YELLOW), (240, 10))
 
+        edif_lvl = player.stats.get("edification", 1)
+        edif_text = f"LVL: {edif_lvl}"
+        hud_surf.blit(hud_font.render(edif_text, True, constants.COLOR_CYAN), (340, 10))
+
         for i in range(2):
             sx, sy = 10 + i * (constants.HUD_SLOT_W + 100), 45
             sr = pygame.Rect(sx, sy, constants.HUD_SLOT_W, constants.HUD_SLOT_H)

@@ -262,7 +262,7 @@ class Respite(GameObject):
         game_state.dialogue_mode = "EXPANDED"
         game_state.active_respite = self # Store reference for menu actions
 
-        text = "Respite - Anchor of the First Edition\n\n"
+        text = f"Respite - Anchor of the First Edition (Understanding: Lvl {edif})\n\n"
         text += "[R] REST: Restore HP & Refill Flasks (Enemies will respawn)\n\n"
 
         if game_state.player.has_rested_this_session:
@@ -272,7 +272,6 @@ class Respite(GameObject):
             text += f"[3] Edify Fortification (+10 Max HP): +{fort} (Cost: {fort_cost})\n"
         else:
             text += "[Must Rest to Unblock Level Up]\n"
-
         text += "\n[SPACE] Close"
 
         game_state.active_dialogue = {
