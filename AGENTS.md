@@ -42,4 +42,24 @@
 
 ## Active Task: 
 
-### 
+### Active Task: Audio System Architecture Mockup & On-Screen Debug Display
+
+Implement an engine track manager mockup that updates a visual HUD overlay element tracking the active soundtrack assignment, including distance-based miniboss combat triggers.
+
+### 1. Audio Track Manager Mockup State
+- In `engine/world.py` or your session state controller, create a property string: `player.active_track_name = "sanctuary_hub.ogg"`.
+- Set defaults dynamically based on location zones:
+  - Title Screen: `title_theme.ogg`
+  - Sanctuary: `sanctuary_hub.ogg`
+  - World Map Normal Space: `world_exploration.ogg`
+  - Death State: `death_screen.ogg`
+
+### 2. Miniboss Proximity Tracking Timer
+- In your active game loop, loop through spawned entities. If an enemy has `is_miniboss == True` and is actively engaged:
+  - Calculate distance: `distance_meters = player_pos.distance_to(enemy_pos) / pixels_per_meter_ratio`.
+  - If `distance_meters <= 15`: Force `player.active_track_name = "miniboss_combat.ogg"` and reset the drop-off timer variable `miniboss_cooldown_accumulator = 0`.
+  - If `distance_meters > 15`: Accumulate delta time: `miniboss_cooldown_accumulator += dt`. If `miniboss_cooldown_accumulator >= 3.0`, revert `player.active_track_name = "world_exploration.ogg"`.
+
+### 3. On-Screen Debug HUD OSD Overlay
+- In `rendering/renderer.py`, draw a small, clean text block at the top margin edge of your workspace window panel.
+- **The Text Output:** Format it as: `[DEBUG_AUDIO: Playing <player.active_track_name>]`. Use the smaller, compact interface font size matching our `[SWAP]` layouts.
