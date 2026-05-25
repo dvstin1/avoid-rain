@@ -23,18 +23,20 @@
 
 ## Definition of Ready (DoR) Checklist
 1. [X] **Application Architecture Defined:** See `docs/architecture.md`.
-2. [X] **State Schema Defined:** See `docs/state_schema.md`.
+2. [X] **State Schema Defined:** See `docs/architecture.md`.
 3. [X] **Combat & Collision Rules:** See `docs/architecture.md`.
-4. [X] **Input Handling Specification:** See `docs/input_handling.md`.
-5. [X] **Asset Manifest:** See `docs/asset_manifest.md`.
+4. [X] **Input Handling Specification:** See `docs/navigation_and_ui.md`.
+5. [X] **Asset Manifest:** See `docs/visual_style_and_assets.md`.
 6. [X] **Initial Scope (Sanctuary) Archived:** See `CHANGELOG.md`.
 
 ## Context Pointers (Hub-and-Spoke)
-- **`docs/architecture.md`**: Permanent technical architectures and system specs (Main Loop, Climate Engine, Physics, Interaction, Map Topography).
-- **`docs/state_schema.md`**: Data models for Player, Rain, and World state.
-- **`docs/input_handling.md`**: Detailed mapping of raw inputs to engine actions.
-- **`docs/asset_manifest.md`**: Registry of sprites and tile sets.
-- **`docs/world_lore.md`**: Narrative background and world rules.
+- **`docs/architecture.md`**: Permanent technical architectures, system specs, and state schemas.
+- **`docs/navigation_and_ui.md`**: Viewport management (Camera), Minimap, and Input Handling.
+- **`docs/visual_style_and_assets.md`**: Registry of sprites, tile sets, and art blueprints.
+- **`docs/world_and_lore.md`**: Narrative background, world rules, and geographical classifications.
+- **`docs/modular_system.md`**: Level serialization schema and "Master Loom" assembly logic.
+- **`docs/persistence.md`**: Statistics integration and autosave mechanics.
+- **`docs/backlog.md`**: Development roadmap and future feature proposals.
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 

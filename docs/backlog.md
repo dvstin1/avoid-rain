@@ -1,4 +1,12 @@
-# Feature Backlog & Future Proposals
+# Development Roadmap & Feature Backlog
+
+## Roadmap Priorities
+- **Phase 1 (Current): Core Gameplay Loop.** Focus exclusively on hostile game world mechanics: vector physics, modular assembly, enemy AI, and combat collision.
+- **Phase 2 (Future): Hub & Narrative Polish.** Visual expansion of the Sanctuary, advanced NPC dialogue branching, and environment tiling sheets.
+
+---
+
+## Feature Backlog & Future Proposals
 
 > **DISCLAIMER:** This document contains unimplemented features and speculative ideas. Nothing listed here is currently active or guaranteed for immediate production. This serves as a "parking lot" for high-concept mechanical and aesthetic refinements.
 
@@ -20,6 +28,10 @@
 - **Environment Audio:** Directional audio for candelabras, wellsprings, and the distant rumble of the author's madness.
 
 ## 4. Narrative & Visuals
-- **Dynamic Cutscenes:** In-engine "Marginalia" sequences for key lore milestones.
-- **Animated Bestiary:** Visualizing the Menagerie entries with slight "breathing" or "glitching" animations.
+...
 - **Chapter Titles:** Large typographic overlays when entering new modular zones.
+
+## 5. Technical & Network (Future Phases)
+- **LAN Multiplayer:** Implement UDP broadcast (`SO_BROADCAST`) for automatic game discovery on the same subnet.
+- **Authoritative State:** Design the engine to treat the host's world as the single source of truth, synchronizing client positions via TCP streams.
+- **State Serialization:** Ensure player entities cleanly serialize position and movement vectors into lightweight JSON/byte structs for low-latency networking.
