@@ -19,6 +19,7 @@ class Enemy:
         self.hp = hp
         self.max_hp = hp
         self.stagger_timer = 0.0
+        self.is_miniboss = False
 
     def get_rect(self):
         return (self.x, self.y, self.width, self.height)
@@ -249,6 +250,7 @@ class Miniboss(Enemy):
         self.damage = MINIBOSS_DAMAGE
         self.damage_cooldown = MINIBOSS_DAMAGE_COOLDOWN
         self._damage_timer = 0.0
+        self.is_miniboss = True
 
     def to_dict(self):
         d = super().to_dict()
@@ -757,3 +759,28 @@ class SmearEnemy(Enemy):
             s2 = SmearEnemy(self.x + 10, self.y, size_multiplier=0.5)
             state.enemies.append(s1)
             state.enemies.append(s2)
+
+
+# Global Registry for Enemy Reconstruction
+ENEMY_REGISTRY = {
+    "SlugEnemy": SlugEnemy,
+    "BatEnemy": BatEnemy,
+    "FlutterEnemy": FlutterEnemy,
+    "BindlingEnemy": BindlingEnemy,
+    "Miniboss": Miniboss,
+    "MinibossM2": MinibossM2,
+    "MinibossM3": MinibossM3,
+    "SmearEnemy": SmearEnemy
+}
+
+# Global Registry for Map Symbol Mapping
+SYMBOL_REGISTRY = {
+    'Z': SlugEnemy,
+    'A': BatEnemy,
+    'f': FlutterEnemy,
+    'b': BindlingEnemy,
+    'E': Miniboss,
+    '2': MinibossM2,
+    '3': MinibossM3,
+    's': SmearEnemy
+}

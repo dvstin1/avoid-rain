@@ -294,13 +294,12 @@ class Respite(GameObject):
 
         new_enemies = []
         for e in temp_world.enemies:
-            e_type = type(e).__name__
-            if e_type in ("Miniboss", "MinibossM2", "MinibossM3"):
+            # If it's an elite, check if it's already been killed
+            if getattr(e, 'is_miniboss', False):
                 # Simplification: don't respawn any minibosses if they were cleared
                 # Ideally we'd check against state.world.killed_enemies
                 continue
             new_enemies.append(e)
-
         game_state.enemies = new_enemies
         print(f"[DEBUG] Rest complete. {len(game_state.enemies)} threats re-manifested.")
         game_state.save_stats(wait=True)
@@ -394,6 +393,7 @@ class LevelLoader:
         Parses a string array and returns (grid, interactables, warp_tiles, player_start, enemies).
         If saved_enemies is provided, default spawner symbols for enemies are bypassed.
         """
+        from engine.enemy import SYMBOL_REGISTRY
         h = len(prototype_array)
         w = len(prototype_array[0]) if h > 0 else 0
         grid = [[TILE_EMPTY for _ in range(w)] for _ in range(h)]
@@ -405,32 +405,11 @@ class LevelLoader:
 
         # If we have saved enemies, reconstruct them directly (The Override Rule)
         if saved_enemies:
+            from engine.enemy import ENEMY_REGISTRY
             for e_data in saved_enemies:
                 e_type = e_data.get("type")
-                if e_type == "SlugEnemy":
-                    from engine.enemy import SlugEnemy
-                    enemies.append(SlugEnemy.from_dict(e_data))
-                elif e_type == "BatEnemy":
-                    from engine.enemy import BatEnemy
-                    enemies.append(BatEnemy.from_dict(e_data))
-                elif e_type == "FlutterEnemy":
-                    from engine.enemy import FlutterEnemy
-                    enemies.append(FlutterEnemy.from_dict(e_data))
-                elif e_type == "BindlingEnemy":
-                    from engine.enemy import BindlingEnemy
-                    enemies.append(BindlingEnemy.from_dict(e_data))
-                elif e_type == "Miniboss":
-                    from engine.enemy import Miniboss
-                    enemies.append(Miniboss.from_dict(e_data))
-                elif e_type == "MinibossM2":
-                    from engine.enemy import MinibossM2
-                    enemies.append(MinibossM2.from_dict(e_data))
-                elif e_type == "MinibossM3":
-                    from engine.enemy import MinibossM3
-                    enemies.append(MinibossM3.from_dict(e_data))
-                elif e_type == "SmearEnemy":
-                    from engine.enemy import SmearEnemy
-                    enemies.append(SmearEnemy.from_dict(e_data))
+                if e_type in ENEMY_REGISTRY:
+                    enemies.append(ENEMY_REGISTRY[e_type].from_dict(e_data))
 
         # Check for Lotus Topography symbols
         has_lotus = any('M' in row or 'X' in row for row in prototype_array)
@@ -544,24 +523,6 @@ class LevelLoader:
                     bench.name = "Bench"
                     interactables.append(bench)
 
-                elif char == 'E':
-                    # Miniboss Spawn (Bypassed if loading from save)
-                    if not saved_enemies:
-                        from engine.enemy import Miniboss
-                        enemies.append(Miniboss(pos[0], pos[1]))
-
-                elif char == '2':
-                    # Miniboss M2 Spawn (Bypassed if loading from save)
-                    if not saved_enemies:
-                        from engine.enemy import MinibossM2
-                        enemies.append(MinibossM2(pos[0], pos[1]))
-
-                elif char == '3':
-                    # Miniboss M3 Spawn (Bypassed if loading from save)
-                    if not saved_enemies:
-                        from engine.enemy import MinibossM3
-                        enemies.append(MinibossM3(pos[0], pos[1]))
-
                 elif char == 'K':
                     # Rock
                     rock = GameObject(pos, dim)
@@ -569,35 +530,10 @@ class LevelLoader:
                     rock.name = "Rock"
                     interactables.append(rock)
 
-                elif char == 'Z':
-                    # SlugEnemy Spawn (Bypassed if loading from save)
+                elif char in SYMBOL_REGISTRY:
+                    # Generic Enemy Spawner (Bypassed if loading from save)
                     if not saved_enemies:
-                        from engine.enemy import SlugEnemy
-                        enemies.append(SlugEnemy(pos[0], pos[1]))
-
-                elif char == 'A':
-                    # BatEnemy Spawn (Bypassed if loading from save)
-                    if not saved_enemies:
-                        from engine.enemy import BatEnemy
-                        enemies.append(BatEnemy(pos[0], pos[1]))
-
-                elif char == 'f':
-                    # FlutterEnemy Spawn (Bypassed if loading from save)
-                    if not saved_enemies:
-                        from engine.enemy import FlutterEnemy
-                        enemies.append(FlutterEnemy(pos[0], pos[1]))
-
-                elif char == 'b':
-                    # BindlingEnemy Spawn (Bypassed if loading from save)
-                    if not saved_enemies:
-                        from engine.enemy import BindlingEnemy
-                        enemies.append(BindlingEnemy(pos[0], pos[1]))
-
-                elif char == 's':
-                    # SmearEnemy Spawn (Bypassed if loading from save)
-                    if not saved_enemies:
-                        from engine.enemy import SmearEnemy
-                        enemies.append(SmearEnemy(pos[0], pos[1]))
+                        enemies.append(SYMBOL_REGISTRY[char](pos[0], pos[1]))
 
                 elif char == 'P':
                     # Player Start hook

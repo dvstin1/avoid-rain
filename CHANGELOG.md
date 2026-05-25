@@ -368,3 +368,16 @@ Implemented the functional state architecture for Respite resting, itemized page
 - **Pristine Concentration:** Grants `(Edification / 2)%` damage reduction when health is above 95%.
 - **Desperate Synthesis:** Grants `(Edification)%` damage reduction when health is below 30%.
 - **Architecture:** Synchronized `docs/world_and_lore.md` and `docs/architecture.md` with the new Edification definitions and technical specs.
+
+## [ARCHIVED] Miniboss Polymorphic Refactoring & Drop Pipeline Standardization - May 2026
+
+Refactored the enemy architecture to eliminate hardcoded string checks for specific miniboss types, transitioning to a scalable boolean-flag-driven system.
+
+### 1. Attribute Injection & Inheritance
+- **Base Property:** Injected `self.is_miniboss = False` into the baseline `Enemy` constructor.
+- **Elite Toggling:** Explicitly set `self.is_miniboss = True` in the `Miniboss` base class, ensuring all current (`M1`, `M2`, `M3`) and future elites inherit the trait automatically.
+
+### 2. Core System Decoupling
+- **Respite Reset Filter:** Updated the `Respite.execute_rest` logic in `engine/world.py` to filter entities using `getattr(enemy, 'is_miniboss', False)`, ensuring all elite types are preserved across rests without manual string lookups.
+- **Loot Drop Module:** Refactored `GameState.update` to dynamically assign Tier 2 loot rewards based on the `is_miniboss` flag, standardizing the reward pipeline for all high-value targets.
+- **Save State Reconstruction:** Implemented `ENEMY_REGISTRY` and `SYMBOL_REGISTRY` in `engine/enemy.py`, allowing the `LevelLoader` to reconstruct enemies from persistent data or map symbols without hardcoded type branches.
