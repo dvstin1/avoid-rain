@@ -446,6 +446,24 @@ Anchored the Sanctuary level-1 reset mechanic within the master narrative source
 - **The Book Metaphor:** Established that returning to the Sanctuary represents closing a specific manuscript. Because comprehension is tied to an active reading of a text, the traveler's Edification level collapses when the volume is shelved.
 - **Run Reset Logic:** Justified the clean-slate return to "Page One" (Level 1) for every fresh run, aligning gameplay balance with thematic consistency.
 
+## [ARCHIVED] Audio System Architecture Mockup & On-Screen Debug Display - May 2026
+
+Implemented an engine track manager mockup and a visual HUD overlay to track soundtrack assignments, including distance-based combat triggers.
+
+### 1. Audio Track Manager Mockup State
+- **Active Tracking:** Added `active_track_name` to the `Player` state to store the currently playing OST.
+- **Zone Dynamics:** Implemented logic to automatically shift track assignments based on the active zone (e.g., `title_theme.ogg`, `sanctuary_hub.ogg`, `world_exploration.ogg`).
+- **Death Feedback:** Set the soundtrack to `death_screen.ogg` upon player HP depletion.
+
+### 2. Miniboss Proximity Combat Triggers
+- **15-Meter Detection:** Implemented continuous Euclidean distance calculations between the player and any entity with `.is_miniboss == True`.
+- **Combat Hysteresis:** Entering a 15-meter (600px) radius instantly triggers `miniboss_combat.ogg`.
+- **Engagement Persistence:** Added a 3.0-second cooldown timer that must expire before the combat track fades back into the exploration theme, preventing audio flicker during repositioning.
+
+### 3. Debug HUD OSD Overlay
+- **Audit Tool:** Rendered a compact `[DEBUG_AUDIO: Playing <track_name>]` string at the top of the viewport.
+- **Universal Visibility:** Integrated the OSD into both the main game renderer and the Title Screen interface for perfect logic auditing.
+
 ## [ARCHIVED] HUD Level Display, Notification Spam Silencing, & Sanctuary Save Preservation - May 2026
 
 Fixed UI message duplication during level-ups, integrated player level readouts across the HUD, and ensured the Main Menu displays 'Continue' for hub-world saves.
