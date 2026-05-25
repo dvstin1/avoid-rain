@@ -416,3 +416,12 @@ Fixed UI message duplication during level-ups, integrated player level readouts 
 - **Level Clamping:** Enforced a strict reset rule that clamps the player's Edification level to 1 whenever they are within the Sanctuary hub.
 - **Persistence Fix:** Resolved a bug where `player.stats` were not being correctly serialized into the `run_state`.
 - **Title Menu Logic:** Updated the boot sequence to allow the "Continue" option whenever `save_data.json` exists on disk, supporting resumption from Sanctuary saves.
+
+## [ARCHIVED] Closed Volume Lore Integration - May 2026
+
+Anchored the Sanctuary level-1 reset mechanic within the master narrative source-of-truth documentation.
+
+### 1. Narrative Justification
+- **Lore Integration:** Formally defined the **Closed Volume Paradox** in `docs/world_and_lore.md`.
+- **The Book Metaphor:** Established that returning to the Sanctuary represents closing a specific manuscript. Because comprehension is tied to an active reading of a text, the traveler's Edification level collapses when the volume is shelved.
+- **Run Reset Logic:** Justified the clean-slate return to "Page One" (Level 1) for every fresh run, aligning gameplay balance with thematic consistency.
