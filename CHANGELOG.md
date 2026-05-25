@@ -348,3 +348,23 @@ Scaled up the macro-world testing grounds to verify the performance and aestheti
 ### 3. Stress Test & Performance
 - **Load Optimization:** Verified that the "Master Loom" assembly pass executes efficiently even with double-digit socket counts.
 - **Viewport Stability:** Ensured that the camera damping and minimap panning handle the expanded $100 \times 100$ grid without artifacting or lag.
+
+## [ARCHIVED] Respite Progression UI Overlay & Fresh View Enemy Reset Loops - May 2026
+
+Implemented the functional state architecture for Respite resting, itemized page level-ups, and conditional HP-bracket defensive stat modifications.
+
+### 1. Respite Resting Interaction & World Reset
+- **Character Restoration:** Implemented the `execute_rest()` sequence which resets `player.hp` to max and refills `player.flask_charges`.
+- **The Fresh View Call:** Integrated a world re-population pass that re-instantiates standard enemy spawners (Slugs, Bats, etc.) while explicitly preserving the death state of Miniboss elites.
+- **State Persistence:** Ensured that resting triggers a synchronous save flush to prevent progress loss.
+
+### 2. Level Up Interactive Overlay Menu
+- **Edification Interface:** Built an expanded UI menu modal triggered by Respite interaction.
+- **Attribute Upgrades:** Players can now trade "Torn Pages" to edify their character profile across three categories: **Edification** (Passive Defense), **Prowess** (Attack), and **Fortification** (Max HP).
+- **Linear Scaling Curve:** Implemented a strictly linear cost formula: `Cost = 10 + (Level * 5)`.
+
+### 3. Bracketed Stat Defensive Scaling Hooks
+- **Conditional Parsing:** Added passive defensive buffs that activate based on the player's current health threshold relative to their Edification level.
+- **Pristine Concentration:** Grants `(Edification / 2)%` damage reduction when health is above 95%.
+- **Desperate Synthesis:** Grants `(Edification)%` damage reduction when health is below 30%.
+- **Architecture:** Synchronized `docs/world_and_lore.md` and `docs/architecture.md` with the new Edification definitions and technical specs.
