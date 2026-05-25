@@ -70,3 +70,10 @@ Edification cannot be accumulated casually or incrementally while standing in a 
 
 ### Redaction In perpetuity (Miniboss Permanence)
 Minibosses represent corrupted, highly unique critical passages within the world's text. Because they drop powerful anomalous equipment variants and premium page bundles, their defeat represents a permanent, irreversible redaction of that threat from the active run. They cannot be re-summoned or farmed, preventing any artificial duplication of the world's highest-tier rewards.
+
+### The Closed Volume Paradox (Sanctuary Reset Law)
+Edification is not an inherent trait carved into the traveler's soul; it is a temporary state of deep, active cognitive resonance with a *specific manuscript*. 
+
+When a traveler falls in battle or uses the Chronicle gateway to return to the Sanctuary hub, that specific volume is closed. The text is either safely restored to the archival shelves or fragmented and lost to the shifting ink. Because a reader cannot maintain an active comprehension of a closed book, their Edification level instantly collapses back to **Level 1**. 
+
+Every journey through the gateway requires picking up an entirely fresh, unread ledger from the archive. And no matter how learned a scholar is, every new book must always be read starting from **Page One**.
