@@ -49,52 +49,37 @@ The world is a massive $120 \times 120$ tile grid designed to prevent traversal 
 - **Kill-Signal:** Defeating a Miniboss broadcasts a `SIG_CLEANSE_MODULE` event.
 - **Cleansing Effect:** Toggles the socket's `is_cleansed` flag, materializes a dormant `RespiteAnchor`, and permanently suppresses enemy respawns in that region.
 
-## 10. Scriptural Edification & Resting Architecture
+## 9. Respite Interaction State Machine & Edification Math
 
-To facilitate long-term progression and strategic risk management, the engine implements a "Resting" loop and a persistent leveling system.
+To facilitate long-term progression and strategic risk management, the engine implements a "Resting" loop and a persistent leveling system (Edification).
 
 ### 1. The Resting Loop (engine/world.py)
 Interacting with an unlocked `Respite` object triggers the `execute_rest()` sequence:
 - **Character Restoration:** Resets `player.hp` to `player.max_hp` and refills `player.flask_charges`.
 - **World Re-population:** Triggers a partial map reload pass. Standard enemy spawners (Symbols: `Z`, `A`, `f`, `b`, `s`) are re-instantiated.
-- **Elite Exclusion:** The re-population pass explicitly checks the `killed_enemies` set. Miniboss strains (`E`, `2`, `3`) are never respawned if their unique ID is present in the world's permanent kill log.
+- **Elite Exclusion:** Miniboss strains (`E`, `2`, `3`) are never respawned; they are tracked via the generic `is_miniboss` property.
+- **Progression Unlocking:** Sets `player.has_rested_this_session = True`, enabling the edification menu options.
 
-### 2. Edification Leveling UI (engine/game_state.py)
-A specialized "Respite Menu" allows players to trade "Torn Pages" for attribute edification.
-- **Linear Scaling Curve:** Upgrade costs follow a strictly linear formula: `Cost = Base (10) + (CurrentLevel * 5)`.
-- **Level Caps:** Each attribute is capped at level 50 for the current development phase.
+### 2. Edification Leveling & Currency Scaling
+Attribute upgrades scale linearly based on the current level index:
+- **Math Formula:** `Cost = (current_level + 1) * 50` Pages.
+- **Stat Categories:** **Edification** (Passive Defense), **Prowess** (+5 Attack), and **Fortification** (+10 Max HP).
+- **The State Lock:** Each edification purchase or menu closure resets `has_rested_this_session = False`. To edify again, the player must commit to a fresh Rest action.
 
 ### 3. Conditional Defensive Parsing (engine/player.py)
-A passive ability that modifies damage intake based on the player's current health threshold relative to their Edification level.
-- **Rule 1 (Pristine):** If `HP > 95%`, damage is reduced by an additional `(Edification / 2)%`.
-- **Rule 2 (Desperate):** If `HP < 30%`, damage is reduced by an additional `(Edification)%`.
+A passive ability that modifies damage intake based on the player's health threshold:
+- **Pristine Concentration:** If `HP > 95%`, damage reduced by `(Edification / 2)%`.
+- **Desperate Synthesis:** If `HP < 30%`, damage reduced by `(Edification)%`.
 
-## Save File Protocol (XDG Compliance)
+## 10. UI Overlay Constraints & Input Ratchet Specifications
 
-Save data resolves to standard filesystem paths:
-1. **Primary:** `XDG_STATE_HOME/avoid_rain`
-2. **Fallback:** `~/.local/state/avoid_rain`
-Directory presence is verified (`mkdir -p`) before every write operation to prevent serialization failures.
+### 1. Input Ratchet (Debounce State Machine)
+To prevent event spamming during transactions, UI controls require a distinct `ui_click_released` sequence:
+- **Latched State:** Maintain `input_ratchet_latched = True` upon processing a discrete action (e.g., Level Up purchase).
+- **Blocking:** While latched, all sequential triggers for that specific action are ignored.
+- **Reset:** The latch is cleared only when receiving a native `KEYUP` or `MOUSEBUTTONUP` signal from the OS.
 
-## 8. Respite Interaction State Machine & Progression Math
+### 2. HUD Scaling Standards
+- **Typography Alignment:** Status metrics (`HP`, `Flasks`, `Pages`) must utilize the compact 14pt font assets to match action prompts (`[SWAP]`, `[PICK UP]`), ensuring consistent padding within the HUD panel boundaries.
 
-### 1. Level Up Currency Scaling
-The loose page expenditure for upgrading Edification levels scales linearly based on the current level index variable:
-- Level 1 Upgrade: 50 Pages
-- Level 2 Upgrade: 100 Pages
-- Level 3 Upgrade: 150 Pages
-- Math Formula: Cost = (current_level + 1) * 50
-
-### 2. Edification Defensive Threshold Calculations
-The player's defensive tracking utilizes two conditional float multipliers triggered during the damage resolution phase:
-- If `current_hp / max_hp >= 0.95`: Apply `base_damage * (1.0 - (edification_level * pristine_multiplier))`
-- If `current_hp / max_hp <= 0.30`: Apply `base_damage * (1.0 - (edification_level * desperate_multiplier))`
-
-### 3. State Constraints
-- The Level Up UI overlay container can *only* be opened if the state machine flag `is_resting` evaluates to `True`.
-- Transitioning `is_resting` to `True` immediately triggers the global `enemy_group.reset_standard_spawners()` method while ignoring cleared miniboss IDs.
-
-## 9. Entity Inheritances & The Miniboss Classification Law
-To ensure long-term scalability and prevent hardcoded type checks, all combat entities must conform to strict object-oriented properties:
-- **The Miniboss Flag:** Every elite or sector-level threat variant must possess an internal boolean attribute `is_miniboss = True`.
-- **System Automation Rule:** Independent engine systems (including Save Persistence, Respite Environmental Resets, and Rare Drop Matrix Generators) must evaluate the generic `.is_miniboss` property rather than checking explicit name strings or ID arrays. Adding a new miniboss variant requires zero modifications to core loop frameworks.
+## 11. Entity Inheritances & The Miniboss Classification Law

@@ -9,7 +9,8 @@ def test_player_movement_orthogonal():
     p = Player(100, 100)
     p.speed = 100
     # Move right for 1 second, no walls
-    p.update(1.0, (1, 0), [], False)
+    p.update(1.0, (1, 0), [], {})
+
     assert p.x == 200
     assert p.y == 100
 
@@ -18,8 +19,7 @@ def test_player_movement_normalized():
     p = Player(100, 100)
     p.speed = 100
     # Move diagonally (1, 1) for 1 second, no walls
-    p.update(1.0, (1, 1), [], False)
-    
+    p.update(1.0, (1, 1), [], {})
     # Expected distance should be 100, not 141.4
     dist = math.sqrt((p.x - 100)**2 + (p.y - 100)**2)
     assert math.isclose(dist, 100.0, rel_tol=1e-5)
@@ -31,7 +31,8 @@ def test_player_boundary_clamping():
     p = Player(world_w - PLAYER_WIDTH, 100)
     p.speed = 100
     # Try to move right off-screen, no walls
-    p.update(1.0, (1, 0), [], False)
+    p.update(1.0, (1, 0), [], {})
+
     assert p.x == world_w - PLAYER_WIDTH
 
 def test_player_wall_collision():
@@ -43,7 +44,7 @@ def test_player_wall_collision():
     # With dt=0.1, player would be at x=110.
     # Player right=150, Wall left=120. Overlap=30.
     # Player center=130, Wall center=140. Pushes left.
-    p.update(0.1, (1, 0), [(120, 100, 40, 40)], False)
+    p.update(0.1, (1, 0), [(120, 100, 40, 40)], {})
     
     # Player should be pushed back to x=80
     assert p.x == 80

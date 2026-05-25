@@ -64,3 +64,9 @@ Edification represents a traveler's deep textual comprehension of the distorted 
 
 ### The Fresh View Cycle (World Respawns)
 Interacting with an unlocked Respite forces a structural reset across the active module sector. Much like closing a profound book and reopening it later to find lines you completely overlooked, resting grants a "fresh view." The architecture settles, standard ink entities (common enemies) re-manifest along the margins, but the heavily redacted passages (defeated Miniboss strains) remain permanently expunged.
+
+### The Strict Economy of Review
+Edification cannot be accumulated casually or incrementally while standing in a zone of safety. A reader must completely clear their mind and open the manuscript anew to process deeper meaning. Therefore, a Level Up sequence can only be performed immediately following a fresh complete world reset (Resting) within the current interaction. Once a point of edification is gained, the connection to the First Edition becomes unstable, requiring the player to commit to another Rest cycle to unblock further progression. To progress, you must accept the burden of an altered world—re-invoking the very common threats you previously cleared.
+
+### Redaction In perpetuity (Miniboss Permanence)
+Minibosses represent corrupted, highly unique critical passages within the world's text. Because they drop powerful anomalous equipment variants and premium page bundles, their defeat represents a permanent, irreversible redaction of that threat from the active run. They cannot be re-summoned or farmed, preventing any artificial duplication of the world's highest-tier rewards.

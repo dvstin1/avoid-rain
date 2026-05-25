@@ -40,7 +40,7 @@ class Renderer:
         elif hasattr(target, 'weapon_data'):
             prompt_text = "[Click [PICK UP] on HUD to claim weapon]"
         else: prompt_text = f"Interact with {target.name}" if hasattr(target, 'name') else "Interact"
-        
+
         prompt_surf = self.font.render(prompt_text, True, constants.COLOR_WHITE)
         px, py = player.get_center()
         self.screen.blit(prompt_surf, (px - prompt_surf.get_width() // 2 - offset_x, py - player.height - 20 - offset_y))
@@ -247,25 +247,47 @@ class Renderer:
     def draw_hud(self, state):
         """Draw player HP, Flask, and Dual Weapon slots."""
         player = state.player
-        hud_surf = pygame.Surface((constants.HUD_PANEL_W, constants.HUD_PANEL_H), pygame.SRCALPHA)
+        hud_font = pygame.font.SysFont("Arial", 14, bold=True)
+        panel_w = constants.HUD_PANEL_W
+        panel_h = constants.HUD_PANEL_H
+        hud_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
         hud_surf.fill((20, 20, 25, constants.UI_ALPHA))
-        pygame.draw.rect(hud_surf, (100, 100, 100), (0, 0, constants.HUD_PANEL_W, constants.HUD_PANEL_H), 2)
-        hud_surf.blit(self.font.render(f"HP: {int(player.hp)}/{int(player.max_hp)}", True, constants.COLOR_WHITE), (10, 10))
-        hud_surf.blit(self.font.render(f"Flasks: {player.flask_charges}", True, constants.COLOR_BLUE), (140, 10))
+        pygame.draw.rect(hud_surf, (100, 100, 100), (0, 0, panel_w, panel_h), 2)
+        
+        # Status Metrics (compact font)
+        hp_text = f"HP: {int(player.hp)}/{int(player.max_hp)}"
+        hud_surf.blit(hud_font.render(hp_text, True, constants.COLOR_WHITE), (10, 10))
+        
+        flask_text = f"Flasks: {player.flask_charges}"
+        hud_surf.blit(hud_font.render(flask_text, True, constants.COLOR_BLUE), (140, 10))
+        
         pages = state.stats.data["lifetime_stats"].get("pages_collected", 0) if state.stats else 0
-        hud_surf.blit(self.font.render(f"Pages: {pages}", True, constants.COLOR_YELLOW), (240, 10))
+        pages_text = f"Pages: {pages}"
+        hud_surf.blit(hud_font.render(pages_text, True, constants.COLOR_YELLOW), (240, 10))
+
         for i in range(2):
             sx, sy = 10 + i * (constants.HUD_SLOT_W + 100), 45
             sr = pygame.Rect(sx, sy, constants.HUD_SLOT_W, constants.HUD_SLOT_H)
             pygame.draw.rect(hud_surf, (40, 40, 50), sr)
-            pygame.draw.rect(hud_surf, constants.COLOR_YELLOW if i == player.active_weapon_idx else constants.COLOR_GREY, sr, 2)
-            l_surf = pygame.font.SysFont("Arial", 12).render("SLOT A" if i == 0 else "SLOT B", True, constants.COLOR_GREY)
+            
+            border_col = constants.COLOR_YELLOW if i == player.active_weapon_idx else constants.COLOR_GREY
+            pygame.draw.rect(hud_surf, border_col, sr, 2)
+            
+            slot_font = pygame.font.SysFont("Arial", 12)
+            l_surf = slot_font.render("SLOT A" if i == 0 else "SLOT B", True, constants.COLOR_GREY)
             hud_surf.blit(l_surf, (sx + 5, sy + 2))
+            
             if i < len(player.weapons):
                 wpn = player.weapons[i]
                 col = constants.COLOR_PURPLE if "modifiers" in wpn else constants.COLOR_WHITE
-                hud_surf.blit(pygame.font.SysFont("Arial", 14).render(wpn.get("name", "Unknown")[:12], True, col), (sx + 5, sy + 20))
-                hud_surf.blit(pygame.font.SysFont("Arial", 12).render(f"DMG: {wpn.get('damage', 0)}", True, constants.COLOR_GREY), (sx + 5, sy + 40))
+                
+                name_font = pygame.font.SysFont("Arial", 14)
+                name_surf = name_font.render(wpn.get("name", "Unknown")[:12], True, col)
+                hud_surf.blit(name_surf, (sx + 5, sy + 20))
+                
+                dmg_text = f"DMG: {wpn.get('damage', 0)}"
+                dmg_surf = slot_font.render(dmg_text, True, constants.COLOR_GREY)
+                hud_surf.blit(dmg_surf, (sx + 5, sy + 40))
         swr = pygame.Rect(constants.HUD_SWAP_BTN_RECT)
         pygame.draw.rect(hud_surf, (60, 60, 80), swr)
         pygame.draw.rect(hud_surf, constants.COLOR_WHITE, swr, 1)
@@ -348,29 +370,49 @@ class Renderer:
         self.screen.blit(instr, instr.get_rect(center=(sw//2, 280)))
         opts, sel = ["New Game", "Quit"], 0
         from engine.title_menu import TitleMenuState
+        state = TitleMenuState.MAIN
         try:
-            if hasattr(menu, 'get_options'): opts, sel, state = menu.get_options(), menu.get_selected_index(), getattr(menu, 'state', TitleMenuState.MAIN)
-            else: sel, state = int(menu), TitleMenuState.MAIN
-        except Exception: state = TitleMenuState.MAIN
+            if hasattr(menu, 'get_options'):
+                opts = menu.get_options()
+                sel = menu.get_selected_index()
+                state = getattr(menu, 'state', TitleMenuState.MAIN)
+            else:
+                sel = int(menu)
+        except Exception:
+            pass
+
         for idx, opt in enumerate(opts):
             col = constants.COLOR_YELLOW if idx == sel else constants.COLOR_WHITE
             surf = self.font.render(opt, True, col)
             self.screen.blit(surf, surf.get_rect(center=(sw//2, 340 + idx * 40)))
+
         if state == TitleMenuState.CONFIRM_NEW_GAME:
-            overlay = pygame.Surface((sw, sh), pygame.SRCALPHA); overlay.fill((0, 0, 0, 200)); self.screen.blit(overlay, (0, 0))
-            rect = pygame.Rect(0, 0, 600, 150); rect.center = self.screen.get_rect().center
-            pygame.draw.rect(self.screen, (30, 30, 30), rect); pygame.draw.rect(self.screen, constants.COLOR_WHITE, rect, 2)
+            overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 200))
+            self.screen.blit(overlay, (0, 0))
+            
+            rect = pygame.Rect(0, 0, 600, 150)
+            rect.center = self.screen.get_rect().center
+            pygame.draw.rect(self.screen, (30, 30, 30), rect)
+            pygame.draw.rect(self.screen, constants.COLOR_WHITE, rect, 2)
             m_surf = self.font.render("Are you sure you want to start a New Game? (Y/N)", True, constants.COLOR_WHITE)
             w_surf = self.font.render("This will permanently remove old progress.", True, constants.COLOR_RED)
             self.screen.blit(m_surf, m_surf.get_rect(center=self.screen.get_rect().center))
             self.screen.blit(w_surf, w_surf.get_rect(center=(sw//2, sh//2 + 30)))
-        elif getattr(state, 'name', '') == 'CONTROLS': self.draw_controls_overlay(True)
+        elif getattr(state, 'name', '') == 'CONTROLS':
+            self.draw_controls_overlay(True)
         pygame.display.flip()
 
     def fade_to_black(self):
         """Fade out."""
-        surf = pygame.Surface((self.screen.get_width(), self.screen.get_height())); surf.fill(constants.COLOR_BLACK)
-        for a in range(0, 300, 5): surf.set_alpha(a); self.screen.blit(surf, (0, 0)); pygame.display.flip(); pygame.time.delay(10)
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        surf = pygame.Surface((sw, sh))
+        surf.fill(constants.COLOR_BLACK)
+        for a in range(0, 300, 5):
+            surf.set_alpha(a)
+            self.screen.blit(surf, (0, 0))
+            pygame.display.flip()
+            pygame.time.delay(10)
 
     def draw_loading_screen(self, msg, sub=None, min_t=2.0, sleep=None):
         """Draw loading screen."""
@@ -385,27 +427,49 @@ class Renderer:
 
     def draw_pause_menu(self, menu=0):
         """Draw pause menu."""
-        opts, sel, st = ["Resume", "Controls", "Quit"], 0, None
+        opts, sel, state_val = ["Resume", "Controls", "Quit"], 0, None
         try:
             from engine.pause_menu import PauseMenuState
-            if hasattr(menu, 'get_options'): opts, sel, st = menu.get_options(), menu.get_selected_index(), getattr(menu, 'state', PauseMenuState.MAIN)
-            else: sel, st = int(menu), PauseMenuState.MAIN
-        except Exception: pass
-        if st and getattr(st, 'name', '') == 'CONTROLS': self.draw_controls_overlay(False); return
-        over = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA); over.fill((0, 0, 0, 180)); self.screen.blit(over, (0, 0))
+            if hasattr(menu, 'get_options'):
+                opts = menu.get_options()
+                sel = menu.get_selected_index()
+                state_val = getattr(menu, 'state', PauseMenuState.MAIN)
+            else:
+                sel = int(menu)
+                state_val = PauseMenuState.MAIN
+        except Exception:
+            pass
+        
+        if state_val and getattr(state_val, 'name', '') == 'CONTROLS':
+            self.draw_controls_overlay(False)
+            return
+            
         sw, sh = self.screen.get_width(), self.screen.get_height()
-        self.screen.blit(self.font.render("PAUSED", True, constants.COLOR_WHITE), self.font.render("PAUSED", True, constants.COLOR_WHITE).get_rect(center=(sw//2, sh//2 - 50)))
-        self.screen.blit(self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE), self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE).get_rect(center=(sw//2, sh//2 - 20)))
-        for i, o in enumerate(opts):
-            c = constants.COLOR_YELLOW if i == sel else constants.COLOR_WHITE
-            s = self.font.render(o, True, c)
-            self.screen.blit(s, s.get_rect(center=(sw//2, sh//2 + 10 + i * 30)))
+        over = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        over.fill((0, 0, 0, 180))
+        self.screen.blit(over, (0, 0))
+        
+        pause_title = self.font.render("PAUSED", True, constants.COLOR_WHITE)
+        self.screen.blit(pause_title, pause_title.get_rect(center=(sw//2, sh//2 - 50)))
+        
+        instruct = self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE)
+        self.screen.blit(instruct, instruct.get_rect(center=(sw//2, sh//2 - 20)))
+        
+        for i, opt in enumerate(opts):
+            color = constants.COLOR_YELLOW if i == sel else constants.COLOR_WHITE
+            surf = self.font.render(opt, True, color)
+            self.screen.blit(surf, surf.get_rect(center=(sw//2, sh//2 + 10 + i * 30)))
         pygame.display.flip()
 
     def draw_controls_overlay(self, show_editor=True):
         """Draw controls overlay."""
-        over = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA); over.fill((0, 0, 0, constants.UI_ALPHA)); self.screen.blit(over, (0, 0))
-        sw, sh, cx = self.screen.get_width(), self.screen.get_height(), self.screen.get_width() // 2
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        over = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        over.fill((0, 0, 0, constants.UI_ALPHA))
+        self.screen.blit(over, (0, 0))
+
+        cx, cy = sw // 2, sh // 2
+
         self.screen.blit(self.font.render("[ Keyboard ]", True, constants.COLOR_WHITE), self.font.render("[ Keyboard ]", True, constants.COLOR_WHITE).get_rect(center=(cx - 150, 60)))
         self.screen.blit(self.font.render("[ Controller ] (Not Implemented)", True, constants.COLOR_GREY), self.font.render("[ Controller ] (Not Implemented)", True, constants.COLOR_GREY).get_rect(center=(cx + 150, 60)))
         self.screen.blit(self.font.render("CONTROLS", True, constants.COLOR_YELLOW), self.font.render("CONTROLS", True, constants.COLOR_YELLOW).get_rect(center=(cx, 120)))

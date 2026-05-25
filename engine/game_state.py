@@ -105,6 +105,7 @@ class GameState:
         self.last_save_elapsed = 1e6
         self.objectives = []
         self.input_debounce_timer = 0.0
+        self.input_ratchet_latched = False
 
         self._save_queue = queue.Queue(maxsize=8)
         self._save_worker_running = True
@@ -263,6 +264,10 @@ class GameState:
     def update(self, dt, actions):
         """Update all game logic."""
         attack_pressed = actions.get('attack', False)
+        ratchet_reset = actions.get('ratchet_reset', False)
+
+        if ratchet_reset:
+            self.input_ratchet_latched = False
 
         if self.input_debounce_timer > 0:
             self.input_debounce_timer -= dt
@@ -273,27 +278,31 @@ class GameState:
                 self.active_dialogue = None
                 self.active_respite = None
                 self.input_debounce_timer = 0.2
+                self.player.has_rested_this_session = False
                 self.save_stats(wait=True)
                 return
 
             # Respite Menu Logic
-            if getattr(self, 'active_respite', None):
+            active_respite = getattr(self, 'active_respite', None)
+            if active_respite:
                 # R - Rest
                 if actions.get('key_r'):
-                    self.active_respite.execute_rest(self)
-                    self.active_respite.execute_interaction(self) # Refresh menu text
+                    active_respite.execute_rest(self)
+                    active_respite.execute_interaction(self) # Refresh menu text
 
-                # 1 - Edification
-                elif actions.get('key_1'):
-                    self._handle_upgrade("edification", 1, 5)
-                # 2 - Prowess
-                elif actions.get('key_2'):
-                    self._handle_upgrade("attack_modifier", 5, 5)
-                # 3 - Fortification
-                elif actions.get('key_3'):
-                    self._handle_upgrade("max_hp_modifier", 10, 5)
+                # 1 - Edification (Only if rested and not latched)
+                elif not self.input_ratchet_latched and self.player.has_rested_this_session:
+                    if actions.get('key_1'):
+                        if self._handle_upgrade("edification", 1, 50):
+                            self.input_ratchet_latched = True
+                    elif actions.get('key_2'):
+                        if self._handle_upgrade("attack_modifier", 5, 50):
+                            self.input_ratchet_latched = True
+                    elif actions.get('key_3'):
+                        if self._handle_upgrade("max_hp_modifier", 10, 50):
+                            self.input_ratchet_latched = True
+
             return
-
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         nearby_interactables = self.world.get_nearby_interactables(player_rect)
         if nearby_interactables:
@@ -314,7 +323,8 @@ class GameState:
             return
         if self.death_timer > 0:
             self.death_timer -= dt
-            if self.death_timer <= 0: self.respawn_player()
+            if self.death_timer <= 0:
+                self.respawn_player()
             return
 
         move_dir = actions.get('move', (0, 0))
@@ -322,12 +332,15 @@ class GameState:
         dash_pressed = actions.get('dash', False)
         block_pressed = actions.get('block', False)
 
-        if getattr(self, 'active_choice', None):
-            if move_dir[0] > 0: self.active_choice["selected_index"] = 1
-            elif move_dir[0] < 0: self.active_choice["selected_index"] = 0
+        active_choice = getattr(self, 'active_choice', None)
+        if active_choice:
+            if move_dir[0] > 0:
+                active_choice["selected_index"] = 1
+            elif move_dir[0] < 0:
+                active_choice["selected_index"] = 0
             if attack_pressed:
-                choice = self.active_choice["options"][self.active_choice["selected_index"]]
-                for stat, val in choice["modifiers"].items():
+                choice_node = active_choice["options"][active_choice["selected_index"]]
+                for stat, val in choice_node["modifiers"].items():
                     self.player.stats[stat] = self.player.stats.get(stat, 0) + val
                 self.active_choice = None
             return
@@ -427,23 +440,31 @@ class GameState:
                     self.loot.remove(item)
             except Exception: pass
         try:
-            if hasattr(self.player, 'hp') and self.player.hp <= 0: self.death_timer = 5.0
-        except Exception: pass
+            if hasattr(self.player, 'hp') and self.player.hp <= 0:
+                self.death_timer = 5.0
+        except Exception:
+            pass
 
     def _handle_upgrade(self, stat_name, amount, cost_scale):
-        """Helper to handle edification upgrades."""
-        from constants import EDIFICATION_BASE_COST
+        """Helper to handle edification upgrades. Returns True on success."""
         current_val = self.player.stats.get(stat_name, 0)
+
+        # Calculate level based on amount steps
         level = current_val // amount if amount > 0 else current_val
-        cost = EDIFICATION_BASE_COST + (level * cost_scale)
+        cost = (level + 1) * cost_scale
+
         pages = self.stats.data["lifetime_stats"].get("pages_collected", 0)
         if pages >= cost:
             self.stats.data["lifetime_stats"]["pages_collected"] -= cost
             self.player.stats[stat_name] = current_val + amount
+            self.player.has_rested_this_session = False # Lock until next rest
+
             if getattr(self, 'active_respite', None):
                 self.active_respite.execute_interaction(self)
+            return True
         else:
             print(f"[DEBUG] Not enough pages for {stat_name} upgrade. Need {cost}, have {pages}.")
+            return False
 
     def respawn_player(self):
         """Reset player to sanctuary after death."""

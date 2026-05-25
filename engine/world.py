@@ -264,10 +264,15 @@ class Respite(GameObject):
 
         text = "Respite - Anchor of the First Edition\n\n"
         text += "[R] REST: Restore HP & Refill Flasks (Enemies will respawn)\n\n"
-        text += "EDIFICATION (Spend Torn Pages):\n"
-        text += f"[1] Edify Understanding (Passive Defense): Lvl {edif} (Cost: {edif_cost})\n"
-        text += f"[2] Edify Prowess (+5 Attack): +{prowess} (Cost: {prowess_cost})\n"
-        text += f"[3] Edify Fortification (+10 Max HP): +{fort} (Cost: {fort_cost})\n"
+
+        if game_state.player.has_rested_this_session:
+            text += "EDIFICATION (Spend Torn Pages):\n"
+            text += f"[1] Edify Understanding (Passive Defense): Lvl {edif} (Cost: {edif_cost})\n"
+            text += f"[2] Edify Prowess (+5 Attack): +{prowess} (Cost: {prowess_cost})\n"
+            text += f"[3] Edify Fortification (+10 Max HP): +{fort} (Cost: {fort_cost})\n"
+        else:
+            text += "[Must Rest to Unblock Level Up]\n"
+
         text += "\n[SPACE] Close"
 
         game_state.active_dialogue = {
@@ -282,6 +287,7 @@ class Respite(GameObject):
         # 1. Character Restoration
         game_state.player.hp = float(game_state.player.max_hp)
         game_state.player.flask_charges = int(FLASK_MAX_CHARGES)
+        game_state.player.has_rested_this_session = True
 
         # 2. World Re-population
         print(f"[DEBUG] Respite resting: Re-manifesting threats in {game_state.world.name}")

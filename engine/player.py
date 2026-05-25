@@ -46,6 +46,7 @@ class Player:
         # Dual-Weapon Inventory Management
         self.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
         self.active_weapon_idx = 0
+        self.has_rested_this_session = False
 
     def swap_weapon(self):
         """Toggle the active weapon slot if the player is not currently attacking."""

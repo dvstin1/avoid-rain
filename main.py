@@ -65,12 +65,18 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
     dash = False
     swap = False
     mouse_click = None
+    ratchet_reset = False
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1: # Left click
                 mouse_click = event.pos
+        if event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1:
+                ratchet_reset = True
+        if event.type == pygame.KEYUP:
+            ratchet_reset = True
         if event.type == pygame.KEYDOWN:
             # If we are in controls state in the pause menu, SPACE/ENTER/ESCAPE returns to MAIN
             if pause_menu is not None and pause_menu.is_open() and getattr(pause_menu.state, 'name', '') == 'CONTROLS':
@@ -103,7 +109,7 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                         pause_menu.state = PauseMenuState.CONTROLS
                     else:
                         pause_menu.confirm()
-    return running, attack, flask, dash, swap, mouse_click
+    return running, attack, flask, dash, swap, mouse_click, ratchet_reset
 
 
 def get_movement_actions():
@@ -276,7 +282,8 @@ def main():
                 clock.tick(FPS)
             else:
                 dt = clock.tick(FPS) / 1000.0
-                running, attack, flask, dash, swap, mouse_click = handle_game_events(pause_menu=pause_menu)
+                ev_res = handle_game_events(pause_menu=pause_menu)
+                running, attack, flask, dash, swap, mouse_click, ratchet_reset = ev_res
                 if pause_menu.is_open():
                     # When paused, draw the pause menu and skip updates
                     renderer.draw_pause_menu(pause_menu)
@@ -312,6 +319,7 @@ def main():
                         'dash': dash,
                         'swap': swap,
                         'mouse_click': mouse_click,
+                        'ratchet_reset': ratchet_reset,
                         'block': pygame.key.get_pressed()[pygame.K_k],
                         'key_r': pygame.key.get_pressed()[pygame.K_r],
                         'key_1': pygame.key.get_pressed()[pygame.K_1],
