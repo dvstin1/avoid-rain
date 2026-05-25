@@ -251,3 +251,16 @@
 - **The Cave (`maps/test_m1.json`):** Simple labyrinth of tight, serpentine wall blocks and blind turns.
 - **The Pond (`maps/test_m2.json`):** Massive square bounding perimeter outlining a wide, empty center hazard pool.
 - **Verification of Granular Randomization:** Verified that crossing through the Chronicle gateway seamlessly loads `world_map1.json` and stitches modules dynamically.
+
+## [ARCHIVED] High-Priority Fix: Miniboss Live-Check Respite Respawn Filter - May 2026
+
+Resolved a regression in the Respite world-reset logic to ensure undefeated minibosses correctly re-manifest during resting loops.
+
+### 1. Persistent Defeat Tracking
+- **Miniboss ID Log:** Implemented `defeated_miniboss_ids` in `GameState` to uniquely track sector-level threats that have been officially "redacted" from the world's text.
+- **Coordinate-Based Identity:** Injected unique IDs (`map_name:x,y`) into all enemies, ensuring spawner identities are consistent across session reloads and rests.
+
+### 2. Respite Loop Filter Overhaul
+- **Polymorphic Evaluation:** Refactored the `execute_rest()` sequence to check the `.is_miniboss` property of all room entities.
+- **Precision Respawning:** Updated the spawner logic to only skip instantiation if an elite's unique ID is present in the `defeated_miniboss_ids` manifest. Undefeated minibosses now correctly respawn alongside common enemies.
+- **State Synchronization:** Ensured the defeat log is perfectly serialized into the persistent save state.
