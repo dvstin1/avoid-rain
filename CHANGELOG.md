@@ -266,6 +266,9 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **State Synchronization:** Ensured the defeat log is perfectly serialized into the persistent save state.
 
 ## [ARCHIVED] Map Editor Multi-Tool Palette Overhaul & Enemy Brush Restoration - May 2026
+- **Interactive Resize:** Converted the Map Size display into a clickable button that opens a clean text input dialog.
+- **Enhanced Tool Selection:** Added mouse wheel scrolling and click-to-select support to the tool picker dialog.
+- **Input Dialog Refactor:** Replaced the problematic `draw_input_banner` with a stable `draw_input_dialog` method.
 - **Stability Fix:** Restored the missing `draw_file_picker` method that caused a crash when opening the map selection dialog.
 
 - **Full Tool Registry Consolidation:** Implemented a centralized `MASTER_TOOL_REGISTRY` in `tools/edit_map.py` containing all tiles, enemies, and utilities.

@@ -62,3 +62,14 @@ To accommodate an expanding registry of environment tiles, enemy variants, and m
 - If a user maps an active tool ID to Slot B that is currently registered to Slot A:
   - Slot A's registry is instantly overwritten to `None`.
   - Slot A's visual interface display drops back to an empty template string: `[ Unassigned ]`.
+
+## 7. Map Editor Dimension Control & Scrollable Palettes
+
+### 1. Dimension HUD Button Action
+- The Map Size readout `[Size: W x H]` acts as a fully interactive button zone.
+- Clicking this string opens a safe, modal text entry box.
+- The system handles canvas resizing using dynamic grid padding (appending `" "` for layout growth) or safe edge truncation, fully deprecating legacy row/column insertion hotkeys.
+
+### 2. Multi-Tool Selector Box Behavior
+- The tool remapping dialog box supports continuous mouse wheel events (`pygame.MOUSEBUTTONDOWN` with button codes `4` for Up and `5` for Down).
+- Clicking a specific row menu item explicitly selects that tool brush, binds it to the current hotbar socket slot, and closes the active dialog overlay cleanly.
