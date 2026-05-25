@@ -295,9 +295,15 @@ class MapEditor:
         fname = self.filename if self.filename else "UNTITLED"
         self.screen.blit(self.font.render(f"File: {fname}", True, COLOR_WHITE), (sidebar_x + 10, y_off))
         y_off += 25
-        size_text = f"Size: {self.map_w}x{self.map_h}"
-        self.screen.blit(self.font.render(size_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
-        y_off += 30
+
+        # Interactive Size Button
+        size_rect = pygame.Rect(sidebar_x + 10, y_off, self.sidebar_width - 20, 30)
+        pygame.draw.rect(self.screen, (40, 40, 40), size_rect)
+        pygame.draw.rect(self.screen, COLOR_GREY, size_rect, 1)
+        size_text = f"Size: {self.map_w}x{self.map_h} (Click to Resize)"
+        self.screen.blit(self.small_font.render(size_text, True, COLOR_WHITE), (size_rect.x + 5, size_rect.y + 7))
+        y_off += 35
+
         tool_text = f"Tool: {self.active_tool}"
         self.screen.blit(self.font.render(tool_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
         y_off += 30
@@ -426,6 +432,29 @@ class MapEditor:
 
             self.screen.blit(surf, (row_rect.x + 5, row_rect.y + 2))
 
+    def draw_input_dialog(self):
+        """Draws a clean text input dialog banner."""
+        banner_h = 120
+        banner_w = SCREEN_WIDTH + self.sidebar_width
+        banner_y = SCREEN_HEIGHT // 2 - banner_h // 2
+        b_rect = pygame.Rect(0, banner_y, banner_w, banner_h)
+        pygame.draw.rect(self.screen, (30, 30, 30), b_rect)
+        pygame.draw.rect(self.screen, COLOR_WHITE, b_rect, 3)
+
+        prompts = {
+            'SAVE': "ENTER FILENAME TO SAVE:",
+            'LOAD': "ENTER FILENAME TO LOAD:",
+            'SOCKET_NAME': "ENTER NAME FOR SOCKET:",
+            'RESIZE_W': "ENTER NEW WIDTH:",
+            'RESIZE_H': "ENTER NEW HEIGHT:"
+        }
+        prompt = prompts.get(self.input_mode, "ENTER INPUT:")
+        p_surf = self.large_font.render(prompt, True, COLOR_YELLOW)
+        self.screen.blit(p_surf, (b_rect.centerx - p_surf.get_width() // 2, b_rect.y + 20))
+
+        b_surf = self.large_font.render(self.input_buffer + "_", True, COLOR_WHITE)
+        self.screen.blit(b_surf, (b_rect.centerx - b_surf.get_width() // 2, b_rect.y + 60))
+
     def draw(self):
         """Draws the editor state to the screen."""
         self.screen.fill(COLOR_CHARCOAL)
@@ -438,11 +467,15 @@ class MapEditor:
         elif self.input_mode == 'TOOL_PICKER':
             self.draw_tool_picker()
         elif self.input_mode:
-            self.draw_input_banner()
+            self.draw_input_dialog()
         pygame.display.flip()
 
     def handle_tool_picker(self, event):
         """Handles navigation and selection in the tool picker."""
+        overlay_w, overlay_h = 450, 550
+        x, y = (SCREEN_WIDTH + self.sidebar_width) // 2 - overlay_w // 2, SCREEN_HEIGHT // 2 - overlay_h // 2
+        rect = pygame.Rect(x, y, overlay_w, overlay_h)
+
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP:
                 self.tool_picker_idx = max(0, self.tool_picker_idx - 1)
@@ -453,19 +486,37 @@ class MapEditor:
                 if self.tool_picker_idx >= self.scroll_offset + 14:
                     self.scroll_offset = self.tool_picker_idx - 13
             elif event.key == pygame.K_RETURN:
-                selected_tool = MASTER_TOOL_REGISTRY[self.tool_picker_idx]
-                tool_id = selected_tool["id"]
-
-                # Remap Exclusion: If this tool is assigned elsewhere, clear that slot
-                for i in range(10):
-                    if self.hotbar[i] == tool_id:
-                        self.hotbar[i] = None
-
-                self.hotbar[self.remapping_slot] = tool_id
-                self.input_mode = None
-                self.select_hotbar_slot(self.remapping_slot)
+                self.assign_tool_to_hotbar(self.tool_picker_idx)
             elif event.key == pygame.K_ESCAPE:
                 self.input_mode = None
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 4:  # Wheel Up
+                self.scroll_offset = max(0, self.scroll_offset - 1)
+            elif event.button == 5:  # Wheel Down
+                max_scroll = max(0, len(MASTER_TOOL_REGISTRY) - 14)
+                self.scroll_offset = min(max_scroll, self.scroll_offset + 1)
+            elif event.button == 1:  # Left Click
+                mx, my = pygame.mouse.get_pos()
+                start_y = rect.y + 70
+                if rect.x + 20 <= mx <= rect.x + overlay_w - 20:
+                    clicked_row = (my - start_y) // 30
+                    clicked_idx = clicked_row + self.scroll_offset
+                    if self.scroll_offset <= clicked_idx < min(len(MASTER_TOOL_REGISTRY), self.scroll_offset + 14):
+                        self.assign_tool_to_hotbar(clicked_idx)
+
+    def assign_tool_to_hotbar(self, tool_idx):
+        """Helper to assign a tool and clean up remapping state."""
+        selected_tool = MASTER_TOOL_REGISTRY[tool_idx]
+        tool_id = selected_tool["id"]
+
+        # Remap Exclusion: If this tool is assigned elsewhere, clear that slot
+        for i in range(10):
+            if self.hotbar[i] == tool_id:
+                self.hotbar[i] = None
+
+        self.hotbar[self.remapping_slot] = tool_id
+        self.input_mode = None
+        self.select_hotbar_slot(self.remapping_slot)
 
     def handle_file_picker(self, event):
         """Handles navigation and selection in the file picker."""
@@ -624,8 +675,15 @@ class MapEditor:
         mx, my = pygame.mouse.get_pos()
         if event.type == pygame.MOUSEBUTTONDOWN:
             if mx >= SCREEN_WIDTH:
+                # Check for Size Button
+                size_rect = pygame.Rect(SCREEN_WIDTH + 10, 45, self.sidebar_width - 20, 30)
+                if size_rect.collidepoint(mx, my):
+                    self.input_mode = 'RESIZE_W'
+                    self.input_buffer = str(self.map_w)
+                    return
+
                 # Hotbar Clicks
-                y_start = 170
+                y_start = 175 # Shifted slightly due to size button changes
                 slot_idx = (my - y_start) // 40
                 if 0 <= slot_idx < 10:
                     slot_rect = pygame.Rect(SCREEN_WIDTH + 10, y_start + slot_idx * 40, self.sidebar_width - 20, 35)
