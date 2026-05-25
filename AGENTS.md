@@ -42,21 +42,4 @@
 
 ## Active Task: 
 
-### Active Task: HUD Level Display, Notification Spam Silencing, & Sanctuary Save Preservation
-
-Fix UI message duplication during level-ups, integrate player level readouts across the HUD, and ensure the Main Menu displays 'Continue' for hub-world saves.
-
-#### 1. Notification Event Gate
-- Inside `ui/menu.py` or your notification dispatcher, locate the block that prints error messages when pages are insufficient for an upgrade.
-- Wrap this notification trigger tightly in your input ratchet condition: only fire the `"Not enough pages!"` alert message on the initial down-press frame, preventing held-input frames from flooding the text buffer.
-
-#### 2. Universal Player Level HUD Integration
-- Update `rendering/renderer.py` to draw the player's current Edification level onto the screen layout. 
-- **HUD Placement:** Append `LVL: <player.edification_level>` right alongside your compact font line for `HP`, `Flasks`, and `Pages`.
-- Ensure this level metric is also clearly visible inside the Respite menu overlay text strings.
-
-#### 3. Sanctuary Save Preservation & Level Reset Hooks
-- In the state manager module that handles entering or exiting the Sanctuary hub:
-  - Explicitly clamp `player.edification_level = 1` whenever the player is within the Sanctuary boundaries.
-  - When writing the session data out to `save_data.json` from the hub, ensure the file writes successfully to disk.
-- In `main.py`, update the Title Screen boot sequence: allow the `"Continue"` option to appear if `save_data.json` exists on disk, regardless of whether the player is in a hostile run context or resting safely in the Sanctuary.
+### 
