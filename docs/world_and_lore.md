@@ -54,3 +54,13 @@ All drops route through a central `LootManager` probability matrix:
 ### 4.3. Player Eradication (Death)
 Reaching 0 HP triggers "Text Bleaching." The character and surrounding assets turn monochrome as they are drained of data, eventually fading into the oblivion of a rejected draft.
 - **Abandoning a Run:** Defined as "Slamming the Libram Shut," leaving a systemic scar on the timeline.
+
+## 5. Scriptural Progression: Edification & Respite Mechanics
+
+### The Concept of Edification
+Edification represents a traveler's deep textual comprehension of the distorted manuscript layers. It scales directly via the conversion of recovered loose pages. As a reader's Edification rises, they gain passive defensive parsing capabilities:
+- **Pristine Concentration (Above 95% HP):** When entering a fight with total clarity, the player receives slightly increased defense, mitigating initial ambush impacts.
+- **Desperate Synthesis (Under 30% HP):** When focus is critically depleted, survival instincts sharpen, scaling up defense parameters to prevent a total session collapse.
+
+### The Fresh View Cycle (World Respawns)
+Interacting with an unlocked Respite forces a structural reset across the active module sector. Much like closing a profound book and reopening it later to find lines you completely overlooked, resting grants a "fresh view." The architecture settles, standard ink entities (common enemies) re-manifest along the margins, but the heavily redacted passages (defeated Miniboss strains) remain permanently expunged.

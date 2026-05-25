@@ -203,7 +203,7 @@ def main():
                 has_physical_run = save_payload.get("active_session_in_progress", False)
         except Exception:
             pass
-    
+
     title_menu = TitleMenu(has_save=has_physical_run)
 
     in_title = True
@@ -232,7 +232,7 @@ def main():
                             print(f"[ERROR] Failed to hydrate state: {exc}")
                             # fallback if hydration fails for some reason
                             state.reset_to_new_game()
-                        
+
                         in_title = False
                         continue
 
@@ -249,9 +249,9 @@ def main():
                             title_menu.state = TitleMenuState.MAIN
                             in_title = False
                             continue
-                        
+
                         # If a persistent run exists, ask for confirmation
-                        has_run = (getattr(state, 'stats', None) is not None and 
+                        has_run = (getattr(state, 'stats', None) is not None and
                                    state.stats.data.get("active_session_in_progress", False))
                         if has_run:
                             # Transition to confirmation state instead of blocking
@@ -291,13 +291,13 @@ def main():
                         pause_menu.clear_quit()
                         pause_menu.close()
                         in_title = True
-                        
+
                         # [Lifecycle] Purge all runtime gameplay memory
                         state.deallocate()
-                        
+
                         # Update title menu
                         try:
-                            has_run_now = (getattr(state, 'stats', None) is not None and 
+                            has_run_now = (getattr(state, 'stats', None) is not None and
                                            state.stats.data.get("active_session_in_progress", False))
                             title_menu.set_has_save(has_run_now)
                         except Exception:
@@ -312,7 +312,11 @@ def main():
                         'dash': dash,
                         'swap': swap,
                         'mouse_click': mouse_click,
-                        'block': pygame.key.get_pressed()[pygame.K_k]
+                        'block': pygame.key.get_pressed()[pygame.K_k],
+                        'key_r': pygame.key.get_pressed()[pygame.K_r],
+                        'key_1': pygame.key.get_pressed()[pygame.K_1],
+                        'key_2': pygame.key.get_pressed()[pygame.K_2],
+                        'key_3': pygame.key.get_pressed()[pygame.K_3]
                     }
                     state.update(dt, actions)
 

@@ -4,7 +4,6 @@ Manages the global game state and coordinates engine components.
 from typing import Optional
 import queue
 import threading
-import time
 
 from constants import (
     PLAYER_START_X, PLAYER_START_Y, DUMMY_X, DUMMY_Y,
@@ -16,7 +15,6 @@ from constants import (
     TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED
 )
 from engine.player import Player, PlayerStateEnum
-from engine.world import World
 from engine.combat import get_sword_hitbox
 from engine.physics import check_aabb_collision, resolve_enemy_player_collision
 from engine.camera import Camera
@@ -230,9 +228,9 @@ class GameState:
     def shutdown_save_worker(self, timeout: float = 2.0) -> None:
         """Stop the save worker thread."""
         self._save_worker_running = False
-        try: self._save_queue.put_nowait(None)
-        except Exception: pass
-        try: self._save_worker_thread.join(timeout)
+        try:
+            self._save_queue.put_nowait(None)
+            self._save_worker_thread.join(timeout)
         except Exception: pass
 
     def trigger_choice_of_fates(self):
@@ -248,8 +246,16 @@ class GameState:
         self.active_choice = {
             "title": "The Choice of Fates",
             "options": [
-                {"name": "The Quill", "bias": "Offense", "modifiers": {"attack_modifier": base_x, "max_hp_modifier": minor_y}, "description": f"+{base_x} Attack, +{minor_y} Max HP"},
-                {"name": "The Binding", "bias": "Defense", "modifiers": {"max_hp_modifier": base_x, "attack_modifier": minor_y}, "description": f"+{base_x} Max HP, +{minor_y} Attack"}
+                {
+                    "name": "The Quill", "bias": "Offense",
+                    "modifiers": {"attack_modifier": base_x, "max_hp_modifier": minor_y},
+                    "description": f"+{base_x} Attack, +{minor_y} Max HP"
+                },
+                {
+                    "name": "The Binding", "bias": "Defense",
+                    "modifiers": {"max_hp_modifier": base_x, "attack_modifier": minor_y},
+                    "description": f"+{base_x} Max HP, +{minor_y} Attack"
+                }
             ],
             "selected_index": 0
         }
@@ -257,7 +263,7 @@ class GameState:
     def update(self, dt, actions):
         """Update all game logic."""
         attack_pressed = actions.get('attack', False)
-        
+
         if self.input_debounce_timer > 0:
             self.input_debounce_timer -= dt
             attack_pressed = False
@@ -265,8 +271,27 @@ class GameState:
         if self.active_dialogue:
             if attack_pressed:
                 self.active_dialogue = None
+                self.active_respite = None
                 self.input_debounce_timer = 0.2
                 self.save_stats(wait=True)
+                return
+
+            # Respite Menu Logic
+            if getattr(self, 'active_respite', None):
+                # R - Rest
+                if actions.get('key_r'):
+                    self.active_respite.execute_rest(self)
+                    self.active_respite.execute_interaction(self) # Refresh menu text
+
+                # 1 - Edification
+                elif actions.get('key_1'):
+                    self._handle_upgrade("edification", 1, 5)
+                # 2 - Prowess
+                elif actions.get('key_2'):
+                    self._handle_upgrade("attack_modifier", 5, 5)
+                # 3 - Fortification
+                elif actions.get('key_3'):
+                    self._handle_upgrade("max_hp_modifier", 10, 5)
             return
 
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
@@ -279,8 +304,9 @@ class GameState:
         # Unified Interaction Filter: If interacting, suppress combat
         # WeaponPickup is excluded from SPACE bar (now handled via HUD button)
         from engine.world import WeaponPickup
-        if attack_pressed and self.player.current_interactable and not isinstance(self.player.current_interactable, WeaponPickup):
-            self.player.current_interactable.execute_interaction(self)
+        target = self.player.current_interactable
+        if attack_pressed and target and not isinstance(target, WeaponPickup):
+            target.execute_interaction(self)
             attack_pressed = False
 
         if self.hit_stop_timer > 0:
@@ -312,11 +338,13 @@ class GameState:
             bx, by = 10, SCREEN_HEIGHT - HUD_PANEL_H - 10
             # [SWAP] Button check
             sb = HUD_SWAP_BTN_RECT
-            if (bx + sb[0] <= mouse_click[0] <= bx + sb[0] + sb[2]) and (by + sb[1] <= mouse_click[1] <= by + sb[1] + sb[3]):
+            if (bx + sb[0] <= mouse_click[0] <= bx + sb[0] + sb[2]) and \
+               (by + sb[1] <= mouse_click[1] <= by + sb[1] + sb[3]):
                 self.player.swap_weapon()
             # [PICK UP] Button check
             pb = HUD_PICKUP_BTN_RECT
-            if (bx + pb[0] <= mouse_click[0] <= bx + pb[0] + pb[2]) and (by + pb[1] <= mouse_click[1] <= by + pb[1] + pb[3]):
+            if (bx + pb[0] <= mouse_click[0] <= bx + pb[0] + pb[2]) and \
+               (by + pb[1] <= mouse_click[1] <= by + pb[1] + pb[3]):
                 target = self.player.current_interactable
                 if isinstance(target, WeaponPickup):
                     target.execute_interaction(self)
@@ -328,7 +356,10 @@ class GameState:
                 if check_aabb_collision(player_rect, obj.rect):
                     speed_multiplier = 0.5
                     break
-        self.player.update(dt, move_dir, walls, actions, attack_pressed, flask_pressed, dash_pressed, block_pressed, speed_multiplier)
+        self.player.update(
+            dt, move_dir, walls, actions, attack_pressed,
+            flask_pressed, dash_pressed, block_pressed, speed_multiplier
+        )
         self.camera.update(self.player.get_center(), dt)
 
         if self.player.state == PlayerStateEnum.ATTACKING:
@@ -340,14 +371,19 @@ class GameState:
                     self.hit_stop_timer, self.shake_timer = HIT_STOP_DURATION, SCREEN_SHAKE_DURATION
 
             active_weapon = self.player.get_active_weapon()
-            damage = active_weapon.get("damage", SWORD_DAMAGE) + getattr(self.player, 'stats', {}).get('attack_modifier', 0)
+            bonus_atk = getattr(self.player, 'stats', {}).get('attack_modifier', 0)
+            damage = active_weapon.get("damage", SWORD_DAMAGE) + bonus_atk
             for enemy in list(self.enemies):
                 try:
                     if check_aabb_collision(hitbox, enemy.get_rect()):
                         if not enemy.is_staggered():
                             enemy.take_damage(damage)
-                            self.hit_stop_timer, self.shake_timer = HIT_STOP_DURATION, SCREEN_SHAKE_DURATION
-                            self.damage_numbers.append({'val': damage, 'pos': (enemy.x + 10, enemy.y - 20), 'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_YELLOW})
+                            self.hit_stop_timer = HIT_STOP_DURATION
+                            self.shake_timer = SCREEN_SHAKE_DURATION
+                            self.damage_numbers.append({
+                                'val': damage, 'pos': (enemy.x + 10, enemy.y - 20),
+                                'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_YELLOW
+                            })
                 except Exception: pass
 
             for obj in list(self.world.interactables):
@@ -392,6 +428,21 @@ class GameState:
         try:
             if hasattr(self.player, 'hp') and self.player.hp <= 0: self.death_timer = 5.0
         except Exception: pass
+
+    def _handle_upgrade(self, stat_name, amount, cost_scale):
+        """Helper to handle edification upgrades."""
+        from constants import EDIFICATION_BASE_COST
+        current_val = self.player.stats.get(stat_name, 0)
+        level = current_val // amount if amount > 0 else current_val
+        cost = EDIFICATION_BASE_COST + (level * cost_scale)
+        pages = self.stats.data["lifetime_stats"].get("pages_collected", 0)
+        if pages >= cost:
+            self.stats.data["lifetime_stats"]["pages_collected"] -= cost
+            self.player.stats[stat_name] = current_val + amount
+            if getattr(self, 'active_respite', None):
+                self.active_respite.execute_interaction(self)
+        else:
+            print(f"[DEBUG] Not enough pages for {stat_name} upgrade. Need {cost}, have {pages}.")
 
     def respawn_player(self):
         """Reset player to sanctuary after death."""

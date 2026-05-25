@@ -239,6 +239,72 @@ class WeaponPickup(GameObject):
             if self in game_state.world.interactables:
                 game_state.world.interactables.remove(self)
 
+class Respite(GameObject):
+    """Ancient anchor fragment that allows resting and character edification."""
+    def __init__(self, position, dimensions, name="Respite"):
+        super().__init__(position, dimensions)
+        self.name = name
+        self.is_interactive = True
+        self.is_solid = True
+
+    def execute_interaction(self, game_state):
+        """Open the Respite Menu."""
+        from constants import EDIFICATION_BASE_COST, EDIFICATION_COST_SCALE
+        edif = game_state.player.stats.get("edification", 0)
+        prowess = game_state.player.stats.get("attack_modifier", 0)
+        fort = game_state.player.stats.get("max_hp_modifier", 0)
+
+        # Calculate current costs
+        edif_cost = EDIFICATION_BASE_COST + (edif * EDIFICATION_COST_SCALE)
+        prowess_cost = EDIFICATION_BASE_COST + (prowess // 5 * EDIFICATION_COST_SCALE)
+        fort_cost = EDIFICATION_BASE_COST + (fort // 10 * EDIFICATION_COST_SCALE)
+
+        game_state.dialogue_mode = "EXPANDED"
+        game_state.active_respite = self # Store reference for menu actions
+
+        text = "Respite - Anchor of the First Edition\n\n"
+        text += "[R] REST: Restore HP & Refill Flasks (Enemies will respawn)\n\n"
+        text += "EDIFICATION (Spend Torn Pages):\n"
+        text += f"[1] Edify Understanding (Passive Defense): Lvl {edif} (Cost: {edif_cost})\n"
+        text += f"[2] Edify Prowess (+5 Attack): +{prowess} (Cost: {prowess_cost})\n"
+        text += f"[3] Edify Fortification (+10 Max HP): +{fort} (Cost: {fort_cost})\n"
+        text += "\n[SPACE] Close"
+
+        game_state.active_dialogue = {
+            "speaker": self.name,
+            "text": text
+        }
+
+    def execute_rest(self, game_state):
+        """Restore player and respawn standard enemies."""
+        from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
+
+        # 1. Character Restoration
+        game_state.player.hp = float(game_state.player.max_hp)
+        game_state.player.flask_charges = int(FLASK_MAX_CHARGES)
+
+        # 2. World Re-population
+        print(f"[DEBUG] Respite resting: Re-manifesting threats in {game_state.world.name}")
+
+        from engine.maps import create_world
+        temp_world = create_world(game_state.world.name)
+
+        if not hasattr(game_state, 'killed_elites'):
+            game_state.killed_elites = set()
+
+        new_enemies = []
+        for e in temp_world.enemies:
+            e_type = type(e).__name__
+            if e_type in ("Miniboss", "MinibossM2", "MinibossM3"):
+                # Simplification: don't respawn any minibosses if they were cleared
+                # Ideally we'd check against state.world.killed_enemies
+                continue
+            new_enemies.append(e)
+
+        game_state.enemies = new_enemies
+        print(f"[DEBUG] Rest complete. {len(game_state.enemies)} threats re-manifested.")
+        game_state.save_stats(wait=True)
+
 class LevelLoader:
     """
     Dedicated parser for 2D text matrix strings or JSON map definitions.
@@ -405,10 +471,7 @@ class LevelLoader:
 
                 elif char == 'R':
                     # Respite
-                    respite = GameObject(pos, dim)
-                    respite.is_interactive = True
-                    respite.is_solid = True
-                    respite.name = "Respite"
+                    respite = Respite(pos, dim)
                     interactables.append(respite)
 
                 elif char == 'T':

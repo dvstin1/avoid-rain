@@ -109,6 +109,11 @@ SMEAR_DAMAGE = 10
 SMEAR_DAMAGE_COOLDOWN = 1.2
 SMEAR_PUDDLE_CHANCE = 0.5 # Chance per second to drop a puddle
 
+# Edification Leveling Constants
+EDIFICATION_BASE_COST = 10
+EDIFICATION_COST_SCALE = 5
+EDIFICATION_MAX_LEVEL = 50
+
 # Grid & World Configuration
 TILE_SIZE = 40
 MACRO_MAP_SIZE = 120

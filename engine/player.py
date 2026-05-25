@@ -190,12 +190,27 @@ class Player:
     def take_damage(self, amount: float) -> None:
         """Apply damage to the player; clamp at zero.
 
-        This method is intentionally simple; death/respawn handling is
-        managed by GameState to keep responsibilities decoupled.
+        Includes conditional defensive parsing based on Edification level.
         """
+        # 1. Apply active blocking reduction
         if self.state == PlayerStateEnum.BLOCKING:
             from constants import BLOCK_DAMAGE_REDUCTION
             amount *= BLOCK_DAMAGE_REDUCTION
+
+        # 2. Apply passive Edification parsing
+        edif = self.stats.get("edification", 0)
+        hp_ratio = self.hp / self.max_hp if self.max_hp > 0 else 0
+
+        # Rule 1: Pristine Concentration (> 95% HP)
+        if hp_ratio > 0.95:
+            # reduce by (Edification / 2)%
+            reduction = (edif / 2.0) / 100.0
+            amount *= (1.0 - reduction)
+        # Rule 2: Desperate Synthesis (< 30% HP)
+        elif hp_ratio < 0.30:
+            # reduce by (Edification)%
+            reduction = edif / 100.0
+            amount *= (1.0 - reduction)
 
         self.hp = max(0.0, self.hp - amount)
         # Only stagger if they took actual damage
