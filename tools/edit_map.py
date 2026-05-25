@@ -195,7 +195,7 @@ class MapEditor:
                     color = COLOR_PURPLE
                 elif char == 'P':
                     color = COLOR_BLUE
-                elif char in ('A', 'Z', 'E', '2', '3', 'f', 'b'):
+                elif char in [et[0] for et in ENEMY_TYPES]:
                     color = COLOR_RED
 
                 pygame.draw.rect(self.screen, color, rect)

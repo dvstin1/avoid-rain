@@ -93,3 +93,8 @@ The player's defensive tracking utilizes two conditional float multipliers trigg
 ### 3. State Constraints
 - The Level Up UI overlay container can *only* be opened if the state machine flag `is_resting` evaluates to `True`.
 - Transitioning `is_resting` to `True` immediately triggers the global `enemy_group.reset_standard_spawners()` method while ignoring cleared miniboss IDs.
+
+## 9. Entity Inheritances & The Miniboss Classification Law
+To ensure long-term scalability and prevent hardcoded type checks, all combat entities must conform to strict object-oriented properties:
+- **The Miniboss Flag:** Every elite or sector-level threat variant must possess an internal boolean attribute `is_miniboss = True`.
+- **System Automation Rule:** Independent engine systems (including Save Persistence, Respite Environmental Resets, and Rare Drop Matrix Generators) must evaluate the generic `.is_miniboss` property rather than checking explicit name strings or ID arrays. Adding a new miniboss variant requires zero modifications to core loop frameworks.
