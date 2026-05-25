@@ -368,6 +368,32 @@ class MapEditor:
         ctrl_q = "Esc: Unselect/Tool"
         self.screen.blit(self.font.render(ctrl_q, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 40))
 
+    def draw_file_picker(self):
+        """Draws a scrollable list of maps for selection."""
+        overlay_w, overlay_h = 400, 500
+        x, y = (SCREEN_WIDTH + self.sidebar_width) // 2 - overlay_w // 2, SCREEN_HEIGHT // 2 - overlay_h // 2
+        rect = pygame.Rect(x, y, overlay_w, overlay_h)
+
+        pygame.draw.rect(self.screen, (30, 30, 40), rect)
+        pygame.draw.rect(self.screen, COLOR_WHITE, rect, 2)
+
+        title = self.large_font.render("Select Map (Enter to Load)", True, COLOR_YELLOW)
+        self.screen.blit(title, (rect.centerx - title.get_width() // 2, rect.y + 10))
+
+        # Draw scrollable list
+        start_y = rect.y + 70
+        visible_count = 12
+        for i in range(self.scroll_offset, min(len(self.map_files), self.scroll_offset + visible_count)):
+            color = COLOR_YELLOW if i == self.file_picker_idx else COLOR_WHITE
+            file_name = self.map_files[i]
+            surf = self.font.render(file_name, True, color)
+
+            row_rect = pygame.Rect(rect.x + 20, start_y + (i - self.scroll_offset) * 30, overlay_w - 40, 25)
+            if i == self.file_picker_idx:
+                pygame.draw.rect(self.screen, (60, 60, 80), row_rect)
+
+            self.screen.blit(surf, (row_rect.x + 5, row_rect.y + 2))
+
     def draw_tool_picker(self):
         """Draws a scrollable list of all tools in the registry."""
         overlay_w, overlay_h = 450, 550
