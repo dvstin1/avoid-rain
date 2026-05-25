@@ -292,20 +292,9 @@ class Respite(GameObject):
         print(f"[DEBUG] Respite resting: Re-manifesting threats in {game_state.world.name}")
 
         from engine.maps import create_world
-        temp_world = create_world(game_state.world.name)
-
-        if not hasattr(game_state, 'killed_elites'):
-            game_state.killed_elites = set()
-
-        new_enemies = []
-        for e in temp_world.enemies:
-            # If it's an elite, check if it's already been killed
-            if getattr(e, 'is_miniboss', False):
-                # Simplification: don't respawn any minibosses if they were cleared
-                # Ideally we'd check against state.world.killed_enemies
-                continue
-            new_enemies.append(e)
-        game_state.enemies = new_enemies
+        temp_world = create_world(game_state.world.name, defeated_ids=game_state.defeated_miniboss_ids)
+        
+        game_state.enemies = temp_world.enemies
         print(f"[DEBUG] Rest complete. {len(game_state.enemies)} threats re-manifested.")
         game_state.save_stats(wait=True)
 
@@ -315,7 +304,7 @@ class LevelLoader:
     Translates symbols into spatial entities and initial layout.
     """
     @staticmethod
-    def load_json_map(file_path, saved_enemies=None):
+    def load_json_map(file_path, saved_enemies=None, defeated_ids=None):
         """Loads a JSON map file and parses it, supporting modular stitching."""
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -390,10 +379,18 @@ class LevelLoader:
             except ValueError:
                 continue
 
-        return LevelLoader.parse_map(["".join(row) for row in grid], entity_data, saved_enemies=saved_enemies)
+        map_name = os.path.basename(file_path).replace(".json", "")
+        
+        return LevelLoader.parse_map(
+            ["".join(row) for row in grid], 
+            entity_data, 
+            saved_enemies=saved_enemies,
+            map_name=map_name,
+            defeated_ids=defeated_ids
+        )
 
     @staticmethod
-    def parse_map(prototype_array, entity_data=None, saved_enemies=None):
+    def parse_map(prototype_array, entity_data=None, saved_enemies=None, map_name="unknown", defeated_ids=None):
         """
         Parses a string array and returns (grid, interactables, warp_tiles, player_start, enemies).
         If saved_enemies is provided, default spawner symbols for enemies are bypassed.
@@ -407,6 +404,7 @@ class LevelLoader:
         warp_tiles = {}
         player_start = (PLAYER_START_X, PLAYER_START_Y)
         entity_data = entity_data or {}
+        defeated_ids = defeated_ids or set()
 
         # If we have saved enemies, reconstruct them directly (The Override Rule)
         if saved_enemies:
@@ -415,6 +413,8 @@ class LevelLoader:
                 e_type = e_data.get("type")
                 if e_type in ENEMY_REGISTRY:
                     enemies.append(ENEMY_REGISTRY[e_type].from_dict(e_data))
+        
+        # ... rest of the loop logic ...
 
         # Check for Lotus Topography symbols
         has_lotus = any('M' in row or 'X' in row for row in prototype_array)
@@ -538,7 +538,18 @@ class LevelLoader:
                 elif char in SYMBOL_REGISTRY:
                     # Generic Enemy Spawner (Bypassed if loading from save)
                     if not saved_enemies:
-                        enemies.append(SYMBOL_REGISTRY[char](pos[0], pos[1]))
+                        # Generate Unique ID based on position and map
+                        enemy_id = f"{map_name}:{x},{y}"
+                        
+                        # Filter Rule: If it's a miniboss and already defeated, skip spawning
+                        enemy_cls = SYMBOL_REGISTRY[char]
+                        # We need to know if the class is a miniboss BEFORE instantiating if possible
+                        # or just check the instance.
+                        temp_enemy = enemy_cls(pos[0], pos[1], id=enemy_id)
+                        if temp_enemy.is_miniboss and enemy_id in defeated_ids:
+                            print(f"[DEBUG] Elite {enemy_id} already redacted; skipping spawn.")
+                        else:
+                            enemies.append(temp_enemy)
 
                 elif char == 'P':
                     # Player Start hook

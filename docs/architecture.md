@@ -94,3 +94,13 @@ The Sanctuary acts as a transitional threshold between archival runs.
 
 ### 2. Notification System Debounce
 UI text popup alerts (such as `"Not enough pages!"`) must check the state of the `input_ratchet_latched` flag. No error notifications may be appended to the rendering stack if the input frame is currently locked or waiting for a key-release signal.
+
+## 13. Entity Inheritances & The Miniboss Classification Law
+
+### The Live-Check Respite Filter Rule
+Minibosses do not persist through resets if they are dead, but they MUST persist if they are alive.
+- The engine tracks a global list or bitmask of defeated elite identifiers: `session.defeated_miniboss_ids`.
+- **The Evaluation Pass:** When a player triggers a Rest action at a Respite, the engine loops through the sub-map's spawner configurations. 
+  - If an entity has `.is_miniboss == True`, the engine checks if its unique ID exists inside `session.defeated_miniboss_ids`.
+  - **Condition A (Unbeaten):** If the ID is NOT in the defeated list, the miniboss is treated like a common enemy and is freshly respawned/restored to full health.
+  - **Condition B (Beaten):** If the ID IS in the defeated list, the spawner is permanently skipped, ensuring it stays dead to prevent item duplication farming.

@@ -9,7 +9,7 @@ from constants import TILE_SIZE, STAGGER_DURATION
 
 class Enemy:
     """Base enemy class."""
-    def __init__(self, x, y, width, height, hp):
+    def __init__(self, x, y, width, height, hp, id=None):
         self.x = float(x)
         self.y = float(y)
         self.width = width
@@ -20,6 +20,7 @@ class Enemy:
         self.max_hp = hp
         self.stagger_timer = 0.0
         self.is_miniboss = False
+        self.id = id # Unique identifier for persistence and respawn rules
 
     def get_rect(self):
         return (self.x, self.y, self.width, self.height)
@@ -43,6 +44,7 @@ class Enemy:
         """Serialize enemy state to a dictionary."""
         return {
             "type": self.__class__.__name__,
+            "id": self.id,
             "x": self.x,
             "y": self.y,
             "hp": self.hp
@@ -51,9 +53,7 @@ class Enemy:
     @classmethod
     def from_dict(cls, data):
         """Create an enemy instance from a dictionary."""
-        # This base implementation might not be enough for specific subclasses
-        # but serves as a template.
-        return cls(data["x"], data["y"], data.get("width", 40), data.get("height", 40), data["hp"])
+        return cls(data["x"], data["y"], data.get("width", 40), data.get("height", 40), data["hp"], id=data.get("id"))
 
 
 class SlugEnemy(Enemy):
@@ -64,13 +64,13 @@ class SlugEnemy(Enemy):
     - Deals damage on contact with a cooldown
     """
     loot_tier = 3
-    def __init__(self, x, y, hp=None):
+    def __init__(self, x, y, hp=None, id=None):
         from constants import (
             SLUG_MAX_HP, SLUG_SPEED, SLUG_DETECT_METERS, SLUG_DAMAGE,
             SLUG_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
         )
         initial_hp = hp if hp is not None else SLUG_MAX_HP
-        super().__init__(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, initial_hp)
+        super().__init__(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, initial_hp, id=id)
         self.speed = SLUG_SPEED
         self.detect_radius = SLUG_DETECT_METERS * TILE_SIZE
         self.damage = SLUG_DAMAGE
@@ -84,7 +84,7 @@ class SlugEnemy(Enemy):
 
     @classmethod
     def from_dict(cls, data):
-        return cls(data["x"], data["y"], hp=data["hp"])
+        return cls(data["x"], data["y"], hp=data["hp"], id=data.get("id"))
 
     def update(self, dt, state):
         """Move toward the player when within detection radius and handle internal timers."""
@@ -143,14 +143,14 @@ class BatEnemy(Enemy):
     - Erratic motion: adds a perpendicular sine wave to its movement
     """
     loot_tier = 3
-    def __init__(self, x, y, hp=None):
+    def __init__(self, x, y, hp=None, id=None):
         from constants import (
             BAT_MAX_HP, BAT_SPEED, BAT_DETECT_METERS, BAT_DAMAGE,
             BAT_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
         )
         initial_hp = hp if hp is not None else BAT_MAX_HP
         # Bats are smaller (20x20 if player is 40x40)
-        super().__init__(x, y, PLAYER_WIDTH // 2, PLAYER_HEIGHT // 2, initial_hp)
+        super().__init__(x, y, PLAYER_WIDTH // 2, PLAYER_HEIGHT // 2, initial_hp, id=id)
         self.speed = BAT_SPEED
         self.detect_radius = BAT_DETECT_METERS * TILE_SIZE
         self.damage = BAT_DAMAGE
@@ -165,7 +165,7 @@ class BatEnemy(Enemy):
 
     @classmethod
     def from_dict(cls, data):
-        return cls(data["x"], data["y"], hp=data["hp"])
+        return cls(data["x"], data["y"], hp=data["hp"], id=data.get("id"))
 
     def update(self, dt, state):
         """Move toward the player with a sine-wave oscillation."""
@@ -236,14 +236,14 @@ class BatEnemy(Enemy):
 class Miniboss(Enemy):
     """An elite 2x2 miniboss enemy with pursuit behavior."""
     loot_tier = 2
-    def __init__(self, x, y, hp=None):
+    def __init__(self, x, y, hp=None, id=None):
         from constants import (
             MINIBOSS_MAX_HP, MINIBOSS_SPEED, MINIBOSS_DAMAGE,
             MINIBOSS_DAMAGE_COOLDOWN, TILE_SIZE
         )
         initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
         # Miniboss is 2x2 tiles
-        super().__init__(x, y, TILE_SIZE * 2, TILE_SIZE * 2, initial_hp)
+        super().__init__(x, y, TILE_SIZE * 2, TILE_SIZE * 2, initial_hp, id=id)
         self.speed = MINIBOSS_SPEED
         # Large detection radius
         self.detect_radius = 12 * TILE_SIZE
@@ -259,7 +259,7 @@ class Miniboss(Enemy):
 
     @classmethod
     def from_dict(cls, data):
-        return cls(data["x"], data["y"], hp=data["hp"])
+        return cls(data["x"], data["y"], hp=data["hp"], id=data.get("id"))
 
     def update(self, dt, state):
         """Move toward the player with a pursuit vector."""
@@ -345,10 +345,10 @@ class Miniboss(Enemy):
 
 class MinibossM2(Miniboss):
     """Variant M2: Bleeding Scribe - Fast, erratic pursuit miniboss."""
-    def __init__(self, x, y, hp=None):
+    def __init__(self, x, y, hp=None, id=None):
         from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
         initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
-        super().__init__(x, y, initial_hp)
+        super().__init__(x, y, initial_hp, id=id)
         self.name = "Bleeding Scribe"
         self.speed = MINIBOSS_SPEED * 1.3
         self._sine_timer = 0.0
@@ -393,10 +393,10 @@ class MinibossM2(Miniboss):
 
 class MinibossM3(Miniboss):
     """Variant M3: Forgotten Binder - Area-denial and teleporting miniboss."""
-    def __init__(self, x, y, hp=None):
+    def __init__(self, x, y, hp=None, id=None):
         from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
         initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
-        super().__init__(x, y, initial_hp)
+        super().__init__(x, y, initial_hp, id=id)
         self.name = "Forgotten Binder"
         self.speed = MINIBOSS_SPEED * 0.7
         self.teleport_cooldown = 4.0
@@ -454,14 +454,14 @@ class FlutterEnemy(Enemy):
     - Low HP, designed to be more of a nuisance than a direct threat
     """
     loot_tier = 4 # Small torn margins
-    def __init__(self, x, y, hp=None):
+    def __init__(self, x, y, hp=None, id=None):
         from constants import (
             FLUTTER_MAX_HP, FLUTTER_SPEED, FLUTTER_DETECT_METERS,
             FLUTTER_DAMAGE, FLUTTER_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
         )
         initial_hp = hp if hp is not None else FLUTTER_MAX_HP
         # Flutters are small (16x16)
-        super().__init__(x, y, 16, 16, initial_hp)
+        super().__init__(x, y, 16, 16, initial_hp, id=id)
         self.speed = FLUTTER_SPEED
         self.detect_radius = FLUTTER_DETECT_METERS * TILE_SIZE
         self.damage = FLUTTER_DAMAGE
@@ -475,7 +475,7 @@ class FlutterEnemy(Enemy):
 
     @classmethod
     def from_dict(cls, data):
-        return cls(data["x"], data["y"], hp=data["hp"])
+        return cls(data["x"], data["y"], hp=data["hp"], id=data.get("id"))
 
     def update(self, dt, state):
         """Move away from the player if within detection radius."""
@@ -540,13 +540,13 @@ class BindlingEnemy(Enemy):
     - Attacks apply a "bind" effect that slows the player.
     """
     loot_tier = 2
-    def __init__(self, x, y, hp=None):
+    def __init__(self, x, y, hp=None, id=None):
         from constants import (
             BINDLING_MAX_HP, BINDLING_SPEED, BINDLING_DETECT_METERS,
             BINDLING_DAMAGE, BINDLING_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
         )
         initial_hp = hp if hp is not None else BINDLING_MAX_HP
-        super().__init__(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, initial_hp)
+        super().__init__(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, initial_hp, id=id)
         self.speed = BINDLING_SPEED
         self.detect_radius = BINDLING_DETECT_METERS * TILE_SIZE
         self.damage = BINDLING_DAMAGE
@@ -560,7 +560,7 @@ class BindlingEnemy(Enemy):
 
     @classmethod
     def from_dict(cls, data):
-        return cls(data["x"], data["y"], hp=data["hp"])
+        return cls(data["x"], data["y"], hp=data["hp"], id=data.get("id"))
 
     def _is_near_margin(self, world):
         """Check if any walls are within the healing radius."""
@@ -658,7 +658,7 @@ class SmearEnemy(Enemy):
     - When killed at large size, splits into two smaller Smears.
     """
     loot_tier = 3
-    def __init__(self, x, y, hp=None, size_multiplier=1.0):
+    def __init__(self, x, y, hp=None, size_multiplier=1.0, id=None):
         from constants import (
             SMEAR_MAX_HP, SMEAR_SPEED, SMEAR_DETECT_METERS,
             SMEAR_DAMAGE, SMEAR_DAMAGE_COOLDOWN, PLAYER_WIDTH, PLAYER_HEIGHT
@@ -668,7 +668,8 @@ class SmearEnemy(Enemy):
             x, y,
             int(PLAYER_WIDTH * size_multiplier),
             int(PLAYER_HEIGHT * size_multiplier),
-            initial_hp
+            initial_hp,
+            id=id
         )
         self.size_multiplier = size_multiplier
         self.speed = SMEAR_SPEED * (1.2 if size_multiplier < 1.0 else 1.0) # Small ones are faster
@@ -689,7 +690,8 @@ class SmearEnemy(Enemy):
         return cls(
             data["x"], data["y"],
             hp=data["hp"],
-            size_multiplier=data.get("size_multiplier", 1.0)
+            size_multiplier=data.get("size_multiplier", 1.0),
+            id=data.get("id")
         )
 
     def update(self, dt, state):

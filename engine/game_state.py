@@ -63,7 +63,8 @@ class GameState:
                 from engine.maps import create_world
                 world_name = run_data.get("world_name", "sanctuary")
                 saved_enemies = run_data.get("enemies", [])
-                self.world = create_world(world_name, saved_enemies=saved_enemies)
+                self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
+                self.world = create_world(world_name, saved_enemies=saved_enemies, defeated_ids=self.defeated_miniboss_ids)
 
                 # Restore Player
                 p_data = run_data.get("player", {})
@@ -74,6 +75,7 @@ class GameState:
                 self.player.active_weapon_idx = int(p_data.get("active_weapon_idx", 0))
                 self.player.weapons = p_data.get("weapons", self.player.weapons)
                 self.player.stats = p_data.get("stats", {})
+                self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
 
                 # Restore Enemies
                 self.enemies = getattr(self.world, 'enemies', [])
@@ -108,6 +110,7 @@ class GameState:
         self.objectives = []
         self.input_debounce_timer = 0.0
         self.input_ratchet_latched = False
+        self.defeated_miniboss_ids = set()
 
         self._save_queue = queue.Queue(maxsize=8)
         self._save_worker_running = True
@@ -137,7 +140,8 @@ class GameState:
         if run_data:
             world_name = run_data.get("world_name", "sanctuary")
             saved_enemies = run_data.get("enemies", [])
-            self.world = create_world(world_name, saved_enemies=saved_enemies)
+            self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
+            self.world = create_world(world_name, saved_enemies=saved_enemies, defeated_ids=self.defeated_miniboss_ids)
             p_data = run_data.get("player", {})
             spawn_x = float(p_data.get("x", self.world.player_start[0]))
             spawn_y = float(p_data.get("y", self.world.player_start[1]))
@@ -147,6 +151,7 @@ class GameState:
             self.player.active_weapon_idx = int(p_data.get("active_weapon_idx", 0))
             self.player.weapons = p_data.get("weapons", self.player.weapons)
             self.player.stats = p_data.get("stats", {})
+            self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
             self.enemies = getattr(self.world, 'enemies', [])
         else:
             self.world = create_world("sanctuary")
@@ -164,7 +169,8 @@ class GameState:
     def reset_to_new_game(self):
         """Reset player and world to start-of-game defaults."""
         from engine.maps import create_world
-        self.world = create_world("sanctuary")
+        self.defeated_miniboss_ids = set()
+        self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
         if self.stats:
             self.stats.data["run_state"] = None
@@ -199,6 +205,7 @@ class GameState:
                             "weapons": getattr(self.player, 'weapons', []),
                             "stats": getattr(self.player, 'stats', {})
                         },
+                        "defeated_miniboss_ids": list(self.defeated_miniboss_ids),
                         "enemies": [e.to_dict() for e in self.enemies]
                     }
                     self.stats.data["active_session_in_progress"] = True
@@ -429,6 +436,9 @@ class GameState:
         for enemy in list(self.enemies):
             if enemy.is_dead():
                 try:
+                    if getattr(enemy, 'is_miniboss', False) and enemy.id:
+                        self.defeated_miniboss_ids.add(enemy.id)
+                    
                     if hasattr(enemy, 'on_death'): enemy.on_death(self)
                     self.enemies.remove(enemy)
                     from engine.loot import roll_drop
@@ -526,7 +536,7 @@ class GameState:
             self.stats.data["last_run_result"] = "DEFEAT"
             self.stats.data["active_session_in_progress"] = False
             self.stats.data["run_state"] = None
-        self.world = create_world("sanctuary")
+        self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
         self.player.x, self.player.y = float(self.world.player_start[0]), float(self.world.player_start[1])
         if hasattr(self, 'camera'): self.camera.instant_center(self.player.get_center())
         try:

@@ -47,3 +47,18 @@ A centralized modal for remapping and reference.
 The top-right quadrant of the active display window is reserved for transient engine status indicators and persistent debug readouts. Text items in this stack use the compact, small font line size to prevent viewport crowding:
 - **Line 1 (Y-Offset: 10px):** Contextual save status indicator (`[Saving...]`).
 - **Line 2 (Y-Offset: 25px):** Active Audio Track state tracker readout (`[AUDIO: <track_name>]`).
+
+## 6. Dynamic Multi-Tool Palette Matrix (Map Editor HUD Layout)
+
+To accommodate an expanding registry of environment tiles, enemy variants, and modular design utilities without crowding the editing canvas, the palette utilizes a fixed-row socket framework.
+
+### 1. The 10-Slot Multi-Tool Hotbar
+- The editor panel renders a permanent vertical or horizontal array of exactly 10 composite button structures.
+- **Left Region (Activation Area):** Displays the current tool's name string (e.g., `[ Floor Tile ]` or `[ Bat Spawner ]`). Clicking this region activates the tool brush globally.
+- **Right Region (Configuration Area - labeled "▼"):** Clicking this boundary opens an overlaid scrollable modal listing all compiled system brushes.
+
+### 2. The Unique Mapping Registry (Mutual Exclusion)
+- The editor maintains a dictionary vector: `editor.palette_mapping = {0: tool_id, 1: tool_id, ...}`.
+- If a user maps an active tool ID to Slot B that is currently registered to Slot A:
+  - Slot A's registry is instantly overwritten to `None`.
+  - Slot A's visual interface display drops back to an empty template string: `[ Unassigned ]`.
