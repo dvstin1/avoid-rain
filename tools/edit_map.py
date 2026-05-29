@@ -89,7 +89,7 @@ class MapEditor:
         self.zoom = 1.0
 
         self.filename = None
-        self.input_mode = None  # 'SAVE', 'LOAD', 'PICKER', 'SOCKET_NAME', 'RESIZE_W', 'RESIZE_H', 'TOOL_PICKER'
+        self.input_mode = None  # 'SAVE', 'LOAD', 'PICKER', 'SOCKET_NAME', 'RESIZE_W', 'RESIZE_H', 'TOOL_PICKER', 'HELP'
         self.input_buffer = ""
 
         # File/Tool Picker State
@@ -211,8 +211,14 @@ class MapEditor:
         """Draws the map grid."""
         enemy_chars = [t["char"] for t in MASTER_TOOL_REGISTRY if t["type"] == "enemy"]
 
-        for y in range(self.map_h):
-            for x in range(self.map_w):
+        # Viewport Culling for Performance
+        start_x = max(0, self.camera_x // ts)
+        end_x = min(self.map_w, (self.camera_x + SCREEN_WIDTH) // ts + 1)
+        start_y = max(0, self.camera_y // ts)
+        end_y = min(self.map_h, (self.camera_y + SCREEN_HEIGHT) // ts + 1)
+
+        for y in range(start_y, end_y):
+            for x in range(start_x, end_x):
                 rect = pygame.Rect(
                     x * ts - self.camera_x,
                     y * ts - self.camera_y,
@@ -265,15 +271,21 @@ class MapEditor:
         gx1, gx2 = min(x1, x2), max(x1, x2)
         gy1, gy2 = min(y1, y2), max(y1, y2)
 
-        rect = pygame.Rect(
+        full_rect = pygame.Rect(
             gx1 * ts - self.camera_x,
             gy1 * ts - self.camera_y,
             (gx2 - gx1 + 1) * ts,
             (gy2 - gy1 + 1) * ts
         )
 
+        # Clip to screen to prevent huge surface allocation
+        screen_rect = pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+        draw_rect = full_rect.clip(screen_rect)
+        if draw_rect.width <= 0 or draw_rect.height <= 0:
+            return
+
         # Draw transparent fill
-        preview_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        preview_surf = pygame.Surface((draw_rect.width, draw_rect.height), pygame.SRCALPHA)
         if self.active_tool == "RECTANGLE":
             color = (0, 120, 255, 80)
             outline_color = (0, 120, 255)
@@ -282,19 +294,31 @@ class MapEditor:
             outline_color = (0, 255, 255)
 
         preview_surf.fill(color)
-        self.screen.blit(preview_surf, (rect.x, rect.y))
-        # Draw opaque outline
-        pygame.draw.rect(self.screen, outline_color, rect, 2)
+        self.screen.blit(preview_surf, (draw_rect.x, draw_rect.y))
+        # Draw opaque outline (of the full rect, but clipped by pygame)
+        pygame.draw.rect(self.screen, outline_color, full_rect, 2)
 
     def draw_sidebar(self, sidebar_x):
         """Draws the UI sidebar."""
         pygame.draw.rect(self.screen, (20, 20, 20), (sidebar_x, 0, self.sidebar_width, SCREEN_HEIGHT))
         pygame.draw.line(self.screen, COLOR_GREY, (sidebar_x, 0), (sidebar_x, SCREEN_HEIGHT), 2)
 
-        y_off = 20
+        y_off = 10
         fname = self.filename if self.filename else "UNTITLED"
         self.screen.blit(self.font.render(f"File: {fname}", True, COLOR_WHITE), (sidebar_x + 10, y_off))
         y_off += 25
+
+        # Cursor Coordinates
+        mx, my = pygame.mouse.get_pos()
+        cursor_coord = "---"
+        if mx < SCREEN_WIDTH:
+            ts = int(TILE_SIZE * self.zoom)
+            gx = (mx + self.camera_x) // ts
+            gy = (my + self.camera_y) // ts
+            if 0 <= gx < self.map_w and 0 <= gy < self.map_h:
+                cursor_coord = f"{gx}, {gy}"
+        self.screen.blit(self.font.render(f"Cursor: {cursor_coord}", True, COLOR_CYAN), (sidebar_x + 10, y_off))
+        y_off += 30
 
         # Interactive Size Button
         size_rect = pygame.Rect(sidebar_x + 10, y_off, self.sidebar_width - 20, 30)
@@ -306,13 +330,16 @@ class MapEditor:
 
         tool_text = f"Tool: {self.active_tool}"
         self.screen.blit(self.font.render(tool_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
-        y_off += 30
-        brush_text = f"Brush Char: {self.current_brush_char}"
+        y_off += 25
+        brush_text = f"Brush: {self.current_brush_char}"
         self.screen.blit(self.font.render(brush_text, True, COLOR_YELLOW), (sidebar_x + 10, y_off))
-        y_off += 40
+        y_off += 25
+        zoom_text = f"Zoom: {self.zoom:.1f}x"
+        self.screen.blit(self.font.render(zoom_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
+        y_off += 30
 
         # Tool Hotbar
-        self.screen.blit(self.font.render("Tool Hotbar (1-0):", True, COLOR_GREY), (sidebar_x + 10, y_off))
+        self.screen.blit(self.font.render("Hotbar (1-0):", True, COLOR_GREY), (sidebar_x + 10, y_off))
         y_off += 25
 
         for i in range(10):
@@ -364,15 +391,12 @@ class MapEditor:
             self.screen.blit(self.font.render("[DEL] Remove, [E] Rename", True, COLOR_RED), (sidebar_x + 20, y_off))
             y_off += 40
 
-        self.screen.blit(self.font.render("Controls:", True, COLOR_GREY), (sidebar_x + 10, SCREEN_HEIGHT - 120))
-        ctrl_w = "WASD: Pan, Ctrl+N: New"
-        self.screen.blit(self.font.render(ctrl_w, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 100))
-        ctrl_h = "Ctrl+R: Resize Canvas"
-        self.screen.blit(self.font.render(ctrl_h, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 80))
-        ctrl_f = "Ctrl+S: Save, Ctrl+O: Load"
-        self.screen.blit(self.font.render(ctrl_f, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 60))
-        ctrl_q = "Esc: Unselect/Tool"
-        self.screen.blit(self.font.render(ctrl_q, True, COLOR_WHITE), (sidebar_x + 10, SCREEN_HEIGHT - 40))
+        # Help Button at Bottom
+        help_rect = pygame.Rect(sidebar_x + 10, SCREEN_HEIGHT - 50, self.sidebar_width - 20, 40)
+        pygame.draw.rect(self.screen, (60, 60, 80), help_rect)
+        pygame.draw.rect(self.screen, COLOR_WHITE, help_rect, 1)
+        h_surf = self.font.render("HELP (H)", True, COLOR_WHITE)
+        self.screen.blit(h_surf, (help_rect.centerx - h_surf.get_width() // 2, help_rect.centery - 10))
 
     def draw_file_picker(self):
         """Draws a scrollable list of maps for selection."""
@@ -455,6 +479,42 @@ class MapEditor:
         b_surf = self.large_font.render(self.input_buffer + "_", True, COLOR_WHITE)
         self.screen.blit(b_surf, (b_rect.centerx - b_surf.get_width() // 2, b_rect.y + 60))
 
+    def draw_help_dialog(self):
+        """Draws a help dialog with all controls."""
+        overlay_w, overlay_h = 500, 400
+        x, y = (SCREEN_WIDTH + self.sidebar_width) // 2 - overlay_w // 2, SCREEN_HEIGHT // 2 - overlay_h // 2
+        rect = pygame.Rect(x, y, overlay_w, overlay_h)
+
+        pygame.draw.rect(self.screen, (30, 30, 40), rect)
+        pygame.draw.rect(self.screen, COLOR_WHITE, rect, 2)
+
+        title = self.large_font.render("Editor Controls", True, COLOR_YELLOW)
+        self.screen.blit(title, (rect.centerx - title.get_width() // 2, rect.y + 10))
+
+        controls = [
+            "WASD: Pan Map",
+            "Left Click: Use Tool / Drag Rect",
+            "1-0: Select Hotbar Slot",
+            "B: Toggle Pencil / Rectangle",
+            "J: Socket Tool",
+            "+ / -: Zoom In / Out",
+            "Mouse Wheel: Zoom In / Out",
+            "Ctrl + S: Save Map",
+            "Ctrl + O: Load Map",
+            "Ctrl + N: New Map",
+            "Ctrl + R: Resize Map",
+            "Esc: Unselect Socket / Clear Tool",
+            "H: Toggle Help",
+            "",
+            "Press ESC or H to Close"
+        ]
+
+        y_off = rect.y + 60
+        for line in controls:
+            surf = self.font.render(line, True, COLOR_WHITE)
+            self.screen.blit(surf, (rect.x + 40, y_off))
+            y_off += 22
+
     def draw(self):
         """Draws the editor state to the screen."""
         self.screen.fill(COLOR_CHARCOAL)
@@ -466,6 +526,8 @@ class MapEditor:
             self.draw_file_picker()
         elif self.input_mode == 'TOOL_PICKER':
             self.draw_tool_picker()
+        elif self.input_mode == 'HELP':
+            self.draw_help_dialog()
         elif self.input_mode:
             self.draw_input_dialog()
         pygame.display.flip()
@@ -639,6 +701,11 @@ class MapEditor:
                 self.input_buffer = self.module_sockets[self.selected_socket_idx]["name"]
                 return
 
+        if event.key == pygame.K_MINUS:
+            self.zoom = max(0.2, self.zoom - 0.1)
+        if event.key == pygame.K_EQUALS:
+            self.zoom = min(5.0, self.zoom + 0.1)
+
         if event.key == pygame.K_b:
             # Cycle through PENCIL and RECTANGLE
             self.active_tool = "RECTANGLE" if self.active_tool == "PENCIL" else "PENCIL"
@@ -646,6 +713,10 @@ class MapEditor:
 
         if event.key == pygame.K_j:
             self.active_tool = "SOCKET"
+            return
+
+        if event.key == pygame.K_h:
+            self.input_mode = 'HELP'
             return
 
         if pygame.K_1 <= event.key <= pygame.K_9:
@@ -674,16 +745,23 @@ class MapEditor:
         """Handles discrete mouse button events."""
         mx, my = pygame.mouse.get_pos()
         if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 4: # Mouse Wheel Up
+                self.zoom = min(5.0, self.zoom + 0.1)
+                return
+            if event.button == 5: # Mouse Wheel Down
+                self.zoom = max(0.2, self.zoom - 0.1)
+                return
+
             if mx >= SCREEN_WIDTH:
                 # Check for Size Button
-                size_rect = pygame.Rect(SCREEN_WIDTH + 10, 45, self.sidebar_width - 20, 30)
+                size_rect = pygame.Rect(SCREEN_WIDTH + 10, 65, self.sidebar_width - 20, 30)
                 if size_rect.collidepoint(mx, my):
                     self.input_mode = 'RESIZE_W'
                     self.input_buffer = str(self.map_w)
                     return
 
                 # Hotbar Clicks
-                y_start = 175 # Shifted slightly due to size button changes
+                y_start = 205
                 slot_idx = (my - y_start) // 40
                 if 0 <= slot_idx < 10:
                     slot_rect = pygame.Rect(SCREEN_WIDTH + 10, y_start + slot_idx * 40, self.sidebar_width - 20, 35)
@@ -698,6 +776,12 @@ class MapEditor:
                     else:
                         # Select Slot
                         self.select_hotbar_slot(slot_idx)
+
+                # Check for Help Button
+                help_rect = pygame.Rect(SCREEN_WIDTH + 10, SCREEN_HEIGHT - 50, self.sidebar_width - 20, 40)
+                if help_rect.collidepoint(mx, my):
+                    self.input_mode = 'HELP'
+                    return
             elif event.button == 1:
                 ts = int(TILE_SIZE * self.zoom)
                 gx = (mx + self.camera_x) // ts
@@ -733,15 +817,29 @@ class MapEditor:
                         self.input_buffer = f"M{len(self.module_sockets) + 1}"
                     self.is_dragging = False
 
+    def handle_help_dialog(self, event):
+        """Handles events in the help dialog."""
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_ESCAPE, pygame.K_h):
+                self.input_mode = None
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            # Clicking outside or anywhere closes it for convenience
+            self.input_mode = None
+
     def handle_input(self):
         """Handles user input for the editor."""
+        modal_closed_this_frame = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
+            
+            prev_mode = self.input_mode
             if self.input_mode == 'PICKER':
                 self.handle_file_picker(event)
             elif self.input_mode == 'TOOL_PICKER':
                 self.handle_tool_picker(event)
+            elif self.input_mode == 'HELP':
+                self.handle_help_dialog(event)
             elif self.input_mode:
                 self.handle_input_mode(event)
             else:
@@ -749,8 +847,11 @@ class MapEditor:
                     self.handle_keyboard(event)
                 else:
                     self.handle_mouse_event(event)
+            
+            if prev_mode and not self.input_mode:
+                modal_closed_this_frame = True
 
-        if not self.input_mode:
+        if not self.input_mode and not modal_closed_this_frame:
             keys = pygame.key.get_pressed()
             move_speed = 10
             if keys[pygame.K_a]:
@@ -759,7 +860,7 @@ class MapEditor:
                 self.camera_x += move_speed
             if keys[pygame.K_w]:
                 self.camera_y -= move_speed
-            if keys[pygame.K_s] and not pygame.key.get_mods() & pygame.KMOD_CTRL:
+            if keys[pygame.K_s] and not (pygame.key.get_mods() & pygame.KMOD_CTRL):
                 self.camera_y += move_speed
             self.handle_mouse()
         return True
