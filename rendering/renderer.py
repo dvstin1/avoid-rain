@@ -456,16 +456,19 @@ class Renderer:
         
         ww, wh = w * constants.TILE_SIZE, h * constants.TILE_SIZE
 
-        # 3. Zoom Scaling & Viewport (Fix constant refs)
+        # 2. Increased Zoom Scale Factor (defined by constants.MINIMAP_VIEWPORT_FRAC)
         vpw = int(constants.SCREEN_WIDTH * constants.MINIMAP_VIEWPORT_FRAC)
         vph = int(constants.SCREEN_HEIGHT * constants.MINIMAP_VIEWPORT_FRAC)
         pxc, pyc = state.player.get_center()
-        
+
         # Viewport center follows player, clamp to world bounds
         vpx = int(max(0, min(pxc - vpw // 2, ww - vpw)))
         vpy = int(max(0, min(pyc - vph // 2, wh - vph)))
-        
-        sx, sy = mw / float(vpw), mh / float(vph)
+
+        # UNIFORM SCALE: Use a single scale factor to prevent squashing and circle drift
+        # Calculate scale based on the width/height to ensure uniform mapping
+        scale = min(mw / float(vpw), mh / float(vph))
+        sx = sy = scale
 
         # 4. Minimap Tile Rendering (Walls)
         tx1, ty1 = int(max(0, vpx // constants.TILE_SIZE)), int(max(0, vpy // constants.TILE_SIZE))
