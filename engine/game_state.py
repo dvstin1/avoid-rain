@@ -297,6 +297,14 @@ class GameState:
         self.active_safe_radius = self.weather_manager.active_safe_radius
         self.bleed_state = self.weather_manager.bleed_state
 
+        # Boss Spawn Rule: Only if circle is closed (CLAMPED) and not already spawned
+        if self.weather_manager.is_boss_spawn_ready():
+            boss_alive = any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
+            self.weather_manager.lock_circle_for_boss(boss_alive)
+            
+            # TODO: Add logic to spawn the boss if it hasn't been spawned yet
+            # and circle has just hit CLAMPED state.
+
         # Sanctuary Level Reset Rule
         if getattr(self.world, 'name', '') == "sanctuary":
             if self.player.stats.get("edification", 0) != 1:

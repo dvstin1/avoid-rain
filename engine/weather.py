@@ -74,5 +74,18 @@ class WeatherManager:
                     is_sheltered = True
             
             if not is_sheltered:
-                damage = WEATHER_DAMAGE_PER_SECOND * dt
+                # Fix: Subtraction must be exactly 2 HP per second
+                damage = 2.0 * dt
                 player.take_damage(damage)
+
+    def is_boss_spawn_ready(self):
+        """Rule: Night Boss doesn't spawn until the circle is closed."""
+        return self.bleed_state in ("CLAMPED", "BOSS_PHASE")
+
+    def lock_circle_for_boss(self, boss_alive):
+        """Rule: Lock the circle in closed position until Night Boss is defeated."""
+        if boss_alive and self.bleed_state == "CLAMPED":
+            self.bleed_state = "BOSS_PHASE"
+        elif not boss_alive and self.bleed_state == "BOSS_PHASE":
+            # Post-boss: Circle could potentially expand or dissipate
+            self.bleed_state = "VICTORY"

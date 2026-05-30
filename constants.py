@@ -159,14 +159,11 @@ MINIMAP_HEIGHT = 150
 MINIMAP_PADDING = 8
 # Minimap tile marker color
 MINIMAP_WALL_COLOR = (120, 120, 120)
-MINIMAP_PLAYER_COLOR = (200, 50, 50)
-MINIMAP_ENEMY_COLOR = (255, 0, 0)
+MINIMAP_PLAYER_COLOR = (255, 255, 255) # Rule: Radar player dot is White
+MINIMAP_ENEMY_COLOR = (255, 0, 0) # Rule: Radar enemy dot is Red
 MINIMAP_LOOT_COLOR = (220, 200, 50)
-# Fraction of the world shown in the minimap viewport. Values >1 are
-# allowed and will result in the minimap showing the full world (clamped).
-# A value around 1.2 is useful for showing some context while still
-# demonstrating panning in many world sizes.
-MINIMAP_VIEWPORT_FRAC = 1.2
+# Zoom SCALE factor: Increased zoom (smaller fraction of world shown)
+MINIMAP_VIEWPORT_FRAC = 0.5 
 
 # Map Module Pools
 POOL_MONTHLY_REPORT = ["maps/forest.json", "maps/ruins.json"]
