@@ -97,3 +97,18 @@ To prevent frame erasure or empty buffer blackouts, the minimap drawing cycle mu
 3. **Primary Canvas Blit Pass:** Execute `main_screen.blit(minimap_surface, destination_rect)`. 
 - *Constraint:* No surface clearing operations (`.fill()`) or dimension reinstantiations may occur after Step 2 has executed for the current frame.
 
+## 9. Typographic Bloom (Dynamic Sector Overlay)
+
+To elevate narrative discovery feedback as players traverse the 440x440 macro-world, entering a major 120x120 Room socket triggers a stylized font animation known as "Typographic Bloom."
+
+### 1. Zone Entry Boundary Filtering
+- **The Core Constraint:** The engine maps a unique name identity string to each of the 9 macro-zone rooms (e.g., Row 0, Col 0 = `"THE SCORCHED MARGIN"`, Row 0, Col 2 = `"THE OVERGROWN FOLIO"`, etc.).
+- **The State Hysteresis Gate:** To prevent UI flashing and text spamming when a player dances or dodges back and forth along a module boundary line:
+  - The engine tracks `session.current_zone_id`.
+  - The Typographic Bloom animation *only* triggers if the player's current coordinate zone changes to a new room identity *and* a minimum cooldown timer of 10.0 seconds has fully passed since the last transition sequence concluded.
+
+### 2. Alpha-Fade Visual Timeline
+The overlay renders centered on the camera viewport canvas with an asynchronous alpha opacity timeline:
+1. **Fade In (0.5s):** Text alpha scales linearly from `0` to `255`.
+2. **Sustain (1.5s):** Text alpha remains locked at maximum opacity `255`.
+3. **Fade Out (1.0s):** Text alpha scales linearly back down to `0`, closing the UI rendering instance cleanly.

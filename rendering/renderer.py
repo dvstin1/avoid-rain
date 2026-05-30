@@ -304,7 +304,51 @@ class Renderer:
             self.screen.blit(msg, msg.get_rect(center=(sw//2, sh//2)))
 
         self.draw_weather(state)
+        self.draw_bloom_overlay(state)
         pygame.display.flip()
+
+    def draw_bloom_overlay(self, state):
+        """Draw alpha-blended typographic zone discovery overlay."""
+        timer = getattr(state, 'bloom_timer', 0)
+        if timer <= 0:
+            return
+
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        bloom_surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        
+        # Calculate Alpha based on lifecycle steps
+        # Fade In (1.0s), Hold (2.0s), Fade Out (1.0s)
+        total = constants.BLOOM_TOTAL_DURATION
+        alpha = 0
+        
+        if timer > constants.BLOOM_HOLD + constants.BLOOM_FADE_OUT:
+            # Fade In Phase
+            fade_elapsed = total - timer
+            alpha = int((fade_elapsed / constants.BLOOM_FADE_IN) * 255)
+        elif timer > constants.BLOOM_FADE_OUT:
+            # Hold Phase
+            alpha = 255
+        else:
+            # Fade Out Phase
+            alpha = int((timer / constants.BLOOM_FADE_OUT) * 255)
+        
+        alpha = max(0, min(255, alpha))
+        
+        # Draw Title with stylized font
+        title_font = pygame.font.SysFont("Times New Roman", 72, bold=True, italic=True)
+        text = getattr(state, 'bloom_text', "THE UNKNOWN MARGIN")
+        
+        # Shadow / Bloom effect
+        shadow_col = (*constants.COLOR_BLOOM_SHADOW, alpha // 2)
+        shadow_surf = title_font.render(text, True, shadow_col)
+        bloom_surf.blit(shadow_surf, shadow_surf.get_rect(center=(sw // 2 + 5, sh // 3 + 5)))
+        
+        # Primary Text
+        text_col = (*constants.COLOR_BLOOM_TEXT, alpha)
+        text_surf = title_font.render(text, True, text_col)
+        bloom_surf.blit(text_surf, text_surf.get_rect(center=(sw // 2, sh // 3)))
+        
+        self.screen.blit(bloom_surf, (0, 0))
 
     def draw_hud(self, state):
         """Draw player HP, Flask, and Dual Weapon slots."""

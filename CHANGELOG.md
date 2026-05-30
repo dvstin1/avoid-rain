@@ -377,6 +377,13 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Surface Stability:** Implemented a dedicated local surface for the minimap to ensure clean alpha blending and prevent coordinate bleeding.
 - **Exposure Fail-Safe:** Explicitly synchronized `player.is_exposed` reset logic to halt environmental damage instantly upon entering safe zones.
 
+## [Recently Completed]
+### Typographic Bloom: Zone Discovery Overlays
+- **Discovery Detection:** Implemented real-time zone tracking in `GameState` that triggers title events when entering any of the nine major 120x120 room nodes.
+- **Stylized Overlays:** Developed an alpha-blended rendering layer that displays large, stylized "noir" title cards (e.g., "THE SCORCHED MARGIN") across the camera viewport.
+- **Smooth Animation:** Coded a three-stage animation lifecycle (Fade-In, Hold, Fade-Out) using dedicated timing constants for a professional aesthetic lift.
+- **Discovery Cooldown:** Integrated a boundary cooldown to prevent title spamming when crossing corridor/room thresholds.
+
 ### Macro Safe Zone Initialization Repair & Initial Grace Period Lock
 - **Massive Starting Radius:** Enforced a 620.0 unit initial `active_safe_radius` to ensure the entire 440x440 world is safe upon run start.
 - **Initial Grace Period:** Implemented a strict 60-second grace period during which all rain visuals and environmental hazards are suppressed.

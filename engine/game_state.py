@@ -16,7 +16,8 @@ from constants import (
     SCREEN_SHAKE_INTENSITY, AUTOSAVE_INDICATOR_DURATION,
     WEATHER_MAX_RADIUS, WEATHER_MIN_RADIUS, WEATHER_WAIT_DURATION,
     WEATHER_SHRINK_DURATION, WEATHER_DAMAGE_PER_SECOND,
-    TILE_STRUCTURE, TILE_RESPITE
+    TILE_STRUCTURE, TILE_RESPITE,
+    BLOOM_TOTAL_DURATION, BLOOM_COOLDOWN
 )
 from engine.player import Player, PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -118,6 +119,12 @@ class GameState:
         # Weather System: The Bleed (Shrinking Circle)
         from engine.weather import WeatherManager
         self.weather_manager = WeatherManager(boss_coords=getattr(self.world, 'boss_coords', None))
+
+        # Typographic Bloom State
+        self.bloom_timer = 0.0
+        self.bloom_text = ""
+        self.last_zone_id = None
+        self.zone_cooldown_timer = 0.0
 
         self._save_queue = queue.Queue(maxsize=8)
         self._save_worker_running = True
@@ -296,6 +303,44 @@ class GameState:
         # Sync attributes for legacy renderer access if needed
         self.active_safe_radius = self.weather_manager.active_safe_radius
         self.bleed_state = self.weather_manager.bleed_state
+
+        # --- Typographic Bloom: Zone Discovery ---
+        if getattr(self.world, 'name', '') != "sanctuary":
+            px, py = self.player.get_center()
+            # Convert pixel coords to unit grid units (40x40 tiles are too small, we want units)
+            ux, uy = int(px // (TILE_SIZE * 40)), int(py // (TILE_SIZE * 40))
+            
+            # Unit logic for 440x440 world:
+            # 11x11 units of 40x40 tiles.
+            # Rooms are 3x3 units starting at units (0,4,8)
+            cur_unit_x, cur_unit_y = int(px // (TILE_SIZE * 40)), int(py // (TILE_SIZE * 40))
+            
+            current_room_id = None
+            for ru_y in (0, 4, 8):
+                for ru_x in (0, 4, 8):
+                    if ru_x <= cur_unit_x < ru_x + 3 and ru_y <= cur_unit_y < ru_y + 3:
+                        current_room_id = f"Room_{ru_x}_{ru_y}"
+                        break
+            
+            if current_room_id and current_room_id != self.last_zone_id:
+                if self.zone_cooldown_timer <= 0:
+                    self.last_zone_id = current_room_id
+                    self.zone_cooldown_timer = BLOOM_COOLDOWN
+                    self.bloom_timer = BLOOM_TOTAL_DURATION
+                    
+                    # Room naming logic
+                    self.bloom_text = "THE UNKNOWN MARGIN"
+                    for s in getattr(self.world, 'module_sockets', []):
+                        if s.get('name') == current_room_id:
+                            plug = s.get('active_plug', '').lower()
+                            if 'forest' in plug: self.bloom_text = "THE VERDANT SILENCE"
+                            elif 'ruins' in plug: self.bloom_text = "THE SCORCHED MARGIN"
+                            elif 'colophon' in plug: self.bloom_text = "THE COLOPHON"
+                            elif 'boss' in plug: self.bloom_text = "THE CROWN RING"
+                            break
+
+        if self.zone_cooldown_timer > 0: self.zone_cooldown_timer -= dt
+        if self.bloom_timer > 0: self.bloom_timer -= dt
 
         # Boss Spawn Rule: Only if circle is closed (CLAMPED) and not already spawned
         if self.weather_manager.is_boss_spawn_ready():

@@ -219,6 +219,15 @@ TILE_KEY = {
     'N': 107, # NightBoss Spawn
 }
 
+# Typographic Bloom (Chapter Titles)
+BLOOM_FADE_IN = 1.0     # Seconds
+BLOOM_HOLD = 2.0        # Seconds
+BLOOM_FADE_OUT = 1.0    # Seconds
+BLOOM_TOTAL_DURATION = BLOOM_FADE_IN + BLOOM_HOLD + BLOOM_FADE_OUT
+BLOOM_COOLDOWN = 10.0   # Seconds between same-zone triggers
+COLOR_BLOOM_TEXT = (220, 220, 220)
+COLOR_BLOOM_SHADOW = (10, 10, 10)
+
 # Colors for Tiles
 COLOR_WALL = (60, 60, 60)
 COLOR_FLOOR = (25, 25, 25)
