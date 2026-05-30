@@ -15,6 +15,14 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Grid Logic Refinement & Enriched Asset Population
+- **Grid Assembly Correction:** Refactored `engine/world_generator.py` to utilize an 11x11 unit-base grid. Sockets are now strictly defined as 120x120 rooms (when row/col indices align) and 40x40 corridor/junction units for all other slots, eliminating incorrect rectangular shapes.
+- **Asset Cleanup:** Purged the redundant and invalid `maps/night_boss.json` file to maintain a clean and reliable asset pool.
+- **Interactive Asset Enrichment:**
+    - **The Colophon:** Injected a player spawn token (`P`) and decorative bookcases (`h`) into the starting room.
+    - **Smallcave:** Populated corridor modules with test Bats (`A`) and Barrels (`B`) to verify entity instantiation across the macro-world.
+- **Structural Verification:** Confirmed the 440x440 symmetric assembly logic via terminal debug traces.
+
 ### World Generator Refinement & Robust Anomaly Logic
 - **Hard Size Filtering:** Implemented a strict validation pass in `WorldGenerator` that automatically rejects any map file not matching exactly 120x120 or 40x40, purging the pool of legacy 7x7 assets.
 - **Graceful Anomaly Fallback:** Fixed the 10% "Special Edition" roll logic to detect empty anomaly pools and automatically fallback to standard map selections, preventing crashes and dimension mismatch warnings.
