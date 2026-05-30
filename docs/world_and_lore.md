@@ -33,10 +33,12 @@ A pressure valve connected to the "Unwritten Page"—the untainted source of the
 - **Atmospheric Contrast:** Emits clear water, the antithesis to toxic ink rain.
 - **The Reflection:** The basin acts as a memory matrix, projecting historical logs (statistics) and encountered shapes (Bestiary).
 
-### 3.3. The Devouring Storm Cycle
-- **Act I (Clear Day):** 10 minutes of exploration. Ambient background particles. Respites are ACTIVE.
-- **Act II (The Bleed):** Corrosive ink-storm. Safe zone shrinks toward center over 3-5 minutes. Respites are DEACTIVATED.
-- ** Act III (The Dilution):** Post-boss victory. Toxic ink dilutes into mundane water, flushing the landscape.
+### 3.3. The Redacting Circle Lifecycle (The Bleed)
+The ink-storm operates on a spatial contraction cycle that repeats twice per run:
+- **Night 1 (The Descent):** Safe zone shrinks in stages toward the first Night Boss.
+- **The Dilution (The Breather):** Defeating the boss turns ink to harmless water for 10 seconds.
+- **Night 2 (The Second Draft):** The cycle restarts toward a second arena.
+- **The Appendix (The Final Author):** Defeating the second boss opens a portal to the final encounter.
 
 ## 4. Systems & Equipment Lore
 

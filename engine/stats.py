@@ -1,5 +1,5 @@
 """
-Statistics tracker and persistence for profile_metrics.json.
+Statistics tracker and persistence for save_data.json.
 
 Low-coupling, self-contained feature: manages lifetime_stats and discovered_bestiary
 and provides save/load functionality.

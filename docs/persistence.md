@@ -4,7 +4,7 @@ This document outlines the systems responsible for tracking lifetime metrics and
 
 ## 1. Statistics Integration (engine/stats.py)
 The `StatisticsTracker` provides a low-coupled interface for recording player progress and lifetime metrics. It isolates filesystem operations from the core game logic.
-- **Master Registry:** `profile_metrics.json` records cumulative stats (`runs_started`, `wins`, `deaths`) and the `discovered_bestiary`.
+- **Master Registry:** `save_data.json` records cumulative stats (`runs_started`, `wins`, `deaths`) and the `discovered_bestiary`.
 - **Injection Pattern:** `GameState` accepts an injected tracker or auto-loads the default profile on initialization.
 - **Serialization:** Call `GameState.save_stats()` to sync the internal dictionary to disk.
 
@@ -16,11 +16,11 @@ The engine utilizes several triggers to ensure data integrity without interrupti
 - **UI Feedback:** Maintains a `last_save_elapsed` timer to drive the "Saved" indicator in the HUD.
 - **Safety:** All save failures are caught and ignored to prevent gameplay stutter.
 
-### 2.2. Contextual Triggers (engine/pause_menu.py)
+### 2.2. Contextual Triggers (engine/game_state.py)
 - **Pause Autosave:** An immediate save is triggered whenever the `PauseMenu` is opened.
 - **Session Suspension:** Before transitioning away from gameplay (Quitting to Title or Exiting), the system captures a full `run_state` snapshot.
 
-## 3. Save Schema (profile_metrics.json)
+## 3. Save Schema (save_data.json)
 The persistent JSON document differentiates between permanent lifetime metrics and volatile active session data.
 
 ```json
@@ -29,27 +29,29 @@ The persistent JSON document differentiates between permanent lifetime metrics a
     "runs_started": 12,
     "wins_chapters_cleared": 2,
     "deaths": 10,
-    "torn_pages_total": 450
+    "pages_collected": 0
   },
   "discovered_bestiary": {
     "SlugEnemy": true,
     "BatEnemy": true
   },
-  "active_session": {
-    "in_progress": true,
-    "world_name": "chapter1",
+  "active_session_in_progress": true,
+  "run_state": {
+    "world_name": "macro_generated",
     "player": {
         "x": 144, "y": 288, "hp": 45
+    },
+    "weather": {
+        "bleed_state": "SHRINKING",
+        "active_safe_radius": 12000
     }
   },
   "last_run_result": "DEFEAT"
 }
 ```
 
-## 4. Future Save Recovery Ideas (Post-Phase 1)
-Planned improvements for later development cycles:
-- **Interactive Restore Dialog:** On-screen modal for handling corruption instead of keyboard-only prompts.
-- **Backup Hierarchy:** Presenting the location of `.corrupt.TIMESTAMP` backups for manual or semi-automated recovery.
-- **Save Worker Thread:** Utilizing a dedicated worker with a bounded queue to serialize heavy write operations.
-- **Incremental Writes:** Splitting large save payloads into sections to reduce disk I/O spikes.
-- **Telemetry Logs:** Timestamped failure logs to aid in remote troubleshooting.
+## 4. Save Reliability Features
+Key implementations for data safety:
+- **Save Worker Thread (IMPLEMENTED):** Utilizing a dedicated worker thread with a bounded queue to serialize heavy write operations without blocking the main game loop.
+- **Atomic Operations:** Uses temporary files and `os.replace` to prevent data corruption during unexpected power loss.
+- **Directory Isolation:** Stores data in `~/.config/avoid_rain/` to ensure user permissions and system cleanup protocols are respected.

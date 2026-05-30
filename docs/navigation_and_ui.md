@@ -5,19 +5,21 @@ This document defines the systems responsible for viewport management, user inte
 ## 1. Input Architecture (Abstraction Layer)
 To maintain a decoupled design, input is translated from raw hardware events into logical "Action" objects.
 - **Continuous Input (WASD):** Polled every frame to generate a normalized movement vector, ensuring fluid motion scaled by `dt`.
-- **Discrete Actions (Space, Shift, Q, K, 1-2):** Hybrid event/polling handles instant triggers (Attack, Dash) and charged states.
+- **Discrete Actions (Space, Shift, R, 1-3):** Hybrid event/polling handles instant triggers (Attack, Dash) and menu selections.
 - **State Lock:** The engine suppresses new actions while the player is in an uninterruptible state (e.g., `ATTACKING`).
 
 ### 1.1. Key Mapping
 | Key | Context | Action |
 | :--- | :--- | :--- |
-| **W, A, S, D** | Exploration | Movement |
-| **SPACE** | Combat/World | Attack / Interact |
+| **W, A, S, D** | Exploration | Movement (WASD: Pan Camera/Map) |
+| **SPACE** | Combat/World | Attack / Interact / Confirm |
 | **L_SHIFT** | Combat | Dash (Invulnerability) |
-| **K** | Combat | Block (Shield-up) |
-| **Q** | Combat | Weapon Swap |
-| **1, 2** | Survival | Use Item / Flask |
-| **ESCAPE** | Menu | Pause / Quit |
+| **R** | Menus | Rest (Respite) |
+| **1, 2, 3** | Menus | Select Edification Upgrade |
+| **ESCAPE** | Menu | Pause / Quit / Close Dialog |
+| **H** | UI | Toggle Help Dialog (Map Editor) |
+| **B** | UI | Toggle Pencil/Rectangle Tool (Map Editor) |
+| **J** | UI | Select Socket Tool (Map Editor) |
 
 ## 2. Viewport Management (Camera)
 The `Camera` is a stateful, frame-rate independent controller centered on the player.
@@ -28,110 +30,71 @@ The `Camera` is a stateful, frame-rate independent controller centered on the pl
 ## 3. User Interface Systems
 
 ### 3.1. Title Menu
-The title screen adaptively presents options based on the existence of `profile_metrics.json`.
+The title screen adaptively presents options based on the physical presence of `save_data.json`.
 - **Dynamic Options:** Displays `[Continue]` only if valid save data is detected.
-- **Overwrite Protection:** Selecting `[New Game]` while a save exists triggers a mandatory Y/N confirmation modal with a 2-second input lock to prevent accidental loss.
+- **Overwrite Protection:** Selecting `[New Game]` while a save exists triggers a mandatory Y/N confirmation modal with a 2-second input lock.
 
-### 3.2. Minimap (Top-Left HUD)
-Provides a spatial overview showing a window around the player rather than the full world.
-- **Panning:** The minimap viewport centers on the player and pans as they move.
-- **Vision:** Only displays wall structures and player position; keeps exploration targets hidden.
-- **Future:** Compass indicators for off-screen objectives.
+### 3.2. HUD Status Display (Lower-Left)
+Text items in the HUD use a compact 14pt font line size to prevent viewport crowding:
+- **Metrics:** `HP`, `Flasks`, `Pages`, and `Level`.
+- **Equipment:** Dual weapon slots with tier coloring (White: Common, Purple: Anomalous).
+- **Buttons:** Clickable `[SWAP]` and `[PICK UP]` widgets for mouse interaction.
 
-### 3.3. Controls Overlay (Tabbed View)
-A centralized modal for remapping and reference.
-- **Tabs:** Internal state toggles between `KEYBOARD` and `GAMEPAD` layouts.
-- **Isolation:** Keeps different controller mapping metrics entirely separated.
+### 3.3. System Diagnostic Telemetry (Top-Right Stack)
+- **Line 1 (Y: 10px):** Contextual save status indicator (`[Saving...]`).
+- **Line 2 (Y: 25px):** Active Audio Track state tracker (`[AUDIO: <track_name>]`).
 
-## 5. System Status Overlay & Diagnostic Telemetry (Top-Right HUD Stack)
-The top-right quadrant of the active display window is reserved for transient engine status indicators and persistent debug readouts. Text items in this stack use the compact, small font line size to prevent viewport crowding:
-- **Line 1 (Y-Offset: 10px):** Contextual save status indicator (`[Saving...]`).
-- **Line 2 (Y-Offset: 25px):** Active Audio Track state tracker readout (`[AUDIO: <track_name>]`).
+## 4. Large-Scale Minimap HUD (Top-Left)
+The Minimap automatically adapts its rendering states based on the active map sector to guarantee crisp visibility and orientation:
 
-## 6. Dynamic Multi-Tool Palette Matrix (Map Editor HUD Layout)
-
-To accommodate an expanding registry of environment tiles, enemy variants, and modular design utilities without crowding the editing canvas, the palette utilizes a fixed-row socket framework.
-
-### 1. The 10-Slot Multi-Tool Hotbar
-- The editor panel renders a permanent vertical or horizontal array of exactly 10 composite button structures.
-- **Left Region (Activation Area):** Displays the current tool's name string (e.g., `[ Floor Tile ]` or `[ Bat Spawner ]`). Clicking this region activates the tool brush globally.
-- **Right Region (Configuration Area - labeled "▼"):** Clicking this boundary opens an overlaid scrollable modal listing all compiled system brushes.
-
-### 2. The Unique Mapping Registry (Mutual Exclusion)
-- The editor maintains a dictionary vector: `editor.palette_mapping = {0: tool_id, 1: tool_id, ...}`.
-- If a user maps an active tool ID to Slot B that is currently registered to Slot A:
-  - Slot A's registry is instantly overwritten to `None`.
-  - Slot A's visual interface display drops back to an empty template string: `[ Unassigned ]`.
-
-## 7. Map Editor Dimension Control & Scrollable Palettes
-
-### 1. Dimension HUD Button Action
-- The Map Size readout `[Size: W x H]` acts as a fully interactive button zone.
-- Clicking this string opens a safe, modal text entry box.
-- The system handles canvas resizing using dynamic grid padding (appending `" "` for layout growth) or safe edge truncation, fully deprecating legacy row/column insertion hotkeys.
-
-### 2. Multi-Tool Selector Box Behavior
-- The tool remapping dialog box supports continuous mouse wheel events (`pygame.MOUSEBUTTONDOWN` with button codes `4` for Up and `5` for Down).
-- Clicking a specific row menu item explicitly selects that tool brush, binds it to the current hotbar socket slot, and closes the active dialog overlay cleanly.
-
-## 8. Large-Scale Minimap HUD Systems & Unit Signifiers
-
-The Minimap interface automatically adapts its rendering states based on the scale of the active map sector to guarantee crisp visibility and orientation:
-
-### 1. Conditional Visibility & Scale Zoom Factors
-- **The Sanctuary Hub:** The minimap layer is completely deactivated and hidden. No radar components are drawn to the screen canvas.
-- **The Macro Run Map (440x440):** The minimap layer is active and rendered at an elevated **Close-Up Zoom Ratio** (e.g., 4x or 6x tile scaling factor), ensuring tight corridor junctions are highly distinct.
+### 1. Conditional Visibility & Scale Zoom
+- **The Sanctuary Hub:** The minimap layer is completely deactivated and hidden.
+- **The Macro Run Map (440x440):** Active and rendered with a high **Close-Up Zoom Ratio** (e.g., 4x or 6x tile scaling factor).
+- **Uniform Scaling Rule:** The system uses a single, consistent scale factor for both X and Y axes to prevent "elliptical" distortion of circular zones and entities.
 
 ### 2. UI Color Profiles & Wave Perimeter Mapping
-To maximize legibility at high zoom scales, radar pixels use high-contrast color values:
-- **The Player Position:** Rendered as a distinct **Pristine White** pixel/circle marker.
-- **Hostile Entities:** Rendered as **Crimson Red** markers.
-- **The Redacting Circle Edge:** The map draws a scaled, concentric loop matching the current `active_safe_radius` using a **Vibrant Amber/Orange** brush line, showing you exactly how far the storm is from your current grid box.
+- **The Player:** Rendered as a distinct **White** marker.
+- **Hostile Entities:** Rendered as **Red** markers.
+- **The Redacting Circle Edge:** Rendered as a concentric **Amber/Orange** line showing the current safe perimeter.
 
-## 8. Large-Scale Minimap HUD Systems & Unit Signifiers
+### 3. Surface Processing Order
+To prevent frame erasure or blackouts, the minimap follows a strict pipeline:
+1. **Clear Pass:** `.fill()` surface with base background tone.
+2. **Tile Blitting:** Draw scaled wall structures using integer coordinate casting.
+3. **Entity Blitting:** Layer radar dots and safe circle boundary.
+4. **Final Blit:** Paint the local surface onto the main display window.
 
-### 3. Minimap Surface Frame Processing Order
-To prevent frame erasure or empty buffer blackouts, the minimap drawing cycle must adhere to a strict chronological frame execution pipeline:
-1. **Instantiation/Clear Pass:** Fill the localized `minimap_surface` with its base background tone (e.g., translucent dark gray/black).
-2. **Sub-Surface Blitting Pass:** Draw the scaled static environment tiles, the White player node, the Crimson enemy vectors, and the Amber safe ring onto the `minimap_surface`.
-3. **Primary Canvas Blit Pass:** Execute `main_screen.blit(minimap_surface, destination_rect)`. 
-- *Constraint:* No surface clearing operations (`.fill()`) or dimension reinstantiations may occur after Step 2 has executed for the current frame.
-
-## 9. Typographic Bloom (Dynamic Sector Overlay)
-
-To elevate narrative discovery feedback as players traverse the 440x440 macro-world, entering a major 120x120 Room socket triggers a stylized font animation known as "Typographic Bloom."
+## 5. Typographic Bloom (Dynamic Sector Overlay)
+Narrative discovery feedback that draws large, stylized titles across the viewport when entering major 120x120 Room sockets.
 
 ### 1. Zone Entry Boundary Filtering
-- **The Core Constraint:** The engine maps a unique name identity string to each of the 9 macro-zone rooms (e.g., Row 0, Col 0 = `"THE SCORCHED MARGIN"`, Row 0, Col 2 = `"THE OVERGROWN FOLIO"`, etc.).
-- **The State Hysteresis Gate:** To prevent UI flashing and text spamming when a player dances or dodges back and forth along a module boundary line:
-  - The engine tracks `session.current_zone_id`.
-  - The Typographic Bloom animation *only* triggers if the player's current coordinate zone changes to a new room identity *and* a minimum cooldown timer of 10.0 seconds has fully passed since the last transition sequence concluded.
+- **State Hysteresis Gate:** Animation only triggers if the player's coordinate zone changes *and* a 10.0 second cooldown has passed since the last transition.
+- **Milestone Alerts:** Also used for environmental signals: `"THE INK BEGINS TO RUN"` and `"THE FINAL PARAGRAPH LOCKS"`.
 
 ### 2. Alpha-Fade Visual Timeline
-The overlay renders centered on the camera viewport canvas with an asynchronous alpha opacity timeline:
-1. **Fade In (0.5s):** Text alpha scales linearly from `0` to `255`.
-2. **Sustain (1.5s):** Text alpha remains locked at maximum opacity `255`.
-3. **Fade Out (1.0s):** Text alpha scales linearly back down to `0`, closing the UI rendering instance cleanly.
+The overlay renders with an asynchronous alpha opacity timeline:
+1. **Fade In (1.0s):** Text alpha 0 -> 255.
+2. **Sustain (2.0s):** Text alpha remains at 255.
+3. **Fade Out (1.0s):** Text alpha 255 -> 0.
 
-### 3. Environmental State Announcements (The Bleed Triggers)
-The Typographic Bloom rendering layer serves as the primary system-wide alert interface. It intercepts weather logic transitions to display screen-centered announcements using lore-accurate terminology:
-- **Contraction Commencement:** When the 60-second initial grace period hits zero, the screen blooms with the text: `"THE INK BEGINS TO RUN"`.
-- **Final Arena Clamp:** The frame the safe circle contracts to its absolute 40-tile limit, the screen blooms with the text: `"THE FINAL PARAGRAPH LOCKS"`.
+## 6. Specialized Leveling Interfaces (Respite Menu)
 
-## 10. Respite Menu Leveling Interfaces
+### 1. Dynamic Evaluation & Live Binding
+The Respite leveling panel reads values directly from the live `player.stats` layer on every frame.
+- **Visual Lockout:** If `player.pages < cost`, the option text color shifts to a muted dark charcoal grey (`#4A4A4A`), and a red `[ Insufficient Pages ]` warning is rendered inline.
+- **Immediate Feedback:** The interface regenerates its font surfaces every frame to ensure upgrades and costs update visually the instant a button is pressed.
 
-### 1. Dynamic String Evaluation
-The Respite leveling panel text must re-evaluate its component strings dynamically upon every update frame or button click action. 
-- The target readouts for `[ Current Level: X ]` and `[ Cost to Amplify: Y Pages ]` must read values directly from the live `player.stats` data layer rather than displaying stale, cached constructor text strings.
+## 7. Map Editor Interface (Native Pygame Tool)
 
-### 2. Live Surface Re-Compilation
-To avoid displaying stale cached font elements, the Respite interaction rendering loop must explicitly generate a fresh graphical font surface on every menu update frame or item button press event:
-- **The Compilation Pipeline:** Inside `ui/menu.py` (or the respective Respite draw routine), the script must execute `font.render(f"Level: {player.level}", True, COLOR)` and `font.render(f"Cost: {player.get_upgrade_cost()}", True, COLOR)` dynamically right before invoking the final `screen.blit()` drawing actions.
+### 1. Multi-Tool Hotbar (1-0 Keys)
+- permanent vertical array of exactly 10 tool slots.
+- **Remapping:** Clicking the "SET" button opens a scrollable modal listing all compiled system brushes.
+- **Exclusion Logic:** Assigning a tool to a new slot automatically unassigns it from its previous location.
 
-## 10. Respite Menu Leveling Interfaces
-
-### 3. Live Context Binding & Interaction Lockout Feedback
-The leveling screen interface components must evaluate state data dynamically from the engine's primary active player instance.
-- **Visual Lockout Indicator:** When rendering upgrade choices, the drawing module must evaluate if `player.pages < target_upgrade_cost`.
-  - **Affordable State:** The option renders in standard noir ivory text with an active button bounding box.
-  - **Locked State:** The option text color shifts to a muted dark charcoal grey (`#4A4A4A`), the action hover bounding box is deactivated, and a small warning indicator reading `[ Insufficient Pages ]` is rendered inline next to the cost.
+### 2. Controls & Utilities
+- **WASD:** Pan camera.
+- **Mouse Wheel / +/-:** Zoom in and out.
+- **Ctrl+R:** Open interactive resize dialog.
+- **Ctrl+S / Ctrl+O:** Save and Load (with scrollable file picker).
+- **Ctrl+N:** Reset to blank canvas.
+- **Input Bleed-Through Fix:** Implements a mouse-release blocker that ignores map clicks until the button is physically released after closing a modal dialog.

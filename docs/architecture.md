@@ -21,7 +21,7 @@ The `GameState` object manages the following data structures:
 - **Persistence Snapshot:** Lifetime metrics, discovered bestiary, and serialized `run_state`.
 
 ## 4. Climate Engine: The Bleed (The Redacting Circle)
-"The Bleed" is a spatial contraction mechanic that shrinks a designated safe perimeter down toward a Night Boss Arena. This cycle occurs twice per run.
+"The Bleed" is a spatial contraction mechanic that shrinks a designated safe perimeter down toward a sequence of Night Boss Arenas.
 
 ### 1. Radial Proximity Math
 - **The Center Anchor:** Upon map generation, the engine assigns TWO distinct 40x40 inner sockets as Night Boss Arenas (Arena 1 and Arena 2). The circle centers on Arena 1 first.
@@ -29,30 +29,39 @@ The `GameState` object manages the following data structures:
 - **The Exposure Condition:** During every update frame, the engine calculates the Euclidean distance between the player's position and the active boss center.
   - **Inside Circle:** If `Distance <= active_safe_radius`, the player is safe.
   - **Outside Circle (In The Bleed):** If `Distance > active_safe_radius`, the player is exposed to the ink-storm. They receive damage over time (2 HP/sec) unless standing beneath a protective structure tile (`"T"`).
+- **Non-Staggering Damage:** Environmental hazard damage bypasses standard combat hit-reactions. Health is decremented directly without altering the player's state or movement velocity.
 
-### 2. The Contraction & Dilution Lifecycle
-The safe circle progresses through sequential stages:
-- **Phase 1: The Descent (Night 1):** The circle shrinks in steps (Wait -> Contract -> Pause) until it clamps permanently around Arena 1, spawning the first Night Boss.
-- **Phase 2: The Dilution (Clearing the Margins):** Upon defeating the first Night Boss, the toxic rain turns blue and harmless for a 5-10 second temporary window. The alert **"THE MARGINS CLEAR"** is displayed.
-- **Phase 3: The Reset:** The safe rain vanishes, and the entire 440x440 map becomes a safe zone again (Clearance). The sequence re-initializes, this time targeting Arena 2. The alert **"THE SECOND DRAFT"** is displayed.
-- **Phase 4: The Second Descent (Night 2):** The circle shrinks and clamps around Arena 2, spawning the second Night Boss.
-- **Phase 5: The Appendix (Final Portal):** Defeating the second Night Boss permanently clears the weather and spawns a portal in Arena 2. This portal warps the player to a separate, off-map Final Boss Arena. The alert **"THE APPENDIX REVEALED"** is displayed. Victory is achieved only by defeating the Final Boss (**"CHAPTER COMPLETE"**).
+### 2. The Contraction Lifecycle (Three-Step Protocol)
+The circle contraction does not crawl incrementally. It operates strictly across three distinct milestones:
+- **Initialization:** Safe radius starts at maximum scale (**620 tiles**), leaving the entire 440x440 grid clear during the initial 60-second grace period.
+- **Step 1 (The First Contraction):** Radius shrinks smoothly down to **300 tiles**, then pauses for 40 seconds.
+- **Step 2 (The Second Contraction):** Radius shrinks smoothly down to **120 tiles**, then pauses for 40 seconds.
+- **Step 3 (The Final Collapse):** Radius contracts to exactly **40 tiles**, locking over the Night Boss Arena and triggering the boss spawn.
+
+### 3. Act III: The Dilution (Victory Window)
+Upon defeating a Night Boss, "The Bleed" enters the **Dilution** phase.
+- **Environmental Shift:** Toxic rain turns blue and harmless for 10 seconds.
+- **Cycle Reset:** If a second boss is queued, the circle resets to max radius and begins the descent cycle for the new target coordinates.
+
+### 4. Hub Isolation Rules
+The weather system state machine, particle calculations, and damage logic are strictly decoupled from the hub map.
+- **The Hub Gate:** If the current map identifier equals `"sanctuary"`, the weather update thread exits immediately. The system remains completely dormant while the player is inside the hub.
 
 ## 5. Physics & Collision Architecture
 - **Order of Operations:** 1. Apply Velocity -> 2. Resolve Wall Collisions (AABB) -> 3. Boundary Clamp -> 4. Finalize Coordinates.
 - **Normalization:** Movement vectors are normalized to ensure consistent diagonal speed.
-- **Soft-Body Repulsion:** Mobile entities (Player/Enemies) calculate separation vectors upon overlap to prevent graphic clipping and maintain combat readability.
+- **Soft-Body Repulsion:** Mobile entities (Player/Enemies) calculate separation vectors upon overlap to prevent graphic clipping.
+- **Global Coordinates:** Collision subroutines evaluate position against the master 440x440 grid. Local module boundaries must be passed seamlessly.
 
 ## 6. Combat Logic & Hitbox Rules
 - **Relative Hitboxes:** Calculated based on player center and cardinal facing direction (e.g., $60 \times 20$ for horizontal swings).
 - **Resolution:** Damage is applied to all enemies overlapping the active sword hitbox during the `ATTACKING` state.
 
-## 7. Map Topography: The Radiant Lotus Wheel
-The world is a massive $120 \times 120$ tile grid designed to prevent traversal traps.
-- **The Central Well:** Large open plaza for final stand-offs.
-- **The Tissue (Spokes):** Multi-tile walkways radiating from the center at specific angles.
-- **The Outer Rim:** A continuous circular path linking all spokes, ensuring zero dead ends.
-- **The Vault Cells:** $20 \times 20$ modular content zones nested between the spokes.
+## 7. Map Topography: The Unit Grid Canvas
+The world is a massive $440 \times 440$ tile grid assembled from an $11 \times 11$ unit matrix.
+- **Room Nodes:** $120 \times 120$ tiles (3x3 units). Reserved for high-density exploration and combat.
+- **Corridor Slots:** $40 \times 40$ tiles (1x1 units). Connect Room Nodes.
+- **Perimeter Passability:** Local sub-map modules must not append colliders to their outer frame edges, allowing fluid traversal between adjacent nodes.
 
 ## 8. State Hooks: Modular Cleansing
 - **Kill-Signal:** Defeating a Miniboss broadcasts a `SIG_CLEANSE_MODULE` event.
@@ -60,117 +69,54 @@ The world is a massive $120 \times 120$ tile grid designed to prevent traversal 
 
 ## 9. Respite Interaction State Machine & Edification Math
 
-To facilitate long-term progression and strategic risk management, the engine implements a "Resting" loop and a persistent leveling system (Edification).
+To facilitate long-term progression, the engine implements a "Resting" loop and a persistent leveling system (Edification).
 
 ### 1. The Resting Loop (engine/world.py)
 Interacting with an unlocked `Respite` object triggers the `execute_rest()` sequence:
 - **Character Restoration:** Resets `player.hp` to `player.max_hp` and refills `player.flask_charges`.
-- **World Re-population:** Triggers a partial map reload pass. Standard enemy spawners (Symbols: `Z`, `A`, `f`, `b`, `s`) are re-instantiated.
-- **Elite Exclusion:** Miniboss strains (`E`, `2`, `3`) are never respawned; they are tracked via the generic `is_miniboss` property.
-- **Progression Unlocking:** Sets `player.has_rested_this_session = True`, enabling the edification menu options.
+- **World Re-population:** Standard enemy spawners (Z, A, f, b, s) are re-instantiated.
+- **Elite Exclusion:** Minibosses are never respawned once their unique ID is flagged as defeated in the global session manifest.
+- **Progression Unlocking:** Sets `player.has_rested_this_session = True`, enabling the edification menu.
 
 ### 2. Edification Leveling & Currency Scaling
-Attribute upgrades scale linearly based on the current level index:
-- **Math Formula:** `Cost = (current_level + 1) * 50` Pages.
+Attribute upgrades scale linearly based on the current level:
+- **Math Formula:** `Cost = (current_level + 1) * 50` Torn Pages.
 - **Stat Categories:** **Edification** (Passive Defense), **Prowess** (+5 Attack), and **Fortification** (+10 Max HP).
-- **The State Lock:** Each edification purchase or menu closure resets `has_rested_this_session = False`. To edify again, the player must commit to a fresh Rest action.
+- **The State Lock:** Each purchase resets `has_rested_this_session = False`. To edify again, the player must commit to a fresh Rest action.
 
 ### 3. Conditional Defensive Parsing (engine/player.py)
-A passive ability that modifies damage intake based on the player's health threshold:
 - **Pristine Concentration:** If `HP > 95%`, damage reduced by `(Edification / 2)%`.
 - **Desperate Synthesis:** If `HP < 30%`, damage reduced by `(Edification)%`.
 
 ## 10. UI Overlay Constraints & Input Ratchet Specifications
 
 ### 1. Input Ratchet (Debounce State Machine)
-To prevent event spamming during transactions, UI controls require a distinct `ui_click_released` sequence:
-- **Latched State:** Maintain `input_ratchet_latched = True` upon processing a discrete action (e.g., Level Up purchase).
-- **Blocking:** While latched, all sequential triggers for that specific action are ignored.
-- **Reset:** The latch is cleared only when receiving a native `KEYUP` or `MOUSEBUTTONUP` signal from the OS.
+- **Latched State:** Maintain `input_ratchet_latched = True` upon processing a discrete action (e.g., purchase).
+- **Reset:** The latch is cleared only when receiving a native `KEYUP` or `MOUSEBUTTONUP` signal.
 
 ### 2. HUD Scaling Standards
-- **Typography Alignment:** Status metrics (`HP`, `Flasks`, `Pages`) must utilize the compact 14pt font assets to match action prompts (`[SWAP]`, `[PICK UP]`), ensuring consistent padding within the HUD panel boundaries.
+- **Typography Alignment:** Status metrics (`HP`, `Flasks`, `Pages`) must utilize the compact 14pt font assets to match action prompts.
 
-## 11. Entity Inheritances & The Miniboss Classification Law
+## 11. Boss Lifecycle Sequencing & Spawning Laws
 
+### 1. The Dormant Arena Spawning Rule
+The `"night_boss"` entity type is strictly restricted from manifesting during run initialization.
+- **The Awakening Phase:** The boss manifests at its arena center the exact frame the safe circle hits its final `CLAMP` boundary.
+- **The Lockdown Rule:** Contraction logic is locked in the closed state while the Night Boss is alive. The radius cannot alter until the boss is defeated.
 
-## 12. Hub Persistence Boundaries & Notification Gatekeeper Rules
+### 2. Victory and The Appendix
+- **Manifestation:** Defeating the second Night Boss manifests a Warp Portal to the separate **Final Boss Arena** (`maps/final_boss.json`, 50x50 size).
+- **Conclusion:** True victory (`last_run_result = "VICTORY"`) is achieved only by defeating the Final Boss.
+
+## 12. Hub Persistence Boundaries & State Purification
 
 ### 1. The Sanctuary Persistence Rule (The Blank Slate)
-The Sanctuary acts as a transitional threshold between archival runs. 
-- Entering or quitting from the Sanctuary forces the player's runtime `edification_level` to immediately drop back to **1**.
-- **File Persistence:** The system must still write a valid session file to `~/.config/avoid_rain/save_data.json` when exiting from the Sanctuary. The main menu must render the **Continue** button if this file is present, bypassing the `in_progress` restriction so players can resume their session directly inside the hub.
+The Sanctuary hub world acts as a definitive state purifier. 
+- **Purification Pass:** Entering the hub forces `edification_level` to 1, resets Pages to 0, restores HP/Flasks, and wipes exposure status.
+- **File Persistence:** Session data is written to `~/.config/avoid_rain/save_data.json`. The hub bypasses the `in_progress` restriction, allowing players to Resume directly in the Scriptorium.
 
-### 2. Notification System Debounce
-UI text popup alerts (such as `"Not enough pages!"`) must check the state of the `input_ratchet_latched` flag. No error notifications may be appended to the rendering stack if the input frame is currently locked or waiting for a key-release signal.
-
-## 13. Entity Inheritances & The Miniboss Classification Law
-
-### The Live-Check Respite Filter Rule
-Minibosses do not persist through resets if they are dead, but they MUST persist if they are alive.
-- The engine tracks a global list or bitmask of defeated elite identifiers: `session.defeated_miniboss_ids`.
-- **The Evaluation Pass:** When a player triggers a Rest action at a Respite, the engine loops through the sub-map's spawner configurations. 
-  - If an entity has `.is_miniboss == True`, the engine checks if its unique ID exists inside `session.defeated_miniboss_ids`.
-  - **Condition A (Unbeaten):** If the ID is NOT in the defeated list, the miniboss is treated like a common enemy and is freshly respawned/restored to full health.
-  - **Condition B (Beaten):** If the ID IS in the defeated list, the spawner is permanently skipped, ensuring it stays dead to prevent item duplication farming.
-
-## 14. Global Movement Bounds & Module Transition Processing
-
-### The Global Coordinate Rule
-Entity collision check subroutines must evaluate position vectors against the total compiled canvas dimensions, rather than local sub-map constraints.
-- **Boundaries:** Boundary tracking is enforced globally at `0 <= player.x < 440` and `0 <= player.y < 440` (measured in tile units).
-- **Seamless Cross-Blitting:** Local sub-map modules must not append boundary colliders along their outer frame edges (e.g., indices 0 and 39 for a 40x40 map). When modules are stitched into the master grid, their borders must remain perfectly passable to allow fluid traversal between adjacent nodes.
-
-## 15. Spatial Weather Mechanics: The Shrinking Ring (The Redacting Circle)
-
-### 3. Initialization and Initial Grace Period
-To prevent instant player death or asset loading freezes upon world instantiation, the safe zone matrix must initialize in an entirely un-redacted state:
-- **Maximum Spawn Radius:** At session start, `active_safe_radius` must be explicitly set to a minimum value of **620.0** units (guaranteeing that the entire 440x440 grid fits entirely inside the clear zone).
-- **The Initial Grace Clock:** The state machine starts in a `GRACE_PERIOD` holding state for **60.0 seconds**.
-- **The Transition Trigger:** Absolutely zero acid rain rendering, zero particle calculations, and zero player damage checks may run while `current_grace_timer < 60.0`. The warning message `"[THE BLEED] The circle is closing"` prints strictly upon the exact frame this grace timer hits zero.
-
-## 16. Boss Lifecycle Sequencing & Damage Resolution Verification
-
-### 1. The Closed Circle Summoning Trigger
-The primary `"night_boss"` entity type is strictly restricted from manifesting during run initialization.
-- **The Dormant Phase:** While `active_safe_radius` is greater than the boundaries of the 40x40 Night Boss Arena module, the boss sprite is completely un-instantiated/hidden.
-- **The Awakening Phase:** The exact frame the circle contraction hits its final `CLAMP` boundary limit, the engine executes `world.spawn_night_boss()`.
-- **The Lockdown Rule:** The safe circle timer and radius contraction calculations are permanently locked in the closed state while the Night Boss is alive. The radius cannot open or alter until the boss's internal health variable ticks down to exactly `0`.
-
-## 17. Spatial Weather Mechanics: The Shrinking Ring (The Redacting Circle)
-
-### 4. Non-Staggering Environmental Damage Resolution
-Environmental hazard damage (such as "The Bleed" acid rain) must bypass standard combat hit-reaction state machines.
-- **The Execution Rule:** When applying environmental damage over time, the execution hook must decrement `player.hp` directly *without* altering the `player.state` string to `"STAGGER"` or triggering damage-velocity knockbacks. This ensures the player maintains complete manual steering and movement control while taking damage.
-
-### 5. The Three-Step Collapse Protocol
-The circle contraction does not crawl incrementally. It operates strictly across three distinct, massive collapsing milestones to systematically funnel the player toward the center:
-- **Initialization:** Safe radius starts at maximum scale (**620 tiles**), leaving the entire 440x440 grid completely clear during the initial 60-second grace period.
-- **Step 1 (The First Constraction):** Radius shrinks smoothly down to **300 tiles**, then pauses for a 40-second breather.
-- **Step 2 (The Second Contraction):** Radius shrinks smoothly down to **120 tiles** (clamping tightly around the macro-zone room cluster containing the arena), then pauses for a final 40-second breather.
-- **Step 3 (The Final Collapse):** Radius contracts down to exactly **40 tiles**, locking perfectly over the outer margins of the Night Boss Arena and triggering the boss spawn.
-
-## 18. State Purification Rules & Area Transitions
-
-### 1. Environmental Damage State Sanitation
-To prevent persistent or cross-map damage leaks, all environmental status flags must be explicitly purged upon structural events:
-- **Frame Rule:** The player's exposure metric must evaluate an absolute conditional check every frame. If `Distance <= active_safe_radius`, the condition `player.is_exposed` MUST evaluate to `False`.
-- **Hub Initialization Rule:** Loading or entering `maps/sanctuary.json` instantly forces a global environment wipe: `player.is_exposed = False` and the weather damage loops are completely deactivated.
-
-### 2. Minimap Surface Coordinate Clamping
-The minimap drawing thread must use strict floor-integer operations when applying scale factors to prevent canvas blackouts:
-- **Math Constraints:** All translated radar coordinates must use integer casting: `int(player_x * zoom_factor)`. Slicing loops must clamp bounding rects tightly between `0` and the maximum width/height surface constraints of the master array canvas to avoid out-of-bounds rendering surface drops.
-
-## 19. Spatial Weather Mechanics: The Shrinking Ring (The Redacting Circle)
-
-### 6. Macro-Map Isolation Rule
-"The Bleed" weather system state machine, particle calculations, distance checks, and typographic alerts are strictly decoupled from the hub map layout.
-- **The Core Constraint:** At the very top of `engine/weather.py -> update()` and `rendering/renderer.py -> draw_weather()`, the system must execute an active map name evaluation. 
-- **The Hub Gate:** If the current map string identifier equals `"sanctuary"`, the execution thread must exit immediately (`return`). The weather system must remain completely paused, dormant, and hidden while the player is inside the Sanctuary.
-
-## 20. State Purification Rules & Area Transitions
-
-### 3. Sanctuary Inventory Purge Injection
-Upon loading or initializing the `"sanctuary"` map asset module, the level initialization routine must directly locate the live player entity reference and explicitly overwrite its page wallet balance parameter:
-- `player.pages = 0` (or `session.current_pages = 0`)
-- This must execute as part of the map setup lifecycle rather than relying on individual `WarpPortal` entity logic.
+### 2. Minimap Rendering Order
+To prevent canvas blackouts, the minimap must adhere to a strict pipeline:
+1. **Clear Surface:** `.fill()` with base background tone.
+2. **Sub-Surface Blit:** Draw tiles and entities using strict integer casting and boundary clamping.
+3. **Primary Blit:** Execute `main_screen.blit(minimap_surface, destination_rect)`.
