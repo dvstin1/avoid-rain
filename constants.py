@@ -163,7 +163,7 @@ MINIMAP_PLAYER_COLOR = (255, 255, 255) # Rule: Radar player dot is White
 MINIMAP_ENEMY_COLOR = (255, 0, 0) # Rule: Radar enemy dot is Red
 MINIMAP_LOOT_COLOR = (220, 200, 50)
 # Zoom SCALE factor: Increased zoom (smaller fraction of world shown)
-MINIMAP_VIEWPORT_FRAC = 0.5 
+MINIMAP_VIEWPORT_FRAC = 2.5
 
 # Map Module Pools
 POOL_MONTHLY_REPORT = ["maps/forest.json", "maps/ruins.json"]
