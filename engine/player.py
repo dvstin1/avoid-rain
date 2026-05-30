@@ -190,10 +190,11 @@ class Player:
             self.flask_charges -= 1
             self.hp = min(self.max_hp, self.hp + FLASK_HEAL_AMOUNT)
 
-    def take_damage(self, amount: float) -> None:
+    def take_damage(self, amount: float, bypass_stagger: bool = False) -> None:
         """Apply damage to the player; clamp at zero.
 
         Includes conditional defensive parsing based on Edification level.
+        If bypass_stagger is True, the player's state is not changed.
         """
         # 1. Apply active blocking reduction
         if self.state == PlayerStateEnum.BLOCKING:
@@ -216,8 +217,9 @@ class Player:
             amount *= (1.0 - reduction)
 
         self.hp = max(0.0, self.hp - amount)
-        # Only stagger if they took actual damage
-        if self.hp > 0 and amount > 0:
+        
+        # Only stagger if they took actual damage and stagger isn't bypassed
+        if not bypass_stagger and self.hp > 0 and amount > 0:
             self.state = PlayerStateEnum.STAGGERED
             self.stagger_timer = STAGGER_DURATION
             self.vx, self.vy = 0, 0

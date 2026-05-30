@@ -3,16 +3,19 @@ Weather System: The Bleed (The Redacting Circle).
 Handles the spatial contraction logic and exposure damage.
 """
 from constants import (
-    TILE_SIZE, WEATHER_MIN_RADIUS, 
-    WEATHER_WAIT_DURATION, WEATHER_SHRINK_DURATION, 
-    WEATHER_DAMAGE_PER_SECOND, TILE_STRUCTURE, TILE_RESPITE
+    TILE_SIZE, WEATHER_WAIT_DURATION, WEATHER_SHRINK_DURATION, 
+    TILE_STRUCTURE, TILE_RESPITE
 )
 
 class WeatherManager:
     def __init__(self, boss_coords=None):
         self.boss_coords = boss_coords
         self.bleed_state = "GRACE_PERIOD"
-        self.grace_timer = 60.0  # 1-minute testing buffer
+        self.grace_timer = 60.0  # 1-minute initial grace period
+        
+        # Sizing Steps (in Tiles)
+        self.steps = [300.0, 120.0, 40.0]
+        self.current_step_idx = 0
         
         # Bugfix: Initialize at massive 620.0 units (tiles)
         # 620 * 40 = 24800 pixels, covers the 17600px map
@@ -31,17 +34,17 @@ class WeatherManager:
             if self.grace_timer <= 0:
                 self.bleed_state = "SHRINKING"
                 self.timer = WEATHER_SHRINK_DURATION
-                self.target_radius = max(WEATHER_MIN_RADIUS, self.active_safe_radius * 0.75)
+                self.target_radius = self.steps[self.current_step_idx] * TILE_SIZE
                 print("[THE BLEED] The circle is closing.")
-            return # No rain particles calculated or damage checked during grace
+            return # No rain visuals or damage during grace
 
         elif self.bleed_state == "WAIT":
             self.timer -= dt
             if self.timer <= 0:
                 self.bleed_state = "SHRINKING"
                 self.timer = WEATHER_SHRINK_DURATION
-                self.target_radius = max(WEATHER_MIN_RADIUS, self.active_safe_radius * 0.75)
-                print(f"[THE BLEED] The circle is closing. Target radius: {self.target_radius}")
+                self.target_radius = self.steps[self.current_step_idx] * TILE_SIZE
+                print(f"[THE BLEED] The circle is closing. Target radius: {self.steps[self.current_step_idx]} units")
         
         elif self.bleed_state == "SHRINKING":
             if self.timer > 0:
@@ -51,7 +54,10 @@ class WeatherManager:
             
             if self.timer <= 0:
                 self.active_safe_radius = self.target_radius
-                if self.active_safe_radius <= WEATHER_MIN_RADIUS:
+                self.current_step_idx += 1
+                
+                # Check if we reached the final step
+                if self.current_step_idx >= len(self.steps):
                     self.bleed_state = "CLAMPED"
                     print("[THE BLEED] The circle has reached finality.")
                 else:
@@ -74,9 +80,10 @@ class WeatherManager:
                     is_sheltered = True
             
             if not is_sheltered:
-                # Fix: Subtraction must be exactly 2 HP per second
+                # Fix: subtraction must be exactly 2 HP per second
+                # Bypassing combat stagger for environmental damage
                 damage = 2.0 * dt
-                player.take_damage(damage)
+                player.take_damage(damage, bypass_stagger=True)
 
     def is_boss_spawn_ready(self):
         """Rule: Night Boss doesn't spawn until the circle is closed."""
@@ -87,5 +94,4 @@ class WeatherManager:
         if boss_alive and self.bleed_state == "CLAMPED":
             self.bleed_state = "BOSS_PHASE"
         elif not boss_alive and self.bleed_state == "BOSS_PHASE":
-            # Post-boss: Circle could potentially expand or dissipate
             self.bleed_state = "VICTORY"
