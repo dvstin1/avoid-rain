@@ -763,6 +763,22 @@ class SmearEnemy(Enemy):
             state.enemies.append(s2)
 
 
+class NightBoss(Miniboss):
+    """The ultimate high-tier elite encounter."""
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
+        # Night Boss has double HP of standard minibosses
+        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP * 2
+        super().__init__(x, y, initial_hp, id=id)
+        self.name = "Night Boss"
+        self.speed = MINIBOSS_SPEED * 0.9
+
+    def to_dict(self):
+        d = super().to_dict()
+        d["type"] = "NightBoss"
+        return d
+
+
 # Global Registry for Enemy Reconstruction
 ENEMY_REGISTRY = {
     "SlugEnemy": SlugEnemy,
@@ -772,7 +788,8 @@ ENEMY_REGISTRY = {
     "Miniboss": Miniboss,
     "MinibossM2": MinibossM2,
     "MinibossM3": MinibossM3,
-    "SmearEnemy": SmearEnemy
+    "SmearEnemy": SmearEnemy,
+    "NightBoss": NightBoss
 }
 
 # Global Registry for Map Symbol Mapping
@@ -784,5 +801,6 @@ SYMBOL_REGISTRY = {
     'E': Miniboss,
     '2': MinibossM2,
     '3': MinibossM3,
-    's': SmearEnemy
+    's': SmearEnemy,
+    'N': NightBoss
 }

@@ -19,12 +19,10 @@ class WorldGenerator:
         # Sockets will be a list of dicts with bounds and tags
         self.sockets = []
         
-        # Asset pools
+        # Asset pools (Strictly mapped by size)
         self.asset_pools = {
             "120x120": ["maps/forest.json", "maps/ruins.json"],
-            "40x40": ["maps/smallcave.json"],
-            "40x120": ["maps/smallcave.json"], # Placeholders
-            "120x40": ["maps/smallcave.json"]  # Placeholders
+            "40x40": ["maps/smallcave.json"]
         }
 
     def generate_layout(self):
@@ -66,13 +64,8 @@ class WorldGenerator:
 
         # 2. The Spawn Assignment Phase (The Colophon)
         # We need an outer 40x40 junction OR an outer corridor segment.
-        # The user requested "randomly assign ... our colophon/night_boss files to their restricted 40x40 slots".
-        # This implies we should prioritize the 40x40 junctions.
-        # But wait, in a 5x5 grid with [120, 40, 120, 40, 120], junctions are all inner.
-        # Let's check if there are any outer 40x40s.
         outer_40s = [s for s in self.sockets if "40x40" in s["tags"] and "outer" in s["tags"]]
         
-        # If no outer 40x40s exist in 5x5, we must pick an outer corridor (40x120 or 120x40)
         if not outer_40s:
             outer_corridors = [s for s in self.sockets if "corridor" in s["tags"] and "outer" in s["tags"]]
             spawn_socket = random.choice(outer_corridors)
@@ -80,15 +73,15 @@ class WorldGenerator:
             spawn_socket = random.choice(outer_40s)
 
         spawn_socket["active_plug"] = "maps/the_colophon.json"
-        # Store spawn position for the warp trigger
-        self.spawn_x = spawn_socket["bounds"]["x"] + 20
-        self.spawn_y = spawn_socket["bounds"]["y"] + 20
+        # Store spawn position for the warp trigger (Center of the Colophon)
+        self.spawn_x = spawn_socket["bounds"]["x"] + (spawn_socket["bounds"]["width"] // 2)
+        self.spawn_y = spawn_socket["bounds"]["y"] + (spawn_socket["bounds"]["height"] // 2)
         
         # 3. The Target Assignment Phase (Night Boss)
         inner_40s = [s for s in self.sockets if "40x40" in s["tags"] and "inner" in s["tags"]]
         if inner_40s:
             boss_socket = random.choice(inner_40s)
-            boss_socket["active_plug"] = "maps/night_boss.json"
+            boss_socket["active_plug"] = "maps/night_boss_arena.json"
         
         # 4. The Pool Backfill Pass
         for s in self.sockets:
@@ -97,8 +90,8 @@ class WorldGenerator:
                 if size_key in self.asset_pools:
                     s["active_plug"] = random.choice(self.asset_pools[size_key])
                 else:
-                    # Fallback to standard 40x40 or nearest
-                    s["active_plug"] = random.choice(self.asset_pools["40x40"])
+                    # Fallback to nearest asset or blank
+                    s["active_plug"] = "maps/smallcave.json"
 
     def export_world(self, filename="maps/generated_world.json"):
         """Exports the layout as a macro-world JSON file."""
@@ -110,12 +103,13 @@ class WorldGenerator:
                 "active_plug": s["active_plug"]
             })
         
-        base_grid = ["#" * self.total_size for _ in range(self.total_size)]
+        # Canvas Initialization: Use open floor space (" ") instead of walls ("#")
+        base_grid = [" " * self.total_size for _ in range(self.total_size)]
         
         data = {
             "map_id": self.world_id,
             "dimensions": {"width": self.total_size, "height": self.total_size},
-            "legend": {"#": "WALL_STONE"},
+            "legend": {"#": "WALL_STONE", " ": "FLOOR_CLEAN"},
             "grid": base_grid,
             "entities": {},
             "module_sockets": module_sockets,
