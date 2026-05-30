@@ -355,6 +355,13 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Damage Precision:** Fixed the acid rain damage tracking to accurately subtract 2 HP per second when exposed outside the safe circle.
 - **Boss Encounter Gating:** Implemented logic to gate the Night Boss spawn until the safe circle has fully closed, locking the perimeter until the encounter is resolved.
 
+## [Recently Completed]
+### Damage Stagger Bypass & 3-Step Radius Contraction Sequence
+- **Stagger Bypass:** Refactored environmental damage logic to completely bypass hit-reactions, allowing uninterrupted player movement while exposed to acid rain.
+- **3-Step Contraction:** Overhauled the safe circle state machine to contract in three distinct, major steps (300, 120, and 40 units) rather than a continuous slow crawl.
+- **Interval Management:** Established a 40-second pause between contraction phases to allow for tactical traversal and exploration.
+- **Grace Period Preservation:** Maintained the strict 60-second wide-open initial grace period before the first contraction begins.
+
 ### Macro Safe Zone Initialization Repair & Initial Grace Period Lock
 - **Massive Starting Radius:** Enforced a 620.0 unit initial `active_safe_radius` to ensure the entire 440x440 world is safe upon run start.
 - **Initial Grace Period:** Implemented a strict 60-second grace period during which all rain visuals and environmental hazards are suppressed.

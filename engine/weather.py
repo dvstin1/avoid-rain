@@ -62,7 +62,7 @@ class WeatherManager:
                     print("[THE BLEED] The circle has reached finality.")
                 else:
                     self.bleed_state = "WAIT"
-                    self.timer = WEATHER_WAIT_DURATION
+                    self.timer = 40.0 # 40-second pause between steps
                     print("[THE BLEED] The circle has paused.")
 
         # 2. Exposure Damage Logic

@@ -134,3 +134,16 @@ The primary `"night_boss"` entity type is strictly restricted from manifesting d
 - **The Dormant Phase:** While `active_safe_radius` is greater than the boundaries of the 40x40 Night Boss Arena module, the boss sprite is completely un-instantiated/hidden.
 - **The Awakening Phase:** The exact frame the circle contraction hits its final `CLAMP` boundary limit, the engine executes `world.spawn_night_boss()`.
 - **The Lockdown Rule:** The safe circle timer and radius contraction calculations are permanently locked in the closed state while the Night Boss is alive. The radius cannot open or alter until the boss's internal health variable ticks down to exactly `0`.
+
+## 17. Spatial Weather Mechanics: The Shrinking Ring (The Redacting Circle)
+
+### 4. Non-Staggering Environmental Damage Resolution
+Environmental hazard damage (such as "The Bleed" acid rain) must bypass standard combat hit-reaction state machines.
+- **The Execution Rule:** When applying environmental damage over time, the execution hook must decrement `player.hp` directly *without* altering the `player.state` string to `"STAGGER"` or triggering damage-velocity knockbacks. This ensures the player maintains complete manual steering and movement control while taking damage.
+
+### 5. The Three-Step Collapse Protocol
+The circle contraction does not crawl incrementally. It operates strictly across three distinct, massive collapsing milestones to systematically funnel the player toward the center:
+- **Initialization:** Safe radius starts at maximum scale (**620 tiles**), leaving the entire 440x440 grid completely clear during the initial 60-second grace period.
+- **Step 1 (The First Constraction):** Radius shrinks smoothly down to **300 tiles**, then pauses for a 40-second breather.
+- **Step 2 (The Second Contraction):** Radius shrinks smoothly down to **120 tiles** (clamping tightly around the macro-zone room cluster containing the arena), then pauses for a final 40-second breather.
+- **Step 3 (The Final Collapse):** Radius contracts down to exactly **40 tiles**, locking perfectly over the outer margins of the Night Boss Arena and triggering the boss spawn.
