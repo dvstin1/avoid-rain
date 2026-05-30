@@ -24,6 +24,10 @@ class WeatherManager:
         self.target_radius = self.active_safe_radius
 
     def update(self, dt, player, world):
+        # Hub Isolation Rule: Weather system completely freezes in the Sanctuary
+        if getattr(world, 'name', '') == "sanctuary":
+            return
+
         if not self.boss_coords:
             return
 

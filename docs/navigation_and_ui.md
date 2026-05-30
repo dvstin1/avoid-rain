@@ -123,3 +123,7 @@ The Typographic Bloom rendering layer serves as the primary system-wide alert in
 ### 1. Dynamic String Evaluation
 The Respite leveling panel text must re-evaluate its component strings dynamically upon every update frame or button click action. 
 - The target readouts for `[ Current Level: X ]` and `[ Cost to Amplify: Y Pages ]` must read values directly from the live `player.stats` data layer rather than displaying stale, cached constructor text strings.
+
+### 2. Live Surface Re-Compilation
+To avoid displaying stale cached font elements, the Respite interaction rendering loop must explicitly generate a fresh graphical font surface on every menu update frame or item button press event:
+- **The Compilation Pipeline:** Inside `ui/menu.py` (or the respective Respite draw routine), the script must execute `font.render(f"Level: {player.level}", True, COLOR)` and `font.render(f"Cost: {player.get_upgrade_cost()}", True, COLOR)` dynamically right before invoking the final `screen.blit()` drawing actions.

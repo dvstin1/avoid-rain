@@ -158,3 +158,17 @@ To prevent persistent or cross-map damage leaks, all environmental status flags 
 ### 2. Minimap Surface Coordinate Clamping
 The minimap drawing thread must use strict floor-integer operations when applying scale factors to prevent canvas blackouts:
 - **Math Constraints:** All translated radar coordinates must use integer casting: `int(player_x * zoom_factor)`. Slicing loops must clamp bounding rects tightly between `0` and the maximum width/height surface constraints of the master array canvas to avoid out-of-bounds rendering surface drops.
+
+## 19. Spatial Weather Mechanics: The Shrinking Ring (The Redacting Circle)
+
+### 6. Macro-Map Isolation Rule
+"The Bleed" weather system state machine, particle calculations, distance checks, and typographic alerts are strictly decoupled from the hub map layout.
+- **The Core Constraint:** At the very top of `engine/weather.py -> update()` and `rendering/renderer.py -> draw_weather()`, the system must execute an active map name evaluation. 
+- **The Hub Gate:** If the current map string identifier equals `"sanctuary"`, the execution thread must exit immediately (`return`). The weather system must remain completely paused, dormant, and hidden while the player is inside the Sanctuary.
+
+## 20. State Purification Rules & Area Transitions
+
+### 3. Sanctuary Inventory Purge Injection
+Upon loading or initializing the `"sanctuary"` map asset module, the level initialization routine must directly locate the live player entity reference and explicitly overwrite its page wallet balance parameter:
+- `player.pages = 0` (or `session.current_pages = 0`)
+- This must execute as part of the map setup lifecycle rather than relying on individual `WarpPortal` entity logic.

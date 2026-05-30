@@ -396,3 +396,9 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Initial Grace Period:** Implemented a strict 60-second grace period during which all rain visuals and environmental hazards are suppressed.
 - **Initialization Fix:** Resolved the game thread freeze by delegating weather logic to a dedicated `WeatherManager` and using time-based particle updates.
 - **Dynamic Contraction:** Integrated the warning event and smooth contraction sequence centered on the Night Boss Arena.
+
+## [ARCHIVED] Fix Sanctuary State Isolation, Force Page Resets, and Repair Respite Font Rendering - May 2026
+- **Hub Isolation:** Implemented a definitive gate in `engine/weather.py` and `rendering/renderer.py` that freezes all rain logic, timers, and particle rendering while the player is in the Sanctuary hub.
+- **Robust Page Reset:** Enforced an absolute clear of the player's Page count at the map-load level whenever they enter the Sanctuary, ensuring a clean economic state for every new run regardless of how the transition was triggered.
+- **Real-Time Respite UI:** Refactored the Respite menu to explicitly call `font.render()` every frame using live player statistics, ensuring that understanding levels and page costs update visually the instant an upgrade occurs.
+- **Indentation Fix:** Resolved a crash caused by a missing return statement in the Renderer's weather logic during the hub isolation pass.

@@ -286,6 +286,21 @@ class GameState:
             "selected_index": 0
         }
 
+    def on_enter_sanctuary(self):
+        """Rule: Absolute state purification upon entering the Sanctuary hub."""
+        self.player.is_exposed = False
+        self.player.hp = float(self.player.max_hp)
+        
+        # Economy Reset: Clear current Pages collected for the next run
+        if self.stats:
+            self.stats.data["lifetime_stats"]["pages_collected"] = 0
+            self.stats.data["run_state"] = None
+            self.stats.data["active_session_in_progress"] = False
+
+        # Sanctuary-specific stat locks
+        if self.player.stats.get("edification", 0) != 1:
+            self.player.stats["edification"] = 1
+
     def update(self, dt, actions):
         """Update all game logic."""
         attack_pressed = actions.get('attack', False)
@@ -352,16 +367,10 @@ class GameState:
         if self.weather_manager.is_boss_spawn_ready():
             boss_alive = any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
             self.weather_manager.lock_circle_for_boss(boss_alive)
-            
-            # TODO: Add logic to spawn the boss if it hasn't been spawned yet
-            # and circle has just hit CLAMPED state.
 
         # Sanctuary Level Reset Rule
         if getattr(self.world, 'name', '') == "sanctuary":
-            self.player.is_exposed = False
-            self.player.hp = float(self.player.max_hp) # Absolute damage wipe
-            if self.player.stats.get("edification", 0) != 1:
-                self.player.stats["edification"] = 1
+            self.on_enter_sanctuary()
 
         if self.active_dialogue:
             if attack_pressed:
@@ -375,9 +384,7 @@ class GameState:
             # Respite Menu Logic
             active_respite = getattr(self, 'active_respite', None)
             if active_respite:
-                # Dynamic Refresh: Recalculate costs and levels every frame/interaction
-                active_respite.execute_interaction(self)
-
+                # Handle inputs FIRST
                 # R - Rest
                 if actions.get('key_r'):
                     active_respite.execute_rest(self)
@@ -397,6 +404,9 @@ class GameState:
 
                     if upgrade_triggered:
                         self.input_ratchet_latched = True
+
+                # REFRESH TEXT LAST to ensure upgrades show immediately
+                active_respite.execute_interaction(self)
 
             return
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)

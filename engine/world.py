@@ -76,6 +76,8 @@ class WarpPortal(GameObject):
                 
                 # Economy Reset: Clear current Page count for next run
                 if game_state.stats:
+                    # Robust reset: Clear both lifetime_stats AND active run state references
+                    self.session_pages = 0 # Explicit local ref if exists
                     game_state.stats.data["lifetime_stats"]["pages_collected"] = 0
                     game_state.stats.data["active_session_in_progress"] = False
                     game_state.stats.data["run_state"] = None
