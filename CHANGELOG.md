@@ -331,3 +331,11 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **World Assembly:** Automated the stitching of sub-maps (Forest, Ruins, Colophon, Night Boss) into a massive 440x440 macro-world layout.
 - **Warp Integration:** Hooked the `WorldGenerator` into the Chronicle interaction script, ensuring a fresh world is compiled and exported whenever the player enters a new run.
 - **Spawn Re-Targeting:** Implemented procedural spawn coordinate overrides to ensure the player always starts in the center of the Colophon module.
+
+## [Recently Completed]
+### The Bleed: Core Weather System & Shelter Mechanics
+- **Weather Lifecycle:** Implemented a global state machine cycling between "Clearance" (90s) and "Downpour" (45s) phases.
+- **Exposure Detection:** Integrated real-time tile-based logic to check if the player is standing under open sky or protected by a structure ("T") or Respite ("R").
+- **Damage Over Time:** Exposed players now accumulate 2.0 HP/sec corrosive damage during active storm phases.
+- **Visual Rain Layer:** Developed a performant screen-space particle overlay featuring translucent "Toxic Lime" vertical rain falling across the viewport.
+- **Documentation:** Codified the system rules and shelter vectors in `docs/architecture.md`.
