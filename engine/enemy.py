@@ -801,6 +801,5 @@ SYMBOL_REGISTRY = {
     'E': Miniboss,
     '2': MinibossM2,
     '3': MinibossM3,
-    's': SmearEnemy,
-    'N': NightBoss
+    's': SmearEnemy
 }
