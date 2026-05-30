@@ -385,6 +385,13 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Health Restoration:** Confirmed full HP restoration when entering the Sanctuary hub to facilitate run preparation.
 
 ## [Recently Completed]
+### Respite UI Polish & Legacy Entity Purge
+- **Training Dummy Elimination:** Completely purged the hardcoded training dummy entity and its associated logic from the engine and renderer, finalizing the transition to data-driven content.
+- **Dedicated UI Layer:** Created the `ui/menu.py` module to handle specialized interface components, improving code modularity.
+- **Dynamic Respite Menu:** Refactored the Respite level-up system to accept the live `state` object. The interface now recalculates player stats and upgrade costs every frame for zero-latency feedback.
+- **Visual Lockout Feedback:** Implemented a visual "gray-out" state for unaffordable upgrades and added an on-screen "[ Insufficient Pages ]" warning to improve player economy awareness.
+
+## [Recently Completed]
 ### Typographic Bloom: Zone Discovery Overlays
 - **Discovery Detection:** Implemented real-time zone tracking in `GameState` that triggers title events when entering any of the nine major 120x120 room nodes.
 - **Stylized Overlays:** Developed an alpha-blended rendering layer that displays large, stylized "noir" title cards (e.g., "THE SCORCHED MARGIN") across the camera viewport.

@@ -262,34 +262,13 @@ class Respite(GameObject):
 
     def execute_interaction(self, game_state):
         """Open the Respite Menu."""
-        from constants import EDIFICATION_BASE_COST, EDIFICATION_COST_SCALE
-        edif = game_state.player.stats.get("edification", 0)
-        prowess = game_state.player.stats.get("attack_modifier", 0)
-        fort = game_state.player.stats.get("max_hp_modifier", 0)
-
-        # Calculate current costs
-        edif_cost = EDIFICATION_BASE_COST + (edif * EDIFICATION_COST_SCALE)
-        prowess_cost = EDIFICATION_BASE_COST + (prowess // 5 * EDIFICATION_COST_SCALE)
-        fort_cost = EDIFICATION_BASE_COST + (fort // 10 * EDIFICATION_COST_SCALE)
-
         game_state.dialogue_mode = "EXPANDED"
         game_state.active_respite = self # Store reference for menu actions
-
-        text = f"Respite - Anchor of the First Edition (Understanding: Lvl {edif})\n\n"
-        text += "[R] REST: Restore HP & Refill Flasks (Enemies will respawn)\n\n"
-
-        if game_state.player.has_rested_this_session:
-            text += "EDIFICATION (Spend Torn Pages):\n"
-            text += f"[1] Edify Understanding (Passive Defense): Lvl {edif} (Cost: {edif_cost})\n"
-            text += f"[2] Edify Prowess (+5 Attack): +{prowess} (Cost: {prowess_cost})\n"
-            text += f"[3] Edify Fortification (+10 Max HP): +{fort} (Cost: {fort_cost})\n"
-        else:
-            text += "[Must Rest to Unblock Level Up]\n"
-        text += "\n[SPACE] Close"
-
+        
+        # Trigger dynamic menu blit
         game_state.active_dialogue = {
             "speaker": self.name,
-            "text": text
+            "text": "" # No longer uses static text block
         }
 
     def execute_rest(self, game_state):

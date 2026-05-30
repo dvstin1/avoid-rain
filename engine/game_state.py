@@ -6,11 +6,6 @@ import queue
 import threading
 
 from constants import (
-    PLAYER_START_X, PLAYER_START_Y, DUMMY_X, DUMMY_Y,
-    DUMMY_WIDTH, DUMMY_HEIGHT, DAMAGE_NUMBER_LIFETIME, DAMAGE_NUMBER_SPEED,
-    SWORD_DAMAGE, COLOR_YELLOW, COLOR_WHITE, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
-    PLAYER_MAX_HP, FLASK_MAX_CHARGES,
-    SCREEN_SHAKE_DURATION, HIT_STOP_DURATION,
     SCREEN_WIDTH, SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT, HUD_PICKUP_BTN_RECT,
     TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED,
     SCREEN_SHAKE_INTENSITY, AUTOSAVE_INDICATOR_DURATION,
@@ -101,9 +96,6 @@ class GameState:
 
         self.active_dialogue = None
         self.dialogue_mode = "STANDARD"
-        self.dummy_rect = (DUMMY_X, DUMMY_Y, DUMMY_WIDTH, DUMMY_HEIGHT)
-        self.dummy_stagger_timer = 0.0
-        self.dummy_outline_timer = 0.0
         self.damage_numbers = []
         self.loot = []
         self.fading_entities = []
@@ -486,11 +478,6 @@ class GameState:
 
         if self.player.state == PlayerStateEnum.ATTACKING:
             hitbox = get_sword_hitbox(self.player.get_center(), self.player.facing)
-            if check_aabb_collision(hitbox, self.dummy_rect):
-                if self.dummy_stagger_timer <= 0:
-                    self.trigger_dummy_hit(SWORD_DAMAGE, COLOR_WHITE)
-                    self.dummy_stagger_timer, self.dummy_outline_timer = RECOVERY_TIME, STAGGER_OUTLINE_TIME
-                    self.hit_stop_timer, self.shake_timer = HIT_STOP_DURATION, SCREEN_SHAKE_DURATION
 
             active_weapon = self.player.get_active_weapon()
             bonus_atk = getattr(self.player, 'stats', {}).get('attack_modifier', 0)
@@ -538,8 +525,6 @@ class GameState:
             except Exception: pass
 
         resolve_enemy_player_collision(self.player, self.enemies)
-        if self.dummy_stagger_timer > 0: self.dummy_stagger_timer -= dt
-        if self.dummy_outline_timer > 0: self.dummy_outline_timer -= dt
         if self.shake_timer > 0: self.shake_timer -= dt
         for fading in self.fading_entities[:]:
             fading['time'] -= dt
@@ -639,12 +624,3 @@ class GameState:
             x, y = num['pos']
             num['pos'] = (x, y - DAMAGE_NUMBER_SPEED * dt)
             if num['time'] <= 0: self.damage_numbers.remove(num)
-
-    def trigger_dummy_hit(self, damage, color):
-        """Simulation of hitting the dummy."""
-        self.damage_numbers.append({
-            'val': damage,
-            'pos': (self.dummy_rect[0] + 10, self.dummy_rect[1] - 20),
-            'time': DAMAGE_NUMBER_LIFETIME,
-            'color': color
-        })

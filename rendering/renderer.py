@@ -6,6 +6,7 @@ import constants
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
 from engine.camera import Camera
+from ui.menu import draw_respite_menu
 
 class Renderer:
     """Coordinates rendering of the game state."""
@@ -259,9 +260,6 @@ class Renderer:
                 s = pygame.Surface((obj.width, obj.height), pygame.SRCALPHA)
                 s.fill((100, 80, 40, alpha))
                 self.screen.blit(s, (obj.x - ox, obj.y - oy))
-        dummy_draw = pygame.Rect(state.dummy_rect[0] - ox, state.dummy_rect[1] - oy, state.dummy_rect[2], state.dummy_rect[3])
-        pygame.draw.rect(self.screen, constants.COLOR_GREEN, dummy_draw)
-        if state.dummy_outline_timer > 0: pygame.draw.rect(self.screen, constants.COLOR_WHITE, dummy_draw, 2)
         try:
             from engine.enemy import BatEnemy
             for enemy in getattr(state, 'enemies', []):
@@ -298,7 +296,11 @@ class Renderer:
         debug_surf = debug_font.render(debug_text, True, constants.COLOR_WHITE)
         self.screen.blit(debug_surf, (sw // 2 - debug_surf.get_width() // 2, 5))
 
-        if getattr(state, 'active_dialogue', None): self.draw_dialogue_box(state)
+        if getattr(state, 'active_respite', None):
+            draw_respite_menu(self.screen, self.font, state)
+        elif getattr(state, 'active_dialogue', None):
+            self.draw_dialogue_box(state)
+        
         if getattr(state, 'active_choice', None): self.draw_choice_of_fates(state.active_choice)
         if getattr(state, 'death_timer', 0) > 0:
             overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)

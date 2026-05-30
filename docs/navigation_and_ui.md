@@ -127,3 +127,11 @@ The Respite leveling panel text must re-evaluate its component strings dynamical
 ### 2. Live Surface Re-Compilation
 To avoid displaying stale cached font elements, the Respite interaction rendering loop must explicitly generate a fresh graphical font surface on every menu update frame or item button press event:
 - **The Compilation Pipeline:** Inside `ui/menu.py` (or the respective Respite draw routine), the script must execute `font.render(f"Level: {player.level}", True, COLOR)` and `font.render(f"Cost: {player.get_upgrade_cost()}", True, COLOR)` dynamically right before invoking the final `screen.blit()` drawing actions.
+
+## 10. Respite Menu Leveling Interfaces
+
+### 3. Live Context Binding & Interaction Lockout Feedback
+The leveling screen interface components must evaluate state data dynamically from the engine's primary active player instance.
+- **Visual Lockout Indicator:** When rendering upgrade choices, the drawing module must evaluate if `player.pages < target_upgrade_cost`.
+  - **Affordable State:** The option renders in standard noir ivory text with an active button bounding box.
+  - **Locked State:** The option text color shifts to a muted dark charcoal grey (`#4A4A4A`), the action hover bounding box is deactivated, and a small warning indicator reading `[ Insufficient Pages ]` is rendered inline next to the cost.
