@@ -11,6 +11,8 @@ import sys
 # Add project root to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from constants import TILE_SIZE
+
 class WorldGenerator:
     """Handles the data-driven generation of the macro-world layout."""
     def __init__(self, world_id="macro_generated"):
