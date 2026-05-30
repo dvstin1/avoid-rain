@@ -40,4 +40,22 @@
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
-## Active Task: 
+## Active Task: Minimap Overhaul, Night Boss Conditional Spawn, & Acid Damage Restoration
+
+Restore player environmental damage, add high-contrast unit colors and circle boundaries to the Minimap, implement conditional hub map hiding, and gate the Night Boss spawn behind the final circle collapse.
+
+### 1. Acid Damage Routing Repair
+- Audit the exposure calculation loop. Ensure that when the player's Euclidean distance from the boss arena center is greater than `active_safe_radius`, it modifies the global `player.hp` variable directly every frame, bypassing any localized drawing thread barriers.
+
+### 2. Advanced Minimap Overhaul
+- Open `rendering/renderer.py` and modify the minimap rendering method:
+  - **The Sanctuary Gate:** If the active room is `"sanctuary"`, skip drawing the minimap layer entirely.
+  - **Zoom Upgrade:** Increase the tile-to-pixel scaling factor of the mini map tracking grid so it displays a more detailed close-up look at local corridors.
+  - **Color Identification:** Force player dot rendering to `(255, 255, 255)` (White) and standard enemy/miniboss sprites to `(220, 40, 40)` (Red).
+  - **The Radar Ring:** Translate the global `active_safe_radius` value down into minimap space using your map scaling ratio, and draw a clean, circular indicator showing the closing perimeter line on the HUD box.
+
+### 3. Night Boss Gatekeeper State
+- Modify the spawning routine inside `engine/world_generator.py` or the level loader:
+  - Do not place the active `"night_boss"` sprite into the arena when building the initial 440 map.
+  - In your session manager update loop, check the weather state: when the circle hits its final closed clamp limit, instantiate the Night Boss in the center of its arena.
+  - Freeze the circle from any further movement or adjustments until the entity is flagged as dead.

@@ -73,3 +73,17 @@ To accommodate an expanding registry of environment tiles, enemy variants, and m
 ### 2. Multi-Tool Selector Box Behavior
 - The tool remapping dialog box supports continuous mouse wheel events (`pygame.MOUSEBUTTONDOWN` with button codes `4` for Up and `5` for Down).
 - Clicking a specific row menu item explicitly selects that tool brush, binds it to the current hotbar socket slot, and closes the active dialog overlay cleanly.
+
+## 8. Large-Scale Minimap HUD Systems & Unit Signifiers
+
+The Minimap interface automatically adapts its rendering states based on the scale of the active map sector to guarantee crisp visibility and orientation:
+
+### 1. Conditional Visibility & Scale Zoom Factors
+- **The Sanctuary Hub:** The minimap layer is completely deactivated and hidden. No radar components are drawn to the screen canvas.
+- **The Macro Run Map (440x440):** The minimap layer is active and rendered at an elevated **Close-Up Zoom Ratio** (e.g., 4x or 6x tile scaling factor), ensuring tight corridor junctions are highly distinct.
+
+### 2. UI Color Profiles & Wave Perimeter Mapping
+To maximize legibility at high zoom scales, radar pixels use high-contrast color values:
+- **The Player Position:** Rendered as a distinct **Pristine White** pixel/circle marker.
+- **Hostile Entities:** Rendered as **Crimson Red** markers.
+- **The Redacting Circle Edge:** The map draws a scaled, concentric loop matching the current `active_safe_radius` using a **Vibrant Amber/Orange** brush line, showing you exactly how far the storm is from your current grid box.

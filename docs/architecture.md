@@ -119,3 +119,18 @@ Entity collision check subroutines must evaluate position vectors against the to
 - **Boundaries:** Boundary tracking is enforced globally at `0 <= player.x < 440` and `0 <= player.y < 440` (measured in tile units).
 - **Seamless Cross-Blitting:** Local sub-map modules must not append boundary colliders along their outer frame edges (e.g., indices 0 and 39 for a 40x40 map). When modules are stitched into the master grid, their borders must remain perfectly passable to allow fluid traversal between adjacent nodes.
 
+## 15. Spatial Weather Mechanics: The Shrinking Ring (The Redacting Circle)
+
+### 3. Initialization and Initial Grace Period
+To prevent instant player death or asset loading freezes upon world instantiation, the safe zone matrix must initialize in an entirely un-redacted state:
+- **Maximum Spawn Radius:** At session start, `active_safe_radius` must be explicitly set to a minimum value of **620.0** units (guaranteeing that the entire 440x440 grid fits entirely inside the clear zone).
+- **The Initial Grace Clock:** The state machine starts in a `GRACE_PERIOD` holding state for **60.0 seconds**.
+- **The Transition Trigger:** Absolutely zero acid rain rendering, zero particle calculations, and zero player damage checks may run while `current_grace_timer < 60.0`. The warning message `"[THE BLEED] The circle is closing"` prints strictly upon the exact frame this grace timer hits zero.
+
+## 16. Boss Lifecycle Sequencing & Damage Resolution Verification
+
+### 1. The Closed Circle Summoning Trigger
+The primary `"night_boss"` entity type is strictly restricted from manifesting during run initialization.
+- **The Dormant Phase:** While `active_safe_radius` is greater than the boundaries of the 40x40 Night Boss Arena module, the boss sprite is completely un-instantiated/hidden.
+- **The Awakening Phase:** The exact frame the circle contraction hits its final `CLAMP` boundary limit, the engine executes `world.spawn_night_boss()`.
+- **The Lockdown Rule:** The safe circle timer and radius contraction calculations are permanently locked in the closed state while the Night Boss is alive. The radius cannot open or alter until the boss's internal health variable ticks down to exactly `0`.
