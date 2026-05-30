@@ -122,6 +122,10 @@ class Renderer:
 
     def draw_weather(self, state):
         """Draw screen-space weather effects and the shrinking safe circle."""
+        # Hub Isolation Rule: No weather visuals in the Sanctuary
+        if getattr(state.world, 'name', '') == "sanctuary":
+            return
+
         if getattr(state, 'bleed_state', 'CLEAR') == 'GRACE_PERIOD':
             return
 
