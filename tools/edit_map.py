@@ -100,6 +100,7 @@ class MapEditor:
         self.scroll_offset = 0
 
         self.is_dragging = False
+        self.ignore_mouse_until_release = False
         self.drag_start = (0, 0)
         self.drag_current = (0, 0)
         self.pending_socket_bounds = None
@@ -522,6 +523,13 @@ class MapEditor:
         self.draw_grid(ts)
         self.draw_selection_preview(ts)
         self.draw_sidebar(SCREEN_WIDTH)
+
+        # Draw Modal Overlay if needed
+        if self.input_mode:
+            overlay = pygame.Surface((SCREEN_WIDTH + self.sidebar_width, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 150)) # Dim the background
+            self.screen.blit(overlay, (0, 0))
+
         if self.input_mode == 'PICKER':
             self.draw_file_picker()
         elif self.input_mode == 'TOOL_PICKER':
@@ -822,13 +830,13 @@ class MapEditor:
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_ESCAPE, pygame.K_h):
                 self.input_mode = None
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            # Clicking outside or anywhere closes it for convenience
-            self.input_mode = None
 
     def handle_input(self):
         """Handles user input for the editor."""
-        modal_closed_this_frame = False
+        # Reset mouse block if the button is released
+        if not pygame.mouse.get_pressed()[0]:
+            self.ignore_mouse_until_release = False
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
@@ -845,13 +853,15 @@ class MapEditor:
             else:
                 if event.type == pygame.KEYDOWN:
                     self.handle_keyboard(event)
-                else:
-                    self.handle_mouse_event(event)
+                elif event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
+                    if not self.ignore_mouse_until_release:
+                        self.handle_mouse_event(event)
             
             if prev_mode and not self.input_mode:
-                modal_closed_this_frame = True
+                # Modal closed this frame, block mouse until physically released
+                self.ignore_mouse_until_release = True
 
-        if not self.input_mode and not modal_closed_this_frame:
+        if not self.input_mode:
             keys = pygame.key.get_pressed()
             move_speed = 10
             if keys[pygame.K_a]:
@@ -862,7 +872,9 @@ class MapEditor:
                 self.camera_y -= move_speed
             if keys[pygame.K_s] and not (pygame.key.get_mods() & pygame.KMOD_CTRL):
                 self.camera_y += move_speed
-            self.handle_mouse()
+            
+            if not self.ignore_mouse_until_release:
+                self.handle_mouse()
         return True
     def run(self):
         """Main loop for the editor."""
