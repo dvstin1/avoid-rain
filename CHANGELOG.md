@@ -15,6 +15,12 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Asset Expansion & Generation Pipeline Finalization
+- **Open-Floor Canvas:** Updated `WorldGenerator` to initialize the 440x440 macro-world using open floor space (" ") instead of solid walls, ensuring a more open exploration experience.
+- **Strict Size Mapping:** Refined the generator to strictly map 120x120 assets to large sockets and 40x40 assets to corridors/junctions.
+- **Passable Asset Pool:** Generated new placeholder maps for `Forest`, `Ruins`, `The Colophon`, and `Night Boss Arena` with guaranteed traversable boundaries.
+- **Night Boss Implementation:** Registered the `NightBoss` elite enemy class with high HP and unique identification, and integrated it into the procedural generation via the `night_boss_arena.json` module.
+
 ### Emergency Fix: World Generator Regression & Sanctuary Restoration
 - **Sanctuary Restoration:** Restored `maps/sanctuary.json` as an independent hub world, removing it from the macro-generation pool.
 - **Symmetric Layout Correction:** Fixed the world generator to implement the true **120-40-120-40-120** symmetric grid (440x440).
