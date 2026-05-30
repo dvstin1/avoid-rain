@@ -104,3 +104,10 @@ Minibosses do not persist through resets if they are dead, but they MUST persist
   - If an entity has `.is_miniboss == True`, the engine checks if its unique ID exists inside `session.defeated_miniboss_ids`.
   - **Condition A (Unbeaten):** If the ID is NOT in the defeated list, the miniboss is treated like a common enemy and is freshly respawned/restored to full health.
   - **Condition B (Beaten):** If the ID IS in the defeated list, the spawner is permanently skipped, ensuring it stays dead to prevent item duplication farming.
+
+## 14. Global Movement Bounds & Module Transition Processing
+
+### The Global Coordinate Rule
+Entity collision check subroutines must evaluate position vectors against the total compiled canvas dimensions, rather than local sub-map constraints.
+- **Boundaries:** Boundary tracking is enforced globally at `0 <= player.x < 440` and `0 <= player.y < 440` (measured in tile units).
+- **Seamless Cross-Blitting:** Local sub-map modules must not append boundary colliders along their outer frame edges (e.g., indices 0 and 39 for a 40x40 map). When modules are stitched into the master grid, their borders must remain perfectly passable to allow fluid traversal between adjacent nodes.

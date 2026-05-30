@@ -15,6 +15,11 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Git Asset Recovery & Global Movement Border Correction
+- **Asset Recovery:** Restored the original hand-crafted versions of `maps/forest.json` and `maps/ruins.json` from git history, preserving miniboss placements and custom layouts.
+- **Global Movement Fix:** Updated `constants.py` and `engine/player.py` to enforce boundary clamping strictly against the global 440x440 world dimensions.
+- **Seamless Traversal:** Eliminated local module boundary restrictions, allowing the player to move freely between stitched map modules without collision hitches.
+
 ### Grid Logic Refinement & Enriched Asset Population
 - **Grid Assembly Correction:** Refactored `engine/world_generator.py` to utilize an 11x11 unit-base grid. Sockets are now strictly defined as 120x120 rooms (when row/col indices align) and 40x40 corridor/junction units for all other slots, eliminating incorrect rectangular shapes.
 - **Asset Cleanup:** Purged the redundant and invalid `maps/night_boss.json` file to maintain a clean and reliable asset pool.

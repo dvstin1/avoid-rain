@@ -116,7 +116,7 @@ EDIFICATION_MAX_LEVEL = 50
 
 # Grid & World Configuration
 TILE_SIZE = 40
-MACRO_MAP_SIZE = 120
+MACRO_MAP_SIZE = 440
 # Extra tiles to make the world larger than the visible screen (low-coupling constant)
 WORLD_EXTRA_TILES_X = 60
 WORLD_EXTRA_TILES_Y = 40

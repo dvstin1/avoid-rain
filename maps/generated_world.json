@@ -481,7 +481,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "Socket_7_0",
@@ -501,7 +501,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "Socket_3_1",
@@ -731,7 +731,7 @@
         "width": 40,
         "height": 40
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/night_boss_arena.json"
     },
     {
       "name": "Socket_7_6",
@@ -751,7 +751,7 @@
         "width": 40,
         "height": 40
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/the_colophon.json"
     },
     {
       "name": "Socket_1_7",
@@ -801,7 +801,7 @@
         "width": 40,
         "height": 40
       },
-      "active_plug": "maps/night_boss_arena.json"
+      "active_plug": "maps/smallcave.json"
     },
     {
       "name": "Socket_6_7",
@@ -861,7 +861,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "Socket_3_8",
@@ -881,7 +881,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/forest.json"
+      "active_plug": "maps/ruins.json"
     },
     {
       "name": "Socket_7_8",
@@ -931,7 +931,7 @@
         "width": 40,
         "height": 40
       },
-      "active_plug": "maps/the_colophon.json"
+      "active_plug": "maps/smallcave.json"
     },
     {
       "name": "Socket_7_10",
@@ -945,7 +945,7 @@
     }
   ],
   "spawn_coords": {
-    "x": 140,
-    "y": 420
+    "x": 20,
+    "y": 300
   }
 }
