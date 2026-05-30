@@ -424,19 +424,19 @@ class GameState:
 
             self.weather_manager.lock_circle_for_boss(boss_alive)
             
-            # Appendix Rule: After Night 2 defeat, spawn the portal
-            if self.bleed_state == "APPENDIX" and not any(e.name == "Appendix Warp" for e in self.world.interactables):
-                idx = self.weather_manager.current_boss_idx
-                boss_list = getattr(self.world, 'boss_coords_list', [])
-                if idx < len(boss_list):
-                    coords = boss_list[idx]
-                    from engine.world import WarpPortal
-                    portal_rect = (coords['x'] * TILE_SIZE - 20, coords['y'] * TILE_SIZE - 20, 40, 40)
-                    portal = WarpPortal("final_boss", 25, 25, portal_rect, name="Appendix Warp")
-                    self.world.interactables.append(portal)
-                    self.bloom_text = "THE APPENDIX REVEALED"
-                    self.bloom_timer = BLOOM_TOTAL_DURATION
-                    print("[THE BLEED] The portal to the Appendix has manifested.")
+        # Appendix Rule: After Night 2 defeat, spawn the portal
+        if self.bleed_state == "APPENDIX" and not any(e.name == "Appendix Warp" for e in self.world.interactables):
+            idx = self.weather_manager.current_boss_idx
+            boss_list = getattr(self.world, 'boss_coords_list', [])
+            if idx < len(boss_list):
+                coords = boss_list[idx]
+                from engine.world import WarpPortal
+                portal_rect = (coords['x'] * TILE_SIZE - 20, coords['y'] * TILE_SIZE - 20, 40, 40)
+                portal = WarpPortal("final_boss", 25, 25, portal_rect, name="Appendix Warp")
+                self.world.interactables.append(portal)
+                self.bloom_text = "THE APPENDIX REVEALED"
+                self.bloom_timer = BLOOM_TOTAL_DURATION
+                print("[THE BLEED] The portal to the Appendix has manifested.")
 
         # Final Boss Victory Rule
         if getattr(self.world, 'name', '') == "final_boss":
