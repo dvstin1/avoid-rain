@@ -87,3 +87,13 @@ To maximize legibility at high zoom scales, radar pixels use high-contrast color
 - **The Player Position:** Rendered as a distinct **Pristine White** pixel/circle marker.
 - **Hostile Entities:** Rendered as **Crimson Red** markers.
 - **The Redacting Circle Edge:** The map draws a scaled, concentric loop matching the current `active_safe_radius` using a **Vibrant Amber/Orange** brush line, showing you exactly how far the storm is from your current grid box.
+
+## 8. Large-Scale Minimap HUD Systems & Unit Signifiers
+
+### 3. Minimap Surface Frame Processing Order
+To prevent frame erasure or empty buffer blackouts, the minimap drawing cycle must adhere to a strict chronological frame execution pipeline:
+1. **Instantiation/Clear Pass:** Fill the localized `minimap_surface` with its base background tone (e.g., translucent dark gray/black).
+2. **Sub-Surface Blitting Pass:** Draw the scaled static environment tiles, the White player node, the Crimson enemy vectors, and the Amber safe ring onto the `minimap_surface`.
+3. **Primary Canvas Blit Pass:** Execute `main_screen.blit(minimap_surface, destination_rect)`. 
+- *Constraint:* No surface clearing operations (`.fill()`) or dimension reinstantiations may occur after Step 2 has executed for the current frame.
+

@@ -84,6 +84,7 @@ class WarpPortal(GameObject):
 
             # Position player at spawn coords (Priority: WarpPortal explicitly sets, then World default)
             # Procedural Generation Rule: If create_world returned a world with a valid player_start, use it.
+            game_state.player.is_exposed = False
             target_x = float(self.spawn_x)
             target_y = float(self.spawn_y)
             

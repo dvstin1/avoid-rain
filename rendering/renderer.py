@@ -394,24 +394,30 @@ class Renderer:
             return
 
         h, w = len(state.world.grid), len(state.world.grid[0]) if len(state.world.grid) > 0 else 0
-        mbg = pygame.Surface((constants.MINIMAP_WIDTH, constants.MINIMAP_HEIGHT), pygame.SRCALPHA)
-        mbg.fill((10, 10, 10, constants.UI_ALPHA))
-        self.screen.blit(mbg, (constants.MINIMAP_PADDING, constants.MINIMAP_PADDING))
+        if w == 0 or h == 0:
+            return
+
+        # Initialize Minimap Surface (Create once or reuse if size is fixed)
+        mw, mh = constants.MINIMAP_WIDTH, constants.MINIMAP_HEIGHT
+        minimap_surface = pygame.Surface((mw, mh), pygame.SRCALPHA)
+        
+        # 2. CLEAR SURFACE AT START
+        minimap_surface.fill((10, 10, 10, constants.UI_ALPHA))
         
         ww, wh = w * constants.TILE_SIZE, h * constants.TILE_SIZE
-        if ww == 0 or wh == 0: return
 
-        # 2. Increased Zoom Scale Factor (defined by constants.MINIMAP_VIEWPORT_FRAC)
-        vpw, vph = int(SCREEN_WIDTH * constants.MINIMAP_VIEWPORT_FRAC), int(SCREEN_HEIGHT * constants.MINIMAP_VIEWPORT_FRAC)
+        # 3. Zoom Scaling & Viewport (Fix constant refs)
+        vpw = int(constants.SCREEN_WIDTH * constants.MINIMAP_VIEWPORT_FRAC)
+        vph = int(constants.SCREEN_HEIGHT * constants.MINIMAP_VIEWPORT_FRAC)
         pxc, pyc = state.player.get_center()
         
         # Viewport center follows player, clamp to world bounds
         vpx = int(max(0, min(pxc - vpw // 2, ww - vpw)))
         vpy = int(max(0, min(pyc - vph // 2, wh - vph)))
         
-        sx, sy = constants.MINIMAP_WIDTH / float(vpw), constants.MINIMAP_HEIGHT / float(vph)
+        sx, sy = mw / float(vpw), mh / float(vph)
 
-        # 3. Minimap Tile Rendering (Walls only for clarity)
+        # 4. Minimap Tile Rendering (Walls)
         tx1, ty1 = int(max(0, vpx // constants.TILE_SIZE)), int(max(0, vpy // constants.TILE_SIZE))
         tx2, ty2 = int(min(w, (vpx + vpw) // constants.TILE_SIZE + 1)), int(min(h, (vpy + vph) // constants.TILE_SIZE + 1))
         
@@ -419,75 +425,69 @@ class Renderer:
             for x in range(tx1, tx2):
                 if state.world.grid[y][x] == constants.TILE_WALL:
                     wx, wy = x * constants.TILE_SIZE, y * constants.TILE_SIZE
-                    pygame.draw.rect(self.screen, constants.MINIMAP_WALL_COLOR, (
-                        int(constants.MINIMAP_PADDING + (wx - vpx) * sx),
-                        int(constants.MINIMAP_PADDING + (wy - vpy) * sy),
+                    # Draw onto minimap_surface
+                    pygame.draw.rect(minimap_surface, constants.MINIMAP_WALL_COLOR, (
+                        int((wx - vpx) * sx),
+                        int((wy - vpy) * sy),
                         int(max(1, constants.TILE_SIZE * sx)),
                         int(max(1, constants.TILE_SIZE * sy))
                     ))
 
-        # 4. Safe Circle Boundary Visualization
+        # 5. Safe Circle Boundary Visualization
         boss_coords = getattr(state.world, 'boss_coords', None)
         if boss_coords:
             bcx, bcy = boss_coords['x'] * constants.TILE_SIZE, boss_coords['y'] * constants.TILE_SIZE
             radius = state.active_safe_radius
             
-            mcx = int(constants.MINIMAP_PADDING + (bcx - vpx) * sx)
-            mcy = int(constants.MINIMAP_PADDING + (bcy - vpy) * sy)
+            mcx = int((bcx - vpx) * sx)
+            mcy = int((bcy - vpy) * sy)
             mr = int(radius * sx)
             
-            if -mr < mcx < constants.MINIMAP_WIDTH + mr + constants.MINIMAP_PADDING and \
-               -mr < mcy < constants.MINIMAP_HEIGHT + mr + constants.MINIMAP_PADDING:
-                
-                # Clip the circle drawing to the minimap area
-                circle_surf = pygame.Surface((constants.MINIMAP_WIDTH, constants.MINIMAP_HEIGHT), pygame.SRCALPHA)
-                pygame.draw.circle(circle_surf, (255, 165, 0, 180), (mcx - constants.MINIMAP_PADDING, mcy - constants.MINIMAP_PADDING), mr, 1)
-                self.screen.blit(circle_surf, (constants.MINIMAP_PADDING, constants.MINIMAP_PADDING))
+            # Draw circle boundary directly on minimap_surface
+            if -mr < mcx < mw + mr and -mr < mcy < mh + mr:
+                pygame.draw.circle(minimap_surface, (255, 165, 0, 180), (mcx, mcy), mr, 1)
 
-        # 5. Radar Entity Rules
+        # 6. Radar Entity Rules
         # Enemies: Red Dot
         for e in getattr(state, 'enemies', []):
             ex, ey = e.x + e.width // 2, e.y + e.height // 2
             if vpx <= ex <= vpx + vpw and vpy <= ey <= vpy + vph:
-                pygame.draw.rect(self.screen, constants.MINIMAP_ENEMY_COLOR, (
-                    int(constants.MINIMAP_PADDING + (ex - vpx) * sx - 1),
-                    int(constants.MINIMAP_PADDING + (ey - vpy) * sy - 1), 3, 3))
+                pygame.draw.rect(minimap_surface, constants.MINIMAP_ENEMY_COLOR, (
+                    int((ex - vpx) * sx - 1),
+                    int((ey - vpy) * sy - 1), 3, 3))
 
         # Loot: Yellow Dot
         for i in getattr(state, 'loot', []):
             lx, ly = i.x + i.width // 2, i.y + i.height // 2
             if vpx <= lx <= vpx + vpw and vpy <= ly <= vpy + vph:
-                pygame.draw.rect(self.screen, constants.MINIMAP_LOOT_COLOR, (
-                    int(constants.MINIMAP_PADDING + (lx - vpx) * sx - 1),
-                    int(constants.MINIMAP_PADDING + (ly - vpy) * sy - 1), 3, 3))
+                pygame.draw.rect(minimap_surface, constants.MINIMAP_LOOT_COLOR, (
+                    int((lx - vpx) * sx - 1),
+                    int((ly - vpy) * sy - 1), 3, 3))
 
         # Player: White Dot
-        mx = int(constants.MINIMAP_PADDING + (pxc - vpx) * sx)
-        my = int(constants.MINIMAP_PADDING + (pyc - vpy) * sy)
-        pygame.draw.rect(self.screen, constants.MINIMAP_PLAYER_COLOR, (mx-2, my-2, 4, 4))
+        mx = int((pxc - vpx) * sx)
+        my = int((pyc - vpy) * sy)
+        pygame.draw.rect(minimap_surface, constants.MINIMAP_PLAYER_COLOR, (mx-2, my-2, 4, 4))
 
-        # 6. Edge-Clamped Compass Indicators
+        # 7. Edge-Clamped Compass Indicators
         for ox, oy in getattr(state, 'objectives', []):
             if vpx <= ox <= vpx + vpw and vpy <= oy <= vpy + vph: continue
             dx, dy = ox - pxc, oy - pyc
             if dx == 0 and dy == 0: continue
             
-            rl, rr, rt, rb = 0, constants.MINIMAP_WIDTH, 0, constants.MINIMAP_HEIGHT
             k = 1e9
+            if dx > 0: k = min(k, (mw - mx) / dx)
+            elif dx < 0: k = min(k, (0 - mx) / dx)
+            if dy > 0: k = min(k, (mh - my) / dy)
+            elif dy < 0: k = min(k, (0 - my) / dy)
             
-            curr_mx, curr_my = mx - constants.MINIMAP_PADDING, my - constants.MINIMAP_PADDING
-            
-            if dx > 0: k = min(k, (rr - curr_mx) / dx)
-            elif dx < 0: k = min(k, (rl - curr_mx) / dx)
-            if dy > 0: k = min(k, (rb - curr_my) / dy)
-            elif dy < 0: k = min(k, (rt - curr_my) / dy)
-            
-            ix = int(curr_mx + k * dx)
-            iy = int(curr_my + k * dy)
-            
-            pygame.draw.rect(self.screen, constants.COLOR_WHITE, (
-                int(constants.MINIMAP_PADDING + max(0, min(ix, constants.MINIMAP_WIDTH - 3))),
-                int(constants.MINIMAP_PADDING + max(0, min(iy, constants.MINIMAP_HEIGHT - 3))), 3, 3))
+            ix, iy = int(mx + k * dx), int(my + k * dy)
+            pygame.draw.rect(minimap_surface, constants.COLOR_WHITE, (
+                max(0, min(ix, mw - 3)),
+                max(0, min(iy, mh - 3)), 3, 3))
+
+        # 8. FINALLY BLIT SURFACE TO SCREEN
+        self.screen.blit(minimap_surface, (constants.MINIMAP_PADDING, constants.MINIMAP_PADDING))
 
     def draw_title_screen(self, menu=0):
         """Draw title screen."""

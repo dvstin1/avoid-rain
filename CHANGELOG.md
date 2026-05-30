@@ -370,6 +370,13 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Improved Radar Visuals:** Updated radar colors to high-contrast White (player) and Red (enemies), and integrated the safe circle perimeter line into the minimap display.
 - **Hub UI Logic:** Gated the minimap to automatically hide while in the Sanctuary hub.
 
+## [Recently Completed]
+### Minimap Blit & Render Order Finalization
+- **Corrected Render Order:** Relocated the surface clearance method (`.fill()`) to the absolute beginning of the minimap draw loop, preventing the accidental erasure of rendered dots and boundaries.
+- **Main Canvas Blitting:** Verified and enforced the final `screen.blit` call to ensure the local minimap surface is correctly painted onto the main gameplay window.
+- **Surface Stability:** Implemented a dedicated local surface for the minimap to ensure clean alpha blending and prevent coordinate bleeding.
+- **Exposure Fail-Safe:** Explicitly synchronized `player.is_exposed` reset logic to halt environmental damage instantly upon entering safe zones.
+
 ### Macro Safe Zone Initialization Repair & Initial Grace Period Lock
 - **Massive Starting Radius:** Enforced a 620.0 unit initial `active_safe_radius` to ensure the entire 440x440 world is safe upon run start.
 - **Initial Grace Period:** Implemented a strict 60-second grace period during which all rain visuals and environmental hazards are suppressed.
