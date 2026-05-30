@@ -20,9 +20,9 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None) -> World:
     # Check for external JSON map first
     json_path = os.path.join("maps", f"{name}.json")
     if os.path.exists(json_path):
-        world.grid, world.interactables, world.warp_tiles, world.player_start, world.enemies, boss_coords = \
+        world.grid, world.interactables, world.warp_tiles, world.player_start, world.enemies, boss_list = \
             LevelLoader.load_json_map(json_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids)
-        world.boss_coords = boss_coords
+        world.boss_coords_list = boss_list
         return world
 
     # Fallback to programmatic/hardcoded prototypes

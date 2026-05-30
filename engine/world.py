@@ -67,8 +67,8 @@ class WarpPortal(GameObject):
             game_state.world = create_world(self.target_name)
 
             # Weather Sync Rule: Update boss center coordinates for the safe circle
-            new_boss_coords = getattr(game_state.world, 'boss_coords', None)
-            game_state.weather_manager.set_boss_coords(new_boss_coords)
+            new_boss_list = getattr(game_state.world, 'boss_coords_list', None)
+            game_state.weather_manager.set_boss_coords_list(new_boss_list)
 
             # Sanctuary Reset Rule: Enforce absolute state purification
             if self.target_name == "sanctuary":

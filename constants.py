@@ -172,6 +172,7 @@ WEATHER_WAIT_DURATION = 60.0  # Phase 1 duration
 WEATHER_SHRINK_DURATION = 45.0 # Phase 2 duration
 WEATHER_DAMAGE_PER_SECOND = 2.0
 COLOR_TOXIC_RAIN = (120, 255, 100, 100) # RGBA for translucent toxic green
+COLOR_SAFE_RAIN = (100, 200, 255, 80) # RGBA for clear, mundane rain (The Dilution)
 
 # Tile Types
 TILE_EMPTY = 0

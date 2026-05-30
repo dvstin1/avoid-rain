@@ -21,20 +21,22 @@ The `GameState` object manages the following data structures:
 - **Persistence Snapshot:** Lifetime metrics, discovered bestiary, and serialized `run_state`.
 
 ## 4. Climate Engine: The Bleed (The Redacting Circle)
-"The Bleed" is a spatial contraction mechanic that shrinks a designated safe perimeter down toward the Night Boss Arena.
+"The Bleed" is a spatial contraction mechanic that shrinks a designated safe perimeter down toward a Night Boss Arena. This cycle occurs twice per run.
 
 ### 1. Radial Proximity Math
-- **The Center Anchor:** Upon map generation, the engine registers the center coordinates of the Night Boss module: `(center_x, center_y)`.
+- **The Center Anchor:** Upon map generation, the engine assigns TWO distinct 40x40 inner sockets as Night Boss Arenas (Arena 1 and Arena 2). The circle centers on Arena 1 first.
 - **The Safe Zone Radius:** The engine tracks a float variable: `active_safe_radius`.
-- **The Exposure Condition:** During every update frame, the engine calculates the Euclidean distance between the player's position and the boss center:
+- **The Exposure Condition:** During every update frame, the engine calculates the Euclidean distance between the player's position and the active boss center.
   - **Inside Circle:** If `Distance <= active_safe_radius`, the player is safe.
   - **Outside Circle (In The Bleed):** If `Distance > active_safe_radius`, the player is exposed to the ink-storm. They receive damage over time (2 HP/sec) unless standing beneath a protective structure tile (`"T"`).
 
-### 2. The Step-Contraction Lifecycle
+### 2. The Contraction & Dilution Lifecycle
 The safe circle progresses through sequential stages:
-- **Phase 1: Static (Wait):** Radius is fixed at maximum scale (e.g., 8000 pixels).
-- **Phase 2: Collapsing (Contract):** Radius linearly interpolates downward toward a target interval value.
-- **Phase 3: Finality (Clamp):** The radius clamps permanently at a radius matching the Night Boss Arena boundaries (approx. 800 pixels).
+- **Phase 1: The Descent (Night 1):** The circle shrinks in steps (Wait -> Contract -> Pause) until it clamps permanently around Arena 1, spawning the first Night Boss.
+- **Phase 2: The Dilution (Clearing the Margins):** Upon defeating the first Night Boss, the toxic rain turns blue and harmless for a 5-10 second temporary window. The alert **"THE MARGINS CLEAR"** is displayed.
+- **Phase 3: The Reset:** The safe rain vanishes, and the entire 440x440 map becomes a safe zone again (Clearance). The sequence re-initializes, this time targeting Arena 2. The alert **"THE SECOND DRAFT"** is displayed.
+- **Phase 4: The Second Descent (Night 2):** The circle shrinks and clamps around Arena 2, spawning the second Night Boss.
+- **Phase 5: The Appendix (Final Portal):** Defeating the second Night Boss permanently clears the weather and spawns a portal in Arena 2. This portal warps the player to a separate, off-map Final Boss Arena. The alert **"THE APPENDIX REVEALED"** is displayed. Victory is achieved only by defeating the Final Boss (**"CHAPTER COMPLETE"**).
 
 ## 5. Physics & Collision Architecture
 - **Order of Operations:** 1. Apply Velocity -> 2. Resolve Wall Collisions (AABB) -> 3. Boundary Clamp -> 4. Finalize Coordinates.

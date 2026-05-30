@@ -409,3 +409,13 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Robust Page Reset:** Enforced an absolute clear of the player's Page count at the map-load level whenever they enter the Sanctuary, ensuring a clean economic state for every new run regardless of how the transition was triggered.
 - **Real-Time Respite UI:** Refactored the Respite menu to explicitly call `font.render()` every frame using live player statistics, ensuring that understanding levels and page costs update visually the instant an upgrade occurs.
 - **Indentation Fix:** Resolved a crash caused by a missing return statement in the Renderer's weather logic during the hub isolation pass.
+
+## [Recently Completed]
+### Multi-Boss Run Lifecycle & Victory Sequence
+- **Dual Night Boss Support:** Overhauled `engine/world_generator.py` and `engine/weather.py` to support two distinct Night Boss arenas per run, targeted sequentially by the safe circle.
+- **The Dilution Interlude:** Implemented a safe-weather "Dilution" phase triggered by the defeat of the first Night Boss, featuring safe blue rain and a 10-second breather before the second contraction begins.
+- **Dynamic Arena Spawning:** Resolved boss duplication by implementing "Dormant Arenas." Night Bosses now only manifest dynamically when the safe circle reaches its final closed state.
+- **The Appendix (Final Boss):** Developed a 50x50 `final_boss.json` arena and implemented a warp portal that manifests after the second Night Boss falls, leading to the ultimate encounter.
+- **True Victory Loop:** Integrated run-victory logic; defeating The Final Author triggers a permanent Dilution effect, records a Chapter Clear statistic, and extracts the player to the Sanctuary.
+- **Cinematic Feedback:** Linked all major lifecycle transitions (Appendix Reveal, Dilution, Second Draft) to the Typographic Bloom system for high-impact cinematic alerts.
+- **State Persistence:** Verified and enforced full weather and run-progress serialization, ensuring mid-run storm states survive application restarts.

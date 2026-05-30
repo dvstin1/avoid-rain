@@ -83,10 +83,19 @@ class GameState:
 
                 # Restore Enemies
                 self.enemies = getattr(self.world, 'enemies', [])
+                
+                # Weather System Restoration
+                from engine.weather import WeatherManager
+                boss_list = getattr(self.world, 'boss_coords_list', None)
+                self.weather_manager = WeatherManager(boss_coords_list=boss_list)
+                self.weather_manager.from_dict(run_data.get("weather"))
             except Exception:
                 pass
         else:
             self.enemies = getattr(self.world, 'enemies', [])
+            from engine.weather import WeatherManager
+            boss_list = getattr(self.world, 'boss_coords_list', None)
+            self.weather_manager = WeatherManager(boss_coords_list=boss_list)
 
         world_w = GRID_WIDTH * TILE_SIZE
         world_h = GRID_HEIGHT * TILE_SIZE
@@ -112,10 +121,6 @@ class GameState:
         self.input_debounce_timer = 0.0
         self.input_ratchet_latched = False
         self.defeated_miniboss_ids = set()
-
-        # Weather System: The Bleed (Shrinking Circle)
-        from engine.weather import WeatherManager
-        self.weather_manager = WeatherManager(boss_coords=getattr(self.world, 'boss_coords', None))
 
         # Typographic Bloom State
         self.bloom_timer = 0.0
@@ -164,10 +169,18 @@ class GameState:
             self.player.stats = p_data.get("stats", {})
             self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
             self.enemies = getattr(self.world, 'enemies', [])
+
+            # Restore Weather
+            from engine.weather import WeatherManager
+            boss_list = getattr(self.world, 'boss_coords_list', None)
+            self.weather_manager = WeatherManager(boss_coords_list=boss_list)
+            self.weather_manager.from_dict(run_data.get("weather"))
         else:
             self.world = create_world("sanctuary")
             self.player = Player(self.world.player_start[0], self.world.player_start[1])
             self.enemies = getattr(self.world, 'enemies', [])
+            from engine.weather import WeatherManager
+            self.weather_manager = WeatherManager(boss_coords_list=None)
 
         self.loot = []
         self.fading_entities = []
@@ -178,17 +191,36 @@ class GameState:
             self.camera.instant_center(self.player.get_center())
 
     def reset_to_new_game(self):
-        """Reset player and world to start-of-game defaults."""
+        """Reset gameplay-affecting state to start-of-game defaults, preserving meta-statistics."""
         from engine.maps import create_world
-        self.defeated_miniboss_ids = set()
-        self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
-        self.player = Player(self.world.player_start[0], self.world.player_start[1])
+        
+        # 1. Reset Statistics (Only gameplay-affecting fields)
         if self.stats:
+            # KEEP: runs_started, wins_chapters_cleared, bestiary, etc.
+            # RESET: Banked pages and active run state
+            self.stats.data["lifetime_stats"]["pages_collected"] = 0
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
             try:
                 self.stats.increment("runs_started", 1)
             except Exception: pass
+
+        # 2. Reset World & Player
+        self.defeated_miniboss_ids = set()
+        self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
+        
+        # Fresh player with default starting stats (Edification resets to 1)
+        self.player = Player(self.world.player_start[0], self.world.player_start[1])
+        self.player.stats = {
+            "edification": 1,
+            "attack_modifier": 0,
+            "max_hp_modifier": 0
+        }
+        
+        # 3. Weather Reset: Re-initialize to default state
+        from engine.weather import WeatherManager
+        self.weather_manager = WeatherManager(boss_coords_list=None)
+        
         self.loot = []
         self.fading_entities = []
         self.active_dialogue = None
@@ -217,7 +249,8 @@ class GameState:
                             "stats": getattr(self.player, 'stats', {})
                         },
                         "defeated_miniboss_ids": list(self.defeated_miniboss_ids),
-                        "enemies": [e.to_dict() for e in self.enemies]
+                        "enemies": [e.to_dict() for e in self.enemies],
+                        "weather": self.weather_manager.to_dict()
                     }
                     self.stats.data["active_session_in_progress"] = True
             except Exception: pass
@@ -285,8 +318,19 @@ class GameState:
 
     def on_enter_sanctuary(self):
         """Rule: Absolute state purification upon entering the Sanctuary hub."""
+        from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, SWORD_DAMAGE
+        
         self.player.is_exposed = False
         self.player.hp = float(self.player.max_hp)
+        self.player.flask_charges = int(FLASK_MAX_CHARGES)
+        
+        # Weapon Reset: Back to standard starting gear
+        self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
+        self.player.active_weapon_idx = 0
+        
+        # Weather Reset: Ensure next run starts from Grace Period
+        if hasattr(self, 'weather_manager'):
+            self.weather_manager.reset(boss_coords_list=None)
         
         # Economy Reset: Clear current Pages collected for the next run
         if self.stats:
@@ -315,6 +359,7 @@ class GameState:
         # Sync attributes for legacy renderer access if needed
         self.active_safe_radius = self.weather_manager.active_safe_radius
         self.bleed_state = self.weather_manager.bleed_state
+        self.current_boss_coords = self.weather_manager.get_current_boss_coords()
 
         # Milestone Bloom Trigger
         if self.weather_manager.pending_milestone_text:
@@ -363,7 +408,47 @@ class GameState:
         # Boss Spawn Rule: Only if circle is closed (CLAMPED) and not already spawned
         if self.weather_manager.is_boss_spawn_ready():
             boss_alive = any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
+            
+            # Active Spawning Pass: If clamped and no boss, manifest the threat
+            if not boss_alive and self.bleed_state == "CLAMPED":
+                from engine.enemy import NightBoss
+                idx = self.weather_manager.current_boss_idx
+                boss_list = getattr(self.world, 'boss_coords_list', [])
+                if idx < len(boss_list):
+                    coords = boss_list[idx]
+                    bx, by = coords['x'] * TILE_SIZE, coords['y'] * TILE_SIZE
+                    new_boss = NightBoss(bx, by)
+                    self.enemies.append(new_boss)
+                    print(f"[THE BLEED] Night Boss {idx + 1} has manifested at ({bx}, {by}).")
+                    boss_alive = True
+
             self.weather_manager.lock_circle_for_boss(boss_alive)
+            
+            # Appendix Rule: After Night 2 defeat, spawn the portal
+            if self.bleed_state == "APPENDIX" and not any(e.name == "Appendix Warp" for e in self.world.interactables):
+                idx = self.weather_manager.current_boss_idx
+                boss_list = getattr(self.world, 'boss_coords_list', [])
+                if idx < len(boss_list):
+                    coords = boss_list[idx]
+                    from engine.world import WarpPortal
+                    portal_rect = (coords['x'] * TILE_SIZE - 20, coords['y'] * TILE_SIZE - 20, 40, 40)
+                    portal = WarpPortal("final_boss", 25, 25, portal_rect, name="Appendix Warp")
+                    self.world.interactables.append(portal)
+                    self.bloom_text = "THE APPENDIX REVEALED"
+                    self.bloom_timer = BLOOM_TOTAL_DURATION
+                    print("[THE BLEED] The portal to the Appendix has manifested.")
+
+        # Final Boss Victory Rule
+        if getattr(self.world, 'name', '') == "final_boss":
+            final_boss_dead = not any(getattr(e, 'name', '') == "The Final Author" for e in self.enemies)
+            if final_boss_dead and getattr(self.stats, 'data', {}).get("last_run_result") != "VICTORY":
+                if self.stats:
+                    self.stats.data["last_run_result"] = "VICTORY"
+                    self.stats.increment("wins_chapters_cleared", 1)
+                    self.weather_manager.trigger_dilution()
+                    self.bloom_text = "CHAPTER COMPLETE"
+                    self.bloom_timer = BLOOM_TOTAL_DURATION
+                    print("[SYSTEM] Final Boss defeated. Victory achieved.")
 
         # Sanctuary Level Reset Rule
         if getattr(self.world, 'name', '') == "sanctuary":
@@ -620,13 +705,14 @@ class GameState:
             self.stats.data["last_run_result"] = "DEFEAT"
             self.stats.data["active_session_in_progress"] = False
             self.stats.data["run_state"] = None
+        
         self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
         self.player.x, self.player.y = float(self.world.player_start[0]), float(self.world.player_start[1])
         if hasattr(self, 'camera'): self.camera.instant_center(self.player.get_center())
-        try:
-            self.player.hp = getattr(self.player, 'max_hp', self.player.hp)
-            self.player.flask_charges = FLASK_MAX_CHARGES
-        except Exception: pass
+        
+        # Centralized Reset (HP, Flasks, Pages, Weapons)
+        self.on_enter_sanctuary()
+        
         self.enemies, self.loot = [], []
         self.save_stats(wait=True)
 

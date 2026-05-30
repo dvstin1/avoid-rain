@@ -130,7 +130,7 @@ class Renderer:
         if getattr(state, 'bleed_state', 'CLEAR') == 'GRACE_PERIOD':
             return
 
-        boss_coords = getattr(state.world, 'boss_coords', None)
+        boss_coords = getattr(state, 'current_boss_coords', None)
         if not boss_coords:
             return
 
@@ -158,6 +158,9 @@ class Renderer:
         ticks = pygame.time.get_ticks() / 1000.0
         
         rain_color = constants.COLOR_TOXIC_RAIN
+        if getattr(state, 'bleed_state', 'CLEAR') == 'DILUTION':
+            rain_color = constants.COLOR_SAFE_RAIN
+
         wb_x, wb_y = boss_coords['x'] * constants.TILE_SIZE, boss_coords['y'] * constants.TILE_SIZE
         rad_sq = radius**2
 
@@ -166,14 +169,20 @@ class Renderer:
             rx = p['x']
             
             # Distance check: Only draw if OUTSIDE the safe circle
-            world_rx, world_ry = rx + ox, ry + oy
-            d_sq = (world_rx - wb_x)**2 + (world_ry - wb_y)**2
+            # Dilution Rule: Rain is harmless and global (no circle cutout)
+            is_dilution = getattr(state, 'bleed_state', 'CLEAR') == 'DILUTION'
             
-            if d_sq > rad_sq:
+            if is_dilution:
                 pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
+            else:
+                world_rx, world_ry = rx + ox, ry + oy
+                d_sq = (world_rx - wb_x)**2 + (world_ry - wb_y)**2
+                if d_sq > rad_sq:
+                    pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
 
         # 3. Draw a glowing edge for the circle
-        if 0 < radius < 30000:
+        # Only if NOT in dilution
+        if getattr(state, 'bleed_state', 'CLEAR') != 'DILUTION' and 0 < radius < 30000:
             pygame.draw.circle(overlay, (255, 100, 0, 150), (int(bcx), int(bcy)), int(radius), 3)
 
         self.screen.blit(overlay, (0, 0))
@@ -487,7 +496,7 @@ class Renderer:
                     ))
 
         # 5. Safe Circle Boundary Visualization
-        boss_coords = getattr(state.world, 'boss_coords', None)
+        boss_coords = getattr(state, 'current_boss_coords', None)
         if boss_coords:
             bcx, bcy = boss_coords['x'] * constants.TILE_SIZE, boss_coords['y'] * constants.TILE_SIZE
             radius = state.active_safe_radius

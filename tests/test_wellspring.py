@@ -32,7 +32,7 @@ def test_wellspring_interaction_shows_stats():
     assert gs.dialogue_mode == "EXPANDED"
     assert gs.active_dialogue["speaker"] == "The Wellspring"
     text = gs.active_dialogue["text"]
-    assert "Timeline Reflection:" in text
+    assert "Timeline Reflection: Draft #0" in text
     assert "Chapters Cleared: 5" in text
     assert "Torn Pages: 100" in text
     assert "Syntax Blocks: 1" in text
