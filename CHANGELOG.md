@@ -303,6 +303,11 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Enemy Restoration:** Restored selection for Bats, Slugs, Flutters, Bindlings, Smears, and all Miniboss variants (M1, M2, M3).
 - **Quality Standards:** Verified code quality with pylint (Rating: 9.44/10).
 
+## [ARCHIVED] 440x440 Generator Correction, Dynamic Sub-Map Generation, & Night Boss Creation - May 2026
+- **Generator Refactor:** Overhauled `engine/world_generator.py` to initialize canvases with open floor space (" ") and strictly map 120x120 and 40x40 assets.
+- **Placeholder Generation:** Automatically provisioned traversable JSON templates for missing maps (Forest, Ruins, Colophon, Night Boss Arena).
+- **Night Boss Integration:** Registered the high-tier "Night Boss" enemy entity and placed it within its dedicated arena module.
+
 ## [ARCHIVED] Automated Symmetrical 440x440 World Assembly Compiler - May 2026
 - **Procedural Generation Pipeline:** Fully implemented the symmetric sizing array `[120, 40, 120, 40, 120]`.
 - **World Assembly:** Automated the stitching of sub-maps (Forest, Ruins, Colophon, Night Boss) into a massive 440x440 macro-world layout.
