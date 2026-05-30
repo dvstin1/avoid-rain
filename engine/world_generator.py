@@ -1,7 +1,7 @@
 """
 Macro-World Generator for Avoid Rain.
 Generates a symmetric 440x440 grid of modules based on modular_system.md specifications.
-Layout: 120 (Room) | 40 (Corridor) | 120 (Room) | 40 (Corridor) | 120 (Room)
+Grid Blueprint: 9 rooms (120x120) and connecting corridors/junctions (40x40).
 """
 import os
 import json
@@ -16,12 +16,9 @@ class WorldGenerator:
     def __init__(self, world_id="macro_generated"):
         self.world_id = world_id
         self.total_size = 440
-        
-        # Grid layout specification (width/height of each column/row)
-        self.layout_steps = [120, 40, 120, 40, 120]
-        
-        # Sockets will be a list of dicts with bounds and tags
         self.sockets = []
+        self.spawn_x = 0
+        self.spawn_y = 0
         
         # Asset pools (Strictly mapped by size)
         self.asset_pools = {
@@ -30,97 +27,85 @@ class WorldGenerator:
         }
 
     def generate_layout(self):
-        """Executes the allocation rule pipeline."""
+        """Executes the allocation rule pipeline using an 11x11 unit grid base."""
         self.sockets = []
-        
-        # 1. Create the grid of sockets (5x5)
-        current_y = 0
-        for row_idx, h in enumerate(self.layout_steps):
-            current_x = 0
-            for col_idx, w in enumerate(self.layout_steps):
-                tags = []
-                tags.append(f"{w}x{h}")
-                
-                # Classification tags
-                if w == 120 and h == 120:
-                    tags.append("room")
-                elif w == 40 and h == 40:
-                    tags.append("junction")
-                    if row_idx in (1, 3) and col_idx in (1, 3):
-                        tags.append("inner")
-                    else:
-                        tags.append("outer")
-                else:
-                    tags.append("corridor")
-                    if row_idx == 0 or row_idx == 4 or col_idx == 0 or col_idx == 4:
-                        tags.append("outer")
-                    else:
-                        tags.append("inner")
-                
-                self.sockets.append({
-                    "id": f"S_{col_idx}_{row_idx}",
-                    "bounds": {"x": current_x, "y": current_y, "width": w, "height": h},
-                    "tags": tags,
-                    "active_plug": None
-                })
-                current_x += w
-            current_y += h
+        unit = 40
+        grid_size = 11
 
-        # 2. Hard Size Filter Pass (Validation of Pools)
+        # 1. Create the grid of sockets
+        for gy in range(grid_size):
+            for gx in range(grid_size):
+                # Room logic: Rooms are 3x3 units (120x120) starting at indices (0,4,8)
+                is_room_origin = gx in (0, 4, 8) and gy in (0, 4, 8)
+                
+                # Check if this cell is part of ANY room
+                in_room_x = (0 <= gx <= 2) or (4 <= gx <= 6) or (8 <= gx <= 10)
+                in_room_y = (0 <= gy <= 2) or (4 <= gy <= 6) or (8 <= gy <= 10)
+                is_part_of_room = in_room_x and in_room_y
+
+                if is_room_origin:
+                    self.sockets.append({
+                        "id": f"Room_{gx}_{gy}",
+                        "bounds": {"x": gx * unit, "y": gy * unit, "width": 120, "height": 120},
+                        "tags": ["120x120", "room"],
+                        "active_plug": None
+                    })
+                elif not is_part_of_room:
+                    # It's a 40x40 corridor or junction
+                    tags = ["40x40", "corridor"]
+                    if gx == 0 or gx == 10 or gy == 0 or gy == 10:
+                        tags.append("outer")
+                    else:
+                        tags.append("inner")
+                    
+                    self.sockets.append({
+                        "id": f"Socket_{gx}_{gy}",
+                        "bounds": {"x": gx * unit, "y": gy * unit, "width": 40, "height": 40},
+                        "tags": tags,
+                        "active_plug": None
+                    })
+
+        # 2. Hard Size Filter Pass (Purge legacy or mismatch files)
         def validate_pool(file_list, expected_w, expected_h):
             valid = []
             for path in file_list:
-                if not os.path.exists(path):
-                    continue
+                if not os.path.exists(path): continue
                 try:
                     with open(path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                    dw = data["dimensions"]["width"]
-                    dh = data["dimensions"]["height"]
+                    dw, dh = data["dimensions"]["width"], data["dimensions"]["height"]
                     if dw == expected_w and dh == expected_h:
                         valid.append(path)
                     else:
                         print(f"[FILTER] Ignoring {path}: expected {expected_w}x{expected_h}, got {dw}x{dh}")
-                except Exception:
-                    continue
+                except Exception: continue
             return valid
 
-        # Filter the pools
         filtered_120 = validate_pool(self.asset_pools["120x120"], 120, 120)
         filtered_40 = validate_pool(self.asset_pools["40x40"], 40, 40)
 
         # 3. The Spawn Assignment Phase (The Colophon)
         outer_40s = [s for s in self.sockets if "40x40" in s["tags"] and "outer" in s["tags"]]
-        if not outer_40s:
-            outer_corridors = [s for s in self.sockets if "corridor" in s["tags"] and "outer" in s["tags"]]
-            spawn_socket = random.choice(outer_corridors)
-        else:
-            spawn_socket = random.choice(outer_40s)
-
+        spawn_socket = random.choice(outer_40s)
         spawn_socket["active_plug"] = "maps/the_colophon.json"
-        self.spawn_x = spawn_socket["bounds"]["x"] + (spawn_socket["bounds"]["width"] // 2)
-        self.spawn_y = spawn_socket["bounds"]["y"] + (spawn_socket["bounds"]["height"] // 2)
+        self.spawn_x = spawn_socket["bounds"]["x"] + 20
+        self.spawn_y = spawn_socket["bounds"]["y"] + 20
         
         # 4. The Target Assignment Phase (Night Boss)
         inner_40s = [s for s in self.sockets if "40x40" in s["tags"] and "inner" in s["tags"]]
-        if inner_40s:
-            boss_socket = random.choice(inner_40s)
-            boss_socket["active_plug"] = "maps/night_boss_arena.json"
+        boss_socket = random.choice(inner_40s)
+        boss_socket["active_plug"] = "maps/night_boss_arena.json"
         
         # 5. The Pool Backfill Pass
-        from constants import POOL_SPECIAL_EDITION, POOL_MONTHLY_REPORT
+        from constants import POOL_SPECIAL_EDITION
         for s in self.sockets:
             if s["active_plug"] is None:
-                is_large = s["bounds"]["width"] == 120
+                is_large = "120x120" in s["tags"]
                 pool = filtered_120 if is_large else filtered_40
                 
-                # 10% Anomaly Roll with Graceful Fallback
-                if is_large and random.random() < 0.1:
-                    if POOL_SPECIAL_EDITION:
-                        s["active_plug"] = random.choice(POOL_SPECIAL_EDITION)
-                    else:
-                        # Fallback to standard pool if SE pool is empty
-                        s["active_plug"] = random.choice(pool) if pool else "maps/smallcave.json"
+                # 10% Anomaly Roll
+                if is_large and random.random() < 0.1 and POOL_SPECIAL_EDITION:
+                    s["active_plug"] = random.choice(POOL_SPECIAL_EDITION)
                 else:
                     s["active_plug"] = random.choice(pool) if pool else "maps/smallcave.json"
 
@@ -134,7 +119,6 @@ class WorldGenerator:
                 "active_plug": s["active_plug"]
             })
         
-        # Canvas Initialization: Use open floor space (" ")
         base_grid = [" " * self.total_size for _ in range(self.total_size)]
         
         data = {

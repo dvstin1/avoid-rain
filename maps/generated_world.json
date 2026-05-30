@@ -454,7 +454,7 @@
   "entities": {},
   "module_sockets": [
     {
-      "name": "S_0_0",
+      "name": "Room_0_0",
       "bounds": {
         "x": 0,
         "y": 0,
@@ -464,37 +464,37 @@
       "active_plug": "maps/ruins.json"
     },
     {
-      "name": "S_1_0",
+      "name": "Socket_3_0",
       "bounds": {
         "x": 120,
         "y": 0,
         "width": 40,
-        "height": 120
+        "height": 40
       },
       "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_2_0",
+      "name": "Room_4_0",
       "bounds": {
         "x": 160,
         "y": 0,
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/forest.json"
+      "active_plug": "maps/ruins.json"
     },
     {
-      "name": "S_3_0",
+      "name": "Socket_7_0",
       "bounds": {
         "x": 280,
         "y": 0,
         "width": 40,
-        "height": 120
+        "height": 40
       },
       "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_4_0",
+      "name": "Room_8_0",
       "bounds": {
         "x": 320,
         "y": 0,
@@ -504,17 +504,77 @@
       "active_plug": "maps/ruins.json"
     },
     {
-      "name": "S_0_1",
+      "name": "Socket_3_1",
+      "bounds": {
+        "x": 120,
+        "y": 40,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_7_1",
+      "bounds": {
+        "x": 280,
+        "y": 40,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_3_2",
+      "bounds": {
+        "x": 120,
+        "y": 80,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_7_2",
+      "bounds": {
+        "x": 280,
+        "y": 80,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_0_3",
       "bounds": {
         "x": 0,
         "y": 120,
-        "width": 120,
+        "width": 40,
         "height": 40
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_1_1",
+      "name": "Socket_1_3",
+      "bounds": {
+        "x": 40,
+        "y": 120,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_2_3",
+      "bounds": {
+        "x": 80,
+        "y": 120,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_3_3",
       "bounds": {
         "x": 120,
         "y": 120,
@@ -524,17 +584,37 @@
       "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_2_1",
+      "name": "Socket_4_3",
       "bounds": {
         "x": 160,
         "y": 120,
-        "width": 120,
+        "width": 40,
         "height": 40
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_3_1",
+      "name": "Socket_5_3",
+      "bounds": {
+        "x": 200,
+        "y": 120,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_6_3",
+      "bounds": {
+        "x": 240,
+        "y": 120,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_7_3",
       "bounds": {
         "x": 280,
         "y": 120,
@@ -544,39 +624,39 @@
       "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_4_1",
+      "name": "Socket_8_3",
       "bounds": {
         "x": 320,
         "y": 120,
-        "width": 120,
-        "height": 40
-      },
-      "active_plug": "maps/forest.json"
-    },
-    {
-      "name": "S_0_2",
-      "bounds": {
-        "x": 0,
-        "y": 160,
-        "width": 120,
-        "height": 120
-      },
-      "active_plug": "maps/forest.json"
-    },
-    {
-      "name": "S_1_2",
-      "bounds": {
-        "x": 120,
-        "y": 160,
         "width": 40,
-        "height": 120
+        "height": 40
       },
       "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_2_2",
+      "name": "Socket_9_3",
       "bounds": {
-        "x": 160,
+        "x": 360,
+        "y": 120,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_10_3",
+      "bounds": {
+        "x": 400,
+        "y": 120,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Room_0_4",
+      "bounds": {
+        "x": 0,
         "y": 160,
         "width": 120,
         "height": 120
@@ -584,37 +664,117 @@
       "active_plug": "maps/ruins.json"
     },
     {
-      "name": "S_3_2",
+      "name": "Socket_3_4",
       "bounds": {
-        "x": 280,
+        "x": 120,
         "y": 160,
         "width": 40,
-        "height": 120
+        "height": 40
       },
       "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_4_2",
+      "name": "Room_4_4",
+      "bounds": {
+        "x": 160,
+        "y": 160,
+        "width": 120,
+        "height": 120
+      },
+      "active_plug": "maps/forest.json"
+    },
+    {
+      "name": "Socket_7_4",
+      "bounds": {
+        "x": 280,
+        "y": 160,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Room_8_4",
       "bounds": {
         "x": 320,
         "y": 160,
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/forest.json"
-    },
-    {
-      "name": "S_0_3",
-      "bounds": {
-        "x": 0,
-        "y": 280,
-        "width": 120,
-        "height": 40
-      },
       "active_plug": "maps/ruins.json"
     },
     {
-      "name": "S_1_3",
+      "name": "Socket_3_5",
+      "bounds": {
+        "x": 120,
+        "y": 200,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_7_5",
+      "bounds": {
+        "x": 280,
+        "y": 200,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_3_6",
+      "bounds": {
+        "x": 120,
+        "y": 240,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_7_6",
+      "bounds": {
+        "x": 280,
+        "y": 240,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_0_7",
+      "bounds": {
+        "x": 0,
+        "y": 280,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_1_7",
+      "bounds": {
+        "x": 40,
+        "y": 280,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_2_7",
+      "bounds": {
+        "x": 80,
+        "y": 280,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_3_7",
       "bounds": {
         "x": 120,
         "y": 280,
@@ -624,19 +784,19 @@
       "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_2_3",
+      "name": "Socket_4_7",
       "bounds": {
         "x": 160,
         "y": 280,
-        "width": 120,
+        "width": 40,
         "height": 40
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_3_3",
+      "name": "Socket_5_7",
       "bounds": {
-        "x": 280,
+        "x": 200,
         "y": 280,
         "width": 40,
         "height": 40
@@ -644,37 +804,77 @@
       "active_plug": "maps/night_boss_arena.json"
     },
     {
-      "name": "S_4_3",
+      "name": "Socket_6_7",
+      "bounds": {
+        "x": 240,
+        "y": 280,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_7_7",
+      "bounds": {
+        "x": 280,
+        "y": 280,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_8_7",
       "bounds": {
         "x": 320,
         "y": 280,
-        "width": 120,
+        "width": 40,
         "height": 40
       },
-      "active_plug": "maps/forest.json"
+      "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_0_4",
+      "name": "Socket_9_7",
+      "bounds": {
+        "x": 360,
+        "y": 280,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_10_7",
+      "bounds": {
+        "x": 400,
+        "y": 280,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Room_0_8",
       "bounds": {
         "x": 0,
         "y": 320,
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/forest.json"
+      "active_plug": "maps/ruins.json"
     },
     {
-      "name": "S_1_4",
+      "name": "Socket_3_8",
       "bounds": {
         "x": 120,
         "y": 320,
         "width": 40,
-        "height": 120
+        "height": 40
       },
       "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_2_4",
+      "name": "Room_4_8",
       "bounds": {
         "x": 160,
         "y": 320,
@@ -684,28 +884,68 @@
       "active_plug": "maps/forest.json"
     },
     {
-      "name": "S_3_4",
+      "name": "Socket_7_8",
       "bounds": {
         "x": 280,
         "y": 320,
         "width": 40,
-        "height": 120
+        "height": 40
       },
-      "active_plug": "maps/the_colophon.json"
+      "active_plug": "maps/smallcave.json"
     },
     {
-      "name": "S_4_4",
+      "name": "Room_8_8",
       "bounds": {
         "x": 320,
         "y": 320,
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/forest.json"
+      "active_plug": "maps/ruins.json"
+    },
+    {
+      "name": "Socket_3_9",
+      "bounds": {
+        "x": 120,
+        "y": 360,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_7_9",
+      "bounds": {
+        "x": 280,
+        "y": 360,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
+    },
+    {
+      "name": "Socket_3_10",
+      "bounds": {
+        "x": 120,
+        "y": 400,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/the_colophon.json"
+    },
+    {
+      "name": "Socket_7_10",
+      "bounds": {
+        "x": 280,
+        "y": 400,
+        "width": 40,
+        "height": 40
+      },
+      "active_plug": "maps/smallcave.json"
     }
   ],
   "spawn_coords": {
-    "x": 300,
-    "y": 380
+    "x": 140,
+    "y": 420
   }
 }
