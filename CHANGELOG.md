@@ -15,6 +15,18 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Data-Driven Macro-World Layout Generator & Theme Integration
+- **The Colophon (Spawn):** Renamed the `sanctuary` area to "The Colophon" for theme integration and updated `docs/modular_system.md`.
+- **Macro-World Framework:** Built `engine/world_generator.py` to support a symmetric 440x440 layout matrix (11x11 grid of 40x40 sockets).
+- **Rule-Based Allocation:** Implemented a generation pipeline that randomly selects one outer socket for the spawn area and one inner socket (within the "Crown Ring") for the night boss.
+- **Random Backfill:** Automated the backfilling of all remaining 119 sockets with randomized selections from the 40x40 asset pool (`Forest`, `Ruins`, `Cave`).
+- **Generation:** Successfully generated a sample world layout at `maps/generated_world.json`.
+
+### Refining Editor UI and Input Handling
+- **Help Dialog Modal:** Replaced the sidebar help text with a dedicated modal (H key) and added a dimming overlay when modals are active.
+- **Input Bleed-Through Fix:** Implemented a robust mouse-release blocker to prevent map clicks from occurring immediately after closing a modal dialog.
+- **Sidebar Cleanup:** Reorganized sidebar info and improved layout consistency for high-resolution editing.
+
 ### Minimap Entity Markers
 - Implemented markers for enemies and loot on the minimap.
 - Added `MINIMAP_ENEMY_COLOR` and `MINIMAP_LOOT_COLOR` constants.
