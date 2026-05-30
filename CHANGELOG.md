@@ -346,3 +346,10 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Damage Over Time:** Exposed players now accumulate 2.0 HP/sec corrosive damage during active storm phases.
 - **Visual Rain Layer:** Developed a performant screen-space particle overlay featuring translucent "Toxic Lime" vertical rain falling across the viewport.
 - **Documentation:** Codified the system rules and shelter vectors in `docs/architecture.md`.
+
+## [Recently Completed]
+### Macro Safe Zone Initialization Repair & Initial Grace Period Lock
+- **Massive Starting Radius:** Enforced a 620.0 unit initial `active_safe_radius` to ensure the entire 440x440 world is safe upon run start.
+- **Initial Grace Period:** Implemented a strict 60-second grace period during which all rain visuals and environmental hazards are suppressed.
+- **Initialization Fix:** Resolved the game thread freeze by delegating weather logic to a dedicated `WeatherManager` and using time-based particle updates.
+- **Dynamic Contraction:** Integrated the warning event and smooth contraction sequence centered on the Night Boss Arena.
