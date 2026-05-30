@@ -323,13 +323,17 @@ class LevelLoader:
         # 1. Modular Assembly Pass
         module_sockets = data.get("module_sockets", [])
         for socket in module_sockets:
-            # Independent Anomaly Roll: Each socket has a 10% chance to be Special Edition
-            if random.random() < 0.1:
-                active_plug = random.choice(POOL_SPECIAL_EDITION)
-                print(f"[ANOMALY INJECTION] Socket {socket['name']} rolled a rare Special Edition!")
-            else:
-                active_plug = random.choice(POOL_MONTHLY_REPORT)
-                print(f"[Generation] Socket {socket['name']} compiled as Standard Monthly Report.")
+            # Override Rule: If the map JSON already defines an active_plug, use it
+            active_plug = socket.get("active_plug")
+            
+            if not active_plug:
+                # Independent Anomaly Roll: Each socket has a 10% chance to be Special Edition
+                if random.random() < 0.1 and POOL_SPECIAL_EDITION:
+                    active_plug = random.choice(POOL_SPECIAL_EDITION)
+                    print(f"[ANOMALY INJECTION] Socket {socket['name']} rolled a rare Special Edition!")
+                else:
+                    active_plug = random.choice(POOL_MONTHLY_REPORT)
+                    print(f"[Generation] Socket {socket['name']} compiled as Standard Monthly Report.")
 
             if not active_plug:
                 continue

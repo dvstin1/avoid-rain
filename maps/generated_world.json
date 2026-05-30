@@ -6,7 +6,8 @@
   },
   "legend": {
     "#": "WALL_STONE",
-    " ": "FLOOR_CLEAN"
+    " ": "FLOOR_CLEAN",
+    ".": "FLOOR_CLEAN"
   },
   "grid": [
     "                                                                                                                                                                                                                                                                                                                                                                                                                                                        ",
@@ -460,7 +461,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/forest.json"
+      "active_plug": "maps/ruins.json"
     },
     {
       "name": "S_1_0",
@@ -500,7 +501,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/forest.json"
+      "active_plug": "maps/ruins.json"
     },
     {
       "name": "S_0_1",
@@ -510,7 +511,7 @@
         "width": 120,
         "height": 40
       },
-      "active_plug": "maps/the_colophon.json"
+      "active_plug": "maps/ruins.json"
     },
     {
       "name": "S_1_1",
@@ -530,7 +531,7 @@
         "width": 120,
         "height": 40
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/ruins.json"
     },
     {
       "name": "S_3_1",
@@ -550,7 +551,7 @@
         "width": 120,
         "height": 40
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "S_0_2",
@@ -560,7 +561,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "S_1_2",
@@ -600,7 +601,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "S_0_3",
@@ -610,7 +611,7 @@
         "width": 120,
         "height": 40
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/ruins.json"
     },
     {
       "name": "S_1_3",
@@ -620,7 +621,7 @@
         "width": 40,
         "height": 40
       },
-      "active_plug": "maps/night_boss_arena.json"
+      "active_plug": "maps/smallcave.json"
     },
     {
       "name": "S_2_3",
@@ -630,7 +631,7 @@
         "width": 120,
         "height": 40
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/ruins.json"
     },
     {
       "name": "S_3_3",
@@ -640,7 +641,7 @@
         "width": 40,
         "height": 40
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/night_boss_arena.json"
     },
     {
       "name": "S_4_3",
@@ -650,7 +651,7 @@
         "width": 120,
         "height": 40
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "S_0_4",
@@ -660,7 +661,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "S_1_4",
@@ -680,7 +681,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "S_3_4",
@@ -690,7 +691,7 @@
         "width": 40,
         "height": 120
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/the_colophon.json"
     },
     {
       "name": "S_4_4",
@@ -700,11 +701,11 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     }
   ],
   "spawn_coords": {
-    "x": 60,
-    "y": 140
+    "x": 300,
+    "y": 380
   }
 }

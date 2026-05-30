@@ -6,6 +6,10 @@ Layout: 120 (Room) | 40 (Corridor) | 120 (Room) | 40 (Corridor) | 120 (Room)
 import os
 import json
 import random
+import sys
+
+# Add project root to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class WorldGenerator:
     """Handles the data-driven generation of the macro-world layout."""
@@ -62,10 +66,31 @@ class WorldGenerator:
                 current_x += w
             current_y += h
 
-        # 2. The Spawn Assignment Phase (The Colophon)
-        # We need an outer 40x40 junction OR an outer corridor segment.
+        # 2. Hard Size Filter Pass (Validation of Pools)
+        def validate_pool(file_list, expected_w, expected_h):
+            valid = []
+            for path in file_list:
+                if not os.path.exists(path):
+                    continue
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    dw = data["dimensions"]["width"]
+                    dh = data["dimensions"]["height"]
+                    if dw == expected_w and dh == expected_h:
+                        valid.append(path)
+                    else:
+                        print(f"[FILTER] Ignoring {path}: expected {expected_w}x{expected_h}, got {dw}x{dh}")
+                except Exception:
+                    continue
+            return valid
+
+        # Filter the pools
+        filtered_120 = validate_pool(self.asset_pools["120x120"], 120, 120)
+        filtered_40 = validate_pool(self.asset_pools["40x40"], 40, 40)
+
+        # 3. The Spawn Assignment Phase (The Colophon)
         outer_40s = [s for s in self.sockets if "40x40" in s["tags"] and "outer" in s["tags"]]
-        
         if not outer_40s:
             outer_corridors = [s for s in self.sockets if "corridor" in s["tags"] and "outer" in s["tags"]]
             spawn_socket = random.choice(outer_corridors)
@@ -73,25 +98,31 @@ class WorldGenerator:
             spawn_socket = random.choice(outer_40s)
 
         spawn_socket["active_plug"] = "maps/the_colophon.json"
-        # Store spawn position for the warp trigger (Center of the Colophon)
         self.spawn_x = spawn_socket["bounds"]["x"] + (spawn_socket["bounds"]["width"] // 2)
         self.spawn_y = spawn_socket["bounds"]["y"] + (spawn_socket["bounds"]["height"] // 2)
         
-        # 3. The Target Assignment Phase (Night Boss)
+        # 4. The Target Assignment Phase (Night Boss)
         inner_40s = [s for s in self.sockets if "40x40" in s["tags"] and "inner" in s["tags"]]
         if inner_40s:
             boss_socket = random.choice(inner_40s)
             boss_socket["active_plug"] = "maps/night_boss_arena.json"
         
-        # 4. The Pool Backfill Pass
+        # 5. The Pool Backfill Pass
+        from constants import POOL_SPECIAL_EDITION, POOL_MONTHLY_REPORT
         for s in self.sockets:
             if s["active_plug"] is None:
-                size_key = f"{s['bounds']['width']}x{s['bounds']['height']}"
-                if size_key in self.asset_pools:
-                    s["active_plug"] = random.choice(self.asset_pools[size_key])
+                is_large = s["bounds"]["width"] == 120
+                pool = filtered_120 if is_large else filtered_40
+                
+                # 10% Anomaly Roll with Graceful Fallback
+                if is_large and random.random() < 0.1:
+                    if POOL_SPECIAL_EDITION:
+                        s["active_plug"] = random.choice(POOL_SPECIAL_EDITION)
+                    else:
+                        # Fallback to standard pool if SE pool is empty
+                        s["active_plug"] = random.choice(pool) if pool else "maps/smallcave.json"
                 else:
-                    # Fallback to nearest asset or blank
-                    s["active_plug"] = "maps/smallcave.json"
+                    s["active_plug"] = random.choice(pool) if pool else "maps/smallcave.json"
 
     def export_world(self, filename="maps/generated_world.json"):
         """Exports the layout as a macro-world JSON file."""
@@ -103,13 +134,13 @@ class WorldGenerator:
                 "active_plug": s["active_plug"]
             })
         
-        # Canvas Initialization: Use open floor space (" ") instead of walls ("#")
+        # Canvas Initialization: Use open floor space (" ")
         base_grid = [" " * self.total_size for _ in range(self.total_size)]
         
         data = {
             "map_id": self.world_id,
             "dimensions": {"width": self.total_size, "height": self.total_size},
-            "legend": {"#": "WALL_STONE", " ": "FLOOR_CLEAN"},
+            "legend": {"#": "WALL_STONE", " ": "FLOOR_CLEAN", ".": "FLOOR_CLEAN"},
             "grid": base_grid,
             "entities": {},
             "module_sockets": module_sockets,

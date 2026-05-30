@@ -40,4 +40,21 @@
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
-## Active Task: 
+## Active Task: Bulletproof Generator File Filtering & Empty Pool Fallbacks
+
+Refactor `engine/world_generator.py` to enforce strict size-exclusion filtering and implement a graceful fallback state machine for empty Special Edition asset pools.
+
+### 1. Hard Size-Filtering Constraints
+- Update the file scanner logic inside the map compiler. When building asset pools:
+  - Discard any JSON map data file that does not possess internal grid dimensions of exactly **120x120** or **40x40**. 
+  - This absolutely locks out old 7x7 test layout files from entering the run generation matrix.
+
+### 2. Graceful Special Edition Pool Fallback
+- Maintain your separate dictionary pools: `POOL_MONTHLY_REPORT` (Standard) and `POOL_SPECIAL_EDITION` (Harder variants).
+- **The Fallback Law:** Inside the per-socket selection loop:
+  - If a socket rolls an anomaly (True) but `len(POOL_SPECIAL_EDITION) == 0`:
+    - Print a clean debug trace: `"[Pool Fallback] Socket rolled Special Edition but pool is empty. Diverting to Standard asset."`
+    - Pull an asset randomly from `POOL_MONTHLY_REPORT` instead of crashing or reverting to hardcoded test shapes.
+
+### 3. Open Floor Initialization Restoration
+- Confirm that the baseline global canvas is initialized as an open list matrix of spaces: `[[" " for _ in range(440)] for _ in range(440)]`, ensuring the player can seamlessly walk between adjacent module frames.
