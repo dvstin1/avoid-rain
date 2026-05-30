@@ -5,7 +5,10 @@ Handles the application lifecycle and top-level loops.
 import sys
 import atexit
 import pygame
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS, AUTOSAVE_INTERVAL
+from constants import (
+    SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS, AUTOSAVE_INTERVAL,
+    INPUT_MODE_GAMEPAD, INPUT_MODE_KEYBOARD, JOYSTICK_DEADZONE
+)
 from engine.game_state import GameState
 from engine.pause_menu import PauseMenu
 from engine.title_menu import TitleMenu, TitleMenuState
@@ -16,7 +19,6 @@ from rendering.renderer import Renderer
 
 def handle_title_events(state, renderer, title_menu: TitleMenu):
     """Handle events during the title screen with a menu controller and Auto Input Mode."""
-    from constants import INPUT_MODE_KEYBOARD, INPUT_MODE_GAMEPAD
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False, False
@@ -70,7 +72,6 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
 
 def handle_game_events(state, pause_menu: PauseMenu | None = None):
     """Handle events during the main game loop with Auto Input Mode switching."""
-    from constants import INPUT_MODE_KEYBOARD, INPUT_MODE_GAMEPAD, JOYSTICK_DEADZONE
     running = True
     attack = False
     flask = False
