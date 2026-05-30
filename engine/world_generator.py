@@ -31,7 +31,7 @@ class WorldGenerator:
         """Executes the allocation rule pipeline."""
         self.sockets = []
         
-        # 1. Create the grid of sockets
+        # 1. Create the grid of sockets (5x5)
         current_y = 0
         for row_idx, h in enumerate(self.layout_steps):
             current_x = 0
@@ -65,55 +65,26 @@ class WorldGenerator:
             current_y += h
 
         # 2. The Spawn Assignment Phase (The Colophon)
-        # We need a 40x40 socket for the colophon. 
-        # In this 5x5 grid, only junctions are 40x40.
-        # But wait, corridors are 40x120 or 120x40. 
-        # The user said: "assign this map to one random outer 40x40 socket".
-        # If we stick to the 5x5 grid, junctions (1,1), (3,1), (1,3), (3,3) are the only 40x40s.
-        # But those are inner.
-        # Let's assume the user meant one of the 40-wide corridor segments on the edge.
-        # To be safe and compliant with the 440 math, I'll allow "outer" corridors to be treated as 
-        # valid spawn points if they can accommodate a 40x40 (which they can, they are 40x120).
-        # Actually, let's look for sockets tagged "40x40" and "outer".
-        # Wait, if I use the 11x11 grid from before, I had 40x40 outer sockets.
-        # But the user said: "9 massive 120x120 sockets separated by interstitial 40x40 corridors".
-        # This implies the gaps are 40 wide.
-        
-        # Let's refine the "outer 40x40" requirement.
-        # If I subdivide the corridors into 40x40 blocks, I get the 11x11 grid.
-        # Let's try to find any socket that is 40x40 and on the edge.
-        # In my current 5x5 grid, no junction is on the edge.
-        
-        # I will adjust the grid to subdivide the 40x120 corridors into 40x40 chunks if needed,
-        # OR I will just place the colophon at the START of an outer corridor.
-        
+        # We need an outer 40x40 junction OR an outer corridor segment.
+        # The user requested "randomly assign ... our colophon/night_boss files to their restricted 40x40 slots".
+        # This implies we should prioritize the 40x40 junctions.
+        # But wait, in a 5x5 grid with [120, 40, 120, 40, 120], junctions are all inner.
+        # Let's check if there are any outer 40x40s.
         outer_40s = [s for s in self.sockets if "40x40" in s["tags"] and "outer" in s["tags"]]
+        
+        # If no outer 40x40s exist in 5x5, we must pick an outer corridor (40x120 or 120x40)
         if not outer_40s:
-            # Fallback: Pick an outer corridor and place it at the edge
             outer_corridors = [s for s in self.sockets if "corridor" in s["tags"] and "outer" in s["tags"]]
-            spawn_socket = random.choice(outer_corridors)
-            # We'll treat this 40x120/120x40 as the spawn area by plugging colophon (40x40) into it.
-            # The LevelLoader should handle the size mismatch by centering or top-aligning.
-            # But the user asked for "one random outer 40x40 socket".
-            # This suggests my 5x5 grid might be missing something or I should use 11x11.
-            # 11x11 grid with:
-            # R R R | C | R R R | C | R R R
-            # R R R | C | R R R | C | R R R
-            # R R R | C | R R R | C | R R R
-            # -----------------------------
-            # C C C | J | C C C | J | C C C
-            # -----------------------------
-            # ...
-            # In an 11x11, the "C" cells at (3,0), (7,0), etc. are 40x40 and outer.
-            
             spawn_socket = random.choice(outer_corridors)
         else:
             spawn_socket = random.choice(outer_40s)
 
         spawn_socket["active_plug"] = "maps/the_colophon.json"
+        # Store spawn position for the warp trigger
+        self.spawn_x = spawn_socket["bounds"]["x"] + 20
+        self.spawn_y = spawn_socket["bounds"]["y"] + 20
         
         # 3. The Target Assignment Phase (Night Boss)
-        # "randomly select one inner 40x40 socket"
         inner_40s = [s for s in self.sockets if "40x40" in s["tags"] and "inner" in s["tags"]]
         if inner_40s:
             boss_socket = random.choice(inner_40s)
@@ -147,7 +118,8 @@ class WorldGenerator:
             "legend": {"#": "WALL_STONE"},
             "grid": base_grid,
             "entities": {},
-            "module_sockets": module_sockets
+            "module_sockets": module_sockets,
+            "spawn_coords": {"x": self.spawn_x, "y": self.spawn_y}
         }
         
         os.makedirs(os.path.dirname(filename), exist_ok=True)

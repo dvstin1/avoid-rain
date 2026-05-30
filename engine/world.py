@@ -82,10 +82,18 @@ class WarpPortal(GameObject):
                 if game_state.stats:
                     game_state.stats.data["last_run_result"] = "INIT"
 
-            # Position player at spawn coords
-            print(f"[DEBUG] Setting player spawn: ({self.spawn_x}, {self.spawn_y})")
-            game_state.player.x = float(self.spawn_x)
-            game_state.player.y = float(self.spawn_y)
+            # Position player at spawn coords (Priority: WarpPortal explicitly sets, then World default)
+            # Procedural Generation Rule: If create_world returned a world with a valid player_start, use it.
+            target_x = float(self.spawn_x)
+            target_y = float(self.spawn_y)
+            
+            # If we are warping to 'macro_world' and world has a player_start, prefer that
+            if self.target_name == "macro_world" and game_state.world.player_start:
+                target_x, target_y = game_state.world.player_start
+
+            print(f"[DEBUG] Setting player spawn: ({target_x}, {target_y})")
+            game_state.player.x = float(target_x)
+            game_state.player.y = float(target_y)
             # Recenter camera instantly
             if hasattr(game_state, 'camera'):
                 game_state.camera.instant_center(game_state.player.get_center())
@@ -381,13 +389,20 @@ class LevelLoader:
 
         map_name = os.path.basename(file_path).replace(".json", "")
         
-        return LevelLoader.parse_map(
+        grid, interactables, warp_tiles, player_start, enemies = LevelLoader.parse_map(
             ["".join(row) for row in grid], 
             entity_data, 
             saved_enemies=saved_enemies,
             map_name=map_name,
             defeated_ids=defeated_ids
         )
+
+        # Apply procedural spawn override if present
+        spawn_override = data.get("spawn_coords")
+        if spawn_override:
+            player_start = (spawn_override["x"] * TILE_SIZE, spawn_override["y"] * TILE_SIZE)
+
+        return grid, interactables, warp_tiles, player_start, enemies
 
     @staticmethod
     def parse_map(prototype_array, entity_data=None, saved_enemies=None, map_name="unknown", defeated_ids=None):

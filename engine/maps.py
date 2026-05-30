@@ -7,9 +7,13 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None) -> World:
     """Factory function to create and populate a World instance by name."""
     print(f"[DEBUG] Fetching room prototype: {name}")
 
-    # Realignment Rule: 'macro_world' identifier now maps to 'world_map1.json'
+    # Realignment Rule: 'macro_world' identifier now triggers the procedural generator
     if name == "macro_world":
-        name = "world_map1"
+        from engine.world_generator import WorldGenerator
+        gen = WorldGenerator()
+        gen.generate_layout()
+        gen.export_world("maps/generated_world.json")
+        name = "generated_world"
 
     world = World(name=name)
 
