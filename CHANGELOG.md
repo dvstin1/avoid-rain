@@ -333,6 +333,13 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Spawn Re-Targeting:** Implemented procedural spawn coordinate overrides to ensure the player always starts in the center of the Colophon module.
 
 ## [Recently Completed]
+### Spatial Overhaul: The Redacting Circle (The Bleed)
+- **Shrinking Safe Circle:** Replaced temporal storm phases with a spatial "Safe Zone" that contracts toward the Night Boss Arena.
+- **State Machine Lifecycle:** Implemented a cyclic "Wait -> Contract -> Pause" state machine for the safe circle, ending in a final clamp around the boss lair.
+- **Asynchronous Rendering Fix:** Resolved the movement freezing bug by implementing a persistent, time-scaled particle system that updates independently of the physics thread.
+- **Shelter-Aware Hazard:** Integrated radial distance checks with tile-based shelter detection; players only take damage if outside the safe circle AND not under a structure ("T").
+- **Asset Integration:** Updated `WorldGenerator` to export boss center coordinates for real-time safe zone anchoring.
+
 ### The Bleed: Core Weather System & Shelter Mechanics
 - **Weather Lifecycle:** Implemented a global state machine cycling between "Clearance" (90s) and "Downpour" (45s) phases.
 - **Exposure Detection:** Integrated real-time tile-based logic to check if the player is standing under open sky or protected by a structure ("T") or Respite ("R").
