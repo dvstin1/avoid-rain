@@ -519,7 +519,7 @@
         "width": 40,
         "height": 40
       },
-      "active_plug": "maps/night_boss.json"
+      "active_plug": "maps/smallcave.json"
     },
     {
       "name": "S_2_1",
@@ -539,7 +539,7 @@
         "width": 40,
         "height": 40
       },
-      "active_plug": "maps/smallcave.json"
+      "active_plug": "maps/night_boss.json"
     },
     {
       "name": "S_4_1",
@@ -599,7 +599,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "S_0_3",
@@ -679,7 +679,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/ruins.json"
+      "active_plug": "maps/forest.json"
     },
     {
       "name": "S_3_4",
@@ -699,7 +699,7 @@
         "width": 120,
         "height": 120
       },
-      "active_plug": "maps/forest.json"
+      "active_plug": "maps/ruins.json"
     }
   ],
   "spawn_coords": {

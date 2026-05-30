@@ -72,3 +72,32 @@ Every socket registered on the macro layout canvas possesses a regional classifi
 2. **The Spawn Assignment Phase:** The compiler selects exactly one socket matching the `SIZE_40X40_OUTER` criteria and binds it to `maps/the_colophon.json` (Spawn).
 3. **The Target Assignment Phase:** The compiler selects exactly one socket matching the `SIZE_40X40_INNER` criteria and binds it to `maps/night_boss_arena.json`.
 4. **The Pool Backfill Pass:** All remaining unassigned sockets independently roll selections from their matching dimension lists (e.g., 120s roll Forest/Ruins; remaining 40s roll from minor encounter pools).
+
+## 6. Runtime Symmetrical Compilation Pipeline (440x440 Matrix)
+
+The WorldGenerator constructs the active run map dynamically using a multi-pass blitting pipeline. It reads standalone module assets and maps them to a synchronized offset grid:
+
+### 1. Coordinate Offsetting Math
+The layout coordinates are computed by tracking the cumulative widths of preceding columns and rows:
+- Column/Row Index 0, 2, 4: Size = 120 tiles
+- Column/Row Index 1, 3: Size = 40 tiles
+
+### 2. The Generation Cycle
+When the Chronicle gateway is activated:
+1. Initialize a blank 440x440 grid matrix filled with solid wall blocks or void tiles.
+2. Filter out one random perimeter 40x40 socket slot and stitch `maps/the_colophon.json` into it. Store these absolute coordinates as the Player Spawn Point.
+3. Filter out one random inner 40x40 socket slot and stitch `maps/night_boss.json` into it.
+4. Loop through remaining 120x120 slots, randomly choosing between `maps/forest.json` and `maps/ruins.json` per slot.
+5. Loop through remaining 40x40 slots, filling them with blank corridor layouts or small encounter modules.
+
+## 7. Macro Matrix Canvas Space & Boss Entity Definitions
+
+### 1. Border Boundary Clamping (Zero-Wall Mapping)
+The 440x440 grid represents the total legal coordinate bounds of a run session. Physical perimeter walls are not structurally required to trap the player. The engine's movement processor clamps entity coordinates: `0 <= x_pos < 440` and `0 <= y_pos < 440`. 
+- **Canvas Initialization:** The `WorldGenerator` initializes a blank map entirely using empty floor or corridor spacing tiles (`" "`). Sockets overlay their explicit internal geometry, ensuring the spaces connecting modules remain wide-open, passable paths.
+
+### 2. High-Tier Entity: The Night Boss
+The Night Boss is a singular high-tier threat variant that inherits all base `.is_miniboss = True` parameters, with distinct unique behavioral traits:
+- **Identifier String:** `"night_boss"`
+- **Loot Drop Tier:** Guaranteed maximum premium page bundle and special unique anomaly item drops.
+- **Spawning Constraint:** Only instantiates via the dedicated `maps/night_boss_arena.json` module.
