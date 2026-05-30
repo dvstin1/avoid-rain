@@ -20,15 +20,21 @@ The `GameState` object manages the following data structures:
 - **WorldState:** Chapter ID, active modular sections, story flags, and respawn anchors.
 - **Persistence Snapshot:** Lifetime metrics, discovered bestiary, and serialized `run_state`.
 
-## 4. Climate Engine: The Bleed (Acid Rain)
-The macro-world features a global environmental threat loop known as "The Bleed." It cycles between states of atmospheric rest and active toxicity.
+## 4. Climate Engine: The Bleed (The Redacting Circle)
+"The Bleed" is a spatial contraction mechanic that shrinks a designated safe perimeter down toward the Night Boss Arena.
 
-### 1. The Bleed Lifecycle State Machine
-- **Clearance Phase:** Duration: 90 seconds. The atmosphere is clear. Standard exploration rules apply.
-- **Storm Phase (Downpour):** Duration: 45 seconds. A thick, "Toxic Lime" rain layer renders across the active camera view.
-- **The Core Constraint (Shelter Logic):** During the Storm phase, the engine evaluates the player's underlying tile:
-  - **Exposed:** Standing on open floor space triggers a damage-over-time (DoT) tick of 2 HP/sec.
-  - **Sheltered:** Standing under a structure tile (`"T"`) or inside a `Respite` block gates all acid damage to zero.
+### 1. Radial Proximity Math
+- **The Center Anchor:** Upon map generation, the engine registers the center coordinates of the Night Boss module: `(center_x, center_y)`.
+- **The Safe Zone Radius:** The engine tracks a float variable: `active_safe_radius`.
+- **The Exposure Condition:** During every update frame, the engine calculates the Euclidean distance between the player's position and the boss center:
+  - **Inside Circle:** If `Distance <= active_safe_radius`, the player is safe.
+  - **Outside Circle (In The Bleed):** If `Distance > active_safe_radius`, the player is exposed to the ink-storm. They receive damage over time (2 HP/sec) unless standing beneath a protective structure tile (`"T"`).
+
+### 2. The Step-Contraction Lifecycle
+The safe circle progresses through sequential stages:
+- **Phase 1: Static (Wait):** Radius is fixed at maximum scale (e.g., 8000 pixels).
+- **Phase 2: Collapsing (Contract):** Radius linearly interpolates downward toward a target interval value.
+- **Phase 3: Finality (Clamp):** The radius clamps permanently at a radius matching the Night Boss Arena boundaries (approx. 800 pixels).
 
 ## 5. Physics & Collision Architecture
 - **Order of Operations:** 1. Apply Velocity -> 2. Resolve Wall Collisions (AABB) -> 3. Boundary Clamp -> 4. Finalize Coordinates.
@@ -112,5 +118,4 @@ Minibosses do not persist through resets if they are dead, but they MUST persist
 Entity collision check subroutines must evaluate position vectors against the total compiled canvas dimensions, rather than local sub-map constraints.
 - **Boundaries:** Boundary tracking is enforced globally at `0 <= player.x < 440` and `0 <= player.y < 440` (measured in tile units).
 - **Seamless Cross-Blitting:** Local sub-map modules must not append boundary colliders along their outer frame edges (e.g., indices 0 and 39 for a 40x40 map). When modules are stitched into the master grid, their borders must remain perfectly passable to allow fluid traversal between adjacent nodes.
-
 

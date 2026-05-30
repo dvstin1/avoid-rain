@@ -114,9 +114,11 @@ class GameState:
         self.input_ratchet_latched = False
         self.defeated_miniboss_ids = set()
 
-        # Weather System: The Bleed
-        self.weather_mode = "CLEAR" # "CLEAR" or "STORM"
-        self.weather_timer = WEATHER_CLEAR_DURATION
+        # Weather System: The Bleed (Shrinking Circle)
+        self.weather_phase = "WAIT" # "WAIT", "SHRINK", "CLAMP"
+        self.weather_timer = WEATHER_WAIT_DURATION
+        self.active_safe_radius = WEATHER_MAX_RADIUS
+        self.target_radius = WEATHER_MAX_RADIUS
 
         self._save_queue = queue.Queue(maxsize=8)
         self._save_worker_running = True
@@ -290,34 +292,58 @@ class GameState:
             self.input_debounce_timer -= dt
             attack_pressed = False
 
-        # --- Weather Cycle: The Bleed ---
-        self.weather_timer -= dt
-        if self.weather_timer <= 0:
-            if self.weather_mode == "CLEAR":
-                self.weather_mode = "STORM"
-                self.weather_timer = WEATHER_STORM_DURATION
-                print("[WEATHER] The Bleed has begun. Seek shelter!")
-            else:
-                self.weather_mode = "CLEAR"
-                self.weather_timer = WEATHER_CLEAR_DURATION
-                print("[WEATHER] The atmosphere has cleared.")
+        # --- Weather System: The Redacting Circle ---
+        # Only active in the macro-world (if boss_coords exist)
+        boss_coords = getattr(self.world, 'boss_coords', None)
+        if boss_coords:
+            bcx, bcy = boss_coords['x'] * TILE_SIZE, boss_coords['y'] * TILE_SIZE
+            
+            # Phase Management
+            if self.weather_phase == "WAIT":
+                self.weather_timer -= dt
+                if self.weather_timer <= 0:
+                    self.weather_phase = "SHRINK"
+                    self.weather_timer = WEATHER_SHRINK_DURATION
+                    # Target a 25% reduction every shrink cycle
+                    self.target_radius = max(WEATHER_MIN_RADIUS, self.active_safe_radius * 0.75)
+                    print(f"[THE BLEED] The circle is closing. Target radius: {self.target_radius}")
+            
+            elif self.weather_phase == "SHRINK":
+                if self.weather_timer > 0:
+                    shrink_speed = (self.active_safe_radius - self.target_radius) / self.weather_timer
+                    self.active_safe_radius -= shrink_speed * dt
+                    self.weather_timer -= dt
+                
+                if self.weather_timer <= 0:
+                    self.active_safe_radius = self.target_radius
+                    if self.active_safe_radius <= WEATHER_MIN_RADIUS:
+                        self.weather_phase = "CLAMP"
+                        print("[THE BLEED] The circle has reached finality.")
+                    else:
+                        self.weather_phase = "WAIT"
+                        self.weather_timer = WEATHER_WAIT_DURATION
+                        print("[THE BLEED] The circle has paused.")
 
-        # Apply Storm Damage
-        if self.weather_mode == "STORM":
-            # Check player shelter
+            # Exposure Damage Logic
             px, py = self.player.get_center()
-            tx = int(px // TILE_SIZE)
-            ty = int(py // TILE_SIZE)
+            dist_sq = (px - bcx)**2 + (py - bcy)**2
+            is_outside = dist_sq > self.active_safe_radius**2
             
-            is_sheltered = False
-            if 0 <= ty < len(self.world.grid) and 0 <= tx < len(self.world.grid[0]):
-                tile_type = self.world.grid[ty][tx]
-                if tile_type in (TILE_STRUCTURE, TILE_RESPITE):
-                    is_sheltered = True
-            
-            if not is_sheltered:
-                damage = WEATHER_DAMAGE_PER_SECOND * dt
-                self.player.take_damage(damage)
+            if is_outside:
+                # Check for shelter override
+                tx, ty = int(px // TILE_SIZE), int(py // TILE_SIZE)
+                is_sheltered = False
+                if 0 <= ty < len(self.world.grid) and 0 <= tx < len(self.world.grid[0]):
+                    tile_type = self.world.grid[ty][tx]
+                    if tile_type in (TILE_STRUCTURE, TILE_RESPITE):
+                        is_sheltered = True
+                
+                if not is_sheltered:
+                    damage = WEATHER_DAMAGE_PER_SECOND * dt
+                    self.player.take_damage(damage)
+        else:
+            # Sanctuary fallback: fully safe
+            self.active_safe_radius = WEATHER_MAX_RADIUS
 
         # Sanctuary Level Reset Rule
         if getattr(self.world, 'name', '') == "sanctuary":

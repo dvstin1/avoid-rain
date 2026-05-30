@@ -406,7 +406,9 @@ class LevelLoader:
         if spawn_override:
             player_start = (spawn_override["x"] * TILE_SIZE, spawn_override["y"] * TILE_SIZE)
 
-        return grid, interactables, warp_tiles, player_start, enemies
+        boss_coords = data.get("boss_coords")
+
+        return grid, interactables, warp_tiles, player_start, enemies, boss_coords
 
     @staticmethod
     def parse_map(prototype_array, entity_data=None, saved_enemies=None, map_name="unknown", defeated_ids=None):

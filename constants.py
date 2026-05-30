@@ -173,9 +173,12 @@ POOL_MONTHLY_REPORT = ["maps/forest.json", "maps/ruins.json"]
 POOL_SPECIAL_EDITION = [] # Currently empty, will trigger fallback logic
 POOL_CORRIDOR = ["maps/smallcave.json"]
 
-# Weather System: The Bleed
-WEATHER_CLEAR_DURATION = 90.0 # Seconds
-WEATHER_STORM_DURATION = 45.0 # Seconds
+# Weather System: The Bleed (Shrinking Circle)
+# Measurements in pixels
+WEATHER_MAX_RADIUS = 10000.0
+WEATHER_MIN_RADIUS = 800.0  # Approx size of 40x40 module
+WEATHER_WAIT_DURATION = 60.0  # Phase 1 duration
+WEATHER_SHRINK_DURATION = 45.0 # Phase 2 duration
 WEATHER_DAMAGE_PER_SECOND = 2.0
 COLOR_TOXIC_RAIN = (120, 255, 100, 100) # RGBA for translucent toxic green
 

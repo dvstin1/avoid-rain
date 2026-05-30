@@ -121,28 +121,69 @@ class Renderer:
         self.screen.blit(instr, (sw // 2 - instr.get_width() // 2, sh - 100))
 
     def draw_weather(self, state):
-        """Draw screen-space weather effects."""
-        if getattr(state, 'weather_mode', 'CLEAR') != 'STORM':
+        """Draw screen-space weather effects and the shrinking safe circle."""
+        boss_coords = getattr(state.world, 'boss_coords', None)
+        if not boss_coords:
             return
 
         sw, sh = self.screen.get_width(), self.screen.get_height()
-        weather_surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        ox, oy = state.camera.get_offset()
+        bcx, bcy = boss_coords['x'] * constants.TILE_SIZE - ox, boss_coords['y'] * constants.TILE_SIZE - oy
+        radius = state.active_safe_radius
+
+        # 1. Draw the Safe Circle Boundary
+        # For performance, we only draw if the boundary is visible on screen
+        # We'll draw a large dark overlay with a hole for the safe zone
+        overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
         
-        # Toxic Rain Effect: Vertical lines
-        import random
-        # Use ticks for movement
-        ticks = pygame.time.get_ticks()
-        random.seed(42) # Fixed seed for base positions, move based on ticks
+        # Determine how much "storm" to show. 
+        # If player is outside, show full intensity. If inside, show it at the edges.
+        px, py = state.player.get_center()
+        pcx, pcy = px - ox, py - oy
+        dist = ((pcx - bcx)**2 + (pcy - bcy)**2)**0.5
+        
+        # Draw the "Redacting Circle" (Translucent dark overlay outside the safe zone)
+        # We use a large rectangle with a circular cutout (if possible) or just draw particles outside
+        
+        # 2. Particle System (Performant Vertical Rain)
+        # We'll use a fixed number of particles and wrap them around the screen
+        if not hasattr(self, 'rain_particles'):
+            import random
+            self.rain_particles = []
+            for _ in range(200):
+                self.rain_particles.append({
+                    'x': random.randint(0, sw),
+                    'y': random.randint(0, sh),
+                    'speed': random.randint(400, 700),
+                    'len': random.randint(15, 30)
+                })
+
+        # Update and Draw particles
+        # Use a constant speed factor scaled by ticks to avoid local dt dependency in renderer if needed
+        # But here we use a global time-based approach for smoothness
+        ticks = pygame.time.get_ticks() / 1000.0
         
         rain_color = constants.COLOR_TOXIC_RAIN
-        for _ in range(120): # Number of raindrops
-            rx = random.randint(0, sw)
-            base_ry = random.randint(0, sh)
-            ry = (base_ry + ticks // 1) % sh # Faster fall
-            length = random.randint(15, 25)
-            pygame.draw.line(weather_surf, rain_color, (rx, ry), (rx, ry + length), 2)
+        for p in self.rain_particles:
+            # Shift Y based on time and speed
+            ry = (p['y'] + ticks * p['speed']) % sh
+            rx = p['x']
+            
+            # Distance check: Only draw if OUTSIDE the safe circle
+            # Check world distance or screen distance
+            world_rx, world_ry = rx + ox, ry + oy
+            wb_x, wb_y = boss_coords['x'] * constants.TILE_SIZE, boss_coords['y'] * constants.TILE_SIZE
+            d_sq = (world_rx - wb_x)**2 + (world_ry - wb_y)**2
+            
+            if d_sq > radius**2:
+                pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
 
-        self.screen.blit(weather_surf, (0, 0))
+        # 3. Draw a glowing edge for the circle
+        # Only if it's within a reasonable distance to be seen
+        if 0 < radius < 10000:
+            pygame.draw.circle(overlay, (255, 100, 0, 150), (int(bcx), int(bcy)), int(radius), 3)
+
+        self.screen.blit(overlay, (0, 0))
 
     def render(self, state):
         """Draw the game state using a camera."""

@@ -19,6 +19,8 @@ class WorldGenerator:
         self.sockets = []
         self.spawn_x = 0
         self.spawn_y = 0
+        self.boss_x = 0
+        self.boss_y = 0
         
         # Asset pools (Strictly mapped by size)
         self.asset_pools = {
@@ -95,6 +97,8 @@ class WorldGenerator:
         inner_40s = [s for s in self.sockets if "40x40" in s["tags"] and "inner" in s["tags"]]
         boss_socket = random.choice(inner_40s)
         boss_socket["active_plug"] = "maps/night_boss_arena.json"
+        self.boss_x = boss_socket["bounds"]["x"] + 20
+        self.boss_y = boss_socket["bounds"]["y"] + 20
         
         # 5. The Pool Backfill Pass
         from constants import POOL_SPECIAL_EDITION
@@ -128,7 +132,8 @@ class WorldGenerator:
             "grid": base_grid,
             "entities": {},
             "module_sockets": module_sockets,
-            "spawn_coords": {"x": self.spawn_x, "y": self.spawn_y}
+            "spawn_coords": {"x": self.spawn_x, "y": self.spawn_y},
+            "boss_coords": {"x": self.boss_x, "y": self.boss_y}
         }
         
         os.makedirs(os.path.dirname(filename), exist_ok=True)
