@@ -307,6 +307,7 @@ class GameState:
 
         # Sanctuary Level Reset Rule
         if getattr(self.world, 'name', '') == "sanctuary":
+            self.player.is_exposed = False
             if self.player.stats.get("edification", 0) != 1:
                 self.player.stats["edification"] = 1
 

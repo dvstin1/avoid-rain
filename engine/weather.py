@@ -70,6 +70,7 @@ class WeatherManager:
         dist_sq = (px - bcx)**2 + (py - bcy)**2
         is_outside = dist_sq > self.active_safe_radius**2
         
+        player.is_exposed = False # Reset every frame before check
         if is_outside:
             # Check for shelter override
             tx, ty = int(px // TILE_SIZE), int(py // TILE_SIZE)
@@ -80,6 +81,7 @@ class WeatherManager:
                     is_sheltered = True
             
             if not is_sheltered:
+                player.is_exposed = True
                 # Fix: subtraction must be exactly 2 HP per second
                 # Bypassing combat stagger for environmental damage
                 damage = 2.0 * dt

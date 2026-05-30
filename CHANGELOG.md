@@ -362,6 +362,14 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Interval Management:** Established a 40-second pause between contraction phases to allow for tactical traversal and exploration.
 - **Grace Period Preservation:** Maintained the strict 60-second wide-open initial grace period before the first contraction begins.
 
+## [Recently Completed]
+### State & UI Refinement: Exposure Logic & Minimap Stability
+- **Exposure State Fix:** Implemented explicit `is_exposed` tracking in `Player` and `WeatherManager`. Damage now correctly halts the moment a player enters the safe zone or shelter.
+- **Sanctuary Damage Wipe:** Enforced a hard reset of the exposure state upon returning to the Sanctuary hub.
+- **Minimap Stability:** Resolved the "black screen" minimap bug by enforcing strict integer casting and boundary clamping across the 440x440 grid.
+- **Improved Radar Visuals:** Updated radar colors to high-contrast White (player) and Red (enemies), and integrated the safe circle perimeter line into the minimap display.
+- **Hub UI Logic:** Gated the minimap to automatically hide while in the Sanctuary hub.
+
 ### Macro Safe Zone Initialization Repair & Initial Grace Period Lock
 - **Massive Starting Radius:** Enforced a 620.0 unit initial `active_safe_radius` to ensure the entire 440x440 world is safe upon run start.
 - **Initial Grace Period:** Implemented a strict 60-second grace period during which all rain visuals and environmental hazards are suppressed.

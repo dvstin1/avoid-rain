@@ -147,3 +147,14 @@ The circle contraction does not crawl incrementally. It operates strictly across
 - **Step 1 (The First Constraction):** Radius shrinks smoothly down to **300 tiles**, then pauses for a 40-second breather.
 - **Step 2 (The Second Contraction):** Radius shrinks smoothly down to **120 tiles** (clamping tightly around the macro-zone room cluster containing the arena), then pauses for a final 40-second breather.
 - **Step 3 (The Final Collapse):** Radius contracts down to exactly **40 tiles**, locking perfectly over the outer margins of the Night Boss Arena and triggering the boss spawn.
+
+## 18. State Purification Rules & Area Transitions
+
+### 1. Environmental Damage State Sanitation
+To prevent persistent or cross-map damage leaks, all environmental status flags must be explicitly purged upon structural events:
+- **Frame Rule:** The player's exposure metric must evaluate an absolute conditional check every frame. If `Distance <= active_safe_radius`, the condition `player.is_exposed` MUST evaluate to `False`.
+- **Hub Initialization Rule:** Loading or entering `maps/sanctuary.json` instantly forces a global environment wipe: `player.is_exposed = False` and the weather damage loops are completely deactivated.
+
+### 2. Minimap Surface Coordinate Clamping
+The minimap drawing thread must use strict floor-integer operations when applying scale factors to prevent canvas blackouts:
+- **Math Constraints:** All translated radar coordinates must use integer casting: `int(player_x * zoom_factor)`. Slicing loops must clamp bounding rects tightly between `0` and the maximum width/height surface constraints of the master array canvas to avoid out-of-bounds rendering surface drops.
