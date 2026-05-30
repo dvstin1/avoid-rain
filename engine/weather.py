@@ -16,6 +16,7 @@ class WeatherManager:
         # Sizing Steps (in Tiles)
         self.steps = [300.0, 120.0, 40.0]
         self.current_step_idx = 0
+        self.pending_milestone_text = None
         
         # Bugfix: Initialize at massive 620.0 units (tiles)
         # 620 * 40 = 24800 pixels, covers the 17600px map
@@ -35,6 +36,7 @@ class WeatherManager:
                 self.bleed_state = "SHRINKING"
                 self.timer = WEATHER_SHRINK_DURATION
                 self.target_radius = self.steps[self.current_step_idx] * TILE_SIZE
+                self.pending_milestone_text = "THE INK BEGINS TO RUN"
                 print("[THE BLEED] The circle is closing.")
             return # No rain visuals or damage during grace
 
@@ -59,6 +61,7 @@ class WeatherManager:
                 # Check if we reached the final step
                 if self.current_step_idx >= len(self.steps):
                     self.bleed_state = "CLAMPED"
+                    self.pending_milestone_text = "THE FINAL PARAGRAPH LOCKS"
                     print("[THE BLEED] The circle has reached finality.")
                 else:
                     self.bleed_state = "WAIT"

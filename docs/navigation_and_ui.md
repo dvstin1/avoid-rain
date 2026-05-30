@@ -112,3 +112,14 @@ The overlay renders centered on the camera viewport canvas with an asynchronous 
 1. **Fade In (0.5s):** Text alpha scales linearly from `0` to `255`.
 2. **Sustain (1.5s):** Text alpha remains locked at maximum opacity `255`.
 3. **Fade Out (1.0s):** Text alpha scales linearly back down to `0`, closing the UI rendering instance cleanly.
+
+### 3. Environmental State Announcements (The Bleed Triggers)
+The Typographic Bloom rendering layer serves as the primary system-wide alert interface. It intercepts weather logic transitions to display screen-centered announcements using lore-accurate terminology:
+- **Contraction Commencement:** When the 60-second initial grace period hits zero, the screen blooms with the text: `"THE INK BEGINS TO RUN"`.
+- **Final Arena Clamp:** The frame the safe circle contracts to its absolute 40-tile limit, the screen blooms with the text: `"THE FINAL PARAGRAPH LOCKS"`.
+
+## 10. Respite Menu Leveling Interfaces
+
+### 1. Dynamic String Evaluation
+The Respite leveling panel text must re-evaluate its component strings dynamically upon every update frame or button click action. 
+- The target readouts for `[ Current Level: X ]` and `[ Cost to Amplify: Y Pages ]` must read values directly from the live `player.stats` data layer rather than displaying stale, cached constructor text strings.

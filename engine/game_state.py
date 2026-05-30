@@ -304,6 +304,12 @@ class GameState:
         self.active_safe_radius = self.weather_manager.active_safe_radius
         self.bleed_state = self.weather_manager.bleed_state
 
+        # Milestone Bloom Trigger
+        if self.weather_manager.pending_milestone_text:
+            self.bloom_text = self.weather_manager.pending_milestone_text
+            self.bloom_timer = BLOOM_TOTAL_DURATION
+            self.weather_manager.pending_milestone_text = None
+
         # --- Typographic Bloom: Zone Discovery ---
         if getattr(self.world, 'name', '') != "sanctuary":
             px, py = self.player.get_center()
@@ -369,10 +375,12 @@ class GameState:
             # Respite Menu Logic
             active_respite = getattr(self, 'active_respite', None)
             if active_respite:
+                # Dynamic Refresh: Recalculate costs and levels every frame/interaction
+                active_respite.execute_interaction(self)
+
                 # R - Rest
                 if actions.get('key_r'):
                     active_respite.execute_rest(self)
-                    active_respite.execute_interaction(self) # Refresh menu text
 
                 # 1 - Edification (Only if rested and not latched)
                 elif not self.input_ratchet_latched and self.player.has_rested_this_session:

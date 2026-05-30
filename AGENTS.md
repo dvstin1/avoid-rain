@@ -41,6 +41,3 @@
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
 ## Active Task: 
-
-
-

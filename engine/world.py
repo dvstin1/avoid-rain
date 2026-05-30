@@ -73,8 +73,10 @@ class WarpPortal(GameObject):
                 game_state.player.flask_charges = int(FLASK_MAX_CHARGES)
                 game_state.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
                 game_state.player.active_weapon_idx = 0
-                # Lifecycle Boundary: Permanent Sanctuary return clears session
+                
+                # Economy Reset: Clear current Page count for next run
                 if game_state.stats:
+                    game_state.stats.data["lifetime_stats"]["pages_collected"] = 0
                     game_state.stats.data["active_session_in_progress"] = False
                     game_state.stats.data["run_state"] = None
             else:

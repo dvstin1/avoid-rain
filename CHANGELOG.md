@@ -378,6 +378,13 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Exposure Fail-Safe:** Explicitly synchronized `player.is_exposed` reset logic to halt environmental damage instantly upon entering safe zones.
 
 ## [Recently Completed]
+### Polish & Bugfix Pass: Economy & Feedback
+- **Economy Reset:** Implemented an absolute Page count reset upon returning to the Sanctuary hub, ensuring a fresh start for every run.
+- **Dynamic Respite Menu:** Refactored the level-up menu to recalculate player stats and page costs in real-time, eliminating stale data blits.
+- **Cinematic Weather Alerts:** Integrated the "Typographic Bloom" system with weather milestones; the game now flashes "THE INK BEGINS TO RUN" and "THE FINAL PARAGRAPH LOCKS" to signal critical safe-zone shifts.
+- **Health Restoration:** Confirmed full HP restoration when entering the Sanctuary hub to facilitate run preparation.
+
+## [Recently Completed]
 ### Typographic Bloom: Zone Discovery Overlays
 - **Discovery Detection:** Implemented real-time zone tracking in `GameState` that triggers title events when entering any of the nine major 120x120 room nodes.
 - **Stylized Overlays:** Developed an alpha-blended rendering layer that displays large, stylized "noir" title cards (e.g., "THE SCORCHED MARGIN") across the camera viewport.
