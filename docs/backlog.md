@@ -41,3 +41,8 @@
   - **The Engagement Hook:** When an entity with `.is_miniboss == True` enters an aggressive/hostile state with the player, the engine fades down the exploration track and crossfades into `miniboss_combat.ogg`.
   - **The 15-Meter Proximity Rule:** The engine continuously calculates the Euclidean distance between the active player sprite and the hostile miniboss. 
   - **The 3-Second Ticking Cooldown:** If the distance exceeds 15 meters continuously for greater than or equal to 3.0 seconds, the engine flags the combat track to fade out and smoothly restores the regional exploration theme.
+
+## 6. Binder Scripts (Upgrade System)
+- **Concept:** The Binder NPC acts as a procedural artisan, weaving "Scripts" (operational metaphors like "Hemming Script" for HP buffs) into the player's frame using Torn Pages.
+- **Mechanics:** Scripts act as tiny compilers in the margins altering stat allocations. They can be combined but are subject to "syntax conflicts" where scripts touching the same stat will fight, with the stronger one winning.
+- **Lore Integration:** The Binder seeks to "perfect the stitch." Completing a specific sequence of failed scripts may offer a path to a different ending, halting the ink-bleed cycle.
