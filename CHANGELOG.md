@@ -15,6 +15,12 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### Emergency Fix: World Generator Regression & Sanctuary Restoration
+- **Sanctuary Restoration:** Restored `maps/sanctuary.json` as an independent hub world, removing it from the macro-generation pool.
+- **Symmetric Layout Correction:** Fixed the world generator to implement the true **120-40-120-40-120** symmetric grid (440x440).
+- **The Colophon (New Spawn Room):** Created a dedicated 40x40 starting room at `maps/the_colophon.json`.
+- **Logic Refinement:** Updated the allocation pipeline to place the player in a random outer corridor and the boss in an inner junction.
+
 ### Data-Driven Macro-World Layout Generator & Theme Integration
 - **The Colophon (Spawn):** Renamed the `sanctuary` area to "The Colophon" for theme integration and updated `docs/modular_system.md`.
 - **Macro-World Framework:** Built `engine/world_generator.py` to support a symmetric 440x440 layout matrix (11x11 grid of 40x40 sockets).
