@@ -66,21 +66,13 @@ class WarpPortal(GameObject):
 
             game_state.world = create_world(self.target_name)
 
-            # Sanctuary Reset Rule: Enforce automatic item and health reset
+            # Weather Sync Rule: Update boss center coordinates for the safe circle
+            new_boss_coords = getattr(game_state.world, 'boss_coords', None)
+            game_state.weather_manager.set_boss_coords(new_boss_coords)
+
+            # Sanctuary Reset Rule: Enforce absolute state purification
             if self.target_name == "sanctuary":
-                from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, SWORD_DAMAGE
-                game_state.player.hp = float(PLAYER_MAX_HP)
-                game_state.player.flask_charges = int(FLASK_MAX_CHARGES)
-                game_state.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
-                game_state.player.active_weapon_idx = 0
-                
-                # Economy Reset: Clear current Page count for next run
-                if game_state.stats:
-                    # Robust reset: Clear both lifetime_stats AND active run state references
-                    self.session_pages = 0 # Explicit local ref if exists
-                    game_state.stats.data["lifetime_stats"]["pages_collected"] = 0
-                    game_state.stats.data["active_session_in_progress"] = False
-                    game_state.stats.data["run_state"] = None
+                game_state.on_enter_sanctuary()
             else:
                 # State Reset Rule: When starting a new run through the book, reset result to INIT
                 if game_state.stats:
@@ -190,7 +182,7 @@ class Wellspring(GameObject):
         bestiary = game_state.stats.data.get("discovered_bestiary", {})
 
         # Build multiline text
-        text = "Timeline Reflection:\n"
+        text = f"Timeline Reflection: Draft #{stats.get('runs_started', 0)}\n"
         text += f"Chapters Cleared: {stats.get('wins_chapters_cleared', 0)}\n"
         text += f"Bleed Wipes: {stats.get('losses_bleed_wipes', 0)}\n"
         text += f"Standard Respawns: {stats.get('deaths_standard_respawns', 0)}\n"
@@ -262,6 +254,17 @@ class Respite(GameObject):
 
     def execute_interaction(self, game_state):
         """Open the Respite Menu."""
+        # Rule: Respite Deactivation (Drowning in Ink)
+        # If the respite is outside the safe circle, it is inactive.
+        rx, ry = self.x + self.width // 2, self.y + self.height // 2
+        if not game_state.weather_manager.is_pos_safe(rx, ry):
+            game_state.active_dialogue = {
+                "speaker": self.name,
+                "text": "The Respite is smothered under a thick layer of static ink. "
+                        "The anchor has failed here. You must move deeper toward the center."
+            }
+            return
+
         game_state.dialogue_mode = "EXPANDED"
         game_state.active_respite = self # Store reference for menu actions
         
@@ -390,9 +393,9 @@ class LevelLoader:
         if spawn_override:
             player_start = (spawn_override["x"] * TILE_SIZE, spawn_override["y"] * TILE_SIZE)
 
-        boss_coords = data.get("boss_coords")
+        boss_coords_list = data.get("boss_coords_list")
 
-        return grid, interactables, warp_tiles, player_start, enemies, boss_coords
+        return grid, interactables, warp_tiles, player_start, enemies, boss_coords_list
 
     @staticmethod
     def parse_map(prototype_array, entity_data=None, saved_enemies=None, map_name="unknown", defeated_ids=None):
@@ -433,7 +436,7 @@ class LevelLoader:
         for y, row in enumerate(prototype_array):
             for x, char in enumerate(row):
 
-                # Only static walls, frame, and empty space go into the grid
+                # 1. Tile Grid Assignment (Static Topography)
                 if char in ('#', 'X'):
                     grid[y][x] = TILE_WALL
                 elif char == 'M':
@@ -445,6 +448,7 @@ class LevelLoader:
                 pos = (x * TILE_SIZE, y * TILE_SIZE)
                 dim = (TILE_SIZE, TILE_SIZE)
 
+                # 2. Entity & Interaction Spawning (Dynamic Overlay)
                 if char == 'W':
                     # Warp Portal
                     data = entity_data.get((x, y), {})
@@ -540,6 +544,10 @@ class LevelLoader:
                     rock.name = "Rock"
                     interactables.append(rock)
 
+                elif char == 'P':
+                    # Player Start hook
+                    player_start = (pos[0], pos[1])
+
                 elif char in SYMBOL_REGISTRY:
                     # Generic Enemy Spawner (Bypassed if loading from save)
                     if not saved_enemies:
@@ -548,17 +556,12 @@ class LevelLoader:
                         
                         # Filter Rule: If it's a miniboss and already defeated, skip spawning
                         enemy_cls = SYMBOL_REGISTRY[char]
-                        # We need to know if the class is a miniboss BEFORE instantiating if possible
-                        # or just check the instance.
                         temp_enemy = enemy_cls(pos[0], pos[1], id=enemy_id)
                         if temp_enemy.is_miniboss and enemy_id in defeated_ids:
                             print(f"[DEBUG] Elite {enemy_id} already redacted; skipping spawn.")
                         else:
                             enemies.append(temp_enemy)
 
-                elif char == 'P':
-                    # Player Start hook
-                    player_start = (pos[0], pos[1])
 
         return grid, interactables, warp_tiles, player_start, enemies
 
