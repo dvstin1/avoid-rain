@@ -122,6 +122,9 @@ class Renderer:
 
     def draw_weather(self, state):
         """Draw screen-space weather effects and the shrinking safe circle."""
+        if getattr(state, 'bleed_state', 'CLEAR') == 'GRACE_PERIOD':
+            return
+
         boss_coords = getattr(state.world, 'boss_coords', None)
         if not boss_coords:
             return
@@ -132,21 +135,9 @@ class Renderer:
         radius = state.active_safe_radius
 
         # 1. Draw the Safe Circle Boundary
-        # For performance, we only draw if the boundary is visible on screen
-        # We'll draw a large dark overlay with a hole for the safe zone
         overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
         
-        # Determine how much "storm" to show. 
-        # If player is outside, show full intensity. If inside, show it at the edges.
-        px, py = state.player.get_center()
-        pcx, pcy = px - ox, py - oy
-        dist = ((pcx - bcx)**2 + (pcy - bcy)**2)**0.5
-        
-        # Draw the "Redacting Circle" (Translucent dark overlay outside the safe zone)
-        # We use a large rectangle with a circular cutout (if possible) or just draw particles outside
-        
         # 2. Particle System (Performant Vertical Rain)
-        # We'll use a fixed number of particles and wrap them around the screen
         if not hasattr(self, 'rain_particles'):
             import random
             self.rain_particles = []
@@ -159,28 +150,25 @@ class Renderer:
                 })
 
         # Update and Draw particles
-        # Use a constant speed factor scaled by ticks to avoid local dt dependency in renderer if needed
-        # But here we use a global time-based approach for smoothness
         ticks = pygame.time.get_ticks() / 1000.0
         
         rain_color = constants.COLOR_TOXIC_RAIN
+        wb_x, wb_y = boss_coords['x'] * constants.TILE_SIZE, boss_coords['y'] * constants.TILE_SIZE
+        rad_sq = radius**2
+
         for p in self.rain_particles:
-            # Shift Y based on time and speed
             ry = (p['y'] + ticks * p['speed']) % sh
             rx = p['x']
             
             # Distance check: Only draw if OUTSIDE the safe circle
-            # Check world distance or screen distance
             world_rx, world_ry = rx + ox, ry + oy
-            wb_x, wb_y = boss_coords['x'] * constants.TILE_SIZE, boss_coords['y'] * constants.TILE_SIZE
             d_sq = (world_rx - wb_x)**2 + (world_ry - wb_y)**2
             
-            if d_sq > radius**2:
+            if d_sq > rad_sq:
                 pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
 
         # 3. Draw a glowing edge for the circle
-        # Only if it's within a reasonable distance to be seen
-        if 0 < radius < 10000:
+        if 0 < radius < 30000:
             pygame.draw.circle(overlay, (255, 100, 0, 150), (int(bcx), int(bcy)), int(radius), 3)
 
         self.screen.blit(overlay, (0, 0))
