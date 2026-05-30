@@ -14,17 +14,31 @@ from rendering.renderer import Renderer
 
 # pylint: disable=no-member
 
-def handle_title_events(renderer, title_menu: TitleMenu):
-    """Handle events during the title screen with a menu controller.
-
-    This function updates menu navigation and sets the confirm flag on the
-    TitleMenu when the user presses confirm. It does not perform transition
-    actions which are handled in the main loop where application state is
-    available.
-    """
+def handle_title_events(state, renderer, title_menu: TitleMenu):
+    """Handle events during the title screen with a menu controller and Auto Input Mode."""
+    from constants import INPUT_MODE_KEYBOARD, INPUT_MODE_GAMEPAD
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False, False
+        
+        # Mode Switching Rule
+        if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
+            state.input_mode = INPUT_MODE_KEYBOARD
+        if event.type in (pygame.JOYBUTTONDOWN, pygame.JOYAXISMOTION, pygame.JOYHATMOTION):
+            state.input_mode = INPUT_MODE_GAMEPAD
+
+        if event.type == pygame.JOYBUTTONDOWN:
+            if event.button == 0: title_menu.confirm() # Cross/A
+            if event.button == 1: # Circle/B (Cancel)
+                if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
+                    title_menu.state = TitleMenuState.MAIN
+                elif getattr(title_menu.state, 'name', '') == 'CONTROLS':
+                    title_menu.state = TitleMenuState.MAIN
+        
+        if event.type == pygame.JOYHATMOTION:
+            if event.value[1] > 0: title_menu.navigate('up')
+            if event.value[1] < 0: title_menu.navigate('down')
+
         if event.type == pygame.KEYDOWN:
             # If we are in controls state, handle SPACE/ENTER/ESCAPE as 'back'
             if getattr(title_menu.state, 'name', '') == 'CONTROLS':
@@ -54,11 +68,9 @@ def handle_title_events(renderer, title_menu: TitleMenu):
                 title_menu.confirm()
     return True, True
 
-def handle_game_events(pause_menu: PauseMenu | None = None):
-    """Handle events during the main game loop.
-
-    If a PauseMenu is provided, ESC toggles the menu instead of exiting.
-    """
+def handle_game_events(state, pause_menu: PauseMenu | None = None):
+    """Handle events during the main game loop with Auto Input Mode switching."""
+    from constants import INPUT_MODE_KEYBOARD, INPUT_MODE_GAMEPAD, JOYSTICK_DEADZONE
     running = True
     attack = False
     flask = False
@@ -66,24 +78,57 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
     swap = False
     mouse_click = None
     ratchet_reset = False
+    
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        
+        # Mode Switching Rule: KEYBOARD
+        if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
+            state.input_mode = INPUT_MODE_KEYBOARD
+        # Mode Switching Rule: GAMEPAD
+        if event.type == pygame.JOYBUTTONDOWN or event.type == pygame.JOYHATMOTION:
+            state.input_mode = INPUT_MODE_GAMEPAD
+        if event.type == pygame.JOYAXISMOTION:
+            if abs(event.value) > JOYSTICK_DEADZONE:
+                state.input_mode = INPUT_MODE_GAMEPAD
+
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1: # Left click
                 mouse_click = event.pos
         if event.type == pygame.MOUSEBUTTONUP:
             if event.button == 1:
                 ratchet_reset = True
+        
+        # Controller Buttons
+        if event.type == pygame.JOYBUTTONDOWN:
+            # Sony PS5 / Standard Mapping
+            # 0: Cross, 1: Circle, 2: Square, 3: Triangle
+            if event.button == 0: attack = True # Confirm/Swing
+            if event.button == 1: dash = True   # Cancel/Dash
+            if event.button == 3: flask = True  # Flask
+            if event.button == 4: swap = True   # L1 Swap
+            if event.button == 6: # Options/Share
+                if pause_menu: pause_menu.toggle()
+
+        if event.type == pygame.JOYBUTTONUP:
+            ratchet_reset = True
+        
+        # D-pad Navigation for Menus
+        if event.type == pygame.JOYHATMOTION:
+            state.input_mode = INPUT_MODE_GAMEPAD
+            if pause_menu and pause_menu.is_open():
+                if event.value[1] > 0: pause_menu.navigate('up')
+                if event.value[1] < 0: pause_menu.navigate('down')
+
         if event.type == pygame.KEYUP:
             ratchet_reset = True
+        
         if event.type == pygame.KEYDOWN:
-            # If we are in controls state in the pause menu, SPACE/ENTER/ESCAPE returns to MAIN
             if pause_menu is not None and pause_menu.is_open() and getattr(pause_menu.state, 'name', '') == 'CONTROLS':
                 from engine.pause_menu import PauseMenuState
                 if event.key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
                     pause_menu.state = PauseMenuState.MAIN
-                # Swallow all other keys while in controls modal
                 continue
 
             if event.key == pygame.K_ESCAPE:
@@ -97,7 +142,6 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
                 flask = True
             if event.key == pygame.K_LSHIFT:
                 dash = True
-            # When the pause menu is open, allow navigation and confirm via arrow keys and Enter
             if pause_menu is not None and pause_menu.is_open():
                 if event.key in (pygame.K_UP, pygame.K_w):
                     pause_menu.navigate('up')
@@ -112,23 +156,50 @@ def handle_game_events(pause_menu: PauseMenu | None = None):
     return running, attack, flask, dash, swap, mouse_click, ratchet_reset
 
 
-def get_movement_actions():
-    """Poll keyboard for movement actions."""
-    move_dir = [0, 0]
+def get_movement_actions(state):
+    """Poll keyboard and joysticks for movement actions."""
+    from constants import JOYSTICK_DEADZONE
+    move_dir = [0.0, 0.0]
+    
+    # 1. Keyboard Polling
     keys = pygame.key.get_pressed()
-    if keys[pygame.K_w]:
-        move_dir[1] -= 1
-    if keys[pygame.K_s]:
-        move_dir[1] += 1
-    if keys[pygame.K_a]:
-        move_dir[0] -= 1
-    if keys[pygame.K_d]:
-        move_dir[0] += 1
+    if keys[pygame.K_w]: move_dir[1] -= 1
+    if keys[pygame.K_s]: move_dir[1] += 1
+    if keys[pygame.K_a]: move_dir[0] -= 1
+    if keys[pygame.K_d]: move_dir[0] += 1
+    
+    # 2. Gamepad Polling (If active)
+    if pygame.joystick.get_count() > 0:
+        joy = pygame.joystick.Joystick(0)
+        # Left Stick (Axes 0 and 1)
+        jx = joy.get_axis(0)
+        jy = joy.get_axis(1)
+        
+        if abs(jx) > JOYSTICK_DEADZONE: move_dir[0] += jx
+        if abs(jy) > JOYSTICK_DEADZONE: move_dir[1] += jy
+        
+        # D-Pad (Hat 0)
+        hat = joy.get_hat(0)
+        move_dir[0] += hat[0]
+        move_dir[1] -= hat[1] # Hat Y is inverted (1 is up)
+
+    # Normalize if exceeding 1.0 (combined inputs)
+    mag = (move_dir[0]**2 + move_dir[1]**2)**0.5
+    if mag > 1.0:
+        move_dir[0] /= mag
+        move_dir[1] /= mag
+        
     return move_dir
 
 def main():
     """Main application loop."""
     pygame.init()
+    pygame.joystick.init()
+    joysticks = [pygame.joystick.Joystick(i) for i in range(pygame.joystick.get_count())]
+    for j in joysticks:
+        j.init()
+        print(f"[INPUT] Detected Gamepad: {j.get_name()}")
+
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption(TITLE)
     clock = pygame.time.Clock()
@@ -222,7 +293,7 @@ def main():
     try:
         while running:
             if in_title:
-                in_title, running = handle_title_events(renderer, title_menu)
+                in_title, running = handle_title_events(state, renderer, title_menu)
                 # Pass the whole TitleMenu so the renderer can render dynamic options
                 renderer.draw_title_screen(title_menu)
                 # If the user confirmed a title selection, handle it here
@@ -282,7 +353,7 @@ def main():
                 clock.tick(FPS)
             else:
                 dt = clock.tick(FPS) / 1000.0
-                ev_res = handle_game_events(pause_menu=pause_menu)
+                ev_res = handle_game_events(state, pause_menu=pause_menu)
                 running, attack, flask, dash, swap, mouse_click, ratchet_reset = ev_res
                 if pause_menu.is_open():
                     # When paused, draw the pause menu and skip updates
@@ -313,7 +384,7 @@ def main():
                         continue
                 else:
                     actions = {
-                        'move': get_movement_actions(),
+                        'move': get_movement_actions(state),
                         'attack': attack,
                         'flask': flask,
                         'dash': dash,
@@ -326,6 +397,16 @@ def main():
                         'key_2': pygame.key.get_pressed()[pygame.K_2],
                         'key_3': pygame.key.get_pressed()[pygame.K_3]
                     }
+                    
+                    # Controller Analog/Secondary buttons
+                    if state.input_mode == INPUT_MODE_GAMEPAD and pygame.joystick.get_count() > 0:
+                        joy = pygame.joystick.Joystick(0)
+                        # Map extra actions for Gamepad
+                        if joy.get_button(2): actions['attack'] = True # Square/X
+                        if joy.get_button(3): actions['flask'] = True  # Triangle/Y
+                        if joy.get_button(7): actions['block'] = True  # R2/RT
+                        if joy.get_button(1): actions['key_r'] = True  # Circle/B (Rest)
+                    
                     state.update(dt, actions)
 
                     # Run the autosave manager each frame

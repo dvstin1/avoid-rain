@@ -34,9 +34,21 @@ def draw_respite_menu(screen, font, state):
     # 2. Options
     def draw_option(idx, label, current_lvl, cost, is_available):
         nonlocal y_off
-        color = constants.COLOR_WHITE if is_available else (80, 80, 80) # Charcoal/Grey if too expensive
+        is_selected = getattr(state, 'respite_selection_idx', 0) == idx
+        
+        # Color Rules
+        if is_available:
+            color = constants.COLOR_WHITE
+            if is_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
+                color = constants.COLOR_YELLOW # Highlight selected
+        else:
+            color = (80, 80, 80) # Charcoal/Grey
         
         opt_text = f"[{idx}] {label}: Lvl {current_lvl} (Cost: {cost})"
+        # Add selection indicator for Gamepad
+        if is_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
+            opt_text = "> " + opt_text
+            
         surf = font.render(opt_text, True, color)
         screen.blit(surf, (x + 40, y + y_off))
         
@@ -54,10 +66,20 @@ def draw_respite_menu(screen, font, state):
     prowess_cost = constants.EDIFICATION_BASE_COST + (prowess // 5 * constants.EDIFICATION_COST_SCALE)
     fort_cost = constants.EDIFICATION_BASE_COST + (fort // 10 * constants.EDIFICATION_COST_SCALE)
 
-    # REST Option (Always available)
-    rest_color = constants.COLOR_WHITE if not player.has_rested_this_session else constants.COLOR_GREY
+    # REST Option (Index 0)
+    is_rest_selected = getattr(state, 'respite_selection_idx', 0) == 0
+    rest_color = constants.COLOR_WHITE
+    if not player.has_rested_this_session:
+        if is_rest_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
+            rest_color = constants.COLOR_YELLOW
+    else:
+        rest_color = constants.COLOR_GREY
+
     rest_text = "[R] REST: Restore HP & Refill Flasks"
     if player.has_rested_this_session: rest_text += " (Already Rested)"
+    if is_rest_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
+        rest_text = "> " + rest_text
+        
     screen.blit(font.render(rest_text, True, rest_color), (x + 40, y + y_off))
     y_off += spacing * 1.5
 

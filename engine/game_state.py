@@ -17,7 +17,8 @@ from constants import (
     WEATHER_MAX_RADIUS, WEATHER_MIN_RADIUS, WEATHER_WAIT_DURATION,
     WEATHER_SHRINK_DURATION, WEATHER_DAMAGE_PER_SECOND,
     TILE_STRUCTURE, TILE_RESPITE,
-    BLOOM_TOTAL_DURATION, BLOOM_COOLDOWN
+    BLOOM_TOTAL_DURATION, BLOOM_COOLDOWN,
+    INPUT_MODE_KEYBOARD, INPUT_MODE_GAMEPAD
 )
 from engine.player import Player, PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -127,6 +128,11 @@ class GameState:
         self.bloom_text = ""
         self.last_zone_id = None
         self.zone_cooldown_timer = 0.0
+
+        # Input Mode State (Keyboard/Gamepad)
+        from constants import INPUT_MODE_KEYBOARD
+        self.input_mode = INPUT_MODE_KEYBOARD
+        self.respite_selection_idx = 0 # 0=Rest, 1=Edify, 2=Prowess, 3=Fort
 
         self._save_queue = queue.Queue(maxsize=8)
         self._save_worker_running = True
@@ -466,7 +472,28 @@ class GameState:
             # Respite Menu Logic
             active_respite = getattr(self, 'active_respite', None)
             if active_respite:
-                # Handle inputs FIRST
+                # 1. Handle Gamepad Navigation
+                if self.input_mode == INPUT_MODE_GAMEPAD:
+                    if not self.input_ratchet_latched:
+                        move_dir = actions.get('move', (0, 0))
+                        if move_dir[1] > 0.5: # Down
+                            self.respite_selection_idx = (self.respite_selection_idx + 1) % 4
+                            self.input_ratchet_latched = True
+                        elif move_dir[1] < -0.5: # Up
+                            self.respite_selection_idx = (self.respite_selection_idx - 1) % 4
+                            self.input_ratchet_latched = True
+
+                        # Face Button Action (Cross/A)
+                        if actions.get('attack'):
+                            self.input_ratchet_latched = True
+                            if self.respite_selection_idx == 0:
+                                active_respite.execute_rest(self)
+                            elif self.player.has_rested_this_session:
+                                if self.respite_selection_idx == 1: self._handle_upgrade("edification", 1, 50)
+                                elif self.respite_selection_idx == 2: self._handle_upgrade("attack_modifier", 5, 50)
+                                elif self.respite_selection_idx == 3: self._handle_upgrade("max_hp_modifier", 10, 50)
+
+                # 2. Handle Keyboard / Generic Inputs
                 # R - Rest
                 if actions.get('key_r'):
                     active_respite.execute_rest(self)

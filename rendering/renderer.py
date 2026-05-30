@@ -390,6 +390,12 @@ class Renderer:
         edif_text = f"LVL: {edif_lvl}"
         hud_surf.blit(hud_font.render(edif_text, True, constants.COLOR_CYAN), (340, 10))
 
+        # [Input Mode Indicator]
+        mode = getattr(state, 'input_mode', constants.INPUT_MODE_KEYBOARD)
+        mode_col = constants.COLOR_MODE_GAMEPAD if mode == constants.INPUT_MODE_GAMEPAD else constants.COLOR_MODE_KEYBOARD
+        mode_label = hud_font.render(f"[ Input: {mode.capitalize()} ]", True, mode_col)
+        hud_surf.blit(mode_label, (hud_surf.get_width() - mode_label.get_width() - 10, hud_surf.get_height() - 25))
+
         for i in range(2):
             sx, sy = 10 + i * (constants.HUD_SLOT_W + 100), 45
             sr = pygame.Rect(sx, sy, constants.HUD_SLOT_W, constants.HUD_SLOT_H)

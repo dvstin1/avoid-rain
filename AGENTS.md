@@ -40,4 +40,30 @@
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
-## Active Task: 
+## Active Task: Unified Gamepad Controller Integration & Menu Snapping Logic
+
+Initialize Pygame's joystick subsystem, build the hardware profile lookup maps for PS5 and SteelSeries controllers, implement the HUD indicator, and transition menu loops to button-focus index tracking.
+
+### 1. Joystick Subsystem Initialization
+- In `main.py` or your input handling script, call `pygame.joystick.init()`.
+- Run an initialization loop on startup to detect connected pads:
+  ```python
+  joysticks = [pygame.joystick.Joystick(i) for i in range(pygame.joystick.get_count())]
+  for joy in joysticks:
+      joy.init()
+      print(f"[INPUT DEVICE] Initialized: {joy.get_name()}")
+  ```
+
+### 2. Action Mapping Normalization Layer
+
+    Create engine/input_manager.py to intercept raw events:
+
+        Convert pygame.JOYBUTTONDOWN and pygame.JOYAXISMOTION into abstract game signals (MOVE_LEFT, MOVE_UP, ATTACK).
+
+        Auto-switch self.input_mode = "GAMEPAD" the exact frame a controller button is pressed, and switch back to "KEYBOARD" if a keyboard button is pressed.
+
+### 3. HUD Display and Menu Button Focus Tracking
+
+    In rendering/renderer.py, draw the top-corner mode text based on the active state string.
+
+    Update ui/menu.py (Respite Menu): If gamepad mode is active, track a integer index self.menu_focus_index = 0. Pressing D-pad down increments the index, highlighting the corresponding button element and letting a face button activate it safely without mouse usage.

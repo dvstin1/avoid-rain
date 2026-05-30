@@ -91,21 +91,23 @@ class WorldGenerator:
         outer_40s = [s for s in self.sockets if "40x40" in s["tags"] and "outer" in s["tags"]]
         spawn_socket = random.choice(outer_40s)
         spawn_socket["active_plug"] = "maps/the_colophon.json"
-        # Export as TILE coordinates (e.g. 0, 40, 80...)
-        self.spawn_x = spawn_socket["bounds"]["x"] // TILE_SIZE + 20
-        self.spawn_y = spawn_socket["bounds"]["y"] // TILE_SIZE + 20
-        
+        # Corrected: bounds are already in tiles, no division by TILE_SIZE needed
+        self.spawn_x = spawn_socket["bounds"]["x"] + 20
+        self.spawn_y = spawn_socket["bounds"]["y"] + 20
+
         # 4. The Target Assignment Phase (Night Boss - DUAL)
         inner_40s = [s for s in self.sockets if "40x40" in s["tags"] and "inner" in s["tags"]]
         # Select two distinct arenas
         arenas = random.sample(inner_40s, 2) if len(inner_40s) >= 2 else inner_40s
-        
+
         self.boss_coords_list = []
         for i, boss_socket in enumerate(arenas):
             boss_socket["active_plug"] = "maps/night_boss_arena.json"
-            bx = boss_socket["bounds"]["x"] // TILE_SIZE + 20
-            by = boss_socket["bounds"]["y"] // TILE_SIZE + 20
+            # Corrected: bounds are already in tiles
+            bx = boss_socket["bounds"]["x"] + 20
+            by = boss_socket["bounds"]["y"] + 20
             self.boss_coords_list.append({"x": bx, "y": by})
+
         
         # 5. The Pool Backfill Pass
         from constants import POOL_SPECIAL_EDITION, POOL_MONTHLY_REPORT

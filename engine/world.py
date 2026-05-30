@@ -449,6 +449,7 @@ class LevelLoader:
                 dim = (TILE_SIZE, TILE_SIZE)
 
                 # 2. Entity & Interaction Spawning (Dynamic Overlay)
+                # Separated from tile block to prevent character consumption
                 if char == 'W':
                     # Warp Portal
                     data = entity_data.get((x, y), {})

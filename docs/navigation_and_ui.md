@@ -98,3 +98,30 @@ The Respite leveling panel reads values directly from the live `player.stats` la
 - **Ctrl+S / Ctrl+O:** Save and Load (with scrollable file picker).
 - **Ctrl+N:** Reset to blank canvas.
 - **Input Bleed-Through Fix:** Implements a mouse-release blocker that ignores map clicks until the button is physically released after closing a modal dialog.
+
+## 8. Unified Gamepad Mapping & Input Mode State Machine
+
+The input engine supports concurrent Keyboard/Mouse and Joystick execution via an explicit state toggle system to guarantee 100% controller-only navigation.
+
+### 1. Gamepad Device Profiles
+The engine registers explicit button vectors based on the hardware initialization name string:
+- **Profile A: Sony PlayStation 5 DualSense**
+  - Left Stick / D-Pad: Movement Axes 0 & 1
+  - Button 0 (Cross): `ACTION_CONFIRM` / `SWORD_SWING`
+  - Button 1 (Circle): `ACTION_CANCEL` / `DASH`
+- **Profile B: SteelSeries Free Bluetooth**
+  - Left Stick / D-Pad: Map to corresponding Axis vectors
+  - Face Buttons (Right Quadrant): Map to matching unified action strings based on device index lookup arrays.
+
+### 2. Input Mode Toggling Rules (Automatic Switching)
+To provide a seamless experience, the engine monitors all input hardware concurrently:
+- **Rule - Switch to Gamepad:** If the engine receives a `JOYBUTTONDOWN` or a significant `JOYAXISMOTION` event, the global `input_mode` is instantly set to `"GAMEPAD"`.
+- **Rule - Switch to Keyboard:** If the engine receives a `KEYDOWN` or `MOUSEBUTTONDOWN` event, the global `input_mode` is instantly set to `"KEYBOARD"`.
+- **The State Hysteresis:** The HUD indicator and menu navigation logic respond immediately to these state changes, updating visual prompts (e.g., swapping `[SPACE]` for `(X)`) without requiring a manual setting change.
+
+### 3. Input Mode HUD Indicator
+- The UI layer renders a permanent tracking string on the active gameplay HUD matrix.
+- **Display Configurations:**
+  - Mode Keyboard: Displays `[ Input: Keyboard ]` in standard ivory white.
+  - Mode Gamepad: Displays `[ Input: Gamepad ]` in stark gold/amber.
+- **The Menu Snapping Rule:** While `input_mode == "GAMEPAD"`, all active menu surfaces (Respite, Options) utilize directional index trapping. Moving the analog stick shifts focus loops between menu items, completely bypassing mouse cursor coordinate collision requirements.
