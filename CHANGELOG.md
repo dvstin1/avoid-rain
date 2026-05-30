@@ -15,6 +15,11 @@
 - Integrated training dummy entities for combat testing.
 
 ## [Recently Completed]
+### World Generator Refinement & Robust Anomaly Logic
+- **Hard Size Filtering:** Implemented a strict validation pass in `WorldGenerator` that automatically rejects any map file not matching exactly 120x120 or 40x40, purging the pool of legacy 7x7 assets.
+- **Graceful Anomaly Fallback:** Fixed the 10% "Special Edition" roll logic to detect empty anomaly pools and automatically fallback to standard map selections, preventing crashes and dimension mismatch warnings.
+- **Open-Floor Initialization:** Switched the 440x440 macro-world canvas to initialize using open floor space (" ") for immediate playability and improved exploration flow.
+
 ### Asset Expansion & Generation Pipeline Finalization
 - **Open-Floor Canvas:** Updated `WorldGenerator` to initialize the 440x440 macro-world using open floor space (" ") instead of solid walls, ensuring a more open exploration experience.
 - **Strict Size Mapping:** Refined the generator to strictly map 120x120 assets to large sockets and 40x40 assets to corridors/junctions.
