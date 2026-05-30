@@ -56,3 +56,19 @@ Modules are designed according to geographical archetypes to ensure diverse spat
 
 ## 4. Macro-World Protocol
 Macro-world maps (e.g., `world_map1.json`) are hand-designed in the editor to maintain absolute control over non-linear looping pathways. They serve as the "Tissue" frame that links multiple disparate "Cell" modules into a cohesive exploration chapter.
+
+## 5. Macro-Layout Matrix Generator & Dynamic Sub-Map Pool Rules
+
+To support scaling world canvases (e.g., 440x440 grids) with variable socket divisions, the level compiler initializes worlds using an abstract layout manifest descriptor.
+
+### 1. Abstract Socket Classification Tagging
+Every socket registered on the macro layout canvas possesses a regional classification tier determining its pool filtering logic:
+- `SIZE_120X120` Pools: Filtered into standard narrative macro-zones (e.g., `Forest`, `Ruins`).
+- `SIZE_40X40_OUTER` (The Margins): Sockets along the outermost grid edges. Restricted to filtering the player's initial entry node (`The Colophon / Spawn`) and generic low-tier buffer modules.
+- `SIZE_40X40_INNER` (The Crown Ring): Sockets contained inside the central 200x200 space (3x3 to 7x7 in an 11x11 grid), bounding the center socket. Restricted to spawning the high-tier `Night Boss` encounter in a single random node, with adjacent slots pulling from standard hazard pools.
+
+### 2. Runtime Selection Sequence & Rule Logic
+1. **The Core Allocation Pass:** The generator calculates dimensions and draws empty socket frames across the canvas matrix.
+2. **The Spawn Assignment Phase:** The compiler selects exactly one socket matching the `SIZE_40X40_OUTER` criteria and binds it to `maps/the_colophon.json` (Spawn).
+3. **The Target Assignment Phase:** The compiler selects exactly one socket matching the `SIZE_40X40_INNER` criteria and binds it to `maps/night_boss_arena.json`.
+4. **The Pool Backfill Pass:** All remaining unassigned sockets independently roll selections from their matching dimension lists (e.g., 120s roll Forest/Ruins; remaining 40s roll from minor encounter pools).
