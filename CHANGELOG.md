@@ -348,6 +348,13 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Documentation:** Codified the system rules and shelter vectors in `docs/architecture.md`.
 
 ## [Recently Completed]
+### Minimap Overhaul & Weather Damage Fix
+- **Minimap Visualization:** Overhauled the minimap to feature a higher zoom scale and updated radar color rules (White for player, Red for enemies).
+- **Safe Circle Indicator:** Added real-time rendering of the shrinking safe circle boundary directly onto the minimap radar.
+- **Hub Exclusion:** Gated the minimap to be completely hidden while the player is in the Sanctuary hub, ensuring a cleaner interface for non-combat zones.
+- **Damage Precision:** Fixed the acid rain damage tracking to accurately subtract 2 HP per second when exposed outside the safe circle.
+- **Boss Encounter Gating:** Implemented logic to gate the Night Boss spawn until the safe circle has fully closed, locking the perimeter until the encounter is resolved.
+
 ### Macro Safe Zone Initialization Repair & Initial Grace Period Lock
 - **Massive Starting Radius:** Enforced a 620.0 unit initial `active_safe_radius` to ensure the entire 440x440 world is safe upon run start.
 - **Initial Grace Period:** Implemented a strict 60-second grace period during which all rain visuals and environmental hazards are suppressed.
