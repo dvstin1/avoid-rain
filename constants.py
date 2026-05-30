@@ -173,6 +173,12 @@ POOL_MONTHLY_REPORT = ["maps/forest.json", "maps/ruins.json"]
 POOL_SPECIAL_EDITION = [] # Currently empty, will trigger fallback logic
 POOL_CORRIDOR = ["maps/smallcave.json"]
 
+# Weather System: The Bleed
+WEATHER_CLEAR_DURATION = 90.0 # Seconds
+WEATHER_STORM_DURATION = 45.0 # Seconds
+WEATHER_DAMAGE_PER_SECOND = 2.0
+COLOR_TOXIC_RAIN = (120, 255, 100, 100) # RGBA for translucent toxic green
+
 # Tile Types
 TILE_EMPTY = 0
 TILE_WALL = 1
@@ -184,13 +190,15 @@ TILE_LOTUS_FRAME = 6
 TILE_LORE = 7
 TILE_HAZARD = 8
 TILE_LIGHT = 9
+TILE_STRUCTURE = 10
 
 TILE_KEY = {
     '#': TILE_WALL,
+    ' ': TILE_EMPTY, # Explicitly open floor
     '.': TILE_EMPTY,
     'W': TILE_WARP,
     'R': TILE_RESPITE,
-    'T': TILE_OBSTACLE,
+    'T': TILE_STRUCTURE, # Protective Structure
     'B': TILE_PROP,
     'S': TILE_OBSTACLE, # Seat/Bench
     'K': TILE_OBSTACLE, # Rock
@@ -208,6 +216,7 @@ TILE_KEY = {
     'd': TILE_PROP, # Ink-Drip Urn
     'v': TILE_HAZARD, # Spilled Inkwell Puddle
     'l': TILE_LIGHT, # Iron Candelabra
+    'N': 107, # NightBoss Spawn
 }
 
 # Colors for Tiles

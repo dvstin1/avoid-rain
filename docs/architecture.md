@@ -20,14 +20,15 @@ The `GameState` object manages the following data structures:
 - **WorldState:** Chapter ID, active modular sections, story flags, and respawn anchors.
 - **Persistence Snapshot:** Lifetime metrics, discovered bestiary, and serialized `run_state`.
 
-## 4. Climate Engine: The Devouring Storm
-> **DEVELOPMENT HOLD:** Implementation of the Climate Engine is deferred until the Macro-Grid framework and core combat loop are fully stable.
+## 4. Climate Engine: The Bleed (Acid Rain)
+The macro-world features a global environmental threat loop known as "The Bleed." It cycles between states of atmospheric rest and active toxicity.
 
-The climate engine dictates the pace of gameplay across four distinct phases:
-1. **Clear Day (Exploration):** 0:00 - 10:00. Ambient visuals, no hazard, Respites ACTIVE.
-2. **The Bleed (Collapse):** 10:00 - 15:00. Corrosive ink-storm. Safe zone shrinks toward a random center. Damage outside radius: 2/sec. Respites DEACTIVATED.
-3. **The Dilution (Victory):** Immediate post-boss event. Rain turns Harmless/Clear. Radial boundary dissolves.
-4. **Clear Night (Breather):** Rain fades out. Respites REBOOT and return to functionality.
+### 1. The Bleed Lifecycle State Machine
+- **Clearance Phase:** Duration: 90 seconds. The atmosphere is clear. Standard exploration rules apply.
+- **Storm Phase (Downpour):** Duration: 45 seconds. A thick, "Toxic Lime" rain layer renders across the active camera view.
+- **The Core Constraint (Shelter Logic):** During the Storm phase, the engine evaluates the player's underlying tile:
+  - **Exposed:** Standing on open floor space triggers a damage-over-time (DoT) tick of 2 HP/sec.
+  - **Sheltered:** Standing under a structure tile (`"T"`) or inside a `Respite` block gates all acid damage to zero.
 
 ## 5. Physics & Collision Architecture
 - **Order of Operations:** 1. Apply Velocity -> 2. Resolve Wall Collisions (AABB) -> 3. Boundary Clamp -> 4. Finalize Coordinates.
@@ -111,3 +112,5 @@ Minibosses do not persist through resets if they are dead, but they MUST persist
 Entity collision check subroutines must evaluate position vectors against the total compiled canvas dimensions, rather than local sub-map constraints.
 - **Boundaries:** Boundary tracking is enforced globally at `0 <= player.x < 440` and `0 <= player.y < 440` (measured in tile units).
 - **Seamless Cross-Blitting:** Local sub-map modules must not append boundary colliders along their outer frame edges (e.g., indices 0 and 39 for a 40x40 map). When modules are stitched into the master grid, their borders must remain perfectly passable to allow fluid traversal between adjacent nodes.
+
+

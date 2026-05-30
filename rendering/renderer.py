@@ -120,6 +120,30 @@ class Renderer:
         instr = self.font.render("Move [Left/Right] to select, [SPACE] to confirm", True, constants.COLOR_WHITE)
         self.screen.blit(instr, (sw // 2 - instr.get_width() // 2, sh - 100))
 
+    def draw_weather(self, state):
+        """Draw screen-space weather effects."""
+        if getattr(state, 'weather_mode', 'CLEAR') != 'STORM':
+            return
+
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        weather_surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        
+        # Toxic Rain Effect: Vertical lines
+        import random
+        # Use ticks for movement
+        ticks = pygame.time.get_ticks()
+        random.seed(42) # Fixed seed for base positions, move based on ticks
+        
+        rain_color = constants.COLOR_TOXIC_RAIN
+        for _ in range(120): # Number of raindrops
+            rx = random.randint(0, sw)
+            base_ry = random.randint(0, sh)
+            ry = (base_ry + ticks // 1) % sh # Faster fall
+            length = random.randint(15, 25)
+            pygame.draw.line(weather_surf, rain_color, (rx, ry), (rx, ry + length), 2)
+
+        self.screen.blit(weather_surf, (0, 0))
+
     def render(self, state):
         """Draw the game state using a camera."""
         bg = constants.COLOR_SEPIA_AMBER if getattr(state.world, 'name', 'sanctuary') == "sanctuary" else constants.COLOR_CHARCOAL
@@ -249,6 +273,8 @@ class Renderer:
             self.screen.blit(overlay, (0, 0))
             msg = self.font.render("TEXT BLEACHING...", True, constants.COLOR_BLACK)
             self.screen.blit(msg, msg.get_rect(center=(sw//2, sh//2)))
+
+        self.draw_weather(state)
         pygame.display.flip()
 
     def draw_hud(self, state):

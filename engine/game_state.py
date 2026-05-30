@@ -13,7 +13,9 @@ from constants import (
     SCREEN_SHAKE_DURATION, HIT_STOP_DURATION,
     SCREEN_WIDTH, SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT, HUD_PICKUP_BTN_RECT,
     TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED,
-    SCREEN_SHAKE_INTENSITY, AUTOSAVE_INDICATOR_DURATION
+    SCREEN_SHAKE_INTENSITY, AUTOSAVE_INDICATOR_DURATION,
+    WEATHER_CLEAR_DURATION, WEATHER_STORM_DURATION, WEATHER_DAMAGE_PER_SECOND,
+    TILE_STRUCTURE, TILE_RESPITE
 )
 from engine.player import Player, PlayerStateEnum
 from engine.combat import get_sword_hitbox
@@ -111,6 +113,10 @@ class GameState:
         self.input_debounce_timer = 0.0
         self.input_ratchet_latched = False
         self.defeated_miniboss_ids = set()
+
+        # Weather System: The Bleed
+        self.weather_mode = "CLEAR" # "CLEAR" or "STORM"
+        self.weather_timer = WEATHER_CLEAR_DURATION
 
         self._save_queue = queue.Queue(maxsize=8)
         self._save_worker_running = True
@@ -283,6 +289,35 @@ class GameState:
         if self.input_debounce_timer > 0:
             self.input_debounce_timer -= dt
             attack_pressed = False
+
+        # --- Weather Cycle: The Bleed ---
+        self.weather_timer -= dt
+        if self.weather_timer <= 0:
+            if self.weather_mode == "CLEAR":
+                self.weather_mode = "STORM"
+                self.weather_timer = WEATHER_STORM_DURATION
+                print("[WEATHER] The Bleed has begun. Seek shelter!")
+            else:
+                self.weather_mode = "CLEAR"
+                self.weather_timer = WEATHER_CLEAR_DURATION
+                print("[WEATHER] The atmosphere has cleared.")
+
+        # Apply Storm Damage
+        if self.weather_mode == "STORM":
+            # Check player shelter
+            px, py = self.player.get_center()
+            tx = int(px // TILE_SIZE)
+            ty = int(py // TILE_SIZE)
+            
+            is_sheltered = False
+            if 0 <= ty < len(self.world.grid) and 0 <= tx < len(self.world.grid[0]):
+                tile_type = self.world.grid[ty][tx]
+                if tile_type in (TILE_STRUCTURE, TILE_RESPITE):
+                    is_sheltered = True
+            
+            if not is_sheltered:
+                damage = WEATHER_DAMAGE_PER_SECOND * dt
+                self.player.take_damage(damage)
 
         # Sanctuary Level Reset Rule
         if getattr(self.world, 'name', '') == "sanctuary":
