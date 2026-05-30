@@ -6,6 +6,11 @@ import queue
 import threading
 
 from constants import (
+    PLAYER_START_X, PLAYER_START_Y,
+    DAMAGE_NUMBER_LIFETIME, DAMAGE_NUMBER_SPEED,
+    SWORD_DAMAGE, COLOR_YELLOW, COLOR_WHITE, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
+    PLAYER_MAX_HP, FLASK_MAX_CHARGES,
+    SCREEN_SHAKE_DURATION, HIT_STOP_DURATION,
     SCREEN_WIDTH, SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT, HUD_PICKUP_BTN_RECT,
     TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED,
     SCREEN_SHAKE_INTENSITY, AUTOSAVE_INDICATOR_DURATION,
@@ -543,36 +548,44 @@ class GameState:
             pass
 
     def _update_audio_track(self, dt):
-        """Update active_track_name based on zone and miniboss proximity."""
+        """Update active_track_name based on zone and boss proximity."""
         world_name = getattr(self.world, 'name', 'sanctuary')
 
-        # 1. Zone Defaults
+        # 1. Zone & Death Defaults
         target_track = "world_exploration.ogg"
         if world_name == "sanctuary":
             target_track = "sanctuary_hub.ogg"
 
         if self.player.hp <= 0:
-            target_track = "death_screen.ogg"
+            target_track = "death_theme.ogg"
 
-        # 2. Miniboss Proximity Rule (15 meters = 600 pixels)
+        # 2. Boss Proximity Rules (15 meters = 600 pixels)
         pixels_per_meter = TILE_SIZE
         proximity_threshold = 15 * pixels_per_meter
         cooldown_limit = 3.0
 
         near_miniboss = False
+        near_night_boss = False
+        
         px, py = self.player.get_center()
         for enemy in self.enemies:
             if getattr(enemy, 'is_miniboss', False):
                 ex, ey = enemy.x + enemy.width / 2, enemy.y + enemy.height / 2
                 dist_sq = (px - ex)**2 + (py - ey)**2
                 if dist_sq <= proximity_threshold**2:
-                    near_miniboss = True
+                    if getattr(enemy, 'name', '') == "Night Boss":
+                        near_night_boss = True
+                    else:
+                        near_miniboss = True
                     break
 
-        if near_miniboss:
+        if near_night_boss:
+            self.player.active_track_name = "night_boss.ogg"
+            self.player.miniboss_cooldown_accumulator = 0.0
+        elif near_miniboss:
             self.player.active_track_name = "miniboss_combat.ogg"
             self.player.miniboss_cooldown_accumulator = 0.0
-        elif self.player.active_track_name == "miniboss_combat.ogg":
+        elif self.player.active_track_name in ("miniboss_combat.ogg", "night_boss.ogg"):
             self.player.miniboss_cooldown_accumulator += dt
             if self.player.miniboss_cooldown_accumulator >= cooldown_limit:
                 self.player.active_track_name = target_track

@@ -64,8 +64,8 @@ assets/
         ├── title_theme.ogg       # Minimalist recorder & slow book slides
         ├── sanctuary_hub.ogg     # Somber, hollow kalimba tracking
         ├── world_exploration.ogg # Low ambient drone & distant percussion
-        ├── death_screen.ogg      # Single descending recorder tone & dead silence
+        ├── death_theme.ogg       # Single descending recorder tone & dead silence
         ├── miniboss_combat.ogg   # Tense, rhythmic ad-hoc book slams
-        ├── night_boss_core.ogg   # Aggressive, building composition
+        ├── night_boss.ogg        # Aggressive, building composition (Night Boss)
         └── final_reckoning.ogg   # Peak structural arrangement
 ```
