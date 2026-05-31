@@ -133,7 +133,8 @@ class GameState:
         # Input Mode State (Keyboard/Gamepad)
         from constants import INPUT_MODE_KEYBOARD
         self.input_mode = INPUT_MODE_KEYBOARD
-        self.respite_selection_idx = 0 # 0=Rest, 1=Edify, 2=Prowess, 3=Fort
+        self.respite_selection_idx = 0 # 0=Rest, 1-3=Edify, 4=Finalize, 5=Close
+        self.respite_marked_idx = -1 # Which one is staged for upgrade
 
         self._save_queue = queue.Queue(maxsize=8)
         self._save_worker_running = True
@@ -491,51 +492,64 @@ class GameState:
             # Respite Menu Logic
             active_respite = getattr(self, 'active_respite', None)
             if active_respite:
-                # 1. Handle Gamepad Navigation
-                if self.input_mode == INPUT_MODE_GAMEPAD:
-                    if not self.input_ratchet_latched:
-                        move_dir = actions.get('move', (0, 0))
-                        if move_dir[1] > 0.5: # Down
-                            self.respite_selection_idx = (self.respite_selection_idx + 1) % 4
-                            self.input_ratchet_latched = True
-                        elif move_dir[1] < -0.5: # Up
-                            self.respite_selection_idx = (self.respite_selection_idx - 1) % 4
-                            self.input_ratchet_latched = True
-
-                        # Face Button Action (Cross/A)
-                        if actions.get('attack'):
-                            self.input_ratchet_latched = True
-                            if self.respite_selection_idx == 0:
-                                active_respite.execute_rest(self)
-                            elif self.player.has_rested_this_session:
-                                if self.respite_selection_idx == 1: self._handle_upgrade("edification", 1, 50)
-                                elif self.respite_selection_idx == 2: self._handle_upgrade("attack_modifier", 5, 50)
-                                elif self.respite_selection_idx == 3: self._handle_upgrade("max_hp_modifier", 10, 50)
-
-                # 2. Handle Keyboard / Generic Inputs
-                # R - Rest
-                if actions.get('key_r'):
-                    active_respite.execute_rest(self)
-
-                # 1 - Edification (Only if rested and not latched)
-                elif not self.input_ratchet_latched and self.player.has_rested_this_session:
-                    upgrade_triggered = False
-                    if actions.get('key_1'):
-                        self._handle_upgrade("edification", 1, 50)
-                        upgrade_triggered = True
-                    elif actions.get('key_2'):
-                        self._handle_upgrade("attack_modifier", 5, 50)
-                        upgrade_triggered = True
-                    elif actions.get('key_3'):
-                        self._handle_upgrade("max_hp_modifier", 10, 50)
-                        upgrade_triggered = True
-
-                    if upgrade_triggered:
+                move_dir = actions.get('move', (0, 0))
+                
+                # 1. Navigation focus (Vertical)
+                if not self.input_ratchet_latched:
+                    if move_dir[1] > 0.5: # Down
+                        self.respite_selection_idx = (self.respite_selection_idx + 1) % 6
                         self.input_ratchet_latched = True
+                    elif move_dir[1] < -0.5: # Up
+                        self.respite_selection_idx = (self.respite_selection_idx - 1) % 6
+                        self.input_ratchet_latched = True
+
+                # 2. Handle Confirm/Select Actions
+                if attack_pressed and not self.input_ratchet_latched:
+                    self.input_ratchet_latched = True
+                    
+                    # Index 0: Immediate REST
+                    if self.respite_selection_idx == 0:
+                        active_respite.execute_rest(self)
+                        self.respite_marked_idx = -1 # Clear markings on rest
+                    
+                    # Index 1-3: MARK for upgrade
+                    elif 1 <= self.respite_selection_idx <= 3:
+                        if self.player.has_rested_this_session:
+                            self.respite_marked_idx = self.respite_selection_idx
+                        else:
+                            print("[UI] Must rest before marking upgrades.")
+
+                    # Index 4: FINALIZE (Apply marked)
+                    elif self.respite_selection_idx == 4:
+                        if self.respite_marked_idx == 1: self._handle_upgrade("edification", 1, 50)
+                        elif self.respite_marked_idx == 2: self._handle_upgrade("attack_modifier", 5, 50)
+                        elif self.respite_marked_idx == 3: self._handle_upgrade("max_hp_modifier", 10, 50)
+                        
+                        if not self.player.has_rested_this_session:
+                            # Upgrade successful (auto-locks rest)
+                            self.respite_marked_idx = -1
+                            self.respite_selection_idx = 5 # Shift focus to Close
+
+                    # Index 5: CLOSE
+                    elif self.respite_selection_idx == 5:
+                        self.active_dialogue = None
+                        self.active_respite = None
+                        self.input_debounce_timer = 0.2
+                        self.player.has_rested_this_session = False
+                        self.save_stats(wait=True)
+                        return
+
+                # 3. Handle Keyboard Shortcuts (Direct Marking)
+                if not self.input_ratchet_latched and self.player.has_rested_this_session:
+                    if actions.get('key_r'):
+                        active_respite.execute_rest(self)
+                        self.respite_marked_idx = -1
+                    elif actions.get('key_1'): self.respite_marked_idx = 1
+                    elif actions.get('key_2'): self.respite_marked_idx = 2
+                    elif actions.get('key_3'): self.respite_marked_idx = 3
 
                 # REFRESH TEXT LAST to ensure upgrades show immediately
                 active_respite.execute_interaction(self)
-
             return
 
         # Choice of Fates Rule: Priority Input

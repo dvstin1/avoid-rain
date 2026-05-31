@@ -34,20 +34,24 @@ def draw_respite_menu(screen, font, state):
     # 2. Options
     def draw_option(idx, label, current_lvl, cost, is_available):
         nonlocal y_off
-        is_selected = getattr(state, 'respite_selection_idx', 0) == idx
+        sel_idx = getattr(state, 'respite_selection_idx', 0)
+        mark_idx = getattr(state, 'respite_marked_idx', -1)
+        
+        is_focused = (sel_idx == idx)
+        is_marked = (mark_idx == idx)
         
         # Color Rules
         if is_available:
             color = constants.COLOR_WHITE
-            if is_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
-                color = constants.COLOR_SELECTION # Highlight selected
+            if is_focused:
+                color = constants.COLOR_SELECTION # Focused is always selection color
         else:
             color = (80, 80, 80) # Charcoal/Grey
         
-        opt_text = f"[{idx}] {label}: Lvl {current_lvl} (Cost: {cost})"
-        # Add selection indicator for Gamepad
-        if is_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
-            opt_text = "> " + opt_text
+        prefix = "> " if is_focused else "  "
+        mark_str = "[ MARKED ] " if is_marked else "[        ] "
+        
+        opt_text = f"{prefix}{mark_str}{label}: Lvl {current_lvl} (Cost: {cost})"
             
         surf = font.render(opt_text, True, color)
         screen.blit(surf, (x + 40, y + y_off))
@@ -66,19 +70,15 @@ def draw_respite_menu(screen, font, state):
     prowess_cost = constants.EDIFICATION_BASE_COST + (prowess // 5 * constants.EDIFICATION_COST_SCALE)
     fort_cost = constants.EDIFICATION_BASE_COST + (fort // 10 * constants.EDIFICATION_COST_SCALE)
 
-    # REST Option (Index 0)
-    is_rest_selected = getattr(state, 'respite_selection_idx', 0) == 0
-    rest_color = constants.COLOR_WHITE
-    if not player.has_rested_this_session:
-        if is_rest_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
-            rest_color = constants.COLOR_SELECTION
-    else:
-        rest_color = constants.COLOR_GREY
+    sel_idx = getattr(state, 'respite_selection_idx', 0)
 
-    rest_text = "[R] REST: Restore HP & Refill Flasks"
+    # REST Option (Index 0)
+    rest_focused = (sel_idx == 0)
+    rest_color = constants.COLOR_WHITE if not player.has_rested_this_session else constants.COLOR_GREY
+    if rest_focused: rest_color = constants.COLOR_SELECTION
+
+    rest_text = f"{'> ' if rest_focused else '  '}[R] REST: Restore HP & Refill Flasks"
     if player.has_rested_this_session: rest_text += " (Already Rested)"
-    if is_rest_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
-        rest_text = "> " + rest_text
         
     screen.blit(font.render(rest_text, True, rest_color), (x + 40, y + y_off))
     y_off += spacing * 1.5
@@ -88,9 +88,30 @@ def draw_respite_menu(screen, font, state):
         draw_option(2, "Edify Prowess (+5 Attack)", prowess, prowess_cost, pages >= prowess_cost)
         draw_option(3, "Edify Fortification (+10 Max HP)", fort, fort_cost, pages >= fort_cost)
     else:
-        warn_box = font.render("[ Must Rest to Unblock Level Up ]", True, constants.COLOR_SELECTION)
+        warn_box = font.render("  [ Must Rest to Unblock Level Up ]", True, constants.COLOR_SELECTION)
         screen.blit(warn_box, (x + 40, y + y_off))
+        y_off += spacing * 3
+
+    # 4. Finalize Button (Index 4)
+    y_off = h - 120
+    fin_focused = (sel_idx == 4)
+    mark_idx = getattr(state, 'respite_marked_idx', -1)
+    fin_available = (mark_idx != -1 and player.has_rested_this_session)
     
-    # 3. Footer
-    close = font.render("Press [SPACE] to Close", True, constants.COLOR_GREY)
-    screen.blit(close, (x + w - close.get_width() - 20, y + h - 30))
+    fin_col = constants.COLOR_GREY
+    if fin_available:
+        fin_col = constants.COLOR_SELECTION if fin_focused else constants.COLOR_WHITE
+    elif fin_focused:
+        fin_col = (150, 50, 50) # Reddish if focused but unavailable
+
+    fin_text = f"{'> ' if fin_focused else '  '}[ FINALIZE UPGRADE ]"
+    if mark_idx == -1 and player.has_rested_this_session:
+        fin_text += " (No selection marked)"
+        
+    screen.blit(font.render(fin_text, True, fin_col), (x + 40, y + y_off))
+
+    # 5. Close Button (Index 5)
+    close_focused = (sel_idx == 5)
+    close_col = constants.COLOR_SELECTION if close_focused else constants.COLOR_GREY
+    close_text = f"{'> ' if close_focused else '  '}[ CLOSE MENU ]"
+    screen.blit(font.render(close_text, True, close_col), (x + w - 250, y + h - 40))
