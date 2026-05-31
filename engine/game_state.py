@@ -468,7 +468,8 @@ class GameState:
 
         # Victory Extraction sequence
         if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY":
-            if self.bleed_state == "DILUTION" and self.weather_manager.timer <= 0:
+            # Rule: If the dilution interlude ends (or has graduated to APPENDIX) while in the final arena
+            if (self.bleed_state in ("DILUTION", "APPENDIX")) and self.weather_manager.timer <= 0:
                 print("[SYSTEM] Victory sequence complete. Extracting to Sanctuary...")
                 from engine.world import WarpPortal
                 # Automatic extraction warp
