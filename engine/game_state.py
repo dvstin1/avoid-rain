@@ -539,14 +539,19 @@ class GameState:
                         self.save_stats(wait=True)
                         return
 
-                # 3. Handle Keyboard Shortcuts (Direct Marking)
-                if not self.input_ratchet_latched and self.player.has_rested_this_session:
+                # 3. Handle Keyboard Shortcuts
+                if not self.input_ratchet_latched:
+                    # R - Rest is ALWAYS allowed to trigger the unblock
                     if actions.get('key_r'):
                         active_respite.execute_rest(self)
                         self.respite_marked_idx = -1
-                    elif actions.get('key_1'): self.respite_marked_idx = 1
-                    elif actions.get('key_2'): self.respite_marked_idx = 2
-                    elif actions.get('key_3'): self.respite_marked_idx = 3
+                        self.input_ratchet_latched = True
+                    
+                    # Upgrades are only allowed AFTER resting
+                    elif self.player.has_rested_this_session:
+                        if actions.get('key_1'): self.respite_marked_idx = 1; self.input_ratchet_latched = True
+                        elif actions.get('key_2'): self.respite_marked_idx = 2; self.input_ratchet_latched = True
+                        elif actions.get('key_3'): self.respite_marked_idx = 3; self.input_ratchet_latched = True
 
                 # REFRESH TEXT LAST to ensure upgrades show immediately
                 active_respite.execute_interaction(self)
