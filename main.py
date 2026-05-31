@@ -219,7 +219,6 @@ def main():
                 state.shutdown_save_worker()
         except Exception: pass
         pygame.quit()
-        sys.exit()
 
     atexit.register(shutdown_handler)
     pause_menu = PauseMenu()
