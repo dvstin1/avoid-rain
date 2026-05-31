@@ -83,12 +83,14 @@ class WarpPortal(GameObject):
             game_state.player.is_exposed = False
             target_x = float(self.spawn_x)
             target_y = float(self.spawn_y)
+            print(f"[DEBUG] WarpPortal default spawn: ({target_x}, {target_y})")
             
             # If we are warping to 'macro_world' and world has a player_start, prefer that
             if self.target_name == "macro_world" and game_state.world.player_start:
                 target_x, target_y = game_state.world.player_start
+                print(f"[DEBUG] Using macro_world override spawn: ({target_x}, {target_y})")
 
-            print(f"[DEBUG] Setting player spawn: ({target_x}, {target_y})")
+            print(f"[DEBUG] Setting player physical position: ({target_x}, {target_y})")
             game_state.player.x = float(target_x)
             game_state.player.y = float(target_y)
             # Recenter camera instantly
@@ -380,6 +382,8 @@ class LevelLoader:
 
         map_name = os.path.basename(file_path).replace(".json", "")
         
+        print(f"[DEBUG] Assembled grid: {len(grid)}x{len(grid[0])}, Entities: {len(entity_data)}")
+
         grid, interactables, warp_tiles, player_start, enemies = LevelLoader.parse_map(
             ["".join(row) for row in grid], 
             entity_data, 
@@ -392,7 +396,9 @@ class LevelLoader:
         spawn_override = data.get("spawn_coords")
         if spawn_override:
             player_start = (spawn_override["x"] * TILE_SIZE, spawn_override["y"] * TILE_SIZE)
+            print(f"[DEBUG] Applied spawn override: {player_start}")
 
+        print(f"[DEBUG] Final player_start for {map_name}: {player_start}")
         boss_coords_list = data.get("boss_coords_list")
 
         return grid, interactables, warp_tiles, player_start, enemies, boss_coords_list
@@ -443,6 +449,7 @@ class LevelLoader:
                     from constants import TILE_LOTUS_FRAME
                     grid[y][x] = TILE_LOTUS_FRAME
                 else:
+                    # Every other symbol defaults to empty floor for collision/base grid purposes
                     grid[y][x] = TILE_EMPTY
 
                 pos = (x * TILE_SIZE, y * TILE_SIZE)
