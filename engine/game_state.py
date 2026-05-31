@@ -323,6 +323,9 @@ class GameState:
             ],
             "selected_index": 0
         }
+        # Prevent instant-confirm on the same frame as kill
+        self.input_debounce_timer = 0.3
+        print(f"[FATE] Choice of Fates menu opened (Scale: {level_scale}).")
 
     def on_enter_sanctuary(self):
         """Rule: Absolute state purification upon entering the Sanctuary hub."""
@@ -534,6 +537,29 @@ class GameState:
                 active_respite.execute_interaction(self)
 
             return
+
+        # Choice of Fates Rule: Priority Input
+        active_choice = getattr(self, 'active_choice', None)
+        if active_choice:
+            move_dir = actions.get('move', (0, 0))
+            
+            if not self.input_ratchet_latched:
+                if move_dir[0] > 0.5:
+                    active_choice["selected_index"] = 1
+                    self.input_ratchet_latched = True
+                elif move_dir[0] < -0.5:
+                    active_choice["selected_index"] = 0
+                    self.input_ratchet_latched = True
+                
+            if attack_pressed:
+                choice_node = active_choice["options"][active_choice["selected_index"]]
+                print(f"[DEBUG] Choice Confirm Attempt: {choice_node['name']}")
+                for stat, val in choice_node["modifiers"].items():
+                    self.player.stats[stat] = self.player.stats.get(stat, 0) + val
+                self.active_choice = None
+                print(f"[FATE] Player chose {choice_node['name']}. Stats updated.")
+            return
+
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         nearby_interactables = self.world.get_nearby_interactables(player_rect)
         if nearby_interactables:
@@ -565,19 +591,6 @@ class GameState:
 
         if swap_pressed:
             self.player.swap_weapon()
-
-        active_choice = getattr(self, 'active_choice', None)
-        if active_choice:
-            if move_dir[0] > 0:
-                active_choice["selected_index"] = 1
-            elif move_dir[0] < 0:
-                active_choice["selected_index"] = 0
-            if attack_pressed:
-                choice_node = active_choice["options"][active_choice["selected_index"]]
-                for stat, val in choice_node["modifiers"].items():
-                    self.player.stats[stat] = self.player.stats.get(stat, 0) + val
-                self.active_choice = None
-            return
 
         walls = self.world.get_nearby_walls(player_rect)
         speed_multiplier = 1.0
