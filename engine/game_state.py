@@ -643,7 +643,7 @@ class GameState:
                     if hasattr(enemy, 'on_death'): enemy.on_death(self)
                     self.enemies.remove(enemy)
                     from engine.loot import roll_drop
-                    tier = 2 if getattr(enemy, 'is_miniboss', False) else getattr(enemy, 'loot_tier', 3)
+                    tier = getattr(enemy, 'loot_tier', 3)
                     roll_drop(tier, (enemy.x, enemy.y), self)
                 except Exception: pass
                 continue

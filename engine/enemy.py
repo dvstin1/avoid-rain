@@ -182,11 +182,35 @@ class Miniboss(Enemy):
         super().__init__(x, y, 64, 64, initial_hp, id=id)
         self.is_miniboss = True
         self.name = "Miniboss"
+        self.loot_tier = 2
         self.speed = MINIBOSS_SPEED
         self.detect_radius = 10 * TILE_SIZE
         self.damage = MINIBOSS_DAMAGE
         self.damage_cooldown = MINIBOSS_DAMAGE_COOLDOWN
         self._damage_timer = 0.0
+
+    def on_death(self, state):
+        """Rule: Full-Cradle Manifestation. 
+        Drop Refined Quill normally, or Anomalous Weapon if player is full.
+        """
+        from engine.world import WeaponPickup
+        player = state.player
+        
+        if len(player.weapons) < 2:
+            # Standard Upgrade: Refined Quill
+            weapon_data = {"name": "Refined Quill", "damage": 15}
+        else:
+            # Anomalous Upgrade: Random powerful variant
+            names = ["Anomalous Ink-Bleed", "Anomalous Void-Strike", "Anomalous Cleft-Nib"]
+            name = random.choice(names)
+            weapon_data = {
+                "name": name, 
+                "damage": 20 + random.randint(0, 10),
+                "modifiers": {"bleed": 5.0} # Placeholder for now
+            }
+        
+        state.world.interactables.append(WeaponPickup((self.x, self.y), weapon_data))
+        print(f"[LOOT] Miniboss dropped {weapon_data['name']}")
 
 class MinibossM2(Miniboss):
     """Fast pursuit elite."""
@@ -307,6 +331,7 @@ class NightBoss(Miniboss):
         super().__init__(x, y, initial_hp, id=id)
         self.name = "Night Boss"
         self.speed = MINIBOSS_SPEED * 0.9
+        self.loot_tier = 1
 
 class FinalAuthor(Miniboss):
     """The Final Author."""
@@ -318,6 +343,7 @@ class FinalAuthor(Miniboss):
         self.width, self.height = 80, 80
         self.speed = MINIBOSS_SPEED * 0.8
         self.detect_radius = 2000.0
+        self.loot_tier = 1
 
 ENEMY_REGISTRY = {
     "SlugEnemy": SlugEnemy, "BatEnemy": BatEnemy, "FlutterEnemy": FlutterEnemy,
