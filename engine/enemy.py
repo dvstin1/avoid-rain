@@ -174,13 +174,13 @@ class BindlingEnemy(Enemy):
 
 class Miniboss(Enemy):
     """Heavy elite enemy."""
-    is_miniboss = True
     def __init__(self, x, y, hp=None, id=None):
         from constants import (
             MINIBOSS_MAX_HP, MINIBOSS_SPEED, MINIBOSS_DAMAGE, MINIBOSS_DAMAGE_COOLDOWN
         )
         initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
         super().__init__(x, y, 64, 64, initial_hp, id=id)
+        self.is_miniboss = True
         self.name = "Miniboss"
         self.speed = MINIBOSS_SPEED
         self.detect_radius = 10 * TILE_SIZE
