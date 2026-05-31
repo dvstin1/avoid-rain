@@ -503,10 +503,8 @@ class GameState:
                         self.respite_selection_idx = (self.respite_selection_idx - 1) % 6
                         self.input_ratchet_latched = True
 
-                # 2. Handle Confirm/Select Actions
-                if attack_pressed and not self.input_ratchet_latched:
-                    self.input_ratchet_latched = True
-                    
+                # 2. Handle Confirm/Select Actions (Independent of Ratchet)
+                if attack_pressed:
                     # Index 0: Immediate REST
                     if self.respite_selection_idx == 0:
                         active_respite.execute_rest(self)
@@ -539,19 +537,17 @@ class GameState:
                         self.save_stats(wait=True)
                         return
 
-                # 3. Handle Keyboard Shortcuts
-                if not self.input_ratchet_latched:
-                    # R - Rest is ALWAYS allowed to trigger the unblock
-                    if actions.get('key_r'):
-                        active_respite.execute_rest(self)
-                        self.respite_marked_idx = -1
-                        self.input_ratchet_latched = True
-                    
-                    # Upgrades are only allowed AFTER resting
-                    elif self.player.has_rested_this_session:
-                        if actions.get('key_1'): self.respite_marked_idx = 1; self.input_ratchet_latched = True
-                        elif actions.get('key_2'): self.respite_marked_idx = 2; self.input_ratchet_latched = True
-                        elif actions.get('key_3'): self.respite_marked_idx = 3; self.input_ratchet_latched = True
+                # 3. Handle Keyboard Shortcuts (Independent of Ratchet)
+                # R - Rest is ALWAYS allowed to trigger the unblock
+                if actions.get('key_r'):
+                    active_respite.execute_rest(self)
+                    self.respite_marked_idx = -1
+                
+                # Upgrades are only allowed AFTER resting
+                elif self.player.has_rested_this_session:
+                    if actions.get('key_1'): self.respite_marked_idx = 1
+                    elif actions.get('key_2'): self.respite_marked_idx = 2
+                    elif actions.get('key_3'): self.respite_marked_idx = 3
 
                 # REFRESH TEXT LAST to ensure upgrades show immediately
                 active_respite.execute_interaction(self)

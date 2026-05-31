@@ -45,8 +45,10 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
 
         if event.type == pygame.JOYHATMOTION:
             state.input_mode = INPUT_MODE_GAMEPAD
-            if event.value[1] > 0: title_menu.navigate('up')
-            if event.value[1] < 0: title_menu.navigate('down')
+            if event.value == (0, 0):
+                ratchet_reset = True
+            elif event.value[1] > 0: title_menu.navigate('up')
+            elif event.value[1] < 0: title_menu.navigate('down')
 
         if event.type == pygame.JOYAXISMOTION:
             if abs(event.value) > JOYSTICK_DEADZONE:
@@ -156,7 +158,9 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
         # Gamepad Stick/Hat Navigation for Menus
         if event.type == pygame.JOYHATMOTION:
             state.input_mode = INPUT_MODE_GAMEPAD
-            if pause_menu and pause_menu.is_open():
+            if event.value == (0, 0):
+                ratchet_reset = True
+            elif pause_menu and pause_menu.is_open():
                 if event.value[1] > 0: pause_menu.navigate('up')
                 if event.value[1] < 0: pause_menu.navigate('down')
 
@@ -172,9 +176,8 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
                         elif event.value < -0.8:
                             pause_menu.navigate('up')
                             state.input_ratchet_latched = True
-            elif event.axis == 1: # Centered
-                # Optional: specific axis reset logic if needed
-                pass
+            elif abs(event.value) < 0.1: # Return to neutral
+                ratchet_reset = True
 
         if event.type == pygame.KEYUP:
             ratchet_reset = True
