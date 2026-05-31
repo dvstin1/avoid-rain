@@ -456,6 +456,15 @@ class GameState:
                     self.bloom_timer = BLOOM_TOTAL_DURATION
                     print("[SYSTEM] Final Boss defeated. Victory achieved.")
 
+        # Victory Extraction sequence
+        if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY":
+            if self.bleed_state == "DILUTION" and self.weather_manager.timer <= 0:
+                print("[SYSTEM] Victory sequence complete. Extracting to Sanctuary...")
+                from engine.world import WarpPortal
+                # Automatic extraction warp
+                extraction_warp = WarpPortal("sanctuary", 0, 0, (0, 0, 0, 0))
+                extraction_warp.execute_interaction(self)
+
         # Sanctuary Level Reset Rule
         if getattr(self.world, 'name', '') == "sanctuary":
             self.on_enter_sanctuary()
@@ -679,6 +688,7 @@ class GameState:
 
         near_miniboss = False
         near_night_boss = False
+        near_final_author = False
         
         px, py = self.player.get_center()
         for enemy in self.enemies:
@@ -686,19 +696,30 @@ class GameState:
                 ex, ey = enemy.x + enemy.width / 2, enemy.y + enemy.height / 2
                 dist_sq = (px - ex)**2 + (py - ey)**2
                 if dist_sq <= proximity_threshold**2:
-                    if getattr(enemy, 'name', '') == "Night Boss":
+                    ename = getattr(enemy, 'name', '')
+                    if ename == "The Final Author":
+                        near_final_author = True
+                    elif ename == "Night Boss":
                         near_night_boss = True
                     else:
                         near_miniboss = True
                     break
 
-        if near_night_boss:
+        # 3. Priority Selection
+        if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY":
+            self.player.active_track_name = "victory_theme.ogg"
+            return
+
+        if near_final_author:
+            self.player.active_track_name = "final_reckoning.ogg"
+            self.player.miniboss_cooldown_accumulator = 0.0
+        elif near_night_boss:
             self.player.active_track_name = "night_boss.ogg"
             self.player.miniboss_cooldown_accumulator = 0.0
         elif near_miniboss:
             self.player.active_track_name = "miniboss_combat.ogg"
             self.player.miniboss_cooldown_accumulator = 0.0
-        elif self.player.active_track_name in ("miniboss_combat.ogg", "night_boss.ogg"):
+        elif self.player.active_track_name in ("miniboss_combat.ogg", "night_boss.ogg", "final_reckoning.ogg"):
             self.player.miniboss_cooldown_accumulator += dt
             if self.player.miniboss_cooldown_accumulator >= cooldown_limit:
                 self.player.active_track_name = target_track

@@ -61,5 +61,11 @@ assets/
         ├── death_theme.ogg       # Single descending recorder tone & dead silence
         ├── miniboss_combat.ogg   # Tense, rhythmic ad-hoc book slams
         ├── night_boss.ogg        # Aggressive, building composition
-        └── final_reckoning.ogg   # Peak structural arrangement
+        ├── final_reckoning.ogg   # Peak structural arrangement (Final Author)
+        └── victory_theme.ogg     # 10s serene crescendo for the Chapter Complete sequence
 ```
+
+### Technical Specs for Victory Theme
+- **Duration:** Exactly 10.0 seconds to match the "Dilution" extraction window.
+- **Composition:** Should begin with a sharp resolution of the tension, followed by a serene, atmospheric fade-out that bridges the gap between the final arena and the Scriptorium hub.
+- **Trigger:** Played automatically upon the defeat of The Final Author during the "CHAPTER COMPLETE" bloom overlay.
