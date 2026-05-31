@@ -481,16 +481,16 @@ class GameState:
             self.sanctuary_reset_complete = False
 
         if self.active_dialogue:
-            if attack_pressed:
+            active_respite = getattr(self, 'active_respite', None)
+            
+            # Standard Dialogue Rule: Close on any confirmation if NOT a menu
+            if attack_pressed and not active_respite:
                 self.active_dialogue = None
-                self.active_respite = None
                 self.input_debounce_timer = 0.2
-                self.player.has_rested_this_session = False
                 self.save_stats(wait=True)
                 return
 
             # Respite Menu Logic
-            active_respite = getattr(self, 'active_respite', None)
             if active_respite:
                 move_dir = actions.get('move', (0, 0))
                 
