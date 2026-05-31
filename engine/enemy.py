@@ -343,7 +343,7 @@ class FinalAuthor(Miniboss):
         self.width, self.height = 80, 80
         self.speed = MINIBOSS_SPEED * 0.8
         self.detect_radius = 2000.0
-        self.loot_tier = 1
+        self.loot_tier = 0 # No rewards for the final redaction
 
 ENEMY_REGISTRY = {
     "SlugEnemy": SlugEnemy, "BatEnemy": BatEnemy, "FlutterEnemy": FlutterEnemy,

@@ -78,17 +78,16 @@ class WarpPortal(GameObject):
                 if game_state.stats:
                     game_state.stats.data["last_run_result"] = "INIT"
 
-            # Position player at spawn coords (Priority: WarpPortal explicitly sets, then World default)
+            # Position player at spawn coords (Priority: World default/player_start, then WarpPortal explicit)
             # Procedural Generation Rule: If create_world returned a world with a valid player_start, use it.
             game_state.player.is_exposed = False
             target_x = float(self.spawn_x)
             target_y = float(self.spawn_y)
-            print(f"[DEBUG] WarpPortal default spawn: ({target_x}, {target_y})")
             
-            # If we are warping to 'macro_world' and world has a player_start, prefer that
-            if self.target_name == "macro_world" and game_state.world.player_start:
+            # Universal Player Start Override: If target world has a defined spawn, prefer it
+            if game_state.world.player_start:
                 target_x, target_y = game_state.world.player_start
-                print(f"[DEBUG] Using macro_world override spawn: ({target_x}, {target_y})")
+                print(f"[DEBUG] Using destination player_start override: ({target_x}, {target_y})")
 
             print(f"[DEBUG] Setting player physical position: ({target_x}, {target_y})")
             game_state.player.x = float(target_x)

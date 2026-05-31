@@ -116,8 +116,19 @@ def roll_drop(source_tier: int, position: tuple, state: any):
         state.loot.append(TornPage(x, y, amount=random.randint(20, 50)))
         
     elif source_tier == 1:
-        # Choice of Fates
+        # Choice of Fates + Bonus Loot
         state.loot.append(ChoiceOfFates(x, y))
+        # 50% chance for a Tier 2 currency bundle as well
+        if random.random() < 0.5:
+            state.loot.append(TornPage(x + 20, y, amount=random.randint(20, 50)))
+        # 80% chance for some immediate heals
+        if random.random() < 0.8:
+            state.loot.append(HealItem(x - 20, y))
+            state.loot.append(HealItem(x, y + 20))
+            
+    elif source_tier == 0:
+        # Final Redaction: No tangible rewards, only story closure
+        pass
 
 
 class TornPage:
