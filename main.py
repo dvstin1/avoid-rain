@@ -20,17 +20,19 @@ from rendering.renderer import Renderer
 
 def handle_title_events(state, renderer, title_menu: TitleMenu):
     """Handle events during the title screen with a menu controller and Auto Input Mode."""
+    ratchet_reset = False
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            return False, False
+            return False, False, False
         
         # Mode Switching Rule
         if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
             state.input_mode = INPUT_MODE_KEYBOARD
-        if event.type in (pygame.JOYBUTTONDOWN, pygame.JOYAXISMOTION, pygame.JOYHATMOTION):
+        if event.type in (pygame.JOYBUTTONDOWN, pygame.JOYHATMOTION):
             state.input_mode = INPUT_MODE_GAMEPAD
 
         if event.type == pygame.JOYBUTTONDOWN:
+            state.input_mode = INPUT_MODE_GAMEPAD
             if event.button == 0: title_menu.confirm() # Cross/A
             if event.button == 1: # Circle/B (Cancel)
                 if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
@@ -38,29 +40,48 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
                 elif getattr(title_menu.state, 'name', '') == 'CONTROLS':
                     title_menu.state = TitleMenuState.MAIN
         
+        if event.type == pygame.JOYBUTTONUP:
+            ratchet_reset = True
+
         if event.type == pygame.JOYHATMOTION:
+            state.input_mode = INPUT_MODE_GAMEPAD
             if event.value[1] > 0: title_menu.navigate('up')
             if event.value[1] < 0: title_menu.navigate('down')
+
+        if event.type == pygame.JOYAXISMOTION:
+            if abs(event.value) > JOYSTICK_DEADZONE:
+                state.input_mode = INPUT_MODE_GAMEPAD
+                # Vertical Stick Navigation
+                if event.axis == 1:
+                    if not state.input_ratchet_latched:
+                        if event.value > 0.8:
+                            title_menu.navigate('down')
+                            state.input_ratchet_latched = True
+                        elif event.value < -0.8:
+                            title_menu.navigate('up')
+                            state.input_ratchet_latched = True
+            elif event.axis == 1 and abs(event.value) < 0.1:
+                ratchet_reset = True
 
         if event.type == pygame.KEYDOWN:
             # If we are in controls state, handle SPACE/ENTER/ESCAPE as 'back'
             if getattr(title_menu.state, 'name', '') == 'CONTROLS':
                 if event.key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
                     title_menu.state = TitleMenuState.MAIN
-                return True, True
+                return True, True, False
 
             # If we are in confirmation state, handle ESC as 'cancel'
             if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
                 if event.key in (pygame.K_ESCAPE, pygame.K_n):
                     title_menu.state = TitleMenuState.MAIN
-                    return True, True
+                    return True, True, False
                 if event.key == pygame.K_y:
                     title_menu.confirm()
-                    return True, True
-                return True, True
+                    return True, True, False
+                return True, True, False
 
             if event.key == pygame.K_ESCAPE:
-                return False, False
+                return False, False, False
             # Navigation
             if event.key in (pygame.K_UP, pygame.K_w):
                 title_menu.navigate('up')
@@ -69,7 +90,7 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                 # Confirm selection (main handles the resulting action)
                 title_menu.confirm()
-    return True, True
+    return True, True, ratchet_reset
 
 def handle_game_events(state, pause_menu: PauseMenu | None = None):
     """Handle events during the main game loop with Auto Input Mode switching."""
@@ -104,24 +125,56 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
         
         # Controller Buttons
         if event.type == pygame.JOYBUTTONDOWN:
+            state.input_mode = INPUT_MODE_GAMEPAD
             # Sony PS5 / Standard Mapping
             # 0: Cross, 1: Circle, 2: Square, 3: Triangle
-            if event.button == 0: attack = True # Confirm/Swing
-            if event.button == 1: dash = True   # Cancel/Dash
-            if event.button == 3: flask = True  # Flask
-            if event.button == 4: swap = True   # L1 Swap
-            if event.button == 6: # Options/Share
-                if pause_menu: pause_menu.toggle()
+            
+            if pause_menu and pause_menu.is_open():
+                if event.button == 0: # Confirm
+                    if pause_menu.get_selected() == "Controls":
+                        from engine.pause_menu import PauseMenuState
+                        pause_menu.state = PauseMenuState.CONTROLS
+                    else:
+                        pause_menu.confirm()
+                elif event.button == 1: # Back / Cancel
+                    from engine.pause_menu import PauseMenuState
+                    if getattr(pause_menu.state, 'name', '') == 'CONTROLS':
+                        pause_menu.state = PauseMenuState.MAIN
+                    else:
+                        pause_menu.close()
+            else:
+                if event.button == 0: attack = True # Confirm/Swing
+                if event.button == 1: dash = True   # Cancel/Dash
+                if event.button == 3: flask = True  # Flask
+                if event.button == 4: swap = True   # L1 Swap
+                if event.button == 6: # Options/Share
+                    if pause_menu: pause_menu.toggle()
 
         if event.type == pygame.JOYBUTTONUP:
             ratchet_reset = True
         
-        # D-pad Navigation for Menus
+        # Gamepad Stick/Hat Navigation for Menus
         if event.type == pygame.JOYHATMOTION:
             state.input_mode = INPUT_MODE_GAMEPAD
             if pause_menu and pause_menu.is_open():
                 if event.value[1] > 0: pause_menu.navigate('up')
                 if event.value[1] < 0: pause_menu.navigate('down')
+
+        if event.type == pygame.JOYAXISMOTION:
+            if abs(event.value) > JOYSTICK_DEADZONE:
+                state.input_mode = INPUT_MODE_GAMEPAD
+                # Stick Menu Navigation (Vertical)
+                if pause_menu and pause_menu.is_open() and event.axis == 1:
+                    if not state.input_ratchet_latched:
+                        if event.value > 0.8:
+                            pause_menu.navigate('down')
+                            state.input_ratchet_latched = True
+                        elif event.value < -0.8:
+                            pause_menu.navigate('up')
+                            state.input_ratchet_latched = True
+            elif event.axis == 1: # Centered
+                # Optional: specific axis reset logic if needed
+                pass
 
         if event.type == pygame.KEYUP:
             ratchet_reset = True
@@ -300,12 +353,15 @@ def main():
             dt = clock.tick(FPS) / 1000.0
 
             if in_title:
-                in_title, running = handle_title_events(state, renderer, title_menu)
+                in_title, running, ratchet_reset = handle_title_events(state, renderer, title_menu)
                 # Pass the whole TitleMenu so the renderer can render dynamic options
                 renderer.draw_title_screen(title_menu)
                 
                 # Update Music for Title Screen
                 audio.update(dt, "title_theme.ogg")
+
+                if ratchet_reset:
+                    state.input_ratchet_latched = False
 
                 # If the user confirmed a title selection, handle it here
                 if title_menu.was_confirmed():
@@ -364,6 +420,10 @@ def main():
             else:
                 ev_res = handle_game_events(state, pause_menu=pause_menu)
                 running, attack, flask, dash, swap, mouse_click, ratchet_reset = ev_res
+                
+                if ratchet_reset:
+                    state.input_ratchet_latched = False
+                
                 if pause_menu.is_open():
                     # When paused, draw the pause menu and skip updates
                     renderer.draw_pause_menu(pause_menu)
