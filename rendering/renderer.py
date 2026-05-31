@@ -121,23 +121,25 @@ class Renderer:
         instr = self.font.render("Move [Left/Right] to select, [SPACE] to confirm", True, constants.COLOR_WHITE)
         self.screen.blit(instr, (sw // 2 - instr.get_width() // 2, sh - 100))
 
-    def draw_weather(self, state):
+    def draw_weather(self, state, override_color=None, force_global=False):
         """Draw screen-space weather effects and the shrinking safe circle."""
         # Hub Isolation Rule: No weather visuals in the Sanctuary
-        if getattr(state.world, 'name', '') == "sanctuary":
+        if not force_global and getattr(state.world, 'name', '') == "sanctuary":
             return
 
-        if getattr(state, 'bleed_state', 'CLEAR') == 'GRACE_PERIOD':
-            return
-
-        boss_coords = getattr(state, 'current_boss_coords', None)
-        if not boss_coords:
+        if not force_global and getattr(state, 'bleed_state', 'CLEAR') == 'GRACE_PERIOD':
             return
 
         sw, sh = self.screen.get_width(), self.screen.get_height()
-        ox, oy = state.camera.get_offset()
-        bcx, bcy = boss_coords['x'] * constants.TILE_SIZE - ox, boss_coords['y'] * constants.TILE_SIZE - oy
-        radius = state.active_safe_radius
+        ox, oy = state.camera.get_offset() if hasattr(state, 'camera') else (0, 0)
+        
+        radius = getattr(state, 'active_safe_radius', 1000000.0)
+        if force_global:
+            radius = 1000000.0 # No safe zone on title screen
+            
+        current_boss_coords = getattr(state, 'current_boss_coords', None)
+        if force_global:
+            current_boss_coords = None
 
         # 1. Draw the Safe Circle Boundary
         overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
@@ -157,11 +159,15 @@ class Renderer:
         # Update and Draw particles
         ticks = pygame.time.get_ticks() / 1000.0
         
-        rain_color = constants.COLOR_TOXIC_RAIN
-        if getattr(state, 'bleed_state', 'CLEAR') == 'DILUTION':
+        # Color Selection Rule
+        rain_color = override_color if override_color else constants.COLOR_TOXIC_RAIN
+        if not override_color and getattr(state, 'bleed_state', 'CLEAR') == 'DILUTION':
             rain_color = constants.COLOR_SAFE_RAIN
 
-        wb_x, wb_y = boss_coords['x'] * constants.TILE_SIZE, boss_coords['y'] * constants.TILE_SIZE
+        wb_x, wb_y = 0, 0
+        if current_boss_coords:
+            wb_x, wb_y = current_boss_coords['x'] * constants.TILE_SIZE, current_boss_coords['y'] * constants.TILE_SIZE
+        
         rad_sq = radius**2
 
         for p in self.rain_particles:
@@ -169,21 +175,22 @@ class Renderer:
             rx = p['x']
             
             # Distance check: Only draw if OUTSIDE the safe circle
-            # Dilution Rule: Rain is harmless and global (no circle cutout)
+            # Dilution/Title Rule: Rain is global
             is_dilution = getattr(state, 'bleed_state', 'CLEAR') == 'DILUTION'
             
-            if is_dilution:
+            if is_dilution or force_global:
                 pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
-            else:
+            elif current_boss_coords:
                 world_rx, world_ry = rx + ox, ry + oy
                 d_sq = (world_rx - wb_x)**2 + (world_ry - wb_y)**2
                 if d_sq > rad_sq:
                     pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
 
         # 3. Draw a glowing edge for the circle
-        # Only if NOT in dilution
-        if getattr(state, 'bleed_state', 'CLEAR') != 'DILUTION' and 0 < radius < 30000:
-            pygame.draw.circle(overlay, (255, 100, 0, 150), (int(bcx), int(bcy)), int(radius), 3)
+        if not force_global and getattr(state, 'bleed_state', 'CLEAR') != 'DILUTION' and current_boss_coords:
+            bcx, bcy = current_boss_coords['x'] * constants.TILE_SIZE - ox, current_boss_coords['y'] * constants.TILE_SIZE - oy
+            if 0 < radius < 30000:
+                pygame.draw.circle(overlay, (255, 100, 0, 150), (int(bcx), int(bcy)), int(radius), 3)
 
         self.screen.blit(overlay, (0, 0))
 
@@ -558,10 +565,14 @@ class Renderer:
         self.screen.blit(minimap_surface, (constants.MINIMAP_PADDING, constants.MINIMAP_PADDING))
 
     def draw_title_screen(self, menu=0):
-        """Draw title screen."""
+        """Draw title screen with atmospheric rain."""
         self.screen.fill(constants.COLOR_BLACK)
         sw, sh = self.screen.get_width(), self.screen.get_height()
-        title = self.font.render("AVOID RAIN", True, constants.COLOR_WHITE)
+        
+        # Atmospheric Rain on Title Screen (Selection Color: Amber/Gold)
+        self.draw_weather(None, override_color=constants.COLOR_SELECTION, force_global=True)
+
+        title = self.large_font.render("AVOID RAIN", True, constants.COLOR_SELECTION)
         instr = self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE)
         self.screen.blit(title, title.get_rect(center=(sw//2, 220)))
         self.screen.blit(instr, instr.get_rect(center=(sw//2, 280)))

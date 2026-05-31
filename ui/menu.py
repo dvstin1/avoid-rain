@@ -22,7 +22,7 @@ def draw_respite_menu(screen, font, state):
     if state.stats:
         pages = state.stats.data["lifetime_stats"].get("pages_collected", 0)
     
-    header = font.render(f"Respite - Anchor of the First Edition (Understanding: Lvl {edif})", True, constants.COLOR_YELLOW)
+    header = font.render(f"Respite - Anchor of the First Edition (Understanding: Lvl {edif})", True, constants.COLOR_SELECTION)
     screen.blit(header, (x + 20, y + 10))
     
     stats_text = font.render(f"Torn Pages Available: {pages}", True, (200, 200, 255))
@@ -40,7 +40,7 @@ def draw_respite_menu(screen, font, state):
         if is_available:
             color = constants.COLOR_WHITE
             if is_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
-                color = constants.COLOR_YELLOW # Highlight selected
+                color = constants.COLOR_SELECTION # Highlight selected
         else:
             color = (80, 80, 80) # Charcoal/Grey
         
@@ -71,7 +71,7 @@ def draw_respite_menu(screen, font, state):
     rest_color = constants.COLOR_WHITE
     if not player.has_rested_this_session:
         if is_rest_selected and state.input_mode == constants.INPUT_MODE_GAMEPAD:
-            rest_color = constants.COLOR_YELLOW
+            rest_color = constants.COLOR_SELECTION
     else:
         rest_color = constants.COLOR_GREY
 
@@ -88,10 +88,9 @@ def draw_respite_menu(screen, font, state):
         draw_option(2, "Edify Prowess (+5 Attack)", prowess, prowess_cost, pages >= prowess_cost)
         draw_option(3, "Edify Fortification (+10 Max HP)", fort, fort_cost, pages >= fort_cost)
     else:
-        warn_box = font.render("[ Must Rest to Unblock Level Up ]", True, constants.COLOR_YELLOW)
+        warn_box = font.render("[ Must Rest to Unblock Level Up ]", True, constants.COLOR_SELECTION)
         screen.blit(warn_box, (x + 40, y + y_off))
     
     # 3. Footer
     close = font.render("Press [SPACE] to Close", True, constants.COLOR_GREY)
     screen.blit(close, (x + w - close.get_width() - 20, y + h - 30))
-
