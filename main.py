@@ -223,7 +223,11 @@ def main():
 
     atexit.register(shutdown_handler)
     pause_menu = PauseMenu()
-    title_menu = TitleMenu()
+    
+    # [Initialization] Detect existing save file to enable 'Continue'
+    from engine.stats import DEFAULT_PATH
+    title_menu = TitleMenu(has_save=DEFAULT_PATH.exists())
+    
     in_title = True
     running = True
 

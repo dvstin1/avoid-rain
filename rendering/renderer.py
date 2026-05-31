@@ -577,7 +577,7 @@ class Renderer:
         instr = self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE)
         self.screen.blit(title, title.get_rect(center=(sw//2, 220)))
         self.screen.blit(instr, instr.get_rect(center=(sw//2, 280)))
-        opts, sel = ["New Game", "Quit"], 0
+        opts, sel = ["New Draft", "Quit"], 0
         from engine.title_menu import TitleMenuState
         state = TitleMenuState.MAIN
         try:
