@@ -18,14 +18,14 @@ class TitleMenu(MenuBase):
     """Manage title screen menu state and confirmation flag.
 
     The menu adjusts options depending on whether save data exists.
-    If has_save is False (default): options = ["New Game", "Controls", "Quit"]
-    If has_save is True: options = ["New Game", "Continue", "Controls", "Quit"] with
+    If has_save is False (default): options = ["New Draft", "Controls", "Quit"]
+    If has_save is True: options = ["New Draft", "Continue", "Controls", "Quit"] with
     "Continue" selected by default.
     """
 
     def __init__(self, has_save: bool = False) -> None:
         self._has_save = bool(has_save)
-        options = ["New Game", "Controls", "Quit"] if not self._has_save else ["New Game", "Continue", "Controls", "Quit"]
+        options = ["New Draft", "Controls", "Quit"] if not self._has_save else ["New Draft", "Continue", "Controls", "Quit"]
         super().__init__(options)
         # Set default selection: when a save exists, default to Continue
         if self._has_save:
@@ -41,7 +41,7 @@ class TitleMenu(MenuBase):
         """
         # Update internal state and options without dunder __init__ call
         self._has_save = bool(has_save)
-        self._options = ["New Game", "Controls", "Quit"] if not self._has_save else ["New Game", "Continue", "Controls", "Quit"]
+        self._options = ["New Draft", "Controls", "Quit"] if not self._has_save else ["New Draft", "Continue", "Controls", "Quit"]
         if self._has_save:
             self._selected = 1
         else:

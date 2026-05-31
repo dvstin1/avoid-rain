@@ -666,7 +666,7 @@ class Renderer:
         pygame.display.flip()
 
     def draw_controls_overlay(self, show_editor=True):
-        """Draw controls overlay."""
+        """Draw controls overlay with Gamepad status."""
         sw, sh = self.screen.get_width(), self.screen.get_height()
         over = pygame.Surface((sw, sh), pygame.SRCALPHA)
         over.fill((0, 0, 0, constants.UI_ALPHA))
@@ -674,15 +674,42 @@ class Renderer:
 
         cx, cy = sw // 2, sh // 2
 
-        self.screen.blit(self.font.render("[ Keyboard ]", True, constants.COLOR_WHITE), self.font.render("[ Keyboard ]", True, constants.COLOR_WHITE).get_rect(center=(cx - 150, 60)))
-        self.screen.blit(self.font.render("[ Controller ] (Not Implemented)", True, constants.COLOR_GREY), self.font.render("[ Controller ] (Not Implemented)", True, constants.COLOR_GREY).get_rect(center=(cx + 150, 60)))
-        self.screen.blit(self.font.render("CONTROLS", True, constants.COLOR_YELLOW), self.font.render("CONTROLS", True, constants.COLOR_YELLOW).get_rect(center=(cx, 120)))
-        ins = [("Movement:", "WASD / Arrows"), ("Attack / Interact:", "Space"), ("Dash:", "Left Shift"), ("Flask:", "1"), ("Block:", "K"), ("Weapon Swap:", "Q"), ("Pause Run:", "Escape")]
-        if show_editor: ins.extend([("Editor Box Fill:", "B / Click-and-Drag"), ("Canvas Stretch:", "+/- and Ctrl + +/-")])
-        for i, (a, k) in enumerate(ins):
-            asurf, ksurf = self.font.render(a, True, constants.COLOR_WHITE), self.font.render(k, True, constants.COLOR_CYAN)
-            self.screen.blit(asurf, asurf.get_rect(midright=(cx - 20, 180 + i * 40)))
-            self.screen.blit(ksurf, ksurf.get_rect(midleft=(cx + 20, 180 + i * 40)))
+        # 1. Header
+        self.screen.blit(self.font.render("CONTROLS & INPUT", True, constants.COLOR_YELLOW), 
+                         self.font.render("CONTROLS & INPUT", True, constants.COLOR_YELLOW).get_rect(center=(cx, 60)))
+        
+        # 2. Input Legend
+        self.screen.blit(self.font.render("[ Keyboard/Mouse ]", True, constants.COLOR_WHITE), 
+                         self.font.render("[ Keyboard/Mouse ]", True, constants.COLOR_WHITE).get_rect(center=(cx - 150, 100)))
+        
+        joy_count = pygame.joystick.get_count()
+        joy_col = constants.COLOR_MODE_GAMEPAD if joy_count > 0 else constants.COLOR_GREY
+        joy_label = f"[ Gamepad: {'ACTIVE' if joy_count > 0 else 'NOT DETECTED'} ]"
+        self.screen.blit(self.font.render(joy_label, True, joy_col), 
+                         self.font.render(joy_label, True, joy_col).get_rect(center=(cx + 150, 100)))
+
+        # 3. Controls List (Action, Keyboard/Mouse, Gamepad)
+        ins = [
+            ("Movement", "WASD / Arrows", "(GP) L-Stick"),
+            ("Attack / Interact", "SPACE / Click", "(GP) Cross"),
+            ("Dash (Invulnerable)", "Shift", "(GP) Circle"),
+            ("Heal (Flask)", "1", "(GP) Triangle"),
+            ("Block (Shield)", "K", "(GP) R2"),
+            ("Swap Weapon", "Q / Click", "(GP) L1"),
+            ("Pause Game", "ESC", "(GP) Start"),
+        ]
+        
+        y_off = 180
+        for act, kb, gp in ins:
+            a_surf = self.font.render(f"{act}:", True, constants.COLOR_WHITE)
+            k_surf = self.font.render(kb, True, constants.COLOR_CYAN)
+            g_surf = self.font.render(gp, True, constants.COLOR_MODE_GAMEPAD)
+            
+            self.screen.blit(a_surf, a_surf.get_rect(midright=(cx - 40, y_off)))
+            self.screen.blit(k_surf, k_surf.get_rect(midleft=(cx + 0, y_off)))
+            self.screen.blit(g_surf, g_surf.get_rect(midleft=(cx + 180, y_off)))
+            y_off += 40
+
         back = self.font.render("Press SPACE or ENTER to go back", True, constants.COLOR_WHITE)
-        self.screen.blit(back, back.get_rect(center=(cx, 180 + len(ins) * 40 + 40)))
+        self.screen.blit(back, back.get_rect(center=(cx, sh - 60)))
         pygame.display.flip()

@@ -319,8 +319,8 @@ def main():
                         in_title = False
                         continue
 
-                    if selected == 'New Game':
-                        # If we just confirmed 'New Game' from the prompt
+                    if selected == 'New Draft':
+                        # If we just confirmed 'New Draft' from the prompt
                         if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
                             # User pressed Y (confirmed in handle_title_events)
                             try:

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title Screen Part - Character Silhouette</title>
+    <style>
+        body { background: #d2b48c; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        
+        .silhouette-art {
+            fill: #000;
+            filter: drop-shadow(0 0 20px rgba(120, 255, 100, 0.4));
+            animation: sway 10s ease-in-out infinite;
+        }
+
+        @keyframes sway {
+            0%, 100% { transform: rotate(-1deg); }
+            50% { transform: rotate(1deg); }
+        }
+
+        .ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100px;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <svg class="silhouette-art" width="400" height="600" viewBox="0 0 200 300">
+        <!-- Hooded Cloak -->
+        <path d="M100,40 Q80,40 70,70 L50,150 L30,280 Q30,290 40,290 L160,290 Q170,290 170,280 L150,150 L130,70 Q120,40 100,40" />
+        
+        <!-- The Shield/Umbrella -->
+        <g transform="translate(100, 50)">
+            <!-- Shaft -->
+            <line x1="0" y1="0" x2="0" y2="240" stroke="#000" stroke-width="6" />
+            <!-- Canopy -->
+            <path d="M-80,100 Q0,-20 80,100" fill="none" stroke="#000" stroke-width="15" stroke-linecap="round" />
+            <!-- Internal ribs -->
+            <line x1="-80" y1="100" x2="0" y2="20" stroke="#000" stroke-width="2" />
+            <line x1="80" y1="100" x2="0" y2="20" stroke="#000" stroke-width="2" />
+        </g>
+    </svg>
+    <div class="ground"></div>
+</body>
+</html>

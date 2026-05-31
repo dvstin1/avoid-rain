@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title Screen Part - Typographic Bloom</title>
+    <style>
+        body { background: #0f0f14; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: 'Times New Roman', serif; }
+        
+        .title-wrapper {
+            position: relative;
+            text-align: center;
+        }
+
+        .bloom-text {
+            font-size: 150px;
+            color: #e6e6e6;
+            letter-spacing: 25px;
+            font-style: italic;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* The Glow/Bloom layer */
+        .bloom-text::after {
+            content: "AVOID RAIN";
+            position: absolute;
+            left: 0;
+            top: 0;
+            color: #78ff64;
+            filter: blur(15px);
+            opacity: 0.4;
+            z-index: 1;
+            animation: flicker 5s linear infinite;
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 0.3; filter: blur(15px); }
+            50% { opacity: 0.6; filter: blur(25px); }
+            75% { opacity: 0.4; filter: blur(18px); }
+        }
+
+        .subtitle {
+            color: #d2b48c;
+            font-size: 20px;
+            letter-spacing: 10px;
+            margin-top: -30px;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="title-wrapper">
+        <h1 class="bloom-text">AVOID RAIN</h1>
+        <div class="subtitle">A SCRIPTORIUM NOIR ADVENTURE</div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avoid Rain - Title Screen Mockup</title>
+    <style>
+        :root {
+            --sepia-dark: #281e14;
+            --sepia-mid: #3d2d1e;
+            --parchment: #d2b48c;
+            --charcoal: #0f0f14;
+            --toxic-green: #78ff64;
+            --noir-white: #e6e6e6;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--charcoal);
+            overflow: hidden;
+            font-family: 'Times New Roman', serif;
+        }
+
+        #screen {
+            position: relative;
+            width: 1280px;
+            height: 720px;
+            margin: auto;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: var(--sepia-dark);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            border: 2px solid #000;
+        }
+
+        /* Layer 1: Background (Parchment & Ink Blots) */
+        .layer-bg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--sepia-dark) 0%, #1a1510 100%);
+            opacity: 1;
+        }
+
+        .ink-blot {
+            position: absolute;
+            fill: #000;
+            filter: blur(2px);
+            opacity: 0.7;
+        }
+
+        /* Layer 2: Midground (Character Silhouette) */
+        .character-container {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        .silhouette {
+            fill: #000;
+            filter: drop-shadow(0 0 10px rgba(120, 255, 100, 0.3));
+        }
+
+        /* Layer 3: Weather (Toxic Rain) */
+        .rain-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .drop {
+            position: absolute;
+            background-color: var(--toxic-green);
+            width: 1px;
+            height: 20px;
+            opacity: 0.4;
+            animation: fall linear infinite;
+        }
+
+        @keyframes fall {
+            from { transform: translateY(-100px); }
+            to { transform: translateY(800px); }
+        }
+
+        /* Layer 4: UI (Title & Menu) */
+        .ui-container {
+            position: absolute;
+            top: 15%;
+            width: 100%;
+            text-align: center;
+            color: var(--noir-white);
+        }
+
+        .title {
+            font-size: 120px;
+            letter-spacing: 20px;
+            font-weight: bold;
+            font-style: italic;
+            text-shadow: 0 0 20px rgba(0,0,0,1), 0 0 5px var(--toxic-green);
+            margin: 0;
+            animation: breathe 4s ease-in-out infinite;
+        }
+
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.02); opacity: 1; }
+        }
+
+        .menu {
+            margin-top: 50px;
+            list-style: none;
+            padding: 0;
+        }
+
+        .menu li {
+            font-size: 24px;
+            margin: 15px 0;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            color: var(--parchment);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .menu li:hover {
+            color: var(--toxic-green);
+            transform: translateX(10px);
+            text-shadow: 0 0 10px var(--toxic-green);
+        }
+
+        .indicator {
+            font-size: 12px;
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: var(--sepia-mid);
+        }
+    </style>
+</head>
+<body>
+    <div id="screen">
+        <!-- Background -->
+        <div class="layer-bg">
+            <svg class="ink-blot" style="top:-50px; left:-50px; width:400px; height:400px;">
+                <path d="M200,50 Q250,0 300,50 T350,150 Q400,250 300,350 T100,300 Q0,200 100,100 Z" />
+            </svg>
+            <svg class="ink-blot" style="bottom:-100px; right:-50px; width:500px; height:500px; opacity: 0.5;">
+                <path d="M100,300 Q150,450 300,400 T450,250 Q500,100 350,50 T100,150 Z" />
+            </svg>
+        </div>
+
+        <!-- Character -->
+        <div class="character-container">
+            <svg class="silhouette" width="200" height="350" viewBox="0 0 200 350">
+                <!-- Hooded Reader Figure -->
+                <path d="M100,50 Q80,50 70,80 L60,150 L40,350 L160,350 L140,150 L130,80 Q120,50 100,50" />
+                <!-- Umbrella / Glowing Quill handle -->
+                <line x1="100" y1="350" x2="100" y2="100" stroke="#000" stroke-width="8" />
+                <path d="M20,150 Q100,50 180,150" fill="none" stroke="#000" stroke-width="12" stroke-linecap="round" />
+            </svg>
+        </div>
+
+        <!-- Weather -->
+        <div id="rain" class="rain-container"></div>
+
+        <!-- UI -->
+        <div class="ui-container">
+            <h1 class="title">AVOID RAIN</h1>
+            <ul class="menu">
+                <li>[ Continue ]</li>
+                <li>[ New Draft ]</li>
+                <li>[ Library ]</li>
+                <li>[ Slam Book ]</li>
+            </ul>
+        </div>
+
+        <div class="indicator">PROTOTYPE REV 4.0 - SCRIPTORIUM NOIR</div>
+    </div>
+
+    <script>
+        const rainContainer = document.getElementById('rain');
+        const dropCount = 150;
+
+        for (let i = 0; i < dropCount; i++) {
+            const drop = document.createElement('div');
+            drop.className = 'drop';
+            drop.style.left = Math.random() * 100 + '%';
+            drop.style.animationDuration = (Math.random() * 0.5 + 0.5) + 's';
+            drop.style.animationDelay = Math.random() * 2 + 's';
+            rainContainer.appendChild(drop);
+        }
+    </script>
+</body>
+</html>
