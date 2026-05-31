@@ -8,7 +8,7 @@ import threading
 from constants import (
     PLAYER_START_X, PLAYER_START_Y,
     DAMAGE_NUMBER_LIFETIME, DAMAGE_NUMBER_SPEED,
-    SWORD_DAMAGE, COLOR_YELLOW, COLOR_WHITE, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
+    SWORD_DAMAGE, COLOR_SELECTION, COLOR_WHITE, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
     PLAYER_MAX_HP, FLASK_MAX_CHARGES,
     SCREEN_SHAKE_DURATION, HIT_STOP_DURATION,
     SCREEN_WIDTH, SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT, HUD_PICKUP_BTN_RECT,
@@ -609,7 +609,7 @@ class GameState:
                             self.shake_timer = SCREEN_SHAKE_DURATION
                             self.damage_numbers.append({
                                 'val': damage, 'pos': (enemy.x + 10, enemy.y - 20),
-                                'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_YELLOW
+                                'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_SELECTION
                             })
                 except Exception: pass
 

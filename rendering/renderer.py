@@ -13,6 +13,11 @@ class Renderer:
     def __init__(self, screen):
         self.screen = screen
         self.font = pygame.font.SysFont("Arial", 24)
+        self.small_font = pygame.font.SysFont("Arial", 14)
+        self.large_font = pygame.font.SysFont("Arial", 32)
+        self.hud_font = pygame.font.SysFont("Arial", 14, bold=True)
+        self.slot_font = pygame.font.SysFont("Arial", 12)
+        self.bloom_font = pygame.font.SysFont("Times New Roman", 72, bold=True, italic=True)
 
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
@@ -84,7 +89,7 @@ class Renderer:
         panel = pygame.Rect(x, y, w, h)
         pygame.draw.rect(self.screen, bg, panel)
         pygame.draw.rect(self.screen, constants.COLOR_WHITE, panel, 2)
-        self.screen.blit(self.font.render(speaker, True, constants.COLOR_YELLOW), (x + 20, y + 10))
+        self.screen.blit(self.font.render(speaker, True, constants.COLOR_SELECTION), (x + 20, y + 10))
         lines, words = [], text.replace('\n', ' \n ').split(' ')
         cur = []
         for word in words:
@@ -109,14 +114,14 @@ class Renderer:
         for i, opt in enumerate(choice["options"]):
             x, y = sw // 2 - (card_w + pad // 2) + i * (card_w + pad), sh // 2 - card_h // 2
             rect = pygame.Rect(x, y, card_w, card_h)
-            color, border = (60, 60, 80) if i == choice["selected_index"] else (40, 40, 40), constants.COLOR_YELLOW if i == choice["selected_index"] else constants.COLOR_GREY
+            color, border = (60, 60, 80) if i == choice["selected_index"] else (40, 40, 40), constants.COLOR_SELECTION if i == choice["selected_index"] else constants.COLOR_GREY
             pygame.draw.rect(self.screen, color, rect)
             pygame.draw.rect(self.screen, border, rect, 3)
             name = self.font.render(opt["name"], True, constants.COLOR_WHITE)
             self.screen.blit(name, (x + card_w // 2 - name.get_width() // 2, y + 20))
-            bias = self.font.render(f"({opt['bias']})", True, constants.COLOR_GREY)
+            bias = self.small_font.render(f"({opt['bias']})", True, constants.COLOR_GREY)
             self.screen.blit(bias, (x + card_w // 2 - bias.get_width() // 2, y + 50))
-            desc = self.font.render(opt["description"], True, constants.COLOR_YELLOW)
+            desc = self.font.render(opt["description"], True, constants.COLOR_SELECTION)
             self.screen.blit(desc, (x + card_w // 2 - desc.get_width() // 2, y + card_h - 50))
         instr = self.font.render("Move [Left/Right] to select, [SPACE] to confirm", True, constants.COLOR_WHITE)
         self.screen.blit(instr, (sw // 2 - instr.get_width() // 2, sh - 100))
@@ -292,7 +297,7 @@ class Renderer:
         if state.player.state == PlayerStateEnum.STAGGERED: pygame.draw.rect(self.screen, constants.COLOR_WHITE, p_draw, 2)
         if state.player.state == PlayerStateEnum.ATTACKING:
             hb = get_sword_hitbox(state.player.get_center(), state.player.facing)
-            pygame.draw.rect(self.screen, constants.COLOR_YELLOW, (hb[0] - ox, hb[1] - oy, hb[2], hb[3]))
+            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, (hb[0] - ox, hb[1] - oy, hb[2], hb[3]))
         for num in state.damage_numbers:
             self.screen.blit(self.font.render(str(num['val']), True, num['color']), (num['pos'][0] - ox, num['pos'][1] - oy))
         if getattr(state.player, 'current_interactable', None): self.draw_interaction_prompt(state.player, ox, oy)
@@ -357,17 +362,16 @@ class Renderer:
         alpha = max(0, min(255, alpha))
         
         # Draw Title with stylized font
-        title_font = pygame.font.SysFont("Times New Roman", 72, bold=True, italic=True)
         text = getattr(state, 'bloom_text', "THE UNKNOWN MARGIN")
         
         # Shadow / Bloom effect
         shadow_col = (*constants.COLOR_BLOOM_SHADOW, alpha // 2)
-        shadow_surf = title_font.render(text, True, shadow_col)
+        shadow_surf = self.bloom_font.render(text, True, shadow_col)
         bloom_surf.blit(shadow_surf, shadow_surf.get_rect(center=(sw // 2 + 5, sh // 3 + 5)))
         
         # Primary Text
         text_col = (*constants.COLOR_BLOOM_TEXT, alpha)
-        text_surf = title_font.render(text, True, text_col)
+        text_surf = self.bloom_font.render(text, True, text_col)
         bloom_surf.blit(text_surf, text_surf.get_rect(center=(sw // 2, sh // 3)))
         
         self.screen.blit(bloom_surf, (0, 0))
@@ -375,7 +379,6 @@ class Renderer:
     def draw_hud(self, state):
         """Draw player HP, Flask, and Dual Weapon slots."""
         player = state.player
-        hud_font = pygame.font.SysFont("Arial", 14, bold=True)
         panel_w = constants.HUD_PANEL_W
         panel_h = constants.HUD_PANEL_H
         hud_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
@@ -384,23 +387,23 @@ class Renderer:
         
         # Status Metrics (compact font)
         hp_text = f"HP: {int(player.hp)}/{int(player.max_hp)}"
-        hud_surf.blit(hud_font.render(hp_text, True, constants.COLOR_WHITE), (10, 10))
+        hud_surf.blit(self.hud_font.render(hp_text, True, constants.COLOR_WHITE), (10, 10))
         
         flask_text = f"Flasks: {player.flask_charges}"
-        hud_surf.blit(hud_font.render(flask_text, True, constants.COLOR_BLUE), (140, 10))
+        hud_surf.blit(self.hud_font.render(flask_text, True, constants.COLOR_BLUE), (140, 10))
         
         pages = state.stats.data["lifetime_stats"].get("pages_collected", 0) if state.stats else 0
         pages_text = f"Pages: {pages}"
-        hud_surf.blit(hud_font.render(pages_text, True, constants.COLOR_YELLOW), (240, 10))
+        hud_surf.blit(self.hud_font.render(pages_text, True, constants.COLOR_SELECTION), (240, 10))
 
         edif_lvl = player.stats.get("edification", 1)
         edif_text = f"LVL: {edif_lvl}"
-        hud_surf.blit(hud_font.render(edif_text, True, constants.COLOR_CYAN), (340, 10))
+        hud_surf.blit(self.hud_font.render(edif_text, True, constants.COLOR_CYAN), (340, 10))
 
         # [Input Mode Indicator]
         mode = getattr(state, 'input_mode', constants.INPUT_MODE_KEYBOARD)
         mode_col = constants.COLOR_MODE_GAMEPAD if mode == constants.INPUT_MODE_GAMEPAD else constants.COLOR_MODE_KEYBOARD
-        mode_label = hud_font.render(f"[ Input: {mode.capitalize()} ]", True, mode_col)
+        mode_label = self.hud_font.render(f"[ Input: {mode.capitalize()} ]", True, mode_col)
         hud_surf.blit(mode_label, (hud_surf.get_width() - mode_label.get_width() - 10, hud_surf.get_height() - 25))
 
         for i in range(2):
@@ -408,28 +411,26 @@ class Renderer:
             sr = pygame.Rect(sx, sy, constants.HUD_SLOT_W, constants.HUD_SLOT_H)
             pygame.draw.rect(hud_surf, (40, 40, 50), sr)
             
-            border_col = constants.COLOR_YELLOW if i == player.active_weapon_idx else constants.COLOR_GREY
+            border_col = constants.COLOR_SELECTION if i == player.active_weapon_idx else constants.COLOR_GREY
             pygame.draw.rect(hud_surf, border_col, sr, 2)
             
-            slot_font = pygame.font.SysFont("Arial", 12)
-            l_surf = slot_font.render("SLOT A" if i == 0 else "SLOT B", True, constants.COLOR_GREY)
+            l_surf = self.slot_font.render("SLOT A" if i == 0 else "SLOT B", True, constants.COLOR_GREY)
             hud_surf.blit(l_surf, (sx + 5, sy + 2))
             
             if i < len(player.weapons):
                 wpn = player.weapons[i]
                 col = constants.COLOR_PURPLE if "modifiers" in wpn else constants.COLOR_WHITE
                 
-                name_font = pygame.font.SysFont("Arial", 14)
-                name_surf = name_font.render(wpn.get("name", "Unknown")[:12], True, col)
+                name_surf = self.small_font.render(wpn.get("name", "Unknown")[:12], True, col)
                 hud_surf.blit(name_surf, (sx + 5, sy + 20))
                 
                 dmg_text = f"DMG: {wpn.get('damage', 0)}"
-                dmg_surf = slot_font.render(dmg_text, True, constants.COLOR_GREY)
+                dmg_surf = self.slot_font.render(dmg_text, True, constants.COLOR_GREY)
                 hud_surf.blit(dmg_surf, (sx + 5, sy + 40))
         swr = pygame.Rect(constants.HUD_SWAP_BTN_RECT)
         pygame.draw.rect(hud_surf, (60, 60, 80), swr)
         pygame.draw.rect(hud_surf, constants.COLOR_WHITE, swr, 1)
-        swt = pygame.font.SysFont("Arial", 14, bold=True).render("SWAP", True, constants.COLOR_WHITE)
+        swt = self.hud_font.render("SWAP", True, constants.COLOR_WHITE)
         hud_surf.blit(swt, (swr.centerx - swt.get_width()//2, swr.centery - swt.get_height()//2))
 
         # [PICK UP] Button - only visible if standing over a WeaponPickup
@@ -441,7 +442,7 @@ class Renderer:
             col = constants.COLOR_PURPLE if "modifiers" in target.weapon_data else constants.COLOR_WHITE
             pygame.draw.rect(hud_surf, (40, 60, 40), pkr) # Dark green tint for pickup
             pygame.draw.rect(hud_surf, col, pkr, 2)
-            pkt = pygame.font.SysFont("Arial", 14, bold=True).render("PICK UP", True, constants.COLOR_WHITE)
+            pkt = self.hud_font.render("PICK UP", True, constants.COLOR_WHITE)
             hud_surf.blit(pkt, (pkr.centerx - pkt.get_width()//2, pkr.centery - pkt.get_height()//2))
 
         self.screen.blit(hud_surf, (10, self.screen.get_height() - constants.HUD_PANEL_H - 10))
@@ -453,7 +454,7 @@ class Renderer:
         dr = pygame.Rect(ir[0] - offset_x, ir[1] - offset_y, ir[2], ir[3])
         if isinstance(item, TornPage):
             pygame.draw.rect(self.screen, constants.COLOR_WHITE, dr)
-            pygame.draw.rect(self.screen, constants.COLOR_YELLOW, dr, 1)
+            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, dr, 1)
         elif isinstance(item, HealItem):
             pygame.draw.rect(self.screen, (200, 50, 50), dr)
             pygame.draw.rect(self.screen, constants.COLOR_WHITE, (dr.centerx - 2, dr.y + 2, 4, dr.height - 4))
@@ -590,7 +591,7 @@ class Renderer:
             pass
 
         for idx, opt in enumerate(opts):
-            col = constants.COLOR_YELLOW if idx == sel else constants.COLOR_WHITE
+            col = constants.COLOR_SELECTION if idx == sel else constants.COLOR_WHITE
             surf = self.font.render(opt, True, col)
             self.screen.blit(surf, surf.get_rect(center=(sw//2, 340 + idx * 40)))
 
@@ -671,7 +672,7 @@ class Renderer:
         self.screen.blit(instruct, instruct.get_rect(center=(sw//2, sh//2 - 20)))
         
         for i, opt in enumerate(opts):
-            color = constants.COLOR_YELLOW if i == sel else constants.COLOR_WHITE
+            color = constants.COLOR_SELECTION if i == sel else constants.COLOR_WHITE
             surf = self.font.render(opt, True, color)
             self.screen.blit(surf, surf.get_rect(center=(sw//2, sh//2 + 10 + i * 30)))
         pygame.display.flip()
@@ -686,8 +687,8 @@ class Renderer:
         cx, cy = sw // 2, sh // 2
 
         # 1. Header
-        self.screen.blit(self.font.render("CONTROLS & INPUT", True, constants.COLOR_YELLOW), 
-                         self.font.render("CONTROLS & INPUT", True, constants.COLOR_YELLOW).get_rect(center=(cx, 60)))
+        self.screen.blit(self.font.render("CONTROLS & INPUT", True, constants.COLOR_SELECTION), 
+                         self.font.render("CONTROLS & INPUT", True, constants.COLOR_SELECTION).get_rect(center=(cx, 60)))
         
         # 2. Input Legend
         self.screen.blit(self.font.render("[ Keyboard/Mouse ]", True, constants.COLOR_WHITE), 
