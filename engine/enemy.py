@@ -181,6 +181,7 @@ class Miniboss(Enemy):
         )
         initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
         super().__init__(x, y, 64, 64, initial_hp, id=id)
+        self.name = "Miniboss"
         self.speed = MINIBOSS_SPEED
         self.detect_radius = 10 * TILE_SIZE
         self.damage = MINIBOSS_DAMAGE

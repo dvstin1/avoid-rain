@@ -207,6 +207,7 @@ class GameState:
             self.stats.data["lifetime_stats"]["pages_collected"] = 0
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
+            self.stats.data["last_run_result"] = "INIT"
             try:
                 self.stats.increment("runs_started", 1)
             except Exception: pass
@@ -706,7 +707,8 @@ class GameState:
                     break
 
         # 3. Priority Selection
-        if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY":
+        # Victory Rule: Only if we are in the Final Boss arena and just won
+        if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY" and world_name == "final_boss":
             self.player.active_track_name = "victory_theme.ogg"
             return
 
@@ -719,7 +721,7 @@ class GameState:
         elif near_miniboss:
             self.player.active_track_name = "miniboss_combat.ogg"
             self.player.miniboss_cooldown_accumulator = 0.0
-        elif self.player.active_track_name in ("miniboss_combat.ogg", "night_boss.ogg", "final_reckoning.ogg"):
+        elif self.player.active_track_name in ("miniboss_combat.ogg", "night_boss.ogg", "final_reckoning.ogg", "victory_theme.ogg"):
             self.player.miniboss_cooldown_accumulator += dt
             if self.player.miniboss_cooldown_accumulator >= cooldown_limit:
                 self.player.active_track_name = target_track
