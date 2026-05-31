@@ -13,6 +13,7 @@ from engine.game_state import GameState
 from engine.pause_menu import PauseMenu
 from engine.title_menu import TitleMenu, TitleMenuState
 from engine.autosave import AutosaveManager
+from engine.audio import AudioManager
 from rendering.renderer import Renderer
 
 # pylint: disable=no-member
@@ -200,6 +201,9 @@ def main():
     for j in joysticks:
         j.init()
         print(f"[INPUT] Detected Gamepad: {j.get_name()}")
+
+    # Initialize Audio
+    audio = AudioManager()
 
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption(TITLE)
@@ -409,6 +413,9 @@ def main():
                         if joy.get_button(1): actions['key_r'] = True  # Circle/B (Rest)
                     
                     state.update(dt, actions)
+                    
+                    # Update Music
+                    audio.update(dt, state.player.active_track_name)
 
                     # Run the autosave manager each frame
                     try:
