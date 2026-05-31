@@ -122,6 +122,7 @@ class GameState:
         self.input_debounce_timer = 0.0
         self.input_ratchet_latched = False
         self.defeated_miniboss_ids = set()
+        self.sanctuary_reset_complete = False
 
         # Typographic Bloom State
         self.bloom_timer = 0.0
@@ -466,9 +467,14 @@ class GameState:
                 extraction_warp = WarpPortal("sanctuary", 0, 0, (0, 0, 0, 0))
                 extraction_warp.execute_interaction(self)
 
-        # Sanctuary Level Reset Rule
+        # Sanctuary Level Reset Rule: Transition logic
         if getattr(self.world, 'name', '') == "sanctuary":
-            self.on_enter_sanctuary()
+            if not self.sanctuary_reset_complete:
+                self.on_enter_sanctuary()
+                self.sanctuary_reset_complete = True
+        else:
+            # Clear flag when in the macro-world to allow reset on next return
+            self.sanctuary_reset_complete = False
 
         if self.active_dialogue:
             if attack_pressed:

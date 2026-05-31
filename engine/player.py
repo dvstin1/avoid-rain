@@ -111,10 +111,6 @@ class Player:
         if flask_pressed:
             self.use_flask()
 
-        # Handle Weapon Swap
-        if actions.get('swap', False):
-            self.swap_weapon()
-
         dx, dy = move_dir
 
         # 1. Update facing direction
