@@ -399,7 +399,7 @@ class LevelLoader:
             print(f"[DEBUG] Applied spawn override: {player_start}")
 
         print(f"[DEBUG] Final player_start for {map_name}: {player_start}")
-        boss_coords_list = data.get("boss_coords_list")
+        boss_coords_list = data.get("boss_coords_list") or []
 
         return grid, interactables, warp_tiles, player_start, enemies, boss_coords_list
 

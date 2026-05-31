@@ -433,7 +433,7 @@ class GameState:
         # Appendix Rule: After Night 2 defeat, spawn the portal
         if self.bleed_state == "APPENDIX" and not any(e.name == "Appendix Warp" for e in self.world.interactables):
             idx = self.weather_manager.current_boss_idx
-            boss_list = getattr(self.world, 'boss_coords_list', [])
+            boss_list = getattr(self.world, 'boss_coords_list', []) or []
             if idx < len(boss_list):
                 coords = boss_list[idx]
                 from engine.world import WarpPortal
