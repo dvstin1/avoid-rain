@@ -195,6 +195,8 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
                 attack = True
             if event.key == pygame.K_1:
                 flask = True
+            if event.key == pygame.K_q:
+                swap = True
             if event.key == pygame.K_LSHIFT:
                 dash = True
             if pause_menu is not None and pause_menu.is_open():

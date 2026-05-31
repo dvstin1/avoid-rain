@@ -430,7 +430,7 @@ class Renderer:
         swr = pygame.Rect(constants.HUD_SWAP_BTN_RECT)
         pygame.draw.rect(hud_surf, (60, 60, 80), swr)
         pygame.draw.rect(hud_surf, constants.COLOR_WHITE, swr, 1)
-        swt = self.hud_font.render("SWAP", True, constants.COLOR_WHITE)
+        swt = self.hud_font.render("Q / L1 (GP)", True, constants.COLOR_WHITE)
         hud_surf.blit(swt, (swr.centerx - swt.get_width()//2, swr.centery - swt.get_height()//2))
 
         # [PICK UP] Button - only visible if standing over a WeaponPickup
@@ -442,7 +442,7 @@ class Renderer:
             col = constants.COLOR_PURPLE if "modifiers" in target.weapon_data else constants.COLOR_WHITE
             pygame.draw.rect(hud_surf, (40, 60, 40), pkr) # Dark green tint for pickup
             pygame.draw.rect(hud_surf, col, pkr, 2)
-            pkt = self.hud_font.render("PICK UP", True, constants.COLOR_WHITE)
+            pkt = self.hud_font.render("SPACE / A (GP)", True, constants.COLOR_WHITE)
             hud_surf.blit(pkt, (pkr.centerx - pkt.get_width()//2, pkr.centery - pkt.get_height()//2))
 
         self.screen.blit(hud_surf, (10, self.screen.get_height() - constants.HUD_PANEL_H - 10))

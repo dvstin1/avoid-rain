@@ -536,10 +536,8 @@ class GameState:
             self.player.current_interactable = None
 
         # Unified Interaction Filter: If interacting, suppress combat
-        # WeaponPickup is excluded from SPACE bar (now handled via HUD button)
-        from engine.world import WeaponPickup
         target = self.player.current_interactable
-        if attack_pressed and target and not isinstance(target, WeaponPickup):
+        if attack_pressed and target:
             target.execute_interaction(self)
             attack_pressed = False
 
@@ -557,36 +555,15 @@ class GameState:
         flask_pressed = actions.get('flask', False)
         dash_pressed = actions.get('dash', False)
         block_pressed = actions.get('block', False)
+        swap_pressed = actions.get('swap', False)
+
+        if swap_pressed:
+            self.player.swap_weapon()
 
         active_choice = getattr(self, 'active_choice', None)
-        if active_choice:
-            if move_dir[0] > 0:
-                active_choice["selected_index"] = 1
-            elif move_dir[0] < 0:
-                active_choice["selected_index"] = 0
-            if attack_pressed:
-                choice_node = active_choice["options"][active_choice["selected_index"]]
-                for stat, val in choice_node["modifiers"].items():
-                    self.player.stats[stat] = self.player.stats.get(stat, 0) + val
+...
                 self.active_choice = None
             return
-
-        mouse_click = actions.get('mouse_click')
-        if mouse_click:
-            # HUD Button Collision Check
-            bx, by = 10, SCREEN_HEIGHT - HUD_PANEL_H - 10
-            # [SWAP] Button check
-            sb = HUD_SWAP_BTN_RECT
-            if (bx + sb[0] <= mouse_click[0] <= bx + sb[0] + sb[2]) and \
-               (by + sb[1] <= mouse_click[1] <= by + sb[1] + sb[3]):
-                self.player.swap_weapon()
-            # [PICK UP] Button check
-            pb = HUD_PICKUP_BTN_RECT
-            if (bx + pb[0] <= mouse_click[0] <= bx + pb[0] + pb[2]) and \
-               (by + pb[1] <= mouse_click[1] <= by + pb[1] + pb[3]):
-                target_p = self.player.current_interactable
-                if isinstance(target_p, WeaponPickup):
-                    target_p.execute_interaction(self)
 
         walls = self.world.get_nearby_walls(player_rect)
         speed_multiplier = 1.0
