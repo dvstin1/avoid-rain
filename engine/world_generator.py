@@ -11,7 +11,7 @@ import sys
 # Add project root to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from constants import TILE_SIZE
+from constants import TILE_SIZE, get_generated_world_path
 
 class WorldGenerator:
     """Handles the data-driven generation of the macro-world layout."""
@@ -122,8 +122,11 @@ class WorldGenerator:
                 else:
                     s["active_plug"] = random.choice(pool) if pool else "maps/smallcave.json"
 
-    def export_world(self, filename="maps/generated_world.json"):
+    def export_world(self, filename=None):
         """Exports the layout as a macro-world JSON file."""
+        if filename is None:
+            filename = get_generated_world_path()
+            
         module_sockets = []
         for s in self.sockets:
             module_sockets.append({

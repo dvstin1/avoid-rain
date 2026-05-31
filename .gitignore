@@ -1,4 +1,3 @@
 __pycache__/
 .pytest_cache/
 *.pyc
-maps/generated_world.json

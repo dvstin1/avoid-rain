@@ -2,6 +2,15 @@
 Central registry for all game configuration and 'magic numbers'.
 """
 
+import os
+import tempfile
+from pathlib import Path
+
+def get_generated_world_path() -> str:
+    """Returns a cross-platform temporary path for the transient generated world JSON."""
+    temp_dir = Path(tempfile.gettempdir())
+    return str(temp_dir / "avoid_rain_generated_world.json")
+
 # Window Configuration
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720

@@ -2,6 +2,7 @@
 """
 import os
 from engine.world import World, LevelLoader
+from constants import get_generated_world_path
 
 def create_world(name: str, saved_enemies=None, defeated_ids=None) -> World:
     """Factory function to create and populate a World instance by name."""
@@ -12,13 +13,25 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None) -> World:
         from engine.world_generator import WorldGenerator
         gen = WorldGenerator()
         gen.generate_layout()
-        gen.export_world("maps/generated_world.json")
-        name = "generated_world"
+        temp_path = get_generated_world_path()
+        gen.export_world(temp_path)
+        
+        # Load from the temporary path
+        world = World(name="generated_world")
+        world.grid, world.interactables, world.warp_tiles, world.player_start, world.enemies, boss_list = \
+            LevelLoader.load_json_map(temp_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids)
+        world.boss_coords_list = boss_list
+        return world
 
     world = World(name=name)
 
     # Check for external JSON map first
-    json_path = os.path.join("maps", f"{name}.json")
+    # Special Rule: 'generated_world' loads from the temporary path
+    if name == "generated_world":
+        json_path = get_generated_world_path()
+    else:
+        json_path = os.path.join("maps", f"{name}.json")
+        
     if os.path.exists(json_path):
         world.grid, world.interactables, world.warp_tiles, world.player_start, world.enemies, boss_list = \
             LevelLoader.load_json_map(json_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids)
