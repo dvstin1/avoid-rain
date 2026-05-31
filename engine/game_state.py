@@ -538,6 +538,7 @@ class GameState:
             return
         if self.death_timer > 0:
             self.death_timer -= dt
+            self._update_audio_track(dt) # Allow death music to trigger
             if self.death_timer <= 0:
                 self.respawn_player()
             return
