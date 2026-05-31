@@ -561,7 +561,15 @@ class GameState:
             self.player.swap_weapon()
 
         active_choice = getattr(self, 'active_choice', None)
-...
+        if active_choice:
+            if move_dir[0] > 0:
+                active_choice["selected_index"] = 1
+            elif move_dir[0] < 0:
+                active_choice["selected_index"] = 0
+            if attack_pressed:
+                choice_node = active_choice["options"][active_choice["selected_index"]]
+                for stat, val in choice_node["modifiers"].items():
+                    self.player.stats[stat] = self.player.stats.get(stat, 0) + val
                 self.active_choice = None
             return
 

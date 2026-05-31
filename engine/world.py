@@ -428,8 +428,6 @@ class LevelLoader:
                 if e_type in ENEMY_REGISTRY:
                     enemies.append(ENEMY_REGISTRY[e_type].from_dict(e_data))
         
-        # ... rest of the loop logic ...
-
         # Check for Lotus Topography symbols
         has_lotus = any('M' in row or 'X' in row for row in prototype_array)
         if has_lotus:
