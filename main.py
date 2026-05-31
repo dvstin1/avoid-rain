@@ -297,10 +297,16 @@ def main():
 
     try:
         while running:
+            dt = clock.tick(FPS) / 1000.0
+
             if in_title:
                 in_title, running = handle_title_events(state, renderer, title_menu)
                 # Pass the whole TitleMenu so the renderer can render dynamic options
                 renderer.draw_title_screen(title_menu)
+                
+                # Update Music for Title Screen
+                audio.update(dt, "title_theme.ogg")
+
                 # If the user confirmed a title selection, handle it here
                 if title_menu.was_confirmed():
                     selected = title_menu.get_selected()
@@ -355,9 +361,7 @@ def main():
 
                     if selected == 'Quit':
                         running = False
-                clock.tick(FPS)
             else:
-                dt = clock.tick(FPS) / 1000.0
                 ev_res = handle_game_events(state, pause_menu=pause_menu)
                 running, attack, flask, dash, swap, mouse_click, ratchet_reset = ev_res
                 if pause_menu.is_open():
