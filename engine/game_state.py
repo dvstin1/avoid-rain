@@ -121,6 +121,7 @@ class GameState:
         self.objectives = []
         self.input_debounce_timer = 0.0
         self.input_ratchet_latched = False
+        self.menu_nav_cooldown = 0.0
         self.defeated_miniboss_ids = set()
         self.sanctuary_reset_complete = False
 
@@ -362,6 +363,9 @@ class GameState:
         if ratchet_reset:
             self.input_ratchet_latched = False
 
+        if self.menu_nav_cooldown > 0:
+            self.menu_nav_cooldown -= dt
+
         if self.input_debounce_timer > 0:
             self.input_debounce_timer -= dt
             attack_pressed = False
@@ -495,13 +499,15 @@ class GameState:
                 move_dir = actions.get('move', (0, 0))
                 
                 # 1. Navigation focus (Vertical)
-                if not self.input_ratchet_latched:
+                if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
                     if move_dir[1] > 0.5: # Down
                         self.respite_selection_idx = (self.respite_selection_idx + 1) % 6
                         self.input_ratchet_latched = True
+                        self.menu_nav_cooldown = 0.15
                     elif move_dir[1] < -0.5: # Up
                         self.respite_selection_idx = (self.respite_selection_idx - 1) % 6
                         self.input_ratchet_latched = True
+                        self.menu_nav_cooldown = 0.15
 
                 # 2. Handle Confirm/Select Actions (Independent of Ratchet)
                 if attack_pressed:
@@ -558,13 +564,15 @@ class GameState:
         if active_choice:
             move_dir = actions.get('move', (0, 0))
             
-            if not self.input_ratchet_latched:
+            if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
                 if move_dir[0] > 0.5:
                     active_choice["selected_index"] = 1
                     self.input_ratchet_latched = True
+                    self.menu_nav_cooldown = 0.15
                 elif move_dir[0] < -0.5:
                     active_choice["selected_index"] = 0
                     self.input_ratchet_latched = True
+                    self.menu_nav_cooldown = 0.15
                 
             if attack_pressed:
                 choice_node = active_choice["options"][active_choice["selected_index"]]
