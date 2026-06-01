@@ -36,6 +36,7 @@ class GameState:
     ):
         # 1. Initialize core components with defaults
         from engine.maps import create_world
+        from engine.world import LevelLoader
         self.world = create_world("sanctuary")
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
         self.enemies = []
@@ -142,6 +143,9 @@ class GameState:
         self.saving_in_progress = False
         self._save_worker_thread = threading.Thread(target=self._save_worker, daemon=True)
         self._save_worker_thread.start()
+
+        # Link actors to routes after everything is loaded
+        LevelLoader.link_actors_to_routes(self)
 
     def deallocate(self):
         """Purge all runtime gameplay memory."""

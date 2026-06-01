@@ -46,3 +46,32 @@
 - **Concept:** The Binder NPC acts as a procedural artisan, weaving "Scripts" (operational metaphors like "Hemming Script" for HP buffs) into the player's frame using Torn Pages.
 - **Mechanics:** Scripts act as tiny compilers in the margins altering stat allocations. They can be combined but are subject to "syntax conflicts" where scripts touching the same stat will fight, with the stronger one winning.
 - **Lore Integration:** The Binder seeks to "perfect the stitch." Completing a specific sequence of failed scripts may offer a path to a different ending, halting the ink-bleed cycle.
+
+---
+
+## 7. Actor State Machine & Patrol Stanzas (The Stanza System)
+This system elevates the macro-world from a simple combat arena to a "Living Manuscript" by providing complex, scriptable behaviors for all mobile entities.
+
+### 1. Unified Actor Base Class
+- **The Concept:** Merge common update logic between `Enemy` and `NPC` types into a single `Actor` hierarchy.
+- **The State Machine:** Actors oscillate between the following internal states:
+    - **IDLE:** Standing at a post or wandering randomly.
+    - **PATROLLING:** Moving between sequential markers in a designated "Stanza."
+    - **CHASE:** Aggressive pursuit of the player (Enemies only).
+    - **ENGAGED:** Paused routine to interact with the player (NPCs only).
+
+### 2. Marker-Based "Stanza" Routes
+- **Opt-In Logic:** Maps without markers remain static. If an actor detects a `PatrolPoint` within proximity (e.g., 5 tiles) at spawn, they anchor to that route.
+- **Route ID & Indexing:** Markers with the same `route_id` form a connected chain. The actor follows them in numerical symbol order (`1` -> `2` -> `3`).
+- **The Loop Rule:** Routes are circular by default (3 -> 1) but can be configured as "back-and-forth" paths (`is_loop: False`).
+
+### 3. The Caste Filter (Granular Scene Control)
+- **Caste Definition:** Each `PatrolPoint` can have a `caste_filter` list (e.g., `["SlugEnemy"]`).
+- **Exclusive Logic:** Actors only anchor to markers that match their specific type. This allows for overlapping, distinct routes (e.g., Slugs patrolling a floor while Bats sleep on a separate ceiling route).
+- **Universal Routes:** If the filter is empty, any nearby actor can anchor to it.
+
+### 4. Behavioral Nuance (Realism)
+- **Stanza Speed:** Actors use their base speed but can be modified by a `patrol_speed_multiplier` (default `0.5`) to simulate "walking" vs "sprinting."
+- **Patience Variable:** When reaching a marker, actors roll a randomized wait timer (`wait_min`, `wait_max`) before proceeding. 
+- **The Deep Study:** Specific markers (e.g., Chronicler at a bookshelf) can be flagged with a `long_wait` attribute for extended idling.
+- **Dormancy:** Enemies can be flagged as `is_stationary: True` in map data. They will remain in a "sleeping" state at their spawn point until their detection radius is breached, ignoring all patrol logic.

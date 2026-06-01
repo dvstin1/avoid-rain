@@ -6,8 +6,10 @@ import json
 import random
 from constants import (
     GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP,
-    PLAYER_START_X, PLAYER_START_Y, POOL_MONTHLY_REPORT, POOL_SPECIAL_EDITION
+    PLAYER_START_X, PLAYER_START_Y, POOL_MONTHLY_REPORT, POOL_SPECIAL_EDITION,
+    TILE_PATROL
 )
+from engine.actor import Actor, ActorState
 
 class GameObject:
     """
@@ -16,36 +18,31 @@ class GameObject:
     to maintain engine decoupling as per docs/file_blueprint.md.
     """
     def __init__(self, position, dimensions):
-        self.x, self.y = position
-        self.width, self.height = dimensions
-
-        # Core Architectural Trait Flags
-        self.is_solid = True         # Blocks player/enemy kinematics
-        self.is_breakable = False     # Listens to damage vectors; links to LootManager
-        self.is_interactive = False   # Listens to player input triggers
-        self.is_kinematic = False     # Modifies passenger velocity vectors (platforms)
-
-        self.health = 1.0            # Default health for breakables
+        self.x, self.y = float(position[0]), float(position[1])
+        self.width, self.height = float(dimensions[0]), float(dimensions[1])
+        self.rect = (self.x, self.y, self.width, self.height)
+        self.is_solid = False
+        self.is_interactive = False
+        self.is_breakable = False
+        self.health = 100.0
         self.name = "Object"
-        self.data = {}
 
-    @property
-    def rect(self):
-        """Returns the rectangle as a (x, y, w, h) tuple."""
-        return (self.x, self.y, self.width, self.height)
+    def update(self, dt, game_state):
+        """Standard per-frame logic hook."""
+        pass
+
+    def execute_interaction(self, game_state):
+        """Hook for when a player interacts with this object."""
+        pass
 
     def take_damage(self, amount):
-        """Decrement health if the object is breakable."""
+        """Hook for breakable logic."""
         if self.is_breakable:
             self.health -= amount
 
-    def is_destroyed(self):
-        """Check if the object has been destroyed."""
+    def is_dead(self):
+        """Check if object is destroyed."""
         return self.is_breakable and self.health <= 0
-
-    def execute_interaction(self, game_state):
-        """Standard interaction callback to be overridden or assigned."""
-        pass
 
 class WarpPortal(GameObject):
     """An interactable object that warps the player to another map."""
@@ -101,6 +98,9 @@ class WarpPortal(GameObject):
             else:
                 game_state.enemies = []
 
+            # Link new world actors to patrol routes
+            LevelLoader.link_actors_to_routes(game_state)
+
             # [Milestone] Flush state immediately upon returning to sanctuary
             is_to_sanctuary = self.target_name == "sanctuary"
             game_state.save_stats(wait=is_to_sanctuary)
@@ -110,14 +110,37 @@ class WarpPortal(GameObject):
             import traceback
             traceback.print_exc()
 
-class Chronicler(GameObject):
-    """NPC that provides dialogue based on the player's last run result."""
-    def __init__(self, position, dimensions, name="The Chronicler"):
-        super().__init__(position, dimensions)
-        self.name = name
+class PatrolPoint(GameObject):
+    """Marker symbol for the Stanza system."""
+    def __init__(self, position, route_id, symbol_idx, caste_filter=None, wait_min=2.0, wait_max=5.0):
+        super().__init__(position, (TILE_SIZE, TILE_SIZE))
+        self.route_id = route_id
+        self.symbol_idx = symbol_idx
+        self.caste_filter = caste_filter or []
+        self.wait_min = wait_min
+        self.wait_max = wait_max
+        self.is_interactive = False
+        self.is_solid = False
+        self.name = f"PatrolPoint_{route_id}_{symbol_idx}"
+
+class Chronicler(Actor):
+    """NPC that provides dialogue and follows a research stanza."""
+    def __init__(self, position, dimensions=None, name="The Chronicler"):
+        super().__init__(position[0], position[1], 40, 40, 9999, name=name)
         self.is_interactive = True
         self.is_solid = True
         self.current_dialogue = None
+        self.patrol_speed_multiplier = 0.4
+
+    def _update_state_logic(self, dt, game_state):
+        """NPC: Switch to ENGAGED if being talked to."""
+        if game_state.active_dialogue and game_state.active_dialogue.get("speaker") == self.name:
+            self.state = ActorState.ENGAGED
+            self.vx, self.vy = 0, 0
+        elif self.patrol_route:
+            self.state = ActorState.PATROLLING
+        else:
+            self.state = ActorState.IDLE
 
     def execute_interaction(self, game_state):
         """Select dialogue based on state and display it."""
@@ -139,7 +162,6 @@ class Chronicler(GameObject):
                     if value != last_result:
                         match = False
                         break
-                # Other story flags could be checked here
                 elif game_state.stats:
                     story_flags = game_state.stats.data.get("story_flags", {})
                     if story_flags.get(key) != value:
@@ -149,131 +171,99 @@ class Chronicler(GameObject):
             if match:
                 valid_nodes.append(node)
 
-        # Sort by priority (descending)
+        if not valid_nodes: return
         valid_nodes.sort(key=lambda x: int(x.get("priority", 0)), reverse=True)
+        node = valid_nodes[0]
 
-        if valid_nodes:
-            self.current_dialogue = valid_nodes[0]["text"]
-            # Trigger dialogue box in GameState
-            game_state.dialogue_mode = "STANDARD"
-            game_state.active_dialogue = {
-                "speaker": self.name,
-                "text": self.current_dialogue
-            }
+        game_state.active_dialogue = {
+            "speaker": self.name,
+            "text": node["text"]
+        }
+        print(f"[NPC] {self.name} triggered dialogue: {node['id']}")
 
 class Wellspring(GameObject):
-    """Environmental Hub Asset that projects statistics and bestiary."""
-    def __init__(self, position, dimensions, name="The Wellspring"):
+    """Refill station for flasks."""
+    def __init__(self, position, dimensions):
         super().__init__(position, dimensions)
-        self.name = name
+        self.name = "The Wellspring"
         self.is_interactive = True
         self.is_solid = True
 
     def execute_interaction(self, game_state):
-        """Open the Statistics menu via dialogue box."""
-        if not game_state.stats:
-            # Fallback if no stats available
-            game_state.active_dialogue = {
-                "speaker": self.name,
-                "text": "The water is still. No memories are reflected here yet."
-            }
-            return
-
-        stats = game_state.stats.data.get("lifetime_stats", {})
-        bestiary = game_state.stats.data.get("discovered_bestiary", {})
-
-        # Build multiline text
-        text = f"Timeline Reflection: Draft #{stats.get('runs_started', 0)}\n"
-        text += f"Chapters Cleared: {stats.get('wins_chapters_cleared', 0)}\n"
-        text += f"Bleed Wipes: {stats.get('losses_bleed_wipes', 0)}\n"
-        text += f"Standard Respawns: {stats.get('deaths_standard_respawns', 0)}\n"
-        text += f"Torn Pages: {stats.get('pages_collected', 0)}\n"
-
-        discovered_count = sum(1 for v in bestiary.values() if v)
-        text += f"Syntax Blocks: {discovered_count}"
-
-        game_state.dialogue_mode = "EXPANDED"
-        game_state.active_dialogue = {
-            "speaker": self.name,
-            "text": text
-        }
+        from constants import FLASK_MAX_CHARGES
+        if game_state.player.flask_charges < FLASK_MAX_CHARGES:
+            game_state.player.flask_charges = FLASK_MAX_CHARGES
+            game_state.bloom_text = "HYDRATION RESTORED"
+            from constants import BLOOM_TOTAL_DURATION
+            game_state.bloom_timer = BLOOM_TOTAL_DURATION
+            print("[WELLSPRING] Flasks refilled.")
 
 class LoreFragment(GameObject):
-    """An interactable object that displays a lore snippet from the manifest."""
-    def __init__(self, position, dimensions, fragment_id, name="Lost Passage"):
+    """Collectable piece of text that reveals world history."""
+    def __init__(self, position, dimensions, fragment_id, name="Lost Page"):
         super().__init__(position, dimensions)
         self.fragment_id = fragment_id
         self.name = name
         self.is_interactive = True
-        self.is_solid = False # Can walk over it, like a page on the ground
+        self.is_solid = False
 
     def execute_interaction(self, game_state):
         from constants import DIALOGUE_MANIFEST
-        manifest = DIALOGUE_MANIFEST.get("lore_fragments", {})
-        snippet = manifest.get(self.fragment_id, "The text is faded beyond recognition.")
-
-        game_state.dialogue_mode = "STANDARD"
+        lore_text = DIALOGUE_MANIFEST.get("lore_fragments", {}).get(self.fragment_id, "The text has faded into illegibility.")
+        
         game_state.active_dialogue = {
             "speaker": self.name,
-            "text": snippet
+            "text": lore_text
         }
+        print(f"[LORE] Read fragment: {self.fragment_id}")
 
 class WeaponPickup(GameObject):
-    """An interactable weapon drop that can be swapped with the player's current weapon."""
+    """Dropped weapon from miniboss or chest."""
     def __init__(self, position, weapon_data):
-        super().__init__(position, (24, 24))
+        super().__init__(position, (TILE_SIZE, TILE_SIZE))
         self.weapon_data = weapon_data
-        self.name = weapon_data.get("name", "Unknown Weapon")
+        self.name = weapon_data.get("name", "Unknown Quill")
         self.is_interactive = True
         self.is_solid = False
 
     def execute_interaction(self, game_state):
-        """Perform the swap/pickup logic."""
+        """Pick up or swap with current active weapon."""
         player = game_state.player
+        current_idx = player.active_weapon_idx
+        
         if len(player.weapons) < 2:
             player.weapons.append(self.weapon_data)
-            # Remove from world
-            if self in game_state.world.interactables:
-                game_state.world.interactables.remove(self)
+            player.active_weapon_idx = len(player.weapons) - 1
+            print(f"[PLAYER] Picked up {self.name} into Slot B")
         else:
-            # Swap: Replace active weapon and drop the old one
-            old_weapon = player.get_active_weapon()
-            player.weapons[player.active_weapon_idx] = self.weapon_data
-            # Drop old weapon at current position
-            game_state.world.interactables.append(WeaponPickup((player.x, player.y), old_weapon))
-            # Remove this pickup from world
-            if self in game_state.world.interactables:
-                game_state.world.interactables.remove(self)
+            old_weapon = player.weapons[current_idx]
+            player.weapons[current_idx] = self.weapon_data
+            print(f"[PLAYER] Swapped {old_weapon['name']} for {self.name}")
+        
+        if self in game_state.world.interactables:
+            game_state.world.interactables.remove(self)
 
 class Respite(GameObject):
     """Ancient anchor fragment that allows resting and character edification."""
-    def __init__(self, position, dimensions, name="Respite"):
+    def __init__(self, position, dimensions):
         super().__init__(position, dimensions)
-        self.name = name
+        self.name = "Respite Anchor"
         self.is_interactive = True
         self.is_solid = True
 
     def execute_interaction(self, game_state):
-        """Open the Respite Menu."""
-        # Rule: Respite Deactivation (Drowning in Ink)
-        # If the respite is outside the safe circle, it is inactive.
-        rx, ry = self.x + self.width // 2, self.y + self.height // 2
-        if not game_state.weather_manager.is_pos_safe(rx, ry):
-            game_state.active_dialogue = {
-                "speaker": self.name,
-                "text": "The Respite is smothered under a thick layer of static ink. "
-                        "The anchor has failed here. You must move deeper toward the center."
-            }
-            return
-
-        game_state.dialogue_mode = "EXPANDED"
-        game_state.active_respite = self # Store reference for menu actions
+        """Trigger the Respite Level-Up UI in GameState."""
+        from constants import INPUT_MODE_GAMEPAD
+        # Reset selection indices for a fresh menu open
+        game_state.respite_selection_idx = 0
+        game_state.respite_marked_idx = -1
         
-        # Trigger dynamic menu blit
         game_state.active_dialogue = {
-            "speaker": self.name,
-            "text": "" # No longer uses static text block
+            "speaker": "Respite Anchor",
+            "text": "" # Menu will override text rendering
         }
+        game_state.active_respite = self
+        print("[RESPITE] Interaction engaged.")
 
     def execute_rest(self, game_state):
         """Restore player and respawn standard enemies."""
@@ -291,6 +281,9 @@ class Respite(GameObject):
         temp_world = create_world(game_state.world.name, defeated_ids=game_state.defeated_miniboss_ids)
         
         game_state.enemies = temp_world.enemies
+        # Re-link routes after respawn
+        LevelLoader.link_actors_to_routes(game_state)
+        
         print(f"[DEBUG] Rest complete. {len(game_state.enemies)} threats re-manifested.")
         game_state.save_stats(wait=True)
 
@@ -318,64 +311,33 @@ class LevelLoader:
                 # Independent Anomaly Roll: Each socket has a 10% chance to be Special Edition
                 if random.random() < 0.1 and POOL_SPECIAL_EDITION:
                     active_plug = random.choice(POOL_SPECIAL_EDITION)
-                    print(f"[ANOMALY INJECTION] Socket {socket['name']} rolled a rare Special Edition!")
                 else:
                     active_plug = random.choice(POOL_MONTHLY_REPORT)
-                    print(f"[Generation] Socket {socket['name']} compiled as Standard Monthly Report.")
 
-            if not active_plug:
-                continue
-
-            # Resolve path relative to project root or maps dir
-            if not os.path.exists(active_plug):
-                alt_path = os.path.join("maps", os.path.basename(active_plug))
-                if os.path.exists(alt_path):
-                    active_plug = alt_path
-                else:
-                    print(f"[WARNING] Sub-map {active_plug} not found for socket {socket['name']}")
-                    continue
-
+            # Load and stitch the plug
             try:
-                with open(active_plug, 'r', encoding='utf-8') as f:
-                    sub_data = json.load(f)
-
+                with open(active_plug, 'r', encoding='utf-8') as f_plug:
+                    plug_data = json.load(f_plug)
+                    
                 b = socket["bounds"]
-                sw = sub_data["dimensions"]["width"]
-                sh = sub_data["dimensions"]["height"]
-
-                # Dimensions Alignment Rule
-                if sw != b["width"] or sh != b["height"]:
-                    print(f"[WARNING] Dimension mismatch for socket {socket['name']}: "
-                          f"Expected {b['width']}x{b['height']}, got {sw}x{sh}")
-                    continue
-
-                # Tile Overwriting
-                sub_grid = sub_data["grid"]
-                for sy in range(sh):
-                    for sx in range(sw):
-                        grid[b["y"] + sy][b["x"] + sx] = sub_grid[sy][sx]
-
-                # Entity Blitting (Absolute World Coordinates)
-                sub_entities = sub_data.get("entities", {})
-                for k, v in sub_entities.items():
-                    try:
-                        ex, ey = map(int, k.split(','))
-                        abs_x = b["x"] + ex
-                        abs_y = b["y"] + ey
-                        raw_entities[f"{abs_x},{abs_y}"] = v
-                    except ValueError:
-                        continue
-
-                print(f"[DEBUG] Stitched sub-map {active_plug} into socket {socket['name']}")
+                for y_p, row_p in enumerate(plug_data["grid"]):
+                    for x_p, char_p in enumerate(row_p):
+                        grid[b["y"] + y_p][b["x"] + x_p] = char_p
+                
+                # Stitch entities
+                for key, e_val in plug_data.get("entities", {}).items():
+                    px_p, py_p = map(int, key.split(','))
+                    new_key = f"{b['x'] + px_p},{b['y'] + py_p}"
+                    raw_entities[new_key] = e_val
             except Exception as e:
-                print(f"[ERROR] Failed to stitch sub-map {active_plug}: {e}")
+                print(f"[ERROR] Modular stitch failed for {active_plug}: {e}")
 
-        # Convert "x,y" string keys back to (x, y) tuples for LevelLoader
+        # 2. Conversion Pass: Symbols -> Entity Objects
         entity_data = {}
-        for k, v in raw_entities.items():
+        for key, val in raw_entities.items():
             try:
-                x, y = map(int, k.split(','))
-                entity_data[(x, y)] = v
+                kx, ky = map(int, key.split(','))
+                entity_data[(kx, ky)] = val
             except ValueError:
                 continue
 
@@ -553,6 +515,16 @@ class LevelLoader:
                     # Player Start hook
                     player_start = (pos[0], pos[1])
 
+                elif char in ('1','2','3','4','5','6','7','8','9'):
+                    # Patrol Point
+                    data = entity_data.get((x, y), {})
+                    rid = data.get("route_id", "default")
+                    caste = data.get("caste_filter", [])
+                    wmin = data.get("wait_min", 2.0)
+                    wmax = data.get("wait_max", 5.0)
+                    point = PatrolPoint(pos, rid, int(char), caste, wmin, wmax)
+                    interactables.append(point)
+
                 elif char in SYMBOL_REGISTRY:
                     # Generic Enemy Spawner (Bypassed if loading from save)
                     if not saved_enemies:
@@ -561,7 +533,14 @@ class LevelLoader:
                         
                         # Filter Rule: If it's a miniboss and already defeated, skip spawning
                         enemy_cls = SYMBOL_REGISTRY[char]
+                        
+                        data = entity_data.get((x, y), {})
                         temp_enemy = enemy_cls(pos[0], pos[1], id=enemy_id)
+                        
+                        # Custom Instance Attributes
+                        if data.get("is_stationary"):
+                            temp_enemy.is_stationary = True
+                        
                         if temp_enemy.is_miniboss and enemy_id in defeated_ids:
                             print(f"[DEBUG] Elite {enemy_id} already redacted; skipping spawn.")
                         else:
@@ -569,6 +548,48 @@ class LevelLoader:
 
 
         return grid, interactables, warp_tiles, player_start, enemies
+
+    @staticmethod
+    def link_actors_to_routes(game_state):
+        """Find and assign patrol routes to nearby actors."""
+        all_actors = list(game_state.enemies)
+        # Search for NPCs who are Actors
+        for obj in game_state.world.interactables:
+            if isinstance(obj, Actor):
+                all_actors.append(obj)
+        
+        markers = [obj for obj in game_state.world.interactables if isinstance(obj, PatrolPoint)]
+        
+        for actor in all_actors:
+            # Rule: Only if actor has no route and is not stationary
+            if actor.patrol_route or actor.is_stationary:
+                continue
+                
+            ax, ay = actor.get_center()
+            # 1. Find nearest marker (within 5 tiles)
+            nearest = None
+            min_dist_sq = (5 * TILE_SIZE)**2
+            
+            for m in markers:
+                # Caste Filter Check
+                if m.caste_filter and actor.__class__.__name__ not in m.caste_filter:
+                    continue
+                    
+                mx, my = m.x + m.width/2, m.y + m.height/2
+                dist_sq = (ax - mx)**2 + (ay - my)**2
+                if dist_sq < min_dist_sq:
+                    min_dist_sq = dist_sq
+                    nearest = m
+            
+            if nearest:
+                # 2. Gather all markers in the same route
+                route = [m for m in markers if m.route_id == nearest.route_id]
+                # Sort by symbol index
+                route.sort(key=lambda x: x.symbol_idx)
+                actor.patrol_route = route
+                # Start at the nearest marker or next in chain
+                actor.patrol_idx = route.index(nearest)
+                print(f"[STANZA] Actor {actor.name} anchored to route '{nearest.route_id}'")
 
 class World:
     """Manages the tile-based world map.

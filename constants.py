@@ -207,6 +207,7 @@ TILE_LORE = 7
 TILE_HAZARD = 8
 TILE_LIGHT = 9
 TILE_STRUCTURE = 10
+TILE_PATROL = 11
 
 TILE_KEY = {
     '#': TILE_WALL,
@@ -233,6 +234,16 @@ TILE_KEY = {
     'v': TILE_HAZARD, # Spilled Inkwell Puddle
     'l': TILE_LIGHT, # Iron Candelabra
     'N': 107, # NightBoss Spawn
+    '!': 108, # FinalAuthor Spawn
+    '1': TILE_PATROL, # Patrol Marker 1
+    '2': TILE_PATROL, # Patrol Marker 2
+    '3': TILE_PATROL, # Patrol Marker 3
+    '4': TILE_PATROL, # Patrol Marker 4
+    '5': TILE_PATROL, # Patrol Marker 5
+    '6': TILE_PATROL, # Patrol Marker 6
+    '7': TILE_PATROL, # Patrol Marker 7
+    '8': TILE_PATROL, # Patrol Marker 8
+    '9': TILE_PATROL, # Patrol Marker 9
 }
 
 # Typographic Bloom (Chapter Titles)

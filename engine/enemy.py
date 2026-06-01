@@ -1,88 +1,20 @@
 """
 Enemy AI and behavior definitions.
+Inherits from Actor for the Stanza patrol system.
 """
 import math
 import random
 import pygame
 from constants import TILE_SIZE
 from engine.physics import check_aabb_collision, resolve_wall_collision
+from engine.actor import Actor, ActorState
 
-class Enemy:
+class Enemy(Actor):
     """Base class for all enemy types."""
     def __init__(self, x, y, width, height, hp, id=None):
-        self.x = float(x)
-        self.y = float(y)
-        self.width = width
-        self.height = height
-        self.hp = hp
-        self.max_hp = hp
-        self.id = id
-        self.vx = 0.0
-        self.vy = 0.0
-        self.stagger_timer = 0.0
-        self.is_miniboss = False
-        self.loot_tier = 3 # Standard
-        self.name = "Enemy"
+        super().__init__(x, y, width, height, hp, id=id, name="Enemy")
         self._damage_timer = 0.0
         self.damage_cooldown = 1.0
-
-    def take_damage(self, amount):
-        """Standard damage logic with stagger."""
-        self.hp -= amount
-        if amount >= 10:
-            self.stagger_timer = 0.2
-
-    def is_staggered(self):
-        return self.stagger_timer > 0
-
-    def is_dead(self):
-        return self.hp <= 0
-
-    def get_rect(self):
-        return (self.x, self.y, self.width, self.height)
-
-    def to_dict(self):
-        """Serialize enemy for saving."""
-        return {
-            "type": self.__class__.__name__,
-            "x": self.x,
-            "y": self.y,
-            "hp": self.hp,
-            "id": self.id
-        }
-
-    @classmethod
-    def from_dict(cls, data):
-        """Reconstruct enemy from dict."""
-        return cls(data["x"], data["y"], hp=data["hp"], id=data.get("id"))
-
-    def update(self, dt, state):
-        """Standard pursuit logic."""
-        if self.stagger_timer > 0:
-            self.stagger_timer -= dt
-            return
-
-        player_cx, player_cy = state.player.get_center()
-        cx, cy = self.x + self.width / 2, self.y + self.height / 2
-        dx, dy = player_cx - cx, player_cy - cy
-        dist_sq = dx * dx + dy * dy
-
-        if dist_sq <= (self.detect_radius * self.detect_radius):
-            dist = math.sqrt(dist_sq) if dist_sq > 0 else 0.0
-            if dist > 0.0:
-                self.vx, self.vy = (dx / dist) * self.speed, (dy / dist) * self.speed
-                self.x += self.vx * dt
-                self.y += self.vy * dt
-                try:
-                    walls = state.world.get_nearby_walls((self.x, self.y, self.width, self.height))
-                    self.x, self.y = resolve_wall_collision((self.x, self.y, self.width, self.height), walls)
-                except Exception:
-                    pass
-        else:
-            self.vx, self.vy = 0.0, 0.0
-
-        if self._damage_timer > 0.0:
-            self._damage_timer -= dt
 
     def attempt_damage_player(self, state):
         """Apply damage on contact."""
@@ -114,6 +46,7 @@ class SlugEnemy(Enemy):
         self.damage = SLUG_DAMAGE
         self.damage_cooldown = SLUG_DAMAGE_COOLDOWN
         self._damage_timer = 0.0
+        self.patrol_speed_multiplier = 0.3
 
 class BatEnemy(Enemy):
     """A fast, erratic enemy."""
@@ -131,31 +64,26 @@ class BatEnemy(Enemy):
         self._damage_timer = 0.0
         self._angle = random.uniform(0, 2 * math.pi)
 
-    def update(self, dt, state):
+    def _update_chase(self, dt, state):
         """Move toward the player with a sine-wave oscillation."""
-        if self.stagger_timer > 0:
-            self.stagger_timer -= dt
-            return
-
         player_cx, player_cy = state.player.get_center()
-        cx, cy = self.x + self.width / 2, self.y + self.height / 2
+        cx, cy = self.get_center()
         dx, dy = player_cx - cx, player_cy - cy
-        dist_sq = dx * dx + dy * dy
+        dist = math.sqrt(dx*dx + dy*dy)
 
-        if dist_sq <= (self.detect_radius * self.detect_radius):
-            dist = math.sqrt(dist_sq) if dist_sq > 0 else 0.0
-            if dist > 0.0:
-                # Pursuit vector
-                self.vx, self.vy = (dx / dist) * self.speed, (dy / dist) * self.speed
-                
-                # Erratic sine wave perpendicular to movement
-                self._angle += dt * 10.0
-                perp_x, perp_y = -self.vy, self.vx
-                
-                self.x += (self.vx + perp_x * math.sin(self._angle)) * dt
-                self.y += (self.vy + perp_y * math.sin(self._angle)) * dt
-        else:
-            self.vx, self.vy = 0.0, 0.0
+        if dist > 0.0:
+            # Pursuit vector
+            vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+            
+            # Erratic sine wave perpendicular to movement
+            self._angle += dt * 10.0
+            perp_x, perp_y = -vy, vx
+            
+            self.x += (vx + perp_x * math.sin(self._angle)) * dt
+            self.y += (vy + perp_y * math.sin(self._angle)) * dt
+            
+            walls = state.world.get_nearby_walls(self.get_rect())
+            self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
 
 class BindlingEnemy(Enemy):
     """A harasser enemy that binds the player."""
@@ -228,11 +156,7 @@ class MinibossM3(Miniboss):
         self.teleport_cooldown = 4.0
         self._tele_timer = 0.0
 
-    def update(self, dt, state):
-        if self.stagger_timer > 0:
-            self.stagger_timer -= dt
-            return
-
+    def _update_chase(self, dt, state):
         player_cx, player_cy = state.player.get_center()
         cx, cy = self.x + self.width / 2, self.y + self.height / 2
         dx, dy = player_cx - cx, player_cy - cy
@@ -248,7 +172,7 @@ class MinibossM3(Miniboss):
             self.vx, self.vy = 0, 0
             return
 
-        super().update(dt, state)
+        super()._update_chase(dt, state)
 
 class FlutterEnemy(Enemy):
     """Skittish fleeing enemy."""
@@ -265,22 +189,31 @@ class FlutterEnemy(Enemy):
         self.damage_cooldown = FLUTTER_DAMAGE_COOLDOWN
         self._damage_timer = 0.0
 
-    def update(self, dt, state):
-        if self.stagger_timer > 0:
-            self.stagger_timer -= dt
-            return
-        player_cx, player_cy = state.player.get_center()
-        cx, cy = self.x + self.width / 2, self.y + self.height / 2
-        dx, dy = cx - player_cx, cy - player_cy
-        dist_sq = dx * dx + dy * dy
-        if dist_sq <= (self.detect_radius * self.detect_radius):
-            dist = math.sqrt(dist_sq) if dist_sq > 0 else 0.0
-            if dist > 0.0:
-                self.vx, self.vy = (dx / dist) * self.speed, (dy / dist) * self.speed
-                self.x += self.vx * dt
-                self.y += self.vy * dt
+    def _update_state_logic(self, dt, game_state):
+        player_cx, player_cy = game_state.player.get_center()
+        cx, cy = self.get_center()
+        dist_sq = (player_cx - cx)**2 + (player_cy - cy)**2
+        
+        # Fleeing logic: if player in radius, state = CHASE (but movement is inverted)
+        if dist_sq <= self.detect_radius**2:
+            self.state = ActorState.CHASE
+        elif self.patrol_route:
+            self.state = ActorState.PATROLLING
         else:
-            self.vx, self.vy = 0, 0
+            self.state = ActorState.IDLE
+
+    def _update_chase(self, dt, state):
+        """Fleeing behavior."""
+        player_cx, player_cy = state.player.get_center()
+        cx, cy = self.get_center()
+        dx, dy = cx - player_cx, cy - player_cy
+        dist = math.sqrt(dx*dx + dy*dy)
+        if dist > 0.0:
+            self.vx, self.vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+            self.x += self.vx * dt
+            self.y += self.vy * dt
+            walls = state.world.get_nearby_walls(self.get_rect())
+            self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
 
 class SmearEnemy(Enemy):
     """Splitting puddle enemy."""
@@ -293,6 +226,7 @@ class SmearEnemy(Enemy):
         initial_hp = hp if hp is not None else SMEAR_MAX_HP * size_multiplier
         w, h = 48 * size_multiplier, 48 * size_multiplier
         super().__init__(x, y, w, h, initial_hp, id=id)
+        self.name = "Smear"
         self.speed = SMEAR_SPEED
         self.detect_radius = SMEAR_DETECT_METERS * TILE_SIZE
         self.damage = SMEAR_DAMAGE
@@ -301,9 +235,8 @@ class SmearEnemy(Enemy):
         self._puddle_timer = 0.0
 
     def update(self, dt, state):
-        if self.stagger_timer > 0:
-            self.stagger_timer -= dt
-            return
+        """Custom update to handle periodic puddle drops."""
+        # Process puddle timer regardless of stagger
         self._puddle_timer += dt
         from constants import SMEAR_PUDDLE_CHANCE
         if self._puddle_timer >= 1.0:
@@ -314,6 +247,8 @@ class SmearEnemy(Enemy):
                 puddle.is_solid = False
                 puddle.name = "Inkwell Puddle"
                 state.world.interactables.append(puddle)
+        
+        # Then call standard actor update (handles stagger and movement)
         super().update(dt, state)
 
     def on_death(self, state):

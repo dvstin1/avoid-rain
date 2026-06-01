@@ -37,7 +37,7 @@
     "#.........############....KK...#",
     "#K.......B#h...l...h.#...KK....#",
     "#K.......B#d.......d.#........S#",
-    "#KK......B#..........#........S#",
+    "#KK......B#1.......2.#........S#",
     "#KK......B#L.C.P..F..#.........#",
     "#KK.......#d...v...d.#.....K...#",
     "#.K.......#....W.....#.....KK..#",
@@ -55,6 +55,20 @@
     "################################"
   ],
   "entities": {
+    "11,6": {
+      "type": "PatrolPoint",
+      "route_id": "chron_research",
+      "caste_filter": ["Chronicler"],
+      "wait_min": 10.0,
+      "wait_max": 20.0
+    },
+    "19,6": {
+      "type": "PatrolPoint",
+      "route_id": "chron_research",
+      "caste_filter": ["Chronicler"],
+      "wait_min": 15.0,
+      "wait_max": 30.0
+    },
     "15,9": {
       "target": "macro_world",
       "name": "The Chronicle",
