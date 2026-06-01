@@ -576,8 +576,6 @@ class GameState:
                     elif actions.get('key_2'): self.respite_marked_idx = 2
                     elif actions.get('key_3'): self.respite_marked_idx = 3
 
-                # REFRESH TEXT LAST to ensure upgrades show immediately
-                active_respite.execute_interaction(self)
             return
 
         # Choice of Fates Rule: Priority Input

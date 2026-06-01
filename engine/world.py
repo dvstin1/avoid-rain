@@ -243,17 +243,17 @@ class Respite(GameObject):
 
     def execute_interaction(self, game_state):
         """Trigger the Respite Level-Up UI in GameState."""
-        from constants import INPUT_MODE_GAMEPAD
-        # Reset selection indices for a fresh menu open
-        game_state.respite_selection_idx = 0
-        game_state.respite_marked_idx = -1
+        # Only reset and log if first opening
+        if getattr(game_state, 'active_respite', None) != self:
+            game_state.respite_selection_idx = 0
+            game_state.respite_marked_idx = -1
+            print("[RESPITE] Interaction engaged.")
         
         game_state.active_dialogue = {
             "speaker": "Respite Anchor",
             "text": "" # Menu will override text rendering
         }
         game_state.active_respite = self
-        print("[RESPITE] Interaction engaged.")
 
     def execute_rest(self, game_state):
         """Restore player and respawn standard enemies."""
