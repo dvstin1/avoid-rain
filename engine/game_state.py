@@ -188,12 +188,19 @@ class GameState:
             boss_list = getattr(self.world, 'boss_coords_list', None)
             self.weather_manager = WeatherManager(boss_coords_list=boss_list)
             self.weather_manager.from_dict(run_data.get("weather"))
+            
+            # Finalization Pass: Link Actors to Routes
+            from engine.world import LevelLoader
+            LevelLoader.link_actors_to_routes(self)
         else:
             self.world = create_world("sanctuary")
             self.player = Player(self.world.player_start[0], self.world.player_start[1])
             self.enemies = getattr(self.world, 'enemies', [])
             from engine.weather import WeatherManager
             self.weather_manager = WeatherManager(boss_coords_list=None)
+            
+            from engine.world import LevelLoader
+            LevelLoader.link_actors_to_routes(self)
 
         self.loot = []
         self.fading_entities = []
@@ -241,6 +248,10 @@ class GameState:
         self.damage_numbers = []
         if hasattr(self, 'camera'):
             self.camera.instant_center(self.player.get_center())
+            
+        # Ensure actors in Sanctuary are linked
+        from engine.world import LevelLoader
+        LevelLoader.link_actors_to_routes(self)
 
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
         """Persist the attached StatisticsTracker to disk."""
@@ -358,6 +369,10 @@ class GameState:
         # Sanctuary-specific stat locks
         if self.player.stats.get("edification", 0) != 1:
             self.player.stats["edification"] = 1
+            
+        # Ensure actors in Sanctuary (Chronicler) are linked to routes
+        from engine.world import LevelLoader
+        LevelLoader.link_actors_to_routes(self)
 
     def update(self, dt, actions):
         """Update all game logic."""

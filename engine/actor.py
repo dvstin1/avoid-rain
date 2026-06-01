@@ -39,6 +39,9 @@ class Actor:
         self.detect_radius = 5.0 * TILE_SIZE
         self.is_miniboss = False
         self.is_stationary = False
+        self.is_breakable = False    # Required for breakable test in GameState
+        self.is_interactive = False  # NPCs override this
+        self.is_solid = False
         self.loot_tier = 3
 
     @property

@@ -556,9 +556,9 @@ class LevelLoader:
                 continue
                 
             ax, ay = actor.get_center()
-            # 1. Find nearest marker (within 5 tiles)
+            # 1. Find nearest marker (within 10 tiles)
             nearest = None
-            min_dist_sq = (5 * TILE_SIZE)**2
+            min_dist_sq = (10 * TILE_SIZE)**2
             
             for m in markers:
                 # Caste Filter Check
