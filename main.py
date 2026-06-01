@@ -63,20 +63,18 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
     move_dir = get_movement_actions(state)
     ratchet_reset = False
     
-    # Check for Neutral State (All directions must be released)
+    # Targeted Neutral Check: Only check vertical navigation axis
     keys = pygame.key.get_pressed()
-    kb_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_a], keys[pygame.K_d],
-                          keys[pygame.K_UP], keys[pygame.K_DOWN], keys[pygame.K_LEFT], keys[pygame.K_RIGHT]])
+    kb_v_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_UP], keys[pygame.K_DOWN]])
     
-    gp_neutral = True
+    gp_v_neutral = True
     if pygame.joystick.get_count() > 0:
         joy = pygame.joystick.Joystick(0)
-        # Check all axes and hat
-        for i in range(joy.get_numaxes()):
-            if abs(joy.get_axis(i)) > 0.4: gp_neutral = False; break
-        if joy.get_hat(0) != (0, 0): gp_neutral = False
+        # Only check Y-axis (1) and D-pad (Hat)
+        if abs(joy.get_axis(1)) > 0.4 or joy.get_hat(0)[1] != 0:
+            gp_v_neutral = False
 
-    if kb_neutral and gp_neutral:
+    if kb_v_neutral and gp_v_neutral:
         ratchet_reset = True
     else:
         # Process Navigation if not latched and not on cooldown
@@ -162,18 +160,18 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
     move_dir = get_movement_actions(state)
     ratchet_reset = False
     
-    # Check for Neutral State (with 0.4 deadzone for drift resilience)
+    # Targeted Vertical Neutral Check for Menu Stability
     keys = pygame.key.get_pressed()
-    kb_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_a], keys[pygame.K_d],
-                          keys[pygame.K_UP], keys[pygame.K_DOWN], keys[pygame.K_LEFT], keys[pygame.K_RIGHT]])
+    kb_v_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_UP], keys[pygame.K_DOWN]])
     
-    gp_neutral = True
+    gp_v_neutral = True
     if pygame.joystick.get_count() > 0:
         joy = pygame.joystick.Joystick(0)
-        if abs(joy.get_axis(0)) > 0.4 or abs(joy.get_axis(1)) > 0.4 or joy.get_hat(0) != (0, 0):
-            gp_neutral = False
+        # Only check Y-axis (1) and D-pad (Hat)
+        if abs(joy.get_axis(1)) > 0.4 or joy.get_hat(0)[1] != 0:
+            gp_v_neutral = False
 
-    if kb_neutral and gp_neutral:
+    if kb_v_neutral and gp_v_neutral:
         ratchet_reset = True
     else:
         if pause_menu and pause_menu.is_open():

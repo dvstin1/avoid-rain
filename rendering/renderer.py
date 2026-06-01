@@ -67,12 +67,12 @@ class Renderer:
             # Loop through 4 horizontal lines
             for i in range(4):
                 line_y = screen_y + (i + 1) * (oh // 5)
-                # Oscillation speed and direction
-                speed = 0.2 if i % 2 == 0 else -0.2
-                offset = (ticks * speed) % 50 
+                # Slower speed: approx 1 loop every 2 seconds
+                speed = 0.02 if i % 2 == 0 else -0.02
+                offset = (ticks * speed) % 40 
                 
                 # Draw dashed segments
-                for lx in range(-50, int(ow) + 50, 50):
+                for lx in range(-40, int(ow) + 40, 40):
                     start_x = screen_x + lx + offset
                     end_x = start_x + 25
                     
