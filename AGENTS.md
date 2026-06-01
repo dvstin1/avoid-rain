@@ -40,30 +40,16 @@
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
-## Active Task: Unified Gamepad Controller Integration & Menu Snapping Logic
+## Active Task: Dynamic Proximity Music Refinement (Phase 1 & 2)
 
-Initialize Pygame's joystick subsystem, build the hardware profile lookup maps for PS5 and SteelSeries controllers, implement the HUD indicator, and transition menu loops to button-focus index tracking.
+Enhance the atmospheric immersion by implementing a distance-aware audio engine that crossfades regional exploration tracks with elite combat themes using precise Euclidean tracking and temporal hysteresis.
 
-### 1. Joystick Subsystem Initialization
-- In `main.py` or your input handling script, call `pygame.joystick.init()`.
-- Run an initialization loop on startup to detect connected pads:
-  ```python
-  joysticks = [pygame.joystick.Joystick(i) for i in range(pygame.joystick.get_count())]
-  for joy in joysticks:
-      joy.init()
-      print(f"[INPUT DEVICE] Initialized: {joy.get_name()}")
-  ```
+### Phase 1: The Intelligence Layer (GameState)
+- **Proximity Tracking:** Implement a 15-meter (600px) Euclidean distance check between the player and any entity flagged as `.is_miniboss`.
+- **Hysteresis Logic:** Implement a 3.0s temporal cooldown. Combat music must remain active for at least 3 seconds after the player leaves the proximity radius to prevent erratic audio "jitter."
+- **Priority Stack:** Define a clear track hierarchy (Final Author > Night Boss > Miniboss > Exploration).
 
-### 2. Action Mapping Normalization Layer
-
-    Create engine/input_manager.py to intercept raw events:
-
-        Convert pygame.JOYBUTTONDOWN and pygame.JOYAXISMOTION into abstract game signals (MOVE_LEFT, MOVE_UP, ATTACK).
-
-        Auto-switch self.input_mode = "GAMEPAD" the exact frame a controller button is pressed, and switch back to "KEYBOARD" if a keyboard button is pressed.
-
-### 3. HUD Display and Menu Button Focus Tracking
-
-    In rendering/renderer.py, draw the top-corner mode text based on the active state string.
-
-    Update ui/menu.py (Respite Menu): If gamepad mode is active, track a integer index self.menu_focus_index = 0. Pressing D-pad down increments the index, highlighting the corresponding button element and letting a face button activate it safely without mouse usage.
+### Phase 2: The Audio Layer (AudioManager)
+- **Smooth Crossfading:** Refactor `AudioManager.update` to handle volume ramps and state synchronization.
+- **State Preservation:** Ensure that returning to exploration music doesn't "restart" the track if it was previously playing.
+- **Debug Sync:** Update the on-screen debug display to reflect active proximity metrics.

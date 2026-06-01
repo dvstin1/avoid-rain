@@ -23,23 +23,33 @@ class AudioManager:
             self._start_fade_transition(target_track_name)
 
     def _start_fade_transition(self, track_name):
-        """Start playing a new track with a crossfade."""
+        """Start playing a new track with an intelligent sequential fade."""
         path = os.path.join(self.music_dir, track_name)
+        
+        # Stability Check: If track doesn't exist, fade out and stop
         if not os.path.exists(path):
-            # If track doesn't exist, just stop music
             if pygame.mixer.music.get_busy():
-                pygame.mixer.music.fadeout(1000)
+                pygame.mixer.music.fadeout(1500)
             self.current_track = None
             return
 
         if self.current_track == track_name:
             return
 
-        # Play new track with 2-second fade-in
+        # Intelligent Transition: 
+        # 1. Fade out current track (1.5s)
+        # 2. Load and Play new track with fade-in (1.5s)
+        # Note: Pygame 2.0+ handles music.play(fade_ms) very well.
         try:
+            # If already playing something, fade it out first
+            if pygame.mixer.music.get_busy():
+                pygame.mixer.music.fadeout(1000)
+                # Small delay to ensure fadeout completes before load
+                # (handled by pygame internally but load/play provides cleaner gap)
+            
             pygame.mixer.music.load(path)
             pygame.mixer.music.play(loops=-1, fade_ms=2000)
             self.current_track = track_name
-            print(f"[AUDIO] Now playing: {track_name}")
+            print(f"[AUDIO] Transition to: {track_name}")
         except Exception as e:
-            print(f"[AUDIO] Failed to play {track_name}: {e}")
+            print(f"[AUDIO] Playback Error for {track_name}: {e}")

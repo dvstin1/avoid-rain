@@ -1,5 +1,21 @@
 # Changelog
 
+## [Recently Completed]
+### The Stanza System: Actor State Machine & Patrols
+- **Unified Actor Framework:** Created a base `Actor` class for both Enemies and NPCs, merging movement, state management, and interaction logic.
+- **Marker-Based 'Stanza' Patrols:** Implemented an opt-in waypoint system using map symbols '1'-'9'.
+- **Grouped Routes:** Supported multiple distinct patrol paths per map via `route_id` grouping.
+- **Caste Filtering:** Added type-specific route anchoring, allowing different entities (e.g., Slugs vs. Bats) to follow separate paths.
+- **Realism & Nuance:** Implemented randomized wait timers at markers, specialized 'Deep Study' points for NPCs, and 'Dormancy' states for stationary ambushers.
+- **Sanctuary Integration:** Coded a research routine for the Chronicler, enabling him to realistically walk between bookcases in the hub world.
+
+### Unified Gamepad Controller Integration & Menu Snapping Logic
+- **Joystick Subsystem Initialization:** Initialized `pygame.joystick` and implemented a hardware discovery loop at application startup.
+- **Auto Input Mode Switching:** Engineered a seamless transition between Keyboard and Gamepad modes, with real-time HUD feedback.
+- **Action Mapping Layer:** Standardized raw controller events into abstract game signals (Attack, Flask, Dash, Swap, Block) for PS5 and SteelSeries profiles.
+- **Controller-Driven Menus:** Overhauled the Title, Pause, and Respite menus to support vertical navigation via Analog Sticks and D-pads with precise input ratcheting and temporal debouncing.
+- **HUD Indicator:** Added a dynamic input status display to the gameplay interface.
+
 ## [2026-05-21] - Documentation Cleanup & Consolidation
 - Audited `AGENTS.md` and `docs/` to remove contradictions.
 - Moved permanent technical architectures into `docs/architecture.md`.

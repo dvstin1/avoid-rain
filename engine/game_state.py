@@ -717,21 +717,26 @@ class GameState:
             pass
 
     def _update_audio_track(self, dt):
-        """Update active_track_name based on zone and boss proximity."""
+        """Update active_track_name based on zone, boss proximity, and temporal hysteresis."""
         world_name = getattr(self.world, 'name', 'sanctuary')
 
-        # 1. Zone & Death Defaults
+        # 1. Base Selection Rule (Zone & Result Priority)
         target_track = "world_exploration.ogg"
         if world_name == "sanctuary":
             target_track = "sanctuary_hub.ogg"
+        
+        # Victory Exception: Chapter complete theme
+        if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY" and world_name == "final_boss":
+            self.player.active_track_name = "victory_theme.ogg"
+            return
 
         if self.player.hp <= 0:
-            target_track = "death_theme.ogg"
+            self.player.active_track_name = "death_theme.ogg"
+            return
 
-        # 2. Boss Proximity Rules (15 meters = 600 pixels)
-        pixels_per_meter = TILE_SIZE
-        proximity_threshold = 15 * pixels_per_meter
-        cooldown_limit = 3.0
+        # 2. Dynamic Engagement Rule (15m = 600px Euclidean Radius)
+        proximity_threshold = 15 * TILE_SIZE # 600px
+        cooldown_limit = 3.0 # Hysteresis window
 
         near_miniboss = False
         near_night_boss = False
@@ -740,23 +745,19 @@ class GameState:
         px, py = self.player.get_center()
         for enemy in self.enemies:
             if getattr(enemy, 'is_miniboss', False):
-                ex, ey = enemy.x + enemy.width / 2, enemy.y + enemy.height / 2
+                ex, ey = enemy.get_center()
                 dist_sq = (px - ex)**2 + (py - ey)**2
                 if dist_sq <= proximity_threshold**2:
                     ename = getattr(enemy, 'name', '')
-                    if ename == "The Final Author":
-                        near_final_author = True
-                    elif ename == "Night Boss":
-                        near_night_boss = True
-                    else:
-                        near_miniboss = True
+                    if ename == "The Final Author": near_final_author = True
+                    elif ename == "Night Boss": near_night_boss = True
+                    else: near_miniboss = True
                     break
 
-        # 3. Priority Selection
-        # Victory Rule: Only if we are in the Final Boss arena and just won
-        if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY" and world_name == "final_boss":
-            self.player.active_track_name = "victory_theme.ogg"
-            return
+        # 3. Hierarchy Stack with Hysteresis
+        # Rule: Combat themes share a common 'Engagement Cooldown'
+        current_active = self.player.active_track_name
+        combat_tracks = ("miniboss_combat.ogg", "night_boss.ogg", "final_reckoning.ogg")
 
         if near_final_author:
             self.player.active_track_name = "final_reckoning.ogg"
@@ -767,11 +768,13 @@ class GameState:
         elif near_miniboss:
             self.player.active_track_name = "miniboss_combat.ogg"
             self.player.miniboss_cooldown_accumulator = 0.0
-        elif self.player.active_track_name in ("miniboss_combat.ogg", "night_boss.ogg", "final_reckoning.ogg", "victory_theme.ogg"):
+        elif current_active in combat_tracks:
+            # Player has left the radius; start ticking the hysteresis cooldown
             self.player.miniboss_cooldown_accumulator += dt
             if self.player.miniboss_cooldown_accumulator >= cooldown_limit:
                 self.player.active_track_name = target_track
         else:
+            # Passive Exploration
             self.player.active_track_name = target_track
 
     def _handle_upgrade(self, stat_name, amount, cost_scale):
