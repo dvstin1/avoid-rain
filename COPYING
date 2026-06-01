@@ -7,7 +7,7 @@ All source code files (Python, shell scripts, etc.) are licensed under the **GNU
 - See [LICENSE.gpl-2](./LICENSE.gpl-2) for the full license text.
 
 ## 2. Creative Assets (Art & Music)
-All assets located in the `assets/` directory (including graphics, music, and sound effects) are licensed under the **Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)**.
+All assets located in the `assets/` directory (maintained as a separate git repository) are licensed under the **Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)**.
 
 ### Summary of CC BY-SA 4.0:
 - **Attribution:** You must give appropriate credit, provide a link to the license, and indicate if changes were made.
