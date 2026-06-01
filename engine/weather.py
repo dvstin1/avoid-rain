@@ -19,6 +19,7 @@ class WeatherManager:
         
         self.bleed_state = "GRACE_PERIOD"
         self.grace_timer = 60.0  # 1-minute initial grace period
+        self.timer = 0.0 # Reset per-phase timer
         
         # Sizing Steps (in Tiles)
         self.steps = [300.0, 120.0, 40.0]
