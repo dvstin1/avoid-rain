@@ -547,7 +547,7 @@ class LevelLoader:
 
     @staticmethod
     def link_actors_to_routes(game_state):
-        """Find and assign patrol routes to nearby actors."""
+        """Find and assign patrol routes to nearby actors using proximity discovery."""
         all_actors = list(game_state.enemies)
         # Search for NPCs who are Actors
         for obj in game_state.world.interactables:
@@ -562,9 +562,9 @@ class LevelLoader:
                 continue
                 
             ax, ay = actor.get_center()
-            # 1. Find nearest marker (within 10 tiles)
+            # 1. Find nearest marker (within 20 tiles for robustness)
             nearest = None
-            min_dist_sq = (10 * TILE_SIZE)**2
+            min_dist_sq = (20 * TILE_SIZE)**2
             
             for m in markers:
                 # Caste Filter Check
@@ -578,14 +578,34 @@ class LevelLoader:
                     nearest = m
             
             if nearest:
-                # 2. Gather all markers in the same route
-                route = [m for m in markers if m.route_id == nearest.route_id]
+                # 2. Gather all markers in the same logical route
+                # Rule: Same route_id OR spatially connected chain
+                if nearest.route_id != "default":
+                    route = [m for m in markers if m.route_id == nearest.route_id]
+                else:
+                    # Spatially Connected Discovery:
+                    # Find all 'default' markers reachable in steps of 10 tiles
+                    route = []
+                    to_check = [nearest]
+                    while to_check:
+                        curr = to_check.pop(0)
+                        if curr in route: continue
+                        route.append(curr)
+                        
+                        cx, cy = curr.x + curr.width/2, curr.y + curr.height/2
+                        for m in markers:
+                            if m.route_id == "default" and m not in route:
+                                mx, my = m.x + m.width/2, m.y + m.height/2
+                                d_sq = (cx - mx)**2 + (cy - my)**2
+                                if d_sq <= (10 * TILE_SIZE)**2:
+                                    to_check.append(m)
+
                 # Sort by symbol index
                 route.sort(key=lambda x: x.symbol_idx)
                 actor.patrol_route = route
-                # Start at the nearest marker or next in chain
+                # Start at the nearest marker
                 actor.patrol_idx = route.index(nearest)
-                print(f"[STANZA] Actor {actor.name} anchored to route '{nearest.route_id}'")
+                print(f"[STANZA] Actor {actor.name} anchored to route '{nearest.route_id}' ({len(route)} points)")
 
 class World:
     """Manages the tile-based world map.
