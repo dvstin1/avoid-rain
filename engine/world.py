@@ -222,16 +222,22 @@ class WeaponPickup(GameObject):
         current_idx = player.active_weapon_idx
         
         if len(player.weapons) < 2:
+            # Slot available: simple pickup
             player.weapons.append(self.weapon_data)
             player.active_weapon_idx = len(player.weapons) - 1
             print(f"[PLAYER] Picked up {self.name} into Slot B")
+            if self in game_state.world.interactables:
+                game_state.world.interactables.remove(self)
         else:
+            # Both slots full: perform a swap
             old_weapon = player.weapons[current_idx]
             player.weapons[current_idx] = self.weapon_data
-            print(f"[PLAYER] Swapped {old_weapon['name']} for {self.name}")
-        
-        if self in game_state.world.interactables:
-            game_state.world.interactables.remove(self)
+            
+            # Put the old weapon into this pickup object
+            self.weapon_data = old_weapon
+            self.name = old_weapon.get("name", "Unknown Quill")
+            print(f"[PLAYER] Swapped {self.name} onto floor, picked up {player.weapons[current_idx]['name']}")
+            # NOTE: self is NOT removed from interactables in this case
 
 class Respite(GameObject):
     """Ancient anchor fragment that allows resting and character edification."""
