@@ -63,9 +63,21 @@ assets/
         ├── night_boss.ogg        # Aggressive, building composition
         ├── final_reckoning.ogg   # Peak structural arrangement (Final Author)
         └── victory_theme.ogg     # 10s serene crescendo for the Chapter Complete sequence
+    └── sfx/
+        ├── attack_swing.ogg      # A sharp, metallic "sing" or "whoosh" (The Whiff)
+        ├── attack_hit.ogg        # A heavy "thud" or "ink splash" (Overlay with swing for landed hits)
+        ├── player_hurt_rain.ogg  # A low, sizzling hiss (played when receiving acid damage)
+        ├── bleed_start.ogg       # A distant, seismic rumble followed by a low mechanical grind
+        └── respite_rest.ogg      # A warm, harmonic chime that resolves with a soft exhale
 ```
 
 ### Technical Specs for Victory Theme
 - **Duration:** Exactly 10.0 seconds to match the "Dilution" extraction window.
 - **Composition:** Should begin with a sharp resolution of the tension, followed by a serene, atmospheric fade-out that bridges the gap between the final arena and the Scriptorium hub.
 - **Trigger:** Played automatically upon the defeat of The Final Author during the "CHAPTER COMPLETE" bloom overlay.
+
+### SFX Production Guidelines
+- **The Layered Attack Rule:** To maximize feedback, landed attacks should trigger *both* `attack_swing.ogg` and `attack_hit.ogg` simultaneously. This creates a distinct, weighted feel compared to a "whiff" which only plays the swing.
+- **The Environmental Hiss:** `player_hurt_rain.ogg` should be short and loopable, providing constant auditory feedback that the player is currently exposed and losing health.
+- **The Seismic Rumble:** `bleed_start.ogg` triggers the moment the safe circle begins a contraction phase, signaling that the "margins are shifting."
+- **The Respite Resolution:** `respite_rest.ogg` should feel like a moment of absolute safety, cleansing the cold "ink" atmosphere with a warmer tonal palette.

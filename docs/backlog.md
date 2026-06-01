@@ -24,7 +24,11 @@
 
 ## 3. Audio & Atmosphere
 - **Noir Soundtrack:** Procedural ambient tracks that shift intensity based on proximity to enemies or the Rain.
-- **SFX Palette:** Unique sound profiles for different quill types (metal scratching, wet ink splashes, heavy blunt thuds).
+- **Layered SFX Feedback:**
+    - **Combat:** Distinct sounds for attack whiffs (`attack_swing.ogg`) vs. hits (layered `attack_swing` + `attack_hit`).
+    - **Environment:** Immediate auditory feedback for acid rain exposure (`player_hurt_rain.ogg`).
+    - **System Alerts:** Seismic audio cues for safe circle contraction starts (`bleed_start.ogg`).
+    - **Progression:** Thematic "safety" resolution sound for Respite resting (`respite_rest.ogg`).
 - **Environment Audio:** Directional audio for candelabras, wellsprings, and the distant rumble of the author's madness.
 
 ## 4. Narrative & Visuals
