@@ -132,16 +132,6 @@ class Chronicler(Actor):
         self.current_dialogue = None
         self.patrol_speed_multiplier = 0.4
 
-    def _update_state_logic(self, dt, game_state):
-        """NPC: Switch to ENGAGED if being talked to."""
-        if game_state.active_dialogue and game_state.active_dialogue.get("speaker") == self.name:
-            self.state = ActorState.ENGAGED
-            self.vx, self.vy = 0, 0
-        elif self.patrol_route:
-            self.state = ActorState.PATROLLING
-        else:
-            self.state = ActorState.IDLE
-
     def execute_interaction(self, game_state):
         """Select dialogue based on state and display it."""
         from constants import DIALOGUE_MANIFEST

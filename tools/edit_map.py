@@ -37,6 +37,16 @@ MASTER_TOOL_REGISTRY = [
     {"id": "tile_lore", "char": "L", "name": "Lore", "type": "tile"},
     {"id": "tile_respite", "char": "R", "name": "Respite", "type": "tile"},
 
+    {"id": "patrol_1", "char": "1", "name": "Patrol Marker 1", "type": "patrol"},
+    {"id": "patrol_2", "char": "2", "name": "Patrol Marker 2", "type": "patrol"},
+    {"id": "patrol_3", "char": "3", "name": "Patrol Marker 3", "type": "patrol"},
+    {"id": "patrol_4", "char": "4", "name": "Patrol Marker 4", "type": "patrol"},
+    {"id": "patrol_5", "char": "5", "name": "Patrol Marker 5", "type": "patrol"},
+    {"id": "patrol_6", "char": "6", "name": "Patrol Marker 6", "type": "patrol"},
+    {"id": "patrol_7", "char": "7", "name": "Patrol Marker 7", "type": "patrol"},
+    {"id": "patrol_8", "char": "8", "name": "Patrol Marker 8", "type": "patrol"},
+    {"id": "patrol_9", "char": "9", "name": "Patrol Marker 9", "type": "patrol"},
+
     {"id": "enemy_bat", "char": "A", "name": "Bat", "type": "enemy"},
     {"id": "enemy_slug", "char": "Z", "name": "Slug", "type": "enemy"},
     {"id": "enemy_flutter", "char": "f", "name": "Flutter", "type": "enemy"},
@@ -117,7 +127,7 @@ class MapEditor:
         if not tool:
             return
 
-        if tool["type"] in ("tile", "enemy"):
+        if tool["type"] in ("tile", "enemy", "patrol"):
             self.current_brush_char = tool["char"]
             if self.active_tool == "SOCKET":
                 self.active_tool = "PENCIL"
@@ -211,6 +221,7 @@ class MapEditor:
     def draw_grid(self, ts):
         """Draws the map grid."""
         enemy_chars = [t["char"] for t in MASTER_TOOL_REGISTRY if t["type"] == "enemy"]
+        patrol_chars = [t["char"] for t in MASTER_TOOL_REGISTRY if t["type"] == "patrol"]
 
         # Viewport Culling for Performance
         start_x = max(0, self.camera_x // ts)
@@ -236,6 +247,8 @@ class MapEditor:
                     color = COLOR_BLUE
                 elif char in enemy_chars:
                     color = COLOR_RED
+                elif char in patrol_chars:
+                    color = COLOR_YELLOW
 
                 pygame.draw.rect(self.screen, color, rect)
                 pygame.draw.rect(self.screen, (50, 50, 50), rect, 1)

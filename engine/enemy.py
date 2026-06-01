@@ -189,19 +189,6 @@ class FlutterEnemy(Enemy):
         self.damage_cooldown = FLUTTER_DAMAGE_COOLDOWN
         self._damage_timer = 0.0
 
-    def _update_state_logic(self, dt, game_state):
-        player_cx, player_cy = game_state.player.get_center()
-        cx, cy = self.get_center()
-        dist_sq = (player_cx - cx)**2 + (player_cy - cy)**2
-        
-        # Fleeing logic: if player in radius, state = CHASE (but movement is inverted)
-        if dist_sq <= self.detect_radius**2:
-            self.state = ActorState.CHASE
-        elif self.patrol_route:
-            self.state = ActorState.PATROLLING
-        else:
-            self.state = ActorState.IDLE
-
     def _update_chase(self, dt, state):
         """Fleeing behavior."""
         player_cx, player_cy = state.player.get_center()

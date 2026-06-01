@@ -41,11 +41,16 @@ class Actor:
         self.is_stationary = False
         self.loot_tier = 3
 
+    @property
+    def rect(self):
+        """Standard rect tuple (x, y, w, h) for collision logic."""
+        return (self.x, self.y, self.width, self.height)
+
     def get_center(self):
         return self.x + self.width / 2, self.y + self.height / 2
 
     def get_rect(self):
-        return (self.x, self.y, self.width, self.height)
+        return self.rect
 
     def take_damage(self, amount):
         """Standard damage logic."""
