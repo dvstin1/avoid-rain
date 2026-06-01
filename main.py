@@ -62,8 +62,18 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
     move_dir = get_movement_actions(state)
     ratchet_reset = False
     
-    # Check for Neutral State
-    if move_dir == [0.0, 0.0]:
+    # Check for Neutral State (with 0.4 deadzone to ignore stick drift)
+    keys = pygame.key.get_pressed()
+    kb_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_UP], keys[pygame.K_DOWN]])
+    
+    gp_neutral = True
+    if pygame.joystick.get_count() > 0:
+        joy = pygame.joystick.Joystick(0)
+        # Use a larger deadzone for reset than for trigger (Hysteresis)
+        if abs(joy.get_axis(1)) > 0.4 or joy.get_hat(0) != (0, 0):
+            gp_neutral = False
+
+    if kb_neutral and gp_neutral:
         ratchet_reset = True
     else:
         # Process Navigation if not latched
@@ -147,7 +157,18 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
     move_dir = get_movement_actions(state)
     ratchet_reset = False
     
-    if move_dir == [0.0, 0.0]:
+    # Check for Neutral State (with 0.4 deadzone for drift resilience)
+    keys = pygame.key.get_pressed()
+    kb_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_a], keys[pygame.K_d],
+                          keys[pygame.K_UP], keys[pygame.K_DOWN], keys[pygame.K_LEFT], keys[pygame.K_RIGHT]])
+    
+    gp_neutral = True
+    if pygame.joystick.get_count() > 0:
+        joy = pygame.joystick.Joystick(0)
+        if abs(joy.get_axis(0)) > 0.4 or abs(joy.get_axis(1)) > 0.4 or joy.get_hat(0) != (0, 0):
+            gp_neutral = False
+
+    if kb_neutral and gp_neutral:
         ratchet_reset = True
     else:
         if pause_menu and pause_menu.is_open():

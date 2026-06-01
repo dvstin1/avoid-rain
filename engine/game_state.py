@@ -530,7 +530,9 @@ class GameState:
                         self.menu_nav_cooldown = 0.15
 
                 # 2. Handle Confirm/Select Actions (Independent of Ratchet)
-                if attack_pressed:
+                if attack_pressed and not self.input_ratchet_latched:
+                    self.input_ratchet_latched = True
+                    
                     # Index 0: Immediate REST
                     if self.respite_selection_idx == 0:
                         active_respite.execute_rest(self)
@@ -562,6 +564,8 @@ class GameState:
                         self.player.has_rested_this_session = False
                         self.save_stats(wait=True)
                         return
+                    
+                    attack_pressed = False
 
                 # 3. Handle Keyboard Shortcuts (Independent of Ratchet)
                 # R - Rest is ALWAYS allowed to trigger the unblock
