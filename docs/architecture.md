@@ -60,11 +60,14 @@ The weather system state machine, particle calculations, and damage logic are st
 ## 6. Combat Logic & Hitbox Rules
 - **Relative Hitboxes:** Calculated based on player center and cardinal facing direction (e.g., $60 \times 20$ for horizontal swings).
 - **Resolution:** Damage is applied to all enemies overlapping the active sword hitbox during the `ATTACKING` state.
+- **The Layered SFX Rule:** To maximize tactile feedback, landed attacks trigger both `attack_swing.ogg` and `attack_hit.ogg` simultaneously. A "whiff" only triggers the swing sound.
 
 ## 7. Map Topography: The Unit Grid Canvas
 The world is a massive $440 \times 440$ tile grid assembled from an $11 \times 11$ unit matrix.
 - **Room Nodes:** $120 \times 120$ tiles (3x3 units). Reserved for high-density exploration and combat.
 - **Corridor Slots:** $40 \times 40$ tiles (1x1 units). Connect Room Nodes.
+- **Proximity Route Discovery:** Actors (Enemies/NPCs) automatically anchor to waypoints (`1`-`9`) if detected within a **20-tile radius** at spawn.
+- **Stanza Formation:** Markers are grouped by `route_id`. If no ID is provided, the engine recursively builds a spatially connected chain of nearby markers.
 - **Perimeter Passability:** Local sub-map modules must not append colliders to their outer frame edges, allowing fluid traversal between adjacent nodes.
 
 ## 8. State Hooks: Modular Cleansing
@@ -77,13 +80,15 @@ To facilitate long-term progression, the engine implements a "Resting" loop and 
 
 ### 1. The Resting Loop (engine/world.py)
 Interacting with an unlocked `Respite` object triggers the `execute_rest()` sequence:
-- **Character Restoration:** Resets `player.hp` to `player.max_hp` and refills `player.flask_charges`.
+- **Character Restoration:** Resets `player.hp` to `player.max_hp`, refills `player.flask_charges`, and triggers `respite_rest.ogg`.
 - **World Re-population:** Standard enemy spawners (Z, A, f, b, s) are re-instantiated.
 - **Elite Exclusion:** Minibosses are never respawned once their unique ID is flagged as defeated in the global session manifest.
 - **Progression Unlocking:** Sets `player.has_rested_this_session = True`, enabling the edification menu.
 
-### 2. Edification Leveling & Currency Scaling
-Attribute upgrades scale linearly based on the current level:
+### 2. Edification Leveling (Mark & Finalize Workflow)
+Attribute upgrades follow a two-step confirmation process to prevent accidental spending:
+- **The Mark Phase:** Player selects an upgrade to "Mark" it for the current session.
+- **The Finalize Phase:** Player must navigate to the `[ FINALIZE ]` button to commit the change. 
 - **Math Formula:** `Cost = (current_level + 1) * 50` Torn Pages.
 - **Stat Categories:** **Edification** (Passive Defense), **Prowess** (+5 Attack), and **Fortification** (+10 Max HP).
 - **The State Lock:** Each purchase resets `has_rested_this_session = False`. To edify again, the player must commit to a fresh Rest action.
@@ -110,14 +115,34 @@ The `"night_boss"` entity type is strictly restricted from manifesting during ru
 
 ### 2. Victory and The Appendix
 - **Manifestation:** Defeating the second Night Boss manifests a Warp Portal to the separate **Final Boss Arena** (`maps/final_boss.json`, 50x50 size).
-- **Conclusion:** True victory (`last_run_result = "VICTORY"`) is achieved only by defeating the Final Boss.
+- **The Extraction Sequence:** Upon defeating the Final Boss, a 10-second "Dilution" interlude begins. Once the timer hits zero, the player is automatically warped back to the Sanctuary hub.
+- **Conclusion:** True victory (`last_run_result = "VICTORY"`) is achieved only upon successful extraction.
 
 ## 12. Hub Persistence Boundaries & State Purification
 
 ### 1. The Sanctuary Persistence Rule (The Blank Slate)
 The Sanctuary hub world acts as a definitive state purifier. 
-- **Purification Pass:** Entering the hub forces `edification_level` to 1, resets Pages to 0, restores HP/Flasks, and wipes exposure status.
+- **Purification Pass:** Entering the hub (via victory or death) forces `edification_level` to 1, resets Pages to 0, restores HP/Flasks, and wipes exposure status.
+- **Weather Reset:** Resets the weather state machine to `GRACE_PERIOD`.
 - **File Persistence:** Session data is written to `~/.config/avoid_rain/save_data.json`. The hub bypasses the `in_progress` restriction, allowing players to Resume directly in the Scriptorium.
+
+## 13. Actor Intelligence: The Stanza System
+A unified behavior framework for all mobile entities (Enemies and NPCs).
+
+### 1. Unified State Machine
+Actors cycle between logic states based on environmental triggers:
+- **IDLE:** Standing at post or wandering.
+- **PATROLLING:** Moving between sequential markers in a "Stanza" chain.
+- **CHASE:** High-velocity pursuit of the player (Enemies only).
+- **ENGAGED:** Movement paused for active interaction/dialogue (NPCs only).
+
+### 2. Caste Filtering
+Individual markers can be restricted to specific actor types (e.g., `["Chronicler"]` or `["SlugEnemy"]`). Actors will ignore any markers that do not match their assigned caste.
+
+### 3. Realism Nuance
+- **Stanza Speed:** Actors use `0.5x` speed during patrols to simulate walking.
+- **Wait Timers:** Upon reaching a marker, actors roll a randomized wait duration (`2s-6s` default) before proceeding to the next waypoint.
+- **Dormancy:** Entities flagged with `is_stationary: True` ignore all patrol logic and remain "sleeping" until player detection.
 
 ### 2. Minimap Rendering Order
 To prevent canvas blackouts, the minimap must adhere to a strict pipeline:
