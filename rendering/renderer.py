@@ -228,7 +228,7 @@ class Renderer:
                 else: pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
         for obj in getattr(state.world, 'interactables', []):
             if hasattr(obj, 'target_name'): self.draw_warp(obj, ox, oy)
-            elif obj.name == "Respite":
+            elif "Respite" in obj.name:
                 c = (int(obj.x + obj.width/2 - ox), int(obj.y + obj.height/2 - oy))
                 pygame.draw.circle(self.screen, constants.COLOR_CYAN, c, 10, 2)
             elif obj.name == "Barrel":

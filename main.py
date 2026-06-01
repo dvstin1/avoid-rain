@@ -76,14 +76,16 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
     if kb_neutral and gp_neutral:
         ratchet_reset = True
     else:
-        # Process Navigation if not latched
-        if not state.input_ratchet_latched:
+        # Process Navigation if not latched and not on cooldown
+        if not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
             if move_dir[1] > 0.5:
                 title_menu.navigate('down')
                 state.input_ratchet_latched = True
+                state.menu_nav_cooldown = 0.2
             elif move_dir[1] < -0.5:
                 title_menu.navigate('up')
                 state.input_ratchet_latched = True
+                state.menu_nav_cooldown = 0.2
         
     return True, True, ratchet_reset
 
@@ -172,13 +174,15 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
         ratchet_reset = True
     else:
         if pause_menu and pause_menu.is_open():
-            if not state.input_ratchet_latched:
+            if not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
                 if move_dir[1] > 0.5:
                     pause_menu.navigate('down')
                     state.input_ratchet_latched = True
+                    state.menu_nav_cooldown = 0.2
                 elif move_dir[1] < -0.5:
                     pause_menu.navigate('up')
                     state.input_ratchet_latched = True
+                    state.menu_nav_cooldown = 0.2
 
     return running, attack, flask, dash, swap, mouse_click, ratchet_reset
 
@@ -254,6 +258,10 @@ def main():
     try:
         while running:
             dt = clock.tick(FPS) / 1000.0
+            
+            # Universal Cooldown Decrement
+            if state.menu_nav_cooldown > 0:
+                state.menu_nav_cooldown -= dt
 
             if in_title:
                 in_title, running, ratchet_reset = handle_title_events(state, renderer, title_menu)

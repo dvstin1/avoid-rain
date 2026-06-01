@@ -382,9 +382,6 @@ class GameState:
         if ratchet_reset:
             self.input_ratchet_latched = False
 
-        if self.menu_nav_cooldown > 0:
-            self.menu_nav_cooldown -= dt
-
         if self.input_debounce_timer > 0:
             self.input_debounce_timer -= dt
             attack_pressed = False
@@ -523,11 +520,11 @@ class GameState:
                     if move_dir[1] > 0.5: # Down
                         self.respite_selection_idx = (self.respite_selection_idx + 1) % 6
                         self.input_ratchet_latched = True
-                        self.menu_nav_cooldown = 0.15
+                        self.menu_nav_cooldown = 0.2
                     elif move_dir[1] < -0.5: # Up
                         self.respite_selection_idx = (self.respite_selection_idx - 1) % 6
                         self.input_ratchet_latched = True
-                        self.menu_nav_cooldown = 0.15
+                        self.menu_nav_cooldown = 0.2
 
                 # 2. Handle Confirm/Select Actions (Independent of Ratchet)
                 if attack_pressed and not self.input_ratchet_latched:
@@ -592,11 +589,11 @@ class GameState:
                 if move_dir[0] > 0.5:
                     active_choice["selected_index"] = 1
                     self.input_ratchet_latched = True
-                    self.menu_nav_cooldown = 0.15
+                    self.menu_nav_cooldown = 0.2
                 elif move_dir[0] < -0.5:
                     active_choice["selected_index"] = 0
                     self.input_ratchet_latched = True
-                    self.menu_nav_cooldown = 0.15
+                    self.menu_nav_cooldown = 0.2
                 
             if attack_pressed:
                 choice_node = active_choice["options"][active_choice["selected_index"]]
