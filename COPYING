@@ -1,0 +1,16 @@
+# Licensing Information
+
+Avoid Rain is a dual-licensed project to ensure the freedom of both its engine and its creative assets.
+
+## 1. Software Engine (Code)
+All source code files (Python, shell scripts, etc.) are licensed under the **GNU General Public License v2.0 (GPL-2.0)**. 
+- See [LICENSE.gpl-2](./LICENSE.gpl-2) for the full license text.
+
+## 2. Creative Assets (Art & Music)
+All assets located in the `assets/` directory (including graphics, music, and sound effects) are licensed under the **Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)**.
+
+### Summary of CC BY-SA 4.0:
+- **Attribution:** You must give appropriate credit, provide a link to the license, and indicate if changes were made.
+- **ShareAlike:** If you remix, transform, or build upon the material, you must distribute your contributions under the same license as the original.
+
+For more information on CC BY-SA 4.0, visit: [https://creativecommons.org/licenses/by-sa/4.0/](https://creativecommons.org/licenses/by-sa/4.0/)
