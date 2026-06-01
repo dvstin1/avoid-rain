@@ -3,6 +3,9 @@ Handles all Pygame drawing calls.
 """
 import pygame
 import constants
+import math
+import time
+import random
 from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
 from engine.camera import Camera
@@ -30,7 +33,6 @@ class Renderer:
         book_rect = pygame.Rect(screen_x + 8, screen_y + 10, ww - 16, 20)
         pygame.draw.rect(self.screen, (139, 69, 19), book_rect)
         pygame.draw.rect(self.screen, constants.COLOR_GREY, (screen_x + 8, screen_y + 10, 4, 20))
-        import math, time
         pulse = (math.sin(time.time() * 4) + 1) / 2
         glyph_color = (0, 255, 255)
         pulse_size = int(pulse * 4)
@@ -164,7 +166,6 @@ class Renderer:
         
         # 2. Particle System (Performant Vertical Rain)
         if not hasattr(self, 'rain_particles'):
-            import random
             self.rain_particles = []
             for _ in range(200):
                 self.rain_particles.append({
@@ -228,7 +229,6 @@ class Renderer:
             cam = Camera(sw, sh, ww, wh)
             ox, oy = cam.get_target_offset(state.player.get_center())
         if getattr(state, 'shake_timer', 0) > 0:
-            import random
             ox += random.uniform(-constants.SCREEN_SHAKE_INTENSITY, constants.SCREEN_SHAKE_INTENSITY)
             oy += random.uniform(-constants.SCREEN_SHAKE_INTENSITY, constants.SCREEN_SHAKE_INTENSITY)
         sx, sy = int(max(0, ox // constants.TILE_SIZE)), int(max(0, oy // constants.TILE_SIZE))
@@ -247,7 +247,6 @@ class Renderer:
                 dr = pygame.Rect(obj.x - ox, obj.y - oy, obj.width, obj.height)
                 pygame.draw.rect(self.screen, (20, 40, 60), dr) # Dark base
                 pygame.draw.rect(self.screen, constants.COLOR_CYAN, dr, 2)
-                import math, time
                 pulse = (math.sin(time.time() * 5) + 1) / 2
                 inner_r = int(5 + pulse * 10)
                 pygame.draw.circle(self.screen, constants.COLOR_CYAN, (int(dr.centerx), int(dr.centery)), inner_r, 1)
@@ -275,7 +274,6 @@ class Renderer:
                 stand = (obj.x + obj.width//2 - 3 - ox, obj.y + 10 - oy, 6, obj.height - 10)
                 pygame.draw.rect(self.screen, constants.COLOR_DARK_GREY, stand)
                 pygame.draw.rect(self.screen, constants.COLOR_BLACK, stand, 1)
-                import math, time
                 rad = int(30 * (math.sin(time.time() * 10) * 0.1 + 1.0))
                 g = pygame.Surface((rad * 2, rad * 2), pygame.SRCALPHA)
                 pygame.draw.circle(g, (255, 190, 40, 60), (rad, rad), rad)
@@ -291,7 +289,6 @@ class Renderer:
                 col = constants.COLOR_PURPLE if "modifiers" in obj.weapon_data else constants.COLOR_WHITE
                 pygame.draw.rect(self.screen, col, (obj.x - ox, obj.y - oy, obj.width, obj.height))
                 pygame.draw.rect(self.screen, constants.COLOR_BLACK, (obj.x - ox, obj.y - oy, obj.width, obj.height), 1)
-                import math, time
                 glow = (math.sin(time.time() * 5) + 1) / 2
                 pygame.draw.rect(self.screen, col, (obj.x - 2 - ox, obj.y - 2 - oy, obj.width + 4, obj.height + 4), 1)
         for item in getattr(state, 'loot', []): self.draw_loot(item, ox, oy)

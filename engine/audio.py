@@ -36,17 +36,9 @@ class AudioManager:
         if self.current_track == track_name:
             return
 
-        # Intelligent Transition: 
-        # 1. Fade out current track (1.5s)
-        # 2. Load and Play new track with fade-in (1.5s)
-        # Note: Pygame 2.0+ handles music.play(fade_ms) very well.
+        # Seamless Transition: 
+        # Immediate load and fade-in (zero-latency end of old track)
         try:
-            # If already playing something, fade it out first
-            if pygame.mixer.music.get_busy():
-                pygame.mixer.music.fadeout(1000)
-                # Small delay to ensure fadeout completes before load
-                # (handled by pygame internally but load/play provides cleaner gap)
-            
             pygame.mixer.music.load(path)
             pygame.mixer.music.play(loops=-1, fade_ms=2000)
             self.current_track = track_name
