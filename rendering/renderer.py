@@ -191,11 +191,12 @@ class Renderer:
                 if d_sq > rad_sq:
                     pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
 
-        # 3. Draw a glowing edge for the circle
+        # 3. Draw a 'Mysterious Barrier' for the circle boundary
         if not force_global and getattr(state, 'bleed_state', 'CLEAR') != 'DILUTION' and current_boss_coords:
             bcx, bcy = current_boss_coords['x'] * constants.TILE_SIZE - ox, current_boss_coords['y'] * constants.TILE_SIZE - oy
             if 0 < radius < 30000:
-                pygame.draw.circle(overlay, (255, 100, 0, 150), (int(bcx), int(bcy)), int(radius), 3)
+                # Black, 15px wide, 5% transparent (242 alpha)
+                pygame.draw.circle(overlay, (0, 0, 0, 242), (int(bcx), int(bcy)), int(radius), 15)
 
         self.screen.blit(overlay, (0, 0))
 
