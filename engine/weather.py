@@ -52,7 +52,7 @@ class WeatherManager:
             return None
         return self.boss_coords_list[self.current_boss_idx]
 
-    def update(self, dt, player, world):
+    def update(self, dt, player, world, audio_manager=None):
         # Hub Isolation Rule: Weather system completely freezes in the Sanctuary
         if getattr(world, 'name', '') == "sanctuary":
             return
@@ -101,6 +101,8 @@ class WeatherManager:
                 self.timer = WEATHER_SHRINK_DURATION
                 self.target_radius = self.steps[self.current_step_idx] * TILE_SIZE
                 self.pending_milestone_text = "THE INK BEGINS TO RUN"
+                if audio_manager:
+                    audio_manager.play_sfx("bleed_start.ogg")
                 print(f"[THE BLEED] Night {self.current_boss_idx + 1}: The circle is closing.")
             return
 
@@ -110,6 +112,8 @@ class WeatherManager:
                 self.bleed_state = "SHRINKING"
                 self.timer = WEATHER_SHRINK_DURATION
                 self.target_radius = self.steps[self.current_step_idx] * TILE_SIZE
+                if audio_manager:
+                    audio_manager.play_sfx("bleed_start.ogg")
                 print(f"[THE BLEED] The circle is closing. Target radius: {self.steps[self.current_step_idx]} units")
         
         elif self.bleed_state == "SHRINKING":

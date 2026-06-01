@@ -261,9 +261,13 @@ class Respite(GameObject):
         }
         game_state.active_respite = self
 
-    def execute_rest(self, game_state):
+    def execute_rest(self, game_state, audio_manager=None):
         """Restore player and respawn standard enemies."""
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
+        
+        # 0. Trigger SFX
+        if audio_manager:
+            audio_manager.play_sfx("respite_rest.ogg")
 
         # 1. Character Restoration
         game_state.player.hp = float(game_state.player.max_hp)

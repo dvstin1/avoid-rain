@@ -67,14 +67,14 @@ class Renderer:
             # Loop through 4 horizontal lines
             for i in range(4):
                 line_y = screen_y + (i + 1) * (oh // 5)
-                # Slower speed: approx 1 loop every 2 seconds
-                speed = 0.02 if i % 2 == 0 else -0.02
+                # Slow speed: approx 1 loop every 8 seconds
+                speed = 0.005 if i % 2 == 0 else -0.005
                 offset = (ticks * speed) % 40 
                 
                 # Draw dashed segments
                 for lx in range(-40, int(ow) + 40, 40):
                     start_x = screen_x + lx + offset
-                    end_x = start_x + 25
+                    end_x = start_x + 20
                     
                     # Clip segments to basin interior
                     clip_sx = max(screen_x + 2, min(screen_x + ow - 2, start_x))
@@ -209,12 +209,12 @@ class Renderer:
         if not force_global and getattr(state, 'bleed_state', 'CLEAR') != 'DILUTION' and current_boss_coords:
             bcx, bcy = current_boss_coords['x'] * constants.TILE_SIZE - ox, current_boss_coords['y'] * constants.TILE_SIZE - oy
             if 0 < radius < 30000:
-                # Black, 15px wide, 5% opaque (13 alpha)
-                pygame.draw.circle(overlay, (0, 0, 0, 13), (int(bcx), int(bcy)), int(radius), 15)
+                # Black, 5px wide, 100% opaque (255 alpha)
+                pygame.draw.circle(overlay, (0, 0, 0, 255), (int(bcx), int(bcy)), int(radius), 5)
 
         self.screen.blit(overlay, (0, 0))
 
-    def render(self, state):
+    def render(self, state, audio_manager=None):
         """Draw the game state using a camera."""
         bg = constants.COLOR_SEPIA_AMBER if getattr(state.world, 'name', 'sanctuary') == "sanctuary" else constants.COLOR_CHARCOAL
         self.screen.fill(bg)
@@ -329,10 +329,8 @@ class Renderer:
         except Exception: pass
 
         # Audio Debug OSD
-        debug_font = pygame.font.SysFont("Arial", 14, bold=True)
-        debug_text = f"[DEBUG_AUDIO: Playing {state.player.active_track_name}]"
-        debug_surf = debug_font.render(debug_text, True, constants.COLOR_WHITE)
-        self.screen.blit(debug_surf, (sw // 2 - debug_surf.get_width() // 2, 5))
+        if audio_manager:
+            self.draw_audio_debug(audio_manager)
 
         if getattr(state, 'active_respite', None):
             draw_respite_menu(self.screen, self.font, state)
@@ -350,6 +348,27 @@ class Renderer:
         self.draw_weather(state)
         self.draw_bloom_overlay(state)
         pygame.display.flip()
+
+    def draw_audio_debug(self, audio):
+        """Draw OSD for currently playing music and recent SFX triggers."""
+        margin = 10
+        y_off = margin
+        sw = self.screen.get_width()
+        
+        # 1. Music Info (Top Center)
+        track = audio.current_track if audio.current_track else "None"
+        m_surf = self.hud_font.render(f"[ AUDIO_OSD ] MUSIC: {track}", True, (120, 255, 100))
+        self.screen.blit(m_surf, (sw // 2 - m_surf.get_width() // 2, y_off))
+        
+        # 2. Recent SFX (Top Left)
+        y_off = margin
+        for sfx in audio.recent_sfx:
+            alpha = int((sfx['time'] / 2.0) * 255)
+            alpha = max(0, min(255, alpha))
+            s_surf = self.small_font.render(f"SFX: {sfx['name']}", True, (220, 220, 220))
+            s_surf.set_alpha(alpha)
+            self.screen.blit(s_surf, (margin, y_off))
+            y_off += 18
 
     def draw_bloom_overlay(self, state):
         """Draw alpha-blended typographic zone discovery overlay."""

@@ -12,8 +12,25 @@
 
 ---
 
-## 1. Combat Refinement
-- **Parry Window:** Implement a frame-perfect parry mechanic that staggers enemies and resets the dash cooldown.
+## 1. Combat Refinement & The Parry System
+
+This system aims to transform combat from simple proximity damage to a high-skill "dance" of anticipation and reaction.
+
+### Phase 1: Telegraphed Enemy Attacks (Prerequisite)
+Before a parry can be implemented, prototype enemies must be adapted to exhibit predictable, readable behaviors:
+- **The Wind-Up State:** All offensive actions must begin with a clear visual "tell" (e.g., the entity flashing a "Margin Red" outline or pulsing in size for 0.3s–0.5s).
+- **The Active Strike:** The actual damage-dealing frames.
+- **The Recovery State:** A post-attack cooldown where the enemy is physically locked, leaving a "Stanza Gap" for the player to counter-attack or reposition.
+- **Attack Variety:**
+    - **Thrusts:** Linear, high-velocity lunges. Narrow hitbox, fast wind-up. Harder to dodge, easiest to parry.
+    - **Swings:** Arc-based wide strikes. Slower execution, covers a larger radius. Easier to out-space, requires precise parry timing.
+
+### Phase 2: The Frame-Perfect Parry
+- **The Mechanic:** Triggered by initiating a block or dash within the first few frames of an incoming strike.
+- **Visual Feedback:** A high-contrast "Spark" or "Ink Splash" at the point of impact.
+- **The Reward:**
+    - **Enemy Stagger:** Instantly forces the attacker into a long stagger state (0.5s–1.0s).
+    - **Kinetic Reset:** Resets the player's Dash cooldown instantly, allowing for aggressive repositioning.
 - **Weapon Arts:** Unique special attacks for anomalous weapons (e.g., Ink Bleed triggering a small AoE puddle).
 - **Stamina Management:** A "Quill Pressure" meter that limits rapid-fire attacks and dashes, encouraging tactical positioning.
 
@@ -35,9 +52,13 @@
 ...
 - **Chapter Titles:** Large typographic overlays when entering new modular zones.
 
-## 5. Technical & Network (Future Phases)
+## 5. Technical & Navigation (Future Phases)
+- **A* Pathfinding:** Implement a dedicated pathfinding engine to allow Actors (Enemies and NPCs) to navigate around walls and obstacles autonomously.
+    - **Dynamic Calculation:** Instead of simple linear vectors, actors will compute a tile-based route to their next PatrolPoint.
+    - **Optimization:** Utilize a heat-map or hierarchical A* to manage the large 440x440 grid efficiently in Python.
+    - **Obstacle Awareness:** Pathfinding must account for both static wall tiles and solid GameObjects (Bookcases, Candelabras).
 - **LAN Multiplayer:** Implement UDP broadcast (`SO_BROADCAST`) for automatic game discovery on the same subnet.
-- **Authoritative State:** Design the engine to treat the host's world as the single source of truth, synchronizing client positions via TCP streams.
+...
 - **State Serialization:** Ensure player entities cleanly serialize position and movement vectors into lightweight JSON/byte structs for low-latency networking.
 
 ## Phase 2: Combat Refinement & Physical Polishing

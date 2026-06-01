@@ -374,7 +374,7 @@ class GameState:
         from engine.world import LevelLoader
         LevelLoader.link_actors_to_routes(self)
 
-    def update(self, dt, actions):
+    def update(self, dt, actions, audio_manager=None):
         """Update all game logic."""
         attack_pressed = actions.get('attack', False)
         ratchet_reset = actions.get('ratchet_reset', False)
@@ -386,8 +386,13 @@ class GameState:
             self.input_debounce_timer -= dt
             attack_pressed = False
 
+        # 1. Capture attack start for SFX
+        if attack_pressed and self.player.state != PlayerStateEnum.ATTACKING:
+            if audio_manager:
+                audio_manager.play_sfx("attack_swing.ogg")
+
         # --- Weather System: The Redacting Circle ---
-        self.weather_manager.update(dt, self.player, self.world)
+        self.weather_manager.update(dt, self.player, self.world, audio_manager=audio_manager)
         # Sync attributes for legacy renderer access if needed
         self.active_safe_radius = self.weather_manager.active_safe_radius
         self.bleed_state = self.weather_manager.bleed_state
@@ -532,7 +537,7 @@ class GameState:
                     
                     # Index 0: Immediate REST
                     if self.respite_selection_idx == 0:
-                        active_respite.execute_rest(self)
+                        active_respite.execute_rest(self, audio_manager=audio_manager)
                         self.respite_marked_idx = -1 # Clear markings on rest
                     
                     # Index 1-3: MARK for upgrade
@@ -567,7 +572,7 @@ class GameState:
                 # 3. Handle Keyboard Shortcuts (Independent of Ratchet)
                 # R - Rest is ALWAYS allowed to trigger the unblock
                 if actions.get('key_r'):
-                    active_respite.execute_rest(self)
+                    active_respite.execute_rest(self, audio_manager=audio_manager)
                     self.respite_marked_idx = -1
                 
                 # Upgrades are only allowed AFTER resting
@@ -656,11 +661,13 @@ class GameState:
             active_weapon = self.player.get_active_weapon()
             bonus_atk = getattr(self.player, 'stats', {}).get('attack_modifier', 0)
             damage = active_weapon.get("damage", SWORD_DAMAGE) + bonus_atk
+            hit_landed = False
             for enemy in list(self.enemies):
                 try:
                     if check_aabb_collision(hitbox, enemy.get_rect()):
                         if not enemy.is_staggered():
                             enemy.take_damage(damage)
+                            hit_landed = True
                             self.hit_stop_timer = HIT_STOP_DURATION
                             self.shake_timer = SCREEN_SHAKE_DURATION
                             self.damage_numbers.append({
@@ -672,6 +679,7 @@ class GameState:
             for obj in list(self.world.interactables):
                 if obj.is_breakable and check_aabb_collision(hitbox, obj.rect):
                     obj.take_damage(damage)
+                    hit_landed = True
                     if obj.is_dead():
                         try:
                             self.world.interactables.remove(obj)
@@ -679,6 +687,13 @@ class GameState:
                             from engine.loot import roll_drop
                             roll_drop(4, (obj.x, obj.y), self)
                         except Exception: pass
+            
+            if hit_landed and audio_manager:
+                audio_manager.play_sfx("attack_hit.ogg")
+
+        # Environmental SFX
+        if self.player.is_exposed and audio_manager:
+            audio_manager.play_sfx("player_hurt_rain.ogg")
 
         for enemy in list(self.enemies):
             if enemy.is_dead():
