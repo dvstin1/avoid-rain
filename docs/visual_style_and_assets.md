@@ -66,6 +66,7 @@ assets/
     └── sfx/
         ├── attack_swing.ogg      # A sharp, metallic "sing" or "whoosh" (The Whiff)
         ├── attack_hit.ogg        # A heavy "thud" or "ink splash" (Overlay with swing for landed hits)
+        ├── enemy_telegraph.ogg   # A sharp, high-pitched "shink" or "glint" (Start of wind-up)
         ├── player_hurt_rain.ogg  # A low, sizzling hiss (played when receiving acid damage)
         ├── bleed_start.ogg       # A distant, seismic rumble followed by a low mechanical grind
         └── respite_rest.ogg      # A warm, harmonic chime that resolves with a soft exhale

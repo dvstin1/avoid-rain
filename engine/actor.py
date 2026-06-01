@@ -147,6 +147,10 @@ class Actor:
                 self.state = ActorState.WIND_UP
                 self.combat_timer = self.wind_up_duration
                 self.vx, self.vy = 0, 0 # Stop movement to wind up
+
+                # Auditory Trigger (Telegraph)
+                if hasattr(game_state, 'audio_manager') and game_state.audio_manager:
+                    game_state.audio_manager.play_sfx("enemy_telegraph.ogg")
             else:
                 self.state = ActorState.CHASE
             return
@@ -163,16 +167,24 @@ class Actor:
         if self.combat_timer <= 0:
             self.state = ActorState.STRIKE
             self.combat_timer = self.strike_duration
-            # Signal damage attempt at the start of strike
-            if hasattr(self, 'attempt_damage_player'):
-                self.attempt_damage_player(game_state)
+            # One-time trigger at start of strike
+            self._on_start_strike(game_state)
 
     def _update_strike(self, dt, game_state):
-        """Active damage frames."""
+        """Active damage frames (Continuous check)."""
         self.combat_timer -= dt
+        
+        # Per-frame damage attempt during strike
+        if hasattr(self, 'attempt_damage_player'):
+            self.attempt_damage_player(game_state)
+
         if self.combat_timer <= 0:
             self.state = ActorState.RECOVERY
             self.combat_timer = self.recovery_duration
+
+    def _on_start_strike(self, game_state):
+        """Hook for one-time effects at the moment of impact."""
+        pass
 
     def _update_recovery(self, dt, game_state):
         """Post-attack vulnerability."""

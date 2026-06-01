@@ -47,6 +47,7 @@ COLOR_CHARCOAL = (15, 15, 20)     # Cold, stark dark charcoal
 COLOR_DEEP_SLATE = (45, 55, 70)   # Deep slate blue for Ink Urns
 COLOR_INK_PUDDLE = (10, 10, 25)   # Deep ink blue/black
 COLOR_CANDLE_AMBER = (255, 190, 40) # Warm candle light (Iron Candelabra)
+COLOR_MARGIN_RED = (255, 60, 40)   # High-contrast telegraph color
 
 # Combat Polish
 STAGGER_DURATION = 0.25      # Seconds entities are locked when hit
