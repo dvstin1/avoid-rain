@@ -63,16 +63,18 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
     move_dir = get_movement_actions(state)
     ratchet_reset = False
     
-    # Check for Neutral State (with 0.4 deadzone to ignore stick drift)
+    # Check for Neutral State (All directions must be released)
     keys = pygame.key.get_pressed()
-    kb_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_UP], keys[pygame.K_DOWN]])
+    kb_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_a], keys[pygame.K_d],
+                          keys[pygame.K_UP], keys[pygame.K_DOWN], keys[pygame.K_LEFT], keys[pygame.K_RIGHT]])
     
     gp_neutral = True
     if pygame.joystick.get_count() > 0:
         joy = pygame.joystick.Joystick(0)
-        # Use a larger deadzone for reset than for trigger (Hysteresis)
-        if abs(joy.get_axis(1)) > 0.4 or joy.get_hat(0) != (0, 0):
-            gp_neutral = False
+        # Check all axes and hat
+        for i in range(joy.get_numaxes()):
+            if abs(joy.get_axis(i)) > 0.4: gp_neutral = False; break
+        if joy.get_hat(0) != (0, 0): gp_neutral = False
 
     if kb_neutral and gp_neutral:
         ratchet_reset = True

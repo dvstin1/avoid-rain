@@ -21,14 +21,21 @@
     "F": "Wellspring",
     "L": "Lore",
     "R": "Respite",
+    "1": "Patrol Marker 1",
+    "2": "Miniboss M2",
+    "3": "Miniboss M3",
+    "4": "Patrol Marker 4",
+    "5": "Patrol Marker 5",
+    "6": "Patrol Marker 6",
+    "7": "Patrol Marker 7",
+    "8": "Patrol Marker 8",
+    "9": "Patrol Marker 9",
     "A": "Bat",
     "Z": "Slug",
     "f": "Flutter",
     "b": "Bindling",
     "s": "Smear",
-    "E": "Miniboss M1",
-    "2": "Miniboss M2",
-    "3": "Miniboss M3"
+    "E": "Miniboss M1"
   },
   "grid": [
     "################################",
@@ -37,8 +44,8 @@
     "#.........############....KK...#",
     "#K.......B#h...l...h.#...KK....#",
     "#K.......B#d.......d.#........S#",
-    "#KK......B#1.......2.#........S#",
-    "#KK......B#L.C.P..F..#.........#",
+    "#KK......B#..........#........S#",
+    "#KK......B#L1C2P..F..#.........#",
     "#KK.......#d...v...d.#.....K...#",
     "#.K.......#....W.....#.....KK..#",
     "#.K.......#..........#......KKK#",
@@ -58,14 +65,18 @@
     "11,6": {
       "type": "PatrolPoint",
       "route_id": "chron_research",
-      "caste_filter": ["Chronicler"],
+      "caste_filter": [
+        "Chronicler"
+      ],
       "wait_min": 10.0,
       "wait_max": 20.0
     },
     "19,6": {
       "type": "PatrolPoint",
       "route_id": "chron_research",
-      "caste_filter": ["Chronicler"],
+      "caste_filter": [
+        "Chronicler"
+      ],
       "wait_min": 15.0,
       "wait_max": 30.0
     },

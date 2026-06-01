@@ -52,23 +52,36 @@ class Renderer:
         self.screen.blit(prompt_surf, (px - prompt_surf.get_width() // 2 - offset_x, py - player.height - 20 - offset_y))
 
     def draw_wellspring(self, wellspring, offset_x, offset_y):
-        """Draw the Wellspring fountain."""
+        """Draw the Wellspring fountain with animated water lines."""
         ox, oy, ow, oh = wellspring.rect
         screen_x, screen_y = ox - offset_x, oy - offset_y
         basin_rect = pygame.Rect(screen_x, screen_y, ow, oh)
         pygame.draw.rect(self.screen, constants.COLOR_BLUE, basin_rect)
         pygame.draw.rect(self.screen, constants.COLOR_WHITE, basin_rect, 2)
+        
+        # Animated "Ink-Flow" lines
         try:
             ticks = pygame.time.get_ticks()
-            offset = (ticks // 200) % constants.TILE_SIZE
+            # Loop through 4 horizontal lines
             for i in range(4):
                 line_y = screen_y + (i + 1) * (oh // 5)
-                line_offset = offset if i % 2 == 0 else -offset
-                for lx in range(-constants.TILE_SIZE, ow + constants.TILE_SIZE, 25):
-                    sx, ex = screen_x + lx + line_offset, screen_x + lx + line_offset + 15
-                    fsx, fex = max(screen_x + 2, min(screen_x + ow - 2, sx)), max(screen_x + 2, min(screen_x + ow - 2, ex))
-                    if fsx < fex: pygame.draw.line(self.screen, constants.COLOR_CYAN, (fsx, line_y), (fex, line_y), 2)
-        except Exception: pass
+                # Oscillation speed and direction
+                speed = 0.2 if i % 2 == 0 else -0.2
+                offset = (ticks * speed) % 50 
+                
+                # Draw dashed segments
+                for lx in range(-50, int(ow) + 50, 50):
+                    start_x = screen_x + lx + offset
+                    end_x = start_x + 25
+                    
+                    # Clip segments to basin interior
+                    clip_sx = max(screen_x + 2, min(screen_x + ow - 2, start_x))
+                    clip_ex = max(screen_x + 2, min(screen_x + ow - 2, end_x))
+                    
+                    if clip_sx < clip_ex:
+                        pygame.draw.line(self.screen, constants.COLOR_CYAN, (clip_sx, line_y), (clip_ex, line_y), 2)
+        except Exception:
+            pass
 
     def draw_dialogue_box(self, state):
         """Draw a dialogue box."""
@@ -195,7 +208,7 @@ class Renderer:
         if not force_global and getattr(state, 'bleed_state', 'CLEAR') != 'DILUTION' and current_boss_coords:
             bcx, bcy = current_boss_coords['x'] * constants.TILE_SIZE - ox, current_boss_coords['y'] * constants.TILE_SIZE - oy
             if 0 < radius < 30000:
-                # Black, 15px wide, 5% transparent (242 alpha)
+                # Black, 15px wide, 95% opaque (242 alpha)
                 pygame.draw.circle(overlay, (0, 0, 0, 242), (int(bcx), int(bcy)), int(radius), 15)
 
         self.screen.blit(overlay, (0, 0))
@@ -230,8 +243,14 @@ class Renderer:
         for obj in getattr(state.world, 'interactables', []):
             if hasattr(obj, 'target_name'): self.draw_warp(obj, ox, oy)
             elif "Respite" in obj.name:
-                c = (int(obj.x + obj.width/2 - ox), int(obj.y + obj.height/2 - oy))
-                pygame.draw.circle(self.screen, constants.COLOR_CYAN, c, 10, 2)
+                # Draw Respite Anchor as a large pulsing sigil
+                dr = pygame.Rect(obj.x - ox, obj.y - oy, obj.width, obj.height)
+                pygame.draw.rect(self.screen, (20, 40, 60), dr) # Dark base
+                pygame.draw.rect(self.screen, constants.COLOR_CYAN, dr, 2)
+                import math, time
+                pulse = (math.sin(time.time() * 5) + 1) / 2
+                inner_r = int(5 + pulse * 10)
+                pygame.draw.circle(self.screen, constants.COLOR_CYAN, (int(dr.centerx), int(dr.centery)), inner_r, 1)
             elif obj.name == "Barrel":
                 pygame.draw.rect(self.screen, (100, 80, 40), (obj.x - ox, obj.y - oy, obj.width, obj.height))
                 pygame.draw.rect(self.screen, (60, 40, 20), (obj.x - ox, obj.y - oy, obj.width, obj.height), 2)
