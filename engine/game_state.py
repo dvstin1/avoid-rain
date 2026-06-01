@@ -673,7 +673,7 @@ class GameState:
             for obj in list(self.world.interactables):
                 if obj.is_breakable and check_aabb_collision(hitbox, obj.rect):
                     obj.take_damage(damage)
-                    if obj.is_destroyed():
+                    if obj.is_dead():
                         try:
                             self.world.interactables.remove(obj)
                             self.fading_entities.append({'obj': obj, 'time': 0.1})
