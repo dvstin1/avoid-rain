@@ -67,9 +67,10 @@ class Renderer:
             # Loop through 4 horizontal lines
             for i in range(4):
                 line_y = screen_y + (i + 1) * (oh // 5)
-                # Slow speed: approx 1 loop every 8 seconds
-                speed = 0.005 if i % 2 == 0 else -0.005
+                # Very slow speed: approx 1 loop every 20 seconds
+                speed = 0.002 if i % 2 == 0 else -0.002
                 offset = (ticks * speed) % 40 
+
                 
                 # Draw dashed segments
                 for lx in range(-40, int(ow) + 40, 40):

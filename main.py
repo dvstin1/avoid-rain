@@ -66,26 +66,25 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
     # Targeted Neutral Check: Only check vertical navigation axis
     keys = pygame.key.get_pressed()
     kb_v_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_UP], keys[pygame.K_DOWN]])
-
+    
     gp_v_neutral = True
     if pygame.joystick.get_count() > 0:
         joy = pygame.joystick.Joystick(0)
-        # SUPER-STRICT RULE: Only extreme vertical input can block the reset
-        if abs(joy.get_axis(1)) > 0.6 or joy.get_hat(0)[1] != 0:
+        # Hysteresis Reset: Must return to 0.3 or less to unlatch
+        if abs(joy.get_axis(1)) > 0.3 or joy.get_hat(0)[1] != 0:
             gp_v_neutral = False
 
     if kb_v_neutral and gp_v_neutral:
         ratchet_reset = True
     else:
         # Process Navigation if not latched and not on cooldown
-        target_menu = title_menu if 'title_menu' in locals() else pause_menu
-        if target_menu and not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
-            if move_dir[1] > 0.6: # Increased threshold for deliberate movement
-                target_menu.navigate('down')
+        if not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
+            if move_dir[1] > 0.6: # Deliberate push to move
+                title_menu.navigate('down')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
             elif move_dir[1] < -0.6:
-                target_menu.navigate('up')
+                title_menu.navigate('up')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
 
@@ -165,26 +164,25 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
     # Targeted Neutral Check: Only check vertical navigation axis
     keys = pygame.key.get_pressed()
     kb_v_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_UP], keys[pygame.K_DOWN]])
-
+    
     gp_v_neutral = True
     if pygame.joystick.get_count() > 0:
         joy = pygame.joystick.Joystick(0)
-        # SUPER-STRICT RULE: Only extreme vertical input can block the reset
-        if abs(joy.get_axis(1)) > 0.6 or joy.get_hat(0)[1] != 0:
+        # Hysteresis Reset: Must return to 0.3 or less to unlatch
+        if abs(joy.get_axis(1)) > 0.3 or joy.get_hat(0)[1] != 0:
             gp_v_neutral = False
 
     if kb_v_neutral and gp_v_neutral:
         ratchet_reset = True
     else:
         # Process Navigation if not latched and not on cooldown
-        target_menu = title_menu if 'title_menu' in locals() else pause_menu
-        if target_menu and not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
-            if move_dir[1] > 0.6: # Increased threshold for deliberate movement
-                target_menu.navigate('down')
+        if pause_menu and pause_menu.is_open() and not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
+            if move_dir[1] > 0.6: # Deliberate push to move
+                pause_menu.navigate('down')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
             elif move_dir[1] < -0.6:
-                target_menu.navigate('up')
+                pause_menu.navigate('up')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
 

@@ -12,6 +12,9 @@ class ActorState(Enum):
     IDLE = auto()        # Waiting or wandering
     PATROLLING = auto()   # Moving between markers
     CHASE = auto()       # Aggressive pursuit
+    WIND_UP = auto()     # Preparing an attack (Telegraph)
+    STRIKE = auto()      # Damage-dealing frames
+    RECOVERY = auto()    # Post-attack vulnerability
     ENGAGED = auto()     # Interaction/Dialogue pause
 
 class Actor:
@@ -33,6 +36,14 @@ class Actor:
         self.patrol_idx = 0
         self.wait_timer = 0.0
         self.patrol_speed_multiplier = 0.5
+        
+        # Combat Stanzas (Timers in seconds)
+        self.wind_up_duration = 0.4
+        self.strike_duration = 0.2
+        self.recovery_duration = 0.5
+        self.combat_timer = 0.0
+        self.attack_cooldown = 1.5
+        self.cooldown_timer = 0.0
         
         self.stagger_timer = 0.0
         self.name = name
@@ -89,18 +100,26 @@ class Actor:
             self.stagger_timer -= dt
             return
 
+        # 0. Global Timers
+        if self.cooldown_timer > 0:
+            self.cooldown_timer -= dt
+
         # 1. State Transition Check
-        # NPCs: Shift to ENGAGED if dialogue is active
-        # Enemies: Shift to CHASE if player in radius
         self._update_state_logic(dt, state)
 
-        # 2. Movement Logic
+        # 2. Movement & Combat Logic
         if self.state == ActorState.PATROLLING:
             self._update_patrol(dt, state)
         elif self.state == ActorState.CHASE:
             self._update_chase(dt, state)
         elif self.state == ActorState.IDLE:
             self._update_idle(dt, state)
+        elif self.state == ActorState.WIND_UP:
+            self._update_wind_up(dt, state)
+        elif self.state == ActorState.STRIKE:
+            self._update_strike(dt, state)
+        elif self.state == ActorState.RECOVERY:
+            self._update_recovery(dt, state)
         # ENGAGED: No movement
 
     def _update_state_logic(self, dt, game_state):
@@ -111,21 +130,56 @@ class Actor:
                 self.state = ActorState.ENGAGED
                 self.vx, self.vy = 0, 0
                 return
-        else:
-            # Enemies CHASE if player is detected
-            player_cx, player_cy = game_state.player.get_center()
-            cx, cy = self.get_center()
-            dist_sq = (player_cx - cx)**2 + (player_cy - cy)**2
-            
-            if dist_sq <= self.detect_radius**2:
+        
+        # Combat State Lock: If in a combat state, don't transition until timer ends
+        if self.state in (ActorState.WIND_UP, ActorState.STRIKE, ActorState.RECOVERY):
+            return
+
+        # Enemies CHASE if player is detected
+        player_cx, player_cy = game_state.player.get_center()
+        cx, cy = self.get_center()
+        dist_sq = (player_cx - cx)**2 + (player_cy - cy)**2
+        
+        if dist_sq <= self.detect_radius**2:
+            # If close enough and off cooldown, trigger attack sequence
+            # Standard melee range: 2 tiles (80px)
+            if dist_sq <= (TILE_SIZE * 2)**2 and self.cooldown_timer <= 0:
+                self.state = ActorState.WIND_UP
+                self.combat_timer = self.wind_up_duration
+                self.vx, self.vy = 0, 0 # Stop movement to wind up
+            else:
                 self.state = ActorState.CHASE
-                return
+            return
 
         # If not chasing/engaged, and has route + not stationary, patrol
         if self.patrol_route and not self.is_stationary:
             self.state = ActorState.PATROLLING
         else:
             self.state = ActorState.IDLE
+
+    def _update_wind_up(self, dt, game_state):
+        """Telegraphing the attack."""
+        self.combat_timer -= dt
+        if self.combat_timer <= 0:
+            self.state = ActorState.STRIKE
+            self.combat_timer = self.strike_duration
+            # Signal damage attempt at the start of strike
+            if hasattr(self, 'attempt_damage_player'):
+                self.attempt_damage_player(game_state)
+
+    def _update_strike(self, dt, game_state):
+        """Active damage frames."""
+        self.combat_timer -= dt
+        if self.combat_timer <= 0:
+            self.state = ActorState.RECOVERY
+            self.combat_timer = self.recovery_duration
+
+    def _update_recovery(self, dt, game_state):
+        """Post-attack vulnerability."""
+        self.combat_timer -= dt
+        if self.combat_timer <= 0:
+            self.state = ActorState.IDLE # Reset to check for chase
+            self.cooldown_timer = self.attack_cooldown
 
     def _update_patrol(self, dt, game_state):
         """Move toward the current patrol point."""

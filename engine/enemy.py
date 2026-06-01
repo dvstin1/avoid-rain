@@ -11,25 +11,21 @@ from engine.actor import Actor, ActorState
 
 class Enemy(Actor):
     """Base class for all enemy types."""
-    def __init__(self, x, y, width, height, hp, id=None):
-        super().__init__(x, y, width, height, hp, id=id, name="Enemy")
-        self._damage_timer = 0.0
-        self.damage_cooldown = 1.0
+    def __init__(self, x, y, width, height, hp, id=None, name="Enemy"):
+        super().__init__(x, y, width, height, hp, id=id, name=name)
+        self.attack_type = "LUNGE" # Default for non-weapon enemies
 
     def attempt_damage_player(self, state):
-        """Apply damage on contact."""
-        if self._damage_timer > 0.0:
-            return False
+        """Apply damage on contact during STRIKE frames."""
         if check_aabb_collision(
             self.get_rect(),
             (state.player.x, state.player.y, state.player.width, state.player.height)
         ):
             try:
                 state.player.take_damage(self.damage)
+                return True
             except Exception:
                 pass
-            self._damage_timer = self.damage_cooldown
-            return True
         return False
 
 class SlugEnemy(Enemy):
@@ -40,12 +36,16 @@ class SlugEnemy(Enemy):
             SLUG_DAMAGE, SLUG_DAMAGE_COOLDOWN
         )
         initial_hp = hp if hp is not None else SLUG_MAX_HP
-        super().__init__(x, y, 32, 32, initial_hp, id=id)
+        super().__init__(x, y, 32, 32, initial_hp, id=id, name="Slug")
         self.speed = SLUG_SPEED
         self.detect_radius = SLUG_DETECT_METERS * TILE_SIZE
         self.damage = SLUG_DAMAGE
-        self.damage_cooldown = SLUG_DAMAGE_COOLDOWN
-        self._damage_timer = 0.0
+        self.attack_cooldown = SLUG_DAMAGE_COOLDOWN
+        
+        # Slow, predictable telegraphs
+        self.wind_up_duration = 0.6
+        self.strike_duration = 0.3
+        self.recovery_duration = 0.8
         self.patrol_speed_multiplier = 0.3
 
 class BatEnemy(Enemy):
@@ -56,12 +56,16 @@ class BatEnemy(Enemy):
             BAT_DAMAGE, BAT_DAMAGE_COOLDOWN
         )
         initial_hp = hp if hp is not None else BAT_MAX_HP
-        super().__init__(x, y, 24, 24, initial_hp, id=id)
+        super().__init__(x, y, 24, 24, initial_hp, id=id, name="Bat")
         self.speed = BAT_SPEED
         self.detect_radius = BAT_DETECT_METERS * TILE_SIZE
         self.damage = BAT_DAMAGE
-        self.damage_cooldown = BAT_DAMAGE_COOLDOWN
-        self._damage_timer = 0.0
+        self.attack_cooldown = BAT_DAMAGE_COOLDOWN
+        
+        # Fast telegraphs
+        self.wind_up_duration = 0.3
+        self.strike_duration = 0.2
+        self.recovery_duration = 0.4
         self._angle = random.uniform(0, 2 * math.pi)
 
     def _update_chase(self, dt, state):
@@ -93,29 +97,50 @@ class BindlingEnemy(Enemy):
             BINDLING_DAMAGE, BINDLING_DAMAGE_COOLDOWN
         )
         initial_hp = hp if hp is not None else BINDLING_MAX_HP
-        super().__init__(x, y, 40, 40, initial_hp, id=id)
+        super().__init__(x, y, 40, 40, initial_hp, id=id, name="Bindling")
         self.speed = BINDLING_SPEED
         self.detect_radius = BINDLING_DETECT_METERS * TILE_SIZE
         self.damage = BINDLING_DAMAGE
-        self.damage_cooldown = BINDLING_DAMAGE_COOLDOWN
-        self._damage_timer = 0.0
+        self.attack_cooldown = BINDLING_DAMAGE_COOLDOWN
+        self.attack_type = "BIND"
+
+        self.wind_up_duration = 0.4
+        self.strike_duration = 0.2
+        self.recovery_duration = 0.5
+
 
 class Miniboss(Enemy):
-    """Heavy elite enemy."""
-    def __init__(self, x, y, hp=None, id=None):
+    """Heavy elite enemy w/ Weapon Variety."""
+    def __init__(self, x, y, hp=None, id=None, name="Miniboss"):
         from constants import (
             MINIBOSS_MAX_HP, MINIBOSS_SPEED, MINIBOSS_DAMAGE, MINIBOSS_DAMAGE_COOLDOWN
         )
         initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
-        super().__init__(x, y, 64, 64, initial_hp, id=id)
+        super().__init__(x, y, 64, 64, initial_hp, id=id, name=name)
         self.is_miniboss = True
-        self.name = "Miniboss"
         self.loot_tier = 2
         self.speed = MINIBOSS_SPEED
         self.detect_radius = 10 * TILE_SIZE
         self.damage = MINIBOSS_DAMAGE
-        self.damage_cooldown = MINIBOSS_DAMAGE_COOLDOWN
-        self._damage_timer = 0.0
+        self.attack_cooldown = MINIBOSS_DAMAGE_COOLDOWN
+        
+        # Elite Telegraphs
+        self.wind_up_duration = 0.5
+        self.strike_duration = 0.25
+        self.recovery_duration = 0.6
+        self.attack_type = "THRUST"
+
+    def _update_wind_up(self, dt, state):
+        """Randomize attack type at the start of a wind-up."""
+        if self.combat_timer == self.wind_up_duration:
+            self.attack_type = random.choice(["THRUST", "SWING"])
+            print(f"[COMBAT] {self.name} preparing {self.attack_type}!")
+            
+            # Balancing: Swings take slightly longer to wind up
+            if self.attack_type == "SWING":
+                self.combat_timer += 0.2 
+        
+        super()._update_wind_up(dt, state)
 
     def on_death(self, state):
         """Rule: Full-Cradle Manifestation. 
@@ -182,12 +207,15 @@ class FlutterEnemy(Enemy):
             FLUTTER_DAMAGE, FLUTTER_DAMAGE_COOLDOWN
         )
         initial_hp = hp if hp is not None else FLUTTER_MAX_HP
-        super().__init__(x, y, 16, 16, initial_hp, id=id)
+        super().__init__(x, y, 16, 16, initial_hp, id=id, name="Flutter")
         self.speed = FLUTTER_SPEED
         self.detect_radius = FLUTTER_DETECT_METERS * TILE_SIZE
         self.damage = FLUTTER_DAMAGE
-        self.damage_cooldown = FLUTTER_DAMAGE_COOLDOWN
-        self._damage_timer = 0.0
+        self.attack_cooldown = FLUTTER_DAMAGE_COOLDOWN
+        
+        self.wind_up_duration = 0.2
+        self.strike_duration = 0.2
+        self.recovery_duration = 0.3
 
     def _update_chase(self, dt, state):
         """Fleeing behavior."""
@@ -212,13 +240,17 @@ class SmearEnemy(Enemy):
         self.size_multiplier = size_multiplier
         initial_hp = hp if hp is not None else SMEAR_MAX_HP * size_multiplier
         w, h = 48 * size_multiplier, 48 * size_multiplier
-        super().__init__(x, y, w, h, initial_hp, id=id)
-        self.name = "Smear"
+        super().__init__(x, y, w, h, initial_hp, id=id, name="Smear")
         self.speed = SMEAR_SPEED
         self.detect_radius = SMEAR_DETECT_METERS * TILE_SIZE
         self.damage = SMEAR_DAMAGE
-        self.damage_cooldown = SMEAR_DAMAGE_COOLDOWN
-        self._damage_timer = 0.0
+        self.attack_cooldown = SMEAR_DAMAGE_COOLDOWN
+        self._puddle_timer = 0.0
+
+        self.wind_up_duration = 0.5
+        self.strike_duration = 0.3
+        self.recovery_duration = 0.6
+
         self._puddle_timer = 0.0
 
     def update(self, dt, state):
@@ -260,12 +292,15 @@ class FinalAuthor(Miniboss):
     def __init__(self, x, y, hp=None, id=None):
         from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
         initial_hp = hp if hp is not None else MINIBOSS_MAX_HP * 5
-        super().__init__(x, y, initial_hp, id=id)
-        self.name = "The Final Author"
+        super().__init__(x, y, initial_hp, id=id, name="The Final Author")
         self.width, self.height = 80, 80
         self.speed = MINIBOSS_SPEED * 0.8
         self.detect_radius = 2000.0
         self.loot_tier = 0 # No rewards for the final redaction
+        
+        self.wind_up_duration = 0.7
+        self.strike_duration = 0.4
+        self.recovery_duration = 1.0
 
 ENEMY_REGISTRY = {
     "SlugEnemy": SlugEnemy, "BatEnemy": BatEnemy, "FlutterEnemy": FlutterEnemy,

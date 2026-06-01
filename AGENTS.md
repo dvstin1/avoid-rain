@@ -40,16 +40,22 @@
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
-## Active Task: Dynamic Proximity Music Refinement (Phase 1 & 2)
+## Active Task: Telegraphed Enemy Attacks (Phase 1)
 
-Enhance the atmospheric immersion by implementing a distance-aware audio engine that crossfades regional exploration tracks with elite combat themes using precise Euclidean tracking and temporal hysteresis.
+Transform combat into a rhythmic, skill-based loop by implementing readable enemy attack patterns with clear wind-up and recovery windows.
 
-### Phase 1: The Intelligence Layer (GameState)
-- **Proximity Tracking:** Implement a 15-meter (600px) Euclidean distance check between the player and any entity flagged as `.is_miniboss`.
-- **Hysteresis Logic:** Implement a 3.0s temporal cooldown. Combat music must remain active for at least 3 seconds after the player leaves the proximity radius to prevent erratic audio "jitter."
-- **Priority Stack:** Define a clear track hierarchy (Final Author > Night Boss > Miniboss > Exploration).
+### Phase 1: Combat State Machine (Actor Class)
+- **New States:** Expand `ActorState` with `WIND_UP`, `STRIKE`, and `RECOVERY`.
+- **Wind-Up Logic:** Implement a 0.3s–0.5s pause before damage frames where the enemy prepares its attack.
+- **Recovery Logic:** Implement a mandatory cooldown after an attack where the enemy is vulnerable.
+- **Attack Variety:** Distinguish between 'Thrusts' (linear, fast) and 'Swings' (arc, slower) for weapon-wielding entities.
 
-### Phase 2: The Audio Layer (AudioManager)
-- **Smooth Crossfading:** Refactor `AudioManager.update` to handle volume ramps and state synchronization.
-- **State Preservation:** Ensure that returning to exploration music doesn't "restart" the track if it was previously playing.
-- **Debug Sync:** Update the on-screen debug display to reflect active proximity metrics.
+### Phase 2: Visual Tells & Feedback (Renderer)
+- **Warning Indicator:** Implement a "Margin Red" flashing outline or size-pulse during the `WIND_UP` phase.
+- **Strike Visualization:** Render transient hitboxes or motion trails for large swings.
+- **Audio Cues:** Trigger specific "telegraph" SFX (e.g., a sharp glint sound) to alert the player.
+
+### Phase 3: Behavioral Balancing
+- **Bat/Slug Refinement:** Non-weapon enemies receive simplified "Charge" or "Bite" telegraphs (not parryable).
+- **Elite Pacing:** Scale wind-up speeds based on enemy difficulty (M1 vs. Night Boss).
+- **Parry Opening:** Ensure wind-up and strike frames provide a consistent window for the upcoming Parry mechanic.

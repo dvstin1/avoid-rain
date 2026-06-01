@@ -1,6 +1,15 @@
 # Changelog
 
 ## [Recently Completed]
+### Dynamic Proximity Music & Core SFX Engine
+- **Euclidean Engagement Layer:** Overhauled GameState proximity tracking to use 600px Euclidean radius for elite engagement.
+- **Temporal Hysteresis:** Implemented a 3.0s temporal cooldown to prevent music jitter when exiting proximity.
+- **AudioManager Overhaul:** Refined music transitions to handle intelligent sequential fading for stable track switching.
+- **Physical Audio Layer (SFX):** Enhanced AudioManager to support concurrent sound effects with debug tracking and a live OSD.
+- **Layered Attack System:** Implemented the 'Layered Attack Rule' where `attack_swing.ogg` triggers on swing and layers with `attack_hit.ogg` on impact.
+- **Environmental & System Cues:** Added auditory feedback for acid rain damage (`player_hurt_rain.ogg`), safe circle contraction (`bleed_start.ogg`), and Respite resting (`respite_rest.ogg`).
+- **Audio Debug OSD:** Implemented a live on-screen display in the top-left corner to verify music and SFX triggers in real-time.
+
 ### The Stanza System: Actor State Machine & Patrols
 - **Unified Actor Framework:** Created a base `Actor` class for both Enemies and NPCs, merging movement, state management, and interaction logic.
 - **Marker-Based 'Stanza' Patrols:** Implemented an opt-in waypoint system using map symbols '1'-'9'.
