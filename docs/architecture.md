@@ -8,6 +8,10 @@ To ensure clean execution and process management, the main entry point follows a
 - **Main Loop:** Delta-time (`dt`) calculation, event handling, polling, engine updates, and rendering.
 - **Clean Exit:** Mandated `pygame.quit()` and `sys.exit()` in the `finally` block to prevent orphaned processes on Debian Linux.
 
+### 1.1 Command-Line Arguments
+The application supports the following flags:
+- `--fullscreen`: Launches the game in fullscreen mode. Uses `pygame.SCALED` to automatically maintain the 1280x720 aspect ratio with black letterboxing or pillarboxing as required by the monitor.
+
 ## 2. Decoupled Directory Structure
 - `engine/`: **Pure Logic.** No Pygame imports. Contains state management, physics, combat, and world generation.
 - `rendering/`: **Visuals & Input.** Handles drawing, camera offsets, and mapping raw input to engine actions.

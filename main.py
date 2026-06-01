@@ -4,6 +4,7 @@ Handles the application lifecycle and top-level loops.
 """
 import sys
 import atexit
+import argparse
 import pygame
 from constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS, AUTOSAVE_INTERVAL,
@@ -217,6 +218,10 @@ def get_movement_actions(state):
 
 def main():
     """Main application loop."""
+    parser = argparse.ArgumentParser(description="Avoid Rain")
+    parser.add_argument("--fullscreen", action="store_true", help="Run in fullscreen mode")
+    args = parser.parse_args()
+
     pygame.init()
     pygame.joystick.init()
     joysticks = [pygame.joystick.Joystick(i) for i in range(pygame.joystick.get_count())]
@@ -225,7 +230,14 @@ def main():
         print(f"[INPUT] Detected Gamepad: {j.get_name()}")
 
     audio = AudioManager()
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    
+    if args.fullscreen:
+        # Pygame 2.0+ SCALED flag handles aspect ratio and padding automatically
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
+        print(f"[DISPLAY] Initializing Fullscreen SCALED to native resolution")
+    else:
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+
     pygame.display.set_caption(TITLE)
     clock = pygame.time.Clock()
     renderer = Renderer(screen)
