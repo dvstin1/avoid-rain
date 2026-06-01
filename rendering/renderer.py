@@ -67,8 +67,8 @@ class Renderer:
             # Loop through 4 horizontal lines
             for i in range(4):
                 line_y = screen_y + (i + 1) * (oh // 5)
-                # Very slow speed: approx 1 loop every 20 seconds
-                speed = 0.002 if i % 2 == 0 else -0.002
+                # Moderate slow speed: approx 1 loop every 5 seconds
+                speed = 0.008 if i % 2 == 0 else -0.008
                 offset = (ticks * speed) % 40 
 
                 
