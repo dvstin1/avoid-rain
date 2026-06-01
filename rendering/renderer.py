@@ -208,8 +208,8 @@ class Renderer:
         if not force_global and getattr(state, 'bleed_state', 'CLEAR') != 'DILUTION' and current_boss_coords:
             bcx, bcy = current_boss_coords['x'] * constants.TILE_SIZE - ox, current_boss_coords['y'] * constants.TILE_SIZE - oy
             if 0 < radius < 30000:
-                # Black, 15px wide, 95% opaque (242 alpha)
-                pygame.draw.circle(overlay, (0, 0, 0, 242), (int(bcx), int(bcy)), int(radius), 15)
+                # Black, 15px wide, 5% opaque (13 alpha)
+                pygame.draw.circle(overlay, (0, 0, 0, 13), (int(bcx), int(bcy)), int(radius), 15)
 
         self.screen.blit(overlay, (0, 0))
 
