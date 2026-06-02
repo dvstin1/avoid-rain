@@ -44,6 +44,7 @@ class Actor:
         self.combat_timer = 0.0
         self.attack_cooldown = 1.5
         self.cooldown_timer = 0.0
+        self.has_hit_this_attack = False
         
         self.stagger_timer = 0.0
         self.name = name
@@ -167,16 +168,18 @@ class Actor:
         if self.combat_timer <= 0:
             self.state = ActorState.STRIKE
             self.combat_timer = self.strike_duration
+            self.has_hit_this_attack = False # Reset latch for new strike
             # One-time trigger at start of strike
             self._on_start_strike(game_state)
 
     def _update_strike(self, dt, game_state):
-        """Active damage frames (Continuous check)."""
+        """Active damage frames (Continuous check w/ latch)."""
         self.combat_timer -= dt
         
-        # Per-frame damage attempt during strike
-        if hasattr(self, 'attempt_damage_player'):
-            self.attempt_damage_player(game_state)
+        # Per-frame damage attempt ONLY if we haven't hit yet this swing
+        if not self.has_hit_this_attack and hasattr(self, 'attempt_damage_player'):
+            if self.attempt_damage_player(game_state):
+                self.has_hit_this_attack = True # Lock further damage for this animation
 
         if self.combat_timer <= 0:
             self.state = ActorState.RECOVERY
