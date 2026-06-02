@@ -710,8 +710,6 @@ class GameState:
                 continue
             try: enemy.update(dt, self)
             except Exception: pass
-            try: enemy.attempt_damage_player(self)
-            except Exception: pass
 
         resolve_enemy_player_collision(self.player, self.enemies)
         if self.shake_timer > 0: self.shake_timer -= dt
