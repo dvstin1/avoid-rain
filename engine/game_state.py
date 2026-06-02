@@ -130,6 +130,7 @@ class GameState:
         # Typographic Bloom State
         self.bloom_timer = 0.0
         self.bloom_text = ""
+        self.bloom_priority = 0 # 0=None, 1=Discovery, 2=Milestone/Alert
         self.last_zone_id = None
         self.zone_cooldown_timer = 0.0
 
@@ -444,7 +445,10 @@ class GameState:
                     self.trigger_bloom(name, priority=1)
 
         if self.zone_cooldown_timer > 0: self.zone_cooldown_timer -= dt
-        if self.bloom_timer > 0: self.bloom_timer -= dt
+        if self.bloom_timer > 0:
+            self.bloom_timer -= dt
+        else:
+            self.bloom_priority = 0
 
         # Boss Spawn Rule: Only if circle is closed (CLAMPED) and not already spawned
         if self.weather_manager.is_boss_spawn_ready():
