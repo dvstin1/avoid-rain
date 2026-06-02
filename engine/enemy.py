@@ -14,19 +14,49 @@ class Enemy(Actor):
     def __init__(self, x, y, width, height, hp, id=None, name="Enemy"):
         super().__init__(x, y, width, height, hp, id=id, name=name)
         self.attack_type = "LUNGE" # Default for non-weapon enemies
+        self.is_parryable = False
 
     def attempt_damage_player(self, state):
-        """Apply damage on contact during STRIKE frames."""
+        """Apply damage on contact during STRIKE frames, handling parries."""
         if check_aabb_collision(
             self.get_rect(),
             (state.player.x, state.player.y, state.player.width, state.player.height)
         ):
+            # 1. Parry Check
+            if self.is_parryable and state.player.is_parry_active():
+                self._handle_parry(state)
+                return True # Latch hit so damage doesn't apply
+
+            # 2. Standard Damage
             try:
-                state.player.take_damage(self.damage)
+                state.player.take_damage(self.damage, audio_manager=getattr(state, 'audio_manager', None))
                 return True
             except Exception:
                 pass
         return False
+
+    def _handle_parry(self, state):
+        """Rule: High-Skill Reward. Stagger enemy and reset dash."""
+        from constants import PARRY_STUN_DURATION, SCREEN_SHAKE_DURATION
+        
+        # Enemy Stun
+        self.state = ActorState.RECOVERY
+        self.combat_timer = PARRY_STUN_DURATION
+        self.stagger_timer = PARRY_STUN_DURATION
+        
+        # Player Reward
+        state.player.dash_cooldown_timer = 0.0 # Kinetic Reset
+        state.shake_timer = SCREEN_SHAKE_DURATION # Intense feedback
+        
+        # Signal Feedback
+        if hasattr(state, 'audio_manager') and state.audio_manager:
+            state.audio_manager.play_sfx("combat_parry.ogg")
+        
+        # Spawn Ink Spark
+        if hasattr(state, 'parry_effects'):
+            state.parry_effects.append({'pos': state.player.get_center(), 'time': 0.3})
+        
+        print(f"[COMBAT] Parry Success against {self.name}!")
 
 class SlugEnemy(Enemy):
     """A slow, low-tier enemy."""
@@ -118,6 +148,7 @@ class Miniboss(Enemy):
         initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
         super().__init__(x, y, 64, 64, initial_hp, id=id, name=name)
         self.is_miniboss = True
+        self.is_parryable = True
         self.loot_tier = 2
         self.speed = MINIBOSS_SPEED
         self.detect_radius = 10 * TILE_SIZE
@@ -296,6 +327,7 @@ class FinalAuthor(Miniboss):
         self.width, self.height = 80, 80
         self.speed = MINIBOSS_SPEED * 0.8
         self.detect_radius = 2000.0
+        self.is_parryable = True
         self.loot_tier = 0 # No rewards for the final redaction
         
         self.wind_up_duration = 0.7

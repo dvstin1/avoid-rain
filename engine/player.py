@@ -50,6 +50,10 @@ class Player:
         self.active_track_name = "sanctuary_hub.ogg"
         self.miniboss_cooldown_accumulator = 0.0
         self.is_exposed = False
+        
+        # Parry Mechanics
+        self.parry_timer = 0.0
+        self.was_blocking = False
 
     def swap_weapon(self, audio_manager=None):
         """Toggle the active weapon slot if the player is not currently attacking."""
@@ -62,6 +66,10 @@ class Player:
         """Return the currently selected weapon dictionary."""
         return self.weapons[self.active_weapon_idx]
 
+    def is_parry_active(self):
+        """Returns True if the player is currently in an active parry window."""
+        return self.parry_timer > 0.0
+
     def update(
         self, dt, move_dir, walls, actions, attack_pressed=False, flask_pressed=False,
         dash_pressed=False, block_pressed=False, speed_multiplier=1.0, audio_manager=None
@@ -69,7 +77,11 @@ class Player:
         """
         Update player position and state.
         """
-        from constants import DASH_DURATION, DASH_COOLDOWN, DASH_SPEED_MULTIPLIER, BLOCK_SPEED_MULTIPLIER
+        from constants import DASH_DURATION, DASH_COOLDOWN, DASH_SPEED_MULTIPLIER, BLOCK_SPEED_MULTIPLIER, PARRY_WINDOW
+
+        # 0. Parry Timer Update
+        if self.parry_timer > 0:
+            self.parry_timer -= dt
 
         if self.state == PlayerStateEnum.STAGGERED:
             self.stagger_timer -= dt
@@ -126,6 +138,7 @@ class Player:
             self.state = PlayerStateEnum.DASHING
             self.dash_timer = DASH_DURATION
             self.dash_cooldown_timer = DASH_COOLDOWN
+            self.parry_timer = PARRY_WINDOW # Trigger Parry Window
             if audio_manager:
                 audio_manager.play_sfx("player_dash.ogg")
             return
@@ -139,8 +152,12 @@ class Player:
 
         # Apply blocking state
         if block_pressed:
+            if not self.was_blocking:
+                self.parry_timer = PARRY_WINDOW # Trigger Parry Window
             self.state = PlayerStateEnum.BLOCKING
             speed_multiplier *= BLOCK_SPEED_MULTIPLIER
+        
+        self.was_blocking = block_pressed
 
         # 3. Normalize movement
         magnitude = math.sqrt(dx*dx + dy*dy)

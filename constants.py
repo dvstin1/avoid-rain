@@ -51,6 +51,8 @@ COLOR_MARGIN_RED = (255, 60, 40)   # High-contrast telegraph color
 
 # Combat Polish
 STAGGER_DURATION = 0.25      # Seconds entities are locked when hit
+PARRY_WINDOW = 0.15          # First frames of block/dash that count as parry
+PARRY_STUN_DURATION = 0.8    # How long enemy is stunned after parry
 SCREEN_SHAKE_INTENSITY = 4.0 # Pixels of max displacement
 SCREEN_SHAKE_DURATION = 0.15 # Seconds of shake after hit
 HIT_STOP_DURATION = 0.05     # Seconds of engine freeze on hit (approx 3 frames at 60fps)

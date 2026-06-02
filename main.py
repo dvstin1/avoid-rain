@@ -178,7 +178,8 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
         ratchet_reset = True
     else:
         # Process Navigation if not latched and not on cooldown
-        if not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
+        # ONLY if the pause menu is actually open!
+        if pause_menu and pause_menu.is_open() and not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
             if move_dir[1] > 0.6: # Deliberate push to move
                 pause_menu.navigate('down')
                 state.input_ratchet_latched = True

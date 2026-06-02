@@ -389,6 +389,10 @@ class Renderer:
 
         self.draw_weather(state)
         self.draw_bloom_overlay(state)
+        
+        # Parry Sparks
+        self.draw_parry_effects(state, ox, oy)
+
         pygame.display.flip()
 
     def draw_audio_debug(self, audio):
@@ -411,6 +415,21 @@ class Renderer:
             s_surf.set_alpha(alpha)
             self.screen.blit(s_surf, (margin, y_off))
             y_off += 18
+
+    def draw_parry_effects(self, state, ox, oy):
+        """Draw transient high-contrast bursts for successful parries."""
+        for effect in getattr(state, 'parry_effects', []):
+            alpha = int((effect['time'] / 0.3) * 255)
+            alpha = max(0, min(255, alpha))
+            
+            ex, ey = effect['pos']
+            sx, sy = int(ex - ox), int(ey - oy)
+            
+            # Draw multi-layered burst
+            surf = pygame.Surface((80, 80), pygame.SRCALPHA)
+            pygame.draw.circle(surf, (255, 255, 255, alpha), (40, 40), 30, 4)
+            pygame.draw.circle(surf, (120, 255, 100, alpha // 2), (40, 40), 40, 2)
+            self.screen.blit(surf, (sx - 40, sy - 40))
 
     def draw_bloom_overlay(self, state):
         """Draw alpha-blended typographic zone discovery overlay."""

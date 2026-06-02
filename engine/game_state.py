@@ -113,6 +113,7 @@ class GameState:
         self.active_dialogue = None
         self.dialogue_mode = "STANDARD"
         self.damage_numbers = []
+        self.parry_effects = [] # List of {'pos': (x,y), 'time': float}
         self.loot = []
         self.fading_entities = []
         self.death_timer = 0.0
@@ -523,18 +524,21 @@ class GameState:
                 
                 # 1. Navigation focus (Vertical)
                 if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
-                    if move_dir[1] > 0.5: # Down
+                    if move_dir[1] > 0.6: # Down
                         self.respite_selection_idx = (self.respite_selection_idx + 1) % 6
                         self.input_ratchet_latched = True
                         self.menu_nav_cooldown = 0.2
-                    elif move_dir[1] < -0.5: # Up
+                        if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
+                    elif move_dir[1] < -0.6: # Up
                         self.respite_selection_idx = (self.respite_selection_idx - 1) % 6
                         self.input_ratchet_latched = True
                         self.menu_nav_cooldown = 0.2
+                        if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
 
                 # 2. Handle Confirm/Select Actions (Independent of Ratchet)
                 if attack_pressed and not self.input_ratchet_latched:
                     self.input_ratchet_latched = True
+                    if audio_manager: audio_manager.play_sfx("menu_confirm.ogg")
                     
                     # Index 0: Immediate REST
                     if self.respite_selection_idx == 0:
@@ -722,6 +726,13 @@ class GameState:
             fading['time'] -= dt
             if fading['time'] <= 0: self.fading_entities.remove(fading)
         self.update_damage_numbers(dt)
+        
+        # Age out parry sparks
+        for effect in self.parry_effects[:]:
+            effect['time'] -= dt
+            if effect['time'] <= 0:
+                self.parry_effects.remove(effect)
+
         for item in self.loot[:]:
             try:
                 if check_aabb_collision(player_rect, item.get_rect()):

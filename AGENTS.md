@@ -40,4 +40,23 @@
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
-## Active Task: [NONE - READY FOR NEW DIRECTIVE]
+## Active Task: Frame-Perfect Parry (Phase 1 & 2)
+
+Complete the high-skill combat "dance" by implementing a timing-based parry mechanic that rewards players for precision defensive play.
+
+### Phase 1: Parry Logic (Player & GameState)
+- **Parry Window:** Implement a 0.15s (approx. 9 frames) active window at the start of a `BLOCK` or `DASH`.
+- **Collision Intercept:** Update `take_damage` logic to check for active parry frames during an incoming strike.
+- **The Reward:**
+    - **Damage Negation:** 100% damage reduction on successful parry.
+    - **Enemy Stun:** Trigger a long stagger (0.8s) on the attacker.
+    - **Kinetic Reset:** Instantly reset the player's Dash cooldown.
+
+### Phase 2: Visual & Auditory Feedback
+- **Ink Spark VFX:** Implement a high-contrast visual flash at the point of impact.
+- **Audio Cues:** Trigger `combat_parry.ogg` and log it to the OSD.
+- **Screen Shake:** Trigger a brief, intense shake to signify the power of the parry.
+
+### Phase 3: Balancing & Polish
+- **Quill Pressure:** (Speculative) Integrate stamina costs to prevent parry spamming.
+- **Telegraph Alignment:** Verify that all enemy wind-ups provide a fair and readable window for parrying.
