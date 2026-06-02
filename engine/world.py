@@ -359,8 +359,9 @@ class LevelLoader:
 
         print(f"[DEBUG] Final player_start for {map_name}: {player_start}")
         boss_coords_list = data.get("boss_coords_list") or []
+        module_sockets = data.get("module_sockets", [])
 
-        return grid, interactables, warp_tiles, player_start, enemies, boss_coords_list
+        return grid, interactables, warp_tiles, player_start, enemies, boss_coords_list, module_sockets
 
     @staticmethod
     def parse_map(prototype_array, entity_data=None, saved_enemies=None, map_name="unknown", defeated_ids=None):
