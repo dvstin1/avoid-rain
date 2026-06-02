@@ -849,11 +849,9 @@ class GameState:
 
     def update_damage_numbers(self, dt):
         """Handle fading and movement of damage numbers."""
+        from constants import DAMAGE_NUMBER_SPEED
         for num in self.damage_numbers[:]:
             num['time'] -= dt
             x, y = num['pos']
             num['pos'] = (x, y - DAMAGE_NUMBER_SPEED * dt)
             if num['time'] <= 0: self.damage_numbers.remove(num)
-ime'] <= 0: self.damage_numbers.remove(num)
-age_numbers.remove(num)
-mbers.remove(num)
