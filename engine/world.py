@@ -183,9 +183,7 @@ class Wellspring(GameObject):
         from constants import FLASK_MAX_CHARGES
         if game_state.player.flask_charges < FLASK_MAX_CHARGES:
             game_state.player.flask_charges = FLASK_MAX_CHARGES
-            game_state.bloom_text = "HYDRATION RESTORED"
-            from constants import BLOOM_TOTAL_DURATION
-            game_state.bloom_timer = BLOOM_TOTAL_DURATION
+            game_state.trigger_bloom("HYDRATION RESTORED", priority=1)
             print("[WELLSPRING] Flasks refilled.")
 
 class LoreFragment(GameObject):
@@ -623,6 +621,8 @@ class World:
         self.interactables = []
         self.enemies = []
         self.player_start = (PLAYER_START_X, PLAYER_START_Y)
+        self.module_sockets = []
+        self.boss_coords_list = []
 
     def load_from_prototype(self, prototype_array, entity_data=None, saved_enemies=None):
         """
@@ -668,3 +668,4 @@ class World:
             if obj.is_interactive and check_aabb_collision(expanded_rect, obj.rect):
                 nearby.append(obj)
         return nearby
+rby

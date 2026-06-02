@@ -157,6 +157,14 @@ class GameState:
         self.fading_entities = []
         self.active_dialogue = None
 
+    def trigger_bloom(self, text, priority=1):
+        """Display a cinematic typographic alert if priority allows."""
+        if priority >= self.bloom_priority or self.bloom_timer <= 0:
+            from constants import BLOOM_TOTAL_DURATION
+            self.bloom_text = text
+            self.bloom_timer = BLOOM_TOTAL_DURATION
+            self.bloom_priority = priority
+
     def hydrate_from_disk(self):
         """Reload state exclusively from the persistent disk file."""
         from engine.stats import StatisticsTracker
@@ -400,21 +408,15 @@ class GameState:
         self.bleed_state = self.weather_manager.bleed_state
         self.current_boss_coords = self.weather_manager.get_current_boss_coords()
 
-        # Milestone Bloom Trigger
+        # Milestone Bloom Trigger (Priority 2)
         if self.weather_manager.pending_milestone_text:
-            self.bloom_text = self.weather_manager.pending_milestone_text
-            self.bloom_timer = BLOOM_TOTAL_DURATION
+            self.trigger_bloom(self.weather_manager.pending_milestone_text, priority=2)
             self.weather_manager.pending_milestone_text = None
 
-        # --- Typographic Bloom: Zone Discovery ---
+        # --- Typographic Bloom: Zone Discovery (Priority 1) ---
         if getattr(self.world, 'name', '') != "sanctuary":
             px, py = self.player.get_center()
-            # Convert pixel coords to unit grid units (40x40 tiles are too small, we want units)
-            ux, uy = int(px // (TILE_SIZE * 40)), int(py // (TILE_SIZE * 40))
-            
-            # Unit logic for 440x440 world:
-            # 11x11 units of 40x40 tiles.
-            # Rooms are 3x3 units starting at units (0,4,8)
+            # Unit logic: 11x11 units of 40x40 tiles
             cur_unit_x, cur_unit_y = int(px // (TILE_SIZE * 40)), int(py // (TILE_SIZE * 40))
             
             current_room_id = None
@@ -428,18 +430,18 @@ class GameState:
                 if self.zone_cooldown_timer <= 0:
                     self.last_zone_id = current_room_id
                     self.zone_cooldown_timer = BLOOM_COOLDOWN
-                    self.bloom_timer = BLOOM_TOTAL_DURATION
                     
                     # Room naming logic
-                    self.bloom_text = "THE UNKNOWN MARGIN"
+                    name = "THE UNKNOWN MARGIN"
                     for s in getattr(self.world, 'module_sockets', []):
                         if s.get('name') == current_room_id:
                             plug = s.get('active_plug', '').lower()
-                            if 'forest' in plug: self.bloom_text = "THE VERDANT SILENCE"
-                            elif 'ruins' in plug: self.bloom_text = "THE SCORCHED MARGIN"
-                            elif 'colophon' in plug: self.bloom_text = "THE COLOPHON"
-                            elif 'boss' in plug: self.bloom_text = "THE CROWN RING"
+                            if 'forest' in plug: name = "THE VERDANT SILENCE"
+                            elif 'ruins' in plug: name = "THE SCORCHED MARGIN"
+                            elif 'colophon' in plug: name = "THE COLOPHON"
+                            elif 'boss' in plug: name = "THE CROWN RING"
                             break
+                    self.trigger_bloom(name, priority=1)
 
         if self.zone_cooldown_timer > 0: self.zone_cooldown_timer -= dt
         if self.bloom_timer > 0: self.bloom_timer -= dt
@@ -473,8 +475,7 @@ class GameState:
                 portal_rect = (coords['x'] * TILE_SIZE - 20, coords['y'] * TILE_SIZE - 20, 40, 40)
                 portal = WarpPortal("final_boss", 25, 25, portal_rect, name="Appendix Warp")
                 self.world.interactables.append(portal)
-                self.bloom_text = "THE APPENDIX REVEALED"
-                self.bloom_timer = BLOOM_TOTAL_DURATION
+                self.trigger_bloom("THE APPENDIX REVEALED", priority=2)
                 print("[THE BLEED] The portal to the Appendix has manifested.")
 
         # Final Boss Victory Rule
@@ -485,8 +486,7 @@ class GameState:
                     self.stats.data["last_run_result"] = "VICTORY"
                     self.stats.increment("wins_chapters_cleared", 1)
                     self.weather_manager.trigger_dilution()
-                    self.bloom_text = "CHAPTER COMPLETE"
-                    self.bloom_timer = BLOOM_TOTAL_DURATION
+                    self.trigger_bloom("CHAPTER COMPLETE", priority=2)
                     print("[SYSTEM] Final Boss defeated. Victory achieved.")
 
         # Victory Extraction sequence
@@ -854,3 +854,6 @@ class GameState:
             x, y = num['pos']
             num['pos'] = (x, y - DAMAGE_NUMBER_SPEED * dt)
             if num['time'] <= 0: self.damage_numbers.remove(num)
+ime'] <= 0: self.damage_numbers.remove(num)
+age_numbers.remove(num)
+mbers.remove(num)
