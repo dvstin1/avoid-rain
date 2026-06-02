@@ -19,7 +19,7 @@ from rendering.renderer import Renderer
 
 # pylint: disable=no-member
 
-def handle_title_events(state, renderer, title_menu: TitleMenu):
+def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: AudioManager = None):
     """Handle events during the title screen with Auto Input Mode and Ratcheted Navigation."""
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -83,17 +83,17 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
                 title_menu.navigate('down')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
-                audio.play_sfx("menu_navigate.ogg")
+                if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
             elif move_dir[1] < -0.6:
                 title_menu.navigate('up')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
-                audio.play_sfx("menu_navigate.ogg")
+                if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
 
         
     return True, True, ratchet_reset
 
-def handle_game_events(state, pause_menu: PauseMenu | None = None):
+def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager: AudioManager = None):
     """Handle events during the main game loop with Auto Input Mode and Ratcheted Navigation."""
     running = True
     attack = False
@@ -183,12 +183,12 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
                 pause_menu.navigate('down')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
-                audio.play_sfx("menu_navigate.ogg")
+                if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
             elif move_dir[1] < -0.6:
                 pause_menu.navigate('up')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
-                audio.play_sfx("menu_navigate.ogg")
+                if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
 
 
     return running, attack, flask, dash, swap, mouse_click, ratchet_reset
@@ -282,7 +282,7 @@ def main():
                 state.menu_nav_cooldown -= dt
 
             if in_title:
-                in_title, running, ratchet_reset = handle_title_events(state, renderer, title_menu)
+                in_title, running, ratchet_reset = handle_title_events(state, renderer, title_menu, audio_manager=audio)
                 renderer.draw_title_screen(title_menu)
                 audio.update(dt, "title_theme.ogg")
                 if ratchet_reset: state.input_ratchet_latched = False
@@ -320,7 +320,7 @@ def main():
                         continue
                     if selected == 'Quit': running = False
             else:
-                ev_res = handle_game_events(state, pause_menu=pause_menu)
+                ev_res = handle_game_events(state, pause_menu=pause_menu, audio_manager=audio)
                 running, attack, flask, dash, swap, mouse_click, ratchet_reset = ev_res
                 if ratchet_reset: state.input_ratchet_latched = False
                 
