@@ -668,4 +668,3 @@ class World:
             if obj.is_interactive and check_aabb_collision(expanded_rect, obj.rect):
                 nearby.append(obj)
         return nearby
-rby
