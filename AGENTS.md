@@ -40,22 +40,4 @@
 - **`CHANGELOG.md`**: Archive of completed features and deliverables.
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 
-## Active Task: Telegraphed Enemy Attacks (Phase 1)
-
-Transform combat into a rhythmic, skill-based loop by implementing readable enemy attack patterns with clear wind-up and recovery windows.
-
-### Phase 1: Combat State Machine (Actor Class)
-- **New States:** Expand `ActorState` with `WIND_UP`, `STRIKE`, and `RECOVERY`.
-- **Wind-Up Logic:** Implement a 0.3s–0.5s pause before damage frames where the enemy prepares its attack.
-- **Recovery Logic:** Implement a mandatory cooldown after an attack where the enemy is vulnerable.
-- **Attack Variety:** Distinguish between 'Thrusts' (linear, fast) and 'Swings' (arc, slower) for weapon-wielding entities.
-
-### Phase 2: Visual Tells & Feedback (Renderer)
-- **Warning Indicator:** Implement a "Margin Red" flashing outline or size-pulse during the `WIND_UP` phase.
-- **Strike Visualization:** Render transient hitboxes or motion trails for large swings.
-- **Audio Cues:** Trigger specific "telegraph" SFX (e.g., a sharp glint sound) to alert the player.
-
-### Phase 3: Behavioral Balancing
-- **Bat/Slug Refinement:** Non-weapon enemies receive simplified "Charge" or "Bite" telegraphs (not parryable).
-- **Elite Pacing:** Scale wind-up speeds based on enemy difficulty (M1 vs. Night Boss).
-- **Parry Opening:** Ensure wind-up and strike frames provide a consistent window for the upcoming Parry mechanic.
+## Active Task: [NONE - READY FOR NEW DIRECTIVE]

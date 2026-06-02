@@ -69,7 +69,17 @@ assets/
         ├── enemy_telegraph.ogg   # A sharp, high-pitched "shink" or "glint" (Start of wind-up)
         ├── player_hurt_rain.ogg  # A low, sizzling hiss (played when receiving acid damage)
         ├── bleed_start.ogg       # A distant, seismic rumble followed by a low mechanical grind
-        └── respite_rest.ogg      # A warm, harmonic chime that resolves with a soft exhale
+        ├── respite_rest.ogg      # A warm, harmonic chime that resolves with a soft exhale
+        ├── player_dash.ogg       # A rapid, cutting wind whoosh
+        ├── player_block.ogg      # A heavy wooden thud or metallic clunk
+        ├── flask_use.ogg         # A liquid slosh followed by a soft glass "tink"
+        ├── page_pickup.ogg       # A dry paper rustle or crisp parchment snap
+        ├── weapon_swap.ogg       # A metallic slide or quill-scratching-stone sound
+        ├── warp_trigger.ogg      # A low-frequency mystical hum or "vacuum" sound
+        ├── enemy_death.ogg       # A wet ink splash or shattering glass sound
+        ├── prop_break.ogg        # Splintering wood or crumbling stone thud
+        ├── menu_navigate.ogg     # A soft, typewriter-key click
+        └── menu_confirm.ogg      # A resonant "stamp" or heavy ink-blot sound
 ```
 
 ### Technical Specs for Victory Theme

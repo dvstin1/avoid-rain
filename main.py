@@ -83,10 +83,12 @@ def handle_title_events(state, renderer, title_menu: TitleMenu):
                 title_menu.navigate('down')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
+                audio.play_sfx("menu_navigate.ogg")
             elif move_dir[1] < -0.6:
                 title_menu.navigate('up')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
+                audio.play_sfx("menu_navigate.ogg")
 
         
     return True, True, ratchet_reset
@@ -176,15 +178,17 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None):
         ratchet_reset = True
     else:
         # Process Navigation if not latched and not on cooldown
-        if pause_menu and pause_menu.is_open() and not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
+        if not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
             if move_dir[1] > 0.6: # Deliberate push to move
                 pause_menu.navigate('down')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
+                audio.play_sfx("menu_navigate.ogg")
             elif move_dir[1] < -0.6:
                 pause_menu.navigate('up')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
+                audio.play_sfx("menu_navigate.ogg")
 
 
     return running, attack, flask, dash, swap, mouse_click, ratchet_reset
@@ -286,7 +290,9 @@ def main():
                 if title_menu.was_confirmed():
                     selected = title_menu.get_selected()
                     title_menu.clear_confirm()
+                    audio.play_sfx("menu_confirm.ogg")
                     if selected == 'Continue':
+                        audio.play_sfx("warp_trigger.ogg")
                         renderer.fade_to_black()
                         try: state.hydrate_from_disk()
                         except Exception: state.reset_to_new_game()
@@ -294,6 +300,7 @@ def main():
                         continue
                     if selected == 'New Draft':
                         if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
+                            audio.play_sfx("warp_trigger.ogg")
                             try: state.reset_to_new_game(); state.save_stats(wait=True)
                             except Exception: pass
                             renderer.fade_to_black()

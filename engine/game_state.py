@@ -684,6 +684,8 @@ class GameState:
                         try:
                             self.world.interactables.remove(obj)
                             self.fading_entities.append({'obj': obj, 'time': 0.1})
+                            if audio_manager:
+                                audio_manager.play_sfx("prop_break.ogg")
                             from engine.loot import roll_drop
                             roll_drop(4, (obj.x, obj.y), self)
                         except Exception: pass
@@ -703,6 +705,8 @@ class GameState:
                     
                     if hasattr(enemy, 'on_death'): enemy.on_death(self)
                     self.enemies.remove(enemy)
+                    if audio_manager:
+                        audio_manager.play_sfx("enemy_death.ogg")
                     from engine.loot import roll_drop
                     tier = getattr(enemy, 'loot_tier', 3)
                     roll_drop(tier, (enemy.x, enemy.y), self)
@@ -722,6 +726,8 @@ class GameState:
                 if check_aabb_collision(player_rect, item.get_rect()):
                     item.execute_pickup(self)
                     self.loot.remove(item)
+                    if audio_manager:
+                        audio_manager.play_sfx("page_pickup.ogg")
             except Exception: pass
         try:
             if hasattr(self.player, 'hp') and self.player.hp <= 0:

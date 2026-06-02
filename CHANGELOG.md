@@ -1,6 +1,17 @@
 # Changelog
 
 ## [Recently Completed]
+### Telegraphed Enemy Attacks: Combat State Machine & Visual Tells
+- **Actor Combat Lifecycle:** Expanded `ActorState` with `WIND_UP`, `STRIKE`, and `RECOVERY`, creating a rhythmic, skill-based combat loop.
+- **Visual Stanza Tells:** Implemented pulsing "Margin Red" outlines for wind-ups and solid red flashes for damage frames.
+- **Weapon-Specific Indicators:** Added transient white line indicators for 'THRUST' attacks and arc segments for 'SWING' attacks to help player anticipation.
+- **Audio Telegraphing:** Hooked `enemy_telegraph.ogg` (shink/glint) into the start of every enemy wind-up.
+- **Behavioral Variety:** Balanced unique telegraph and recovery durations for Slugs (slow), Bats (fast), Minibosses (elite), and The Final Author (boss).
+- **Non-Weapon Telegraphs:** Ensured that 'Lunge' enemies (Bats, Slugs) have clearly readable attack frames even without held weapons.
+- **Combat Stability Fixes:**
+    - **Per-Attack Hit Latch:** Implemented `has_hit_this_attack` to prevent enemies from one-shotting players with per-frame damage.
+    - **Player i-frames:** Added damage invincibility during the `STAGGERED` and `DASHING` states for fair engagement.
+
 ### Dynamic Proximity Music & Core SFX Engine
 - **Euclidean Engagement Layer:** Overhauled GameState proximity tracking to use 600px Euclidean radius for elite engagement.
 - **Temporal Hysteresis:** Implemented a 3.0s temporal cooldown to prevent music jitter when exiting proximity.

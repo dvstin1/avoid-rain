@@ -51,10 +51,12 @@ class Player:
         self.miniboss_cooldown_accumulator = 0.0
         self.is_exposed = False
 
-    def swap_weapon(self):
+    def swap_weapon(self, audio_manager=None):
         """Toggle the active weapon slot if the player is not currently attacking."""
         if self.state != PlayerStateEnum.ATTACKING and len(self.weapons) > 1:
             self.active_weapon_idx = (self.active_weapon_idx + 1) % len(self.weapons)
+            if audio_manager:
+                audio_manager.play_sfx("weapon_swap.ogg")
 
     def get_active_weapon(self):
         """Return the currently selected weapon dictionary."""
@@ -62,7 +64,7 @@ class Player:
 
     def update(
         self, dt, move_dir, walls, actions, attack_pressed=False, flask_pressed=False,
-        dash_pressed=False, block_pressed=False, speed_multiplier=1.0
+        dash_pressed=False, block_pressed=False, speed_multiplier=1.0, audio_manager=None
     ):
         """
         Update player position and state.
@@ -109,7 +111,7 @@ class Player:
 
         # 0. Handle Flask
         if flask_pressed:
-            self.use_flask()
+            self.use_flask(audio_manager=audio_manager)
 
         dx, dy = move_dir
 
@@ -124,6 +126,8 @@ class Player:
             self.state = PlayerStateEnum.DASHING
             self.dash_timer = DASH_DURATION
             self.dash_cooldown_timer = DASH_COOLDOWN
+            if audio_manager:
+                audio_manager.play_sfx("player_dash.ogg")
             return
 
         # 2. Check for attack start
@@ -181,13 +185,15 @@ class Player:
         """Dynamic max HP including modifiers."""
         return PLAYER_MAX_HP + self.stats.get("max_hp_modifier", 0)
 
-    def use_flask(self):
+    def use_flask(self, audio_manager=None):
         """Consume a flask charge to restore HP."""
         if self.flask_charges > 0 and self.hp < self.max_hp:
             self.flask_charges -= 1
             self.hp = min(self.max_hp, self.hp + FLASK_HEAL_AMOUNT)
+            if audio_manager:
+                audio_manager.play_sfx("flask_use.ogg")
 
-    def take_damage(self, amount: float, bypass_stagger: bool = False) -> None:
+    def take_damage(self, amount: float, bypass_stagger: bool = False, audio_manager=None) -> None:
         """Apply damage to the player; clamp at zero.
 
         Includes conditional defensive parsing based on Edification level.
@@ -202,6 +208,8 @@ class Player:
         if self.state == PlayerStateEnum.BLOCKING:
             from constants import BLOCK_DAMAGE_REDUCTION
             amount *= BLOCK_DAMAGE_REDUCTION
+            if audio_manager:
+                audio_manager.play_sfx("player_block.ogg")
 
         # 2. Apply passive Edification parsing
         edif = self.stats.get("edification", 0)
