@@ -376,6 +376,7 @@ class GameState:
 
     def update(self, dt, actions, audio_manager=None):
         """Update all game logic."""
+        self.audio_manager = audio_manager
         attack_pressed = actions.get('attack', False)
         ratchet_reset = actions.get('ratchet_reset', False)
 
