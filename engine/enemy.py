@@ -177,6 +177,10 @@ class Miniboss(Enemy):
         """Rule: Full-Cradle Manifestation. 
         Drop Refined Quill normally, or Anomalous Weapon if player is full.
         """
+        # Final Boss Exclusion: The Final Author does not drop weapons (narrative victory only)
+        if "Final Author" in self.name:
+            return
+
         from engine.world import WeaponPickup
         player = state.player
         
