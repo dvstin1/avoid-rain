@@ -139,21 +139,12 @@ class BindlingEnemy(Enemy):
         self.recovery_duration = 0.5
 
 
-class Miniboss(Enemy):
-    """Heavy elite enemy w/ Weapon Variety."""
-    def __init__(self, x, y, hp=None, id=None, name="Miniboss"):
-        from constants import (
-            MINIBOSS_MAX_HP, MINIBOSS_SPEED, MINIBOSS_DAMAGE, MINIBOSS_DAMAGE_COOLDOWN
-        )
-        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
-        super().__init__(x, y, 64, 64, initial_hp, id=id, name=name)
-        self.is_miniboss = True
+class Boss(Enemy):
+    """Base class for all Elites and Bosses. Implements weapon telegraphs and parrying."""
+    def __init__(self, x, y, width, height, hp, id=None, name="Boss"):
+        super().__init__(x, y, width, height, hp, id=id, name=name)
+        self.is_miniboss = True # Music/Spawn trigger flag
         self.is_parryable = True
-        self.loot_tier = 2
-        self.speed = MINIBOSS_SPEED
-        self.detect_radius = 10 * TILE_SIZE
-        self.damage = MINIBOSS_DAMAGE
-        self.attack_cooldown = MINIBOSS_DAMAGE_COOLDOWN
         
         # Elite Telegraphs
         self.wind_up_duration = 0.5
@@ -173,14 +164,24 @@ class Miniboss(Enemy):
         
         super()._update_wind_up(dt, state)
 
+class Miniboss(Boss):
+    """Loot-dropping elite enemy."""
+    def __init__(self, x, y, hp=None, id=None, name="Miniboss"):
+        from constants import (
+            MINIBOSS_MAX_HP, MINIBOSS_SPEED, MINIBOSS_DAMAGE, MINIBOSS_DAMAGE_COOLDOWN
+        )
+        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP
+        super().__init__(x, y, 64, 64, initial_hp, id=id, name=name)
+        self.loot_tier = 2
+        self.speed = MINIBOSS_SPEED
+        self.detect_radius = 10 * TILE_SIZE
+        self.damage = MINIBOSS_DAMAGE
+        self.attack_cooldown = MINIBOSS_DAMAGE_COOLDOWN
+
     def on_death(self, state):
         """Rule: Full-Cradle Manifestation. 
         Drop Refined Quill normally, or Anomalous Weapon if player is full.
         """
-        # Final Boss Exclusion: The Final Author does not drop weapons (narrative victory only)
-        if "Final Author" in self.name:
-            return
-
         from engine.world import WeaponPickup
         player = state.player
         
@@ -322,16 +323,14 @@ class NightBoss(Miniboss):
         self.speed = MINIBOSS_SPEED * 0.9
         self.loot_tier = 1
 
-class FinalAuthor(Miniboss):
+class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
         from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
         initial_hp = hp if hp is not None else MINIBOSS_MAX_HP * 5
-        super().__init__(x, y, initial_hp, id=id, name="The Final Author")
-        self.width, self.height = 80, 80
+        super().__init__(x, y, 80, 80, initial_hp, id=id, name="The Final Author")
         self.speed = MINIBOSS_SPEED * 0.8
         self.detect_radius = 2000.0
-        self.is_parryable = True
         self.loot_tier = 0 # No rewards for the final redaction
         
         self.wind_up_duration = 0.7
