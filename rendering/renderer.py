@@ -260,6 +260,14 @@ class Renderer:
                 if tile == constants.TILE_WALL: pygame.draw.rect(self.screen, constants.COLOR_WALL, dr)
                 elif tile == constants.TILE_LOTUS_FRAME: pygame.draw.rect(self.screen, (40, 40, 80), dr)
                 else: pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
+        
+        # World Debris (Persistent visual remnants)
+        for debris in getattr(state, 'world_debris', []):
+            if debris['name'] == 'BarrelRubble':
+                img = self.image_cache.get("barrel_3.png")
+                if img:
+                    self.screen.blit(img, (debris['pos'][0] - ox, debris['pos'][1] - oy))
+
         for obj in getattr(state.world, 'interactables', []):
             if hasattr(obj, 'target_name'): self.draw_warp(obj, ox, oy)
             elif "Respite" in obj.name:
@@ -321,23 +329,16 @@ class Renderer:
             ox, oy = state.camera.get_offset() if hasattr(state, 'camera') else (0, 0)
 
             if obj.name == "Barrel":
-                # Multi-frame Animation sequence
-                # Remaining time starts at 1.0s
-                elapsed = 1.0 - fading['time']
-
-                if elapsed < 0.020: # 20ms
+                # Multi-frame Animation sequence (Breaking phase)
+                # Remaining time starts at 0.16s
+                elapsed = 0.16 - fading['time']
+                
+                if elapsed < 0.080: # Frame 1: 80ms
                     img = self.image_cache.get("barrel_1.png")
-                elif elapsed < 0.040: # +20ms
+                else: # Frame 2: +80ms
                     img = self.image_cache.get("barrel_2.png")
-                else:
-                    img = self.image_cache.get("barrel_3.png")
-
+                
                 if img:
-                    # Final Rubble Fades out
-                    if elapsed > 0.040:
-                        alpha = int((fading['time'] / 0.96) * 255)
-                        alpha = max(0, min(255, alpha))
-                        img.set_alpha(alpha)
                     self.screen.blit(img, (obj.x - ox, obj.y - oy))
                 continue
 

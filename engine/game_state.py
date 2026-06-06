@@ -69,6 +69,7 @@ class GameState:
                 from engine.maps import create_world
                 world_name = run_data.get("world_name", "sanctuary")
                 saved_enemies = run_data.get("enemies", [])
+                self.world_debris = run_data.get("world_debris", [])
                 self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
                 self.world = create_world(world_name, saved_enemies=saved_enemies, defeated_ids=self.defeated_miniboss_ids)
 
@@ -114,6 +115,7 @@ class GameState:
         self.dialogue_mode = "STANDARD"
         self.damage_numbers = []
         self.parry_effects = [] # List of {'pos': (x,y), 'time': float}
+        self.world_debris = [] # List of {'name': str, 'pos': (x,y)} - Persistent, no collision
         self.loot = []
         self.fading_entities = []
         self.death_timer = 0.0
@@ -242,6 +244,7 @@ class GameState:
         
         # Fresh player with default starting stats (Edification resets to 1)
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
+        self.world_debris = []
         self.player.stats = {
             "edification": 1,
             "attack_modifier": 0,
@@ -276,6 +279,7 @@ class GameState:
                 else:
                     self.stats.data["run_state"] = {
                         "world_name": world_name,
+                        "world_debris": self.world_debris,
                         "player": {
                             "x": self.player.x, "y": self.player.y, "hp": self.player.hp,
                             "flask_charges": self.player.flask_charges,
@@ -379,8 +383,11 @@ class GameState:
         # Sanctuary-specific stat locks
         if self.player.stats.get("edification", 0) != 1:
             self.player.stats["edification"] = 1
-            
+
+        self.world_debris = []
+
         # Ensure actors in Sanctuary (Chronicler) are linked to routes
+
         from engine.world import LevelLoader
         LevelLoader.link_actors_to_routes(self)
 
@@ -692,8 +699,8 @@ class GameState:
                     if obj.is_dead():
                         try:
                             self.world.interactables.remove(obj)
-                            # Rule: Barrels get 1s for destruction animation, others 0.1s
-                            fade_time = 1.0 if obj.name == "Barrel" else 0.1
+                            # Rule: Barrels get 0.16s for breaking animation (80ms x 2), others 0.1s
+                            fade_time = 0.16 if obj.name == "Barrel" else 0.1
                             self.fading_entities.append({'obj': obj, 'time': fade_time})
                             if audio_manager:
                                 audio_manager.play_sfx("prop_break.ogg")
@@ -730,7 +737,14 @@ class GameState:
         if self.shake_timer > 0: self.shake_timer -= dt
         for fading in self.fading_entities[:]:
             fading['time'] -= dt
-            if fading['time'] <= 0: self.fading_entities.remove(fading)
+            if fading['time'] <= 0:
+                # Rule: Barrels transition to persistent debris
+                if fading['obj'].name == "Barrel":
+                    self.world_debris.append({
+                        'name': 'BarrelRubble',
+                        'pos': (fading['obj'].x, fading['obj'].y)
+                    })
+                self.fading_entities.remove(fading)
         self.update_damage_numbers(dt)
         
         # Age out parry sparks
