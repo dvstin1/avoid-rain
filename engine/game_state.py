@@ -37,7 +37,8 @@ class GameState:
         # 1. Initialize core components with defaults
         from engine.maps import create_world
         from engine.world import LevelLoader
-        self.world = create_world("sanctuary")
+        self.destroyed_prop_ids = set()
+        self.world = create_world("sanctuary", destroyed_ids=self.destroyed_prop_ids)
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
         self.enemies = []
 
@@ -71,7 +72,10 @@ class GameState:
                 saved_enemies = run_data.get("enemies", [])
                 self.world_debris = run_data.get("world_debris", [])
                 self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
-                self.world = create_world(world_name, saved_enemies=saved_enemies, defeated_ids=self.defeated_miniboss_ids)
+                self.destroyed_prop_ids = set(run_data.get("destroyed_prop_ids", []))
+                self.world = create_world(world_name, saved_enemies=saved_enemies, 
+                                          defeated_ids=self.defeated_miniboss_ids,
+                                          destroyed_ids=self.destroyed_prop_ids)
 
                 # Restore Player
                 p_data = run_data.get("player", {})
@@ -127,6 +131,7 @@ class GameState:
         self.input_ratchet_latched = False
         self.menu_nav_cooldown = 0.0
         self.defeated_miniboss_ids = set()
+        self.destroyed_prop_ids = set() # Track destroyed barrels/breakables
         self.sanctuary_reset_complete = False
 
         # Typographic Bloom State
@@ -280,6 +285,8 @@ class GameState:
                     self.stats.data["run_state"] = {
                         "world_name": world_name,
                         "world_debris": self.world_debris,
+                        "defeated_miniboss_ids": list(self.defeated_miniboss_ids),
+                        "destroyed_prop_ids": list(self.destroyed_prop_ids),
                         "player": {
                             "x": self.player.x, "y": self.player.y, "hp": self.player.hp,
                             "flask_charges": self.player.flask_charges,
@@ -385,9 +392,9 @@ class GameState:
             self.player.stats["edification"] = 1
 
         self.world_debris = []
+        self.destroyed_prop_ids = set()
 
         # Ensure actors in Sanctuary (Chronicler) are linked to routes
-
         from engine.world import LevelLoader
         LevelLoader.link_actors_to_routes(self)
 
@@ -698,6 +705,10 @@ class GameState:
                     hit_landed = True
                     if obj.is_dead():
                         try:
+                            # Record Destruction if it has a unique ID
+                            if hasattr(obj, 'id') and obj.id:
+                                self.destroyed_prop_ids.add(obj.id)
+                            
                             self.world.interactables.remove(obj)
                             # Rule: Barrels get 0.16s for breaking animation (80ms x 2), others 0.1s
                             fade_time = 0.16 if obj.name == "Barrel" else 0.1

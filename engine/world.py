@@ -291,7 +291,7 @@ class LevelLoader:
     Translates symbols into spatial entities and initial layout.
     """
     @staticmethod
-    def load_json_map(file_path, saved_enemies=None, defeated_ids=None):
+    def load_json_map(file_path, saved_enemies=None, defeated_ids=None, destroyed_ids=None):
         """Loads a JSON map file and parses it, supporting modular stitching."""
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -348,7 +348,8 @@ class LevelLoader:
             entity_data, 
             saved_enemies=saved_enemies,
             map_name=map_name,
-            defeated_ids=defeated_ids
+            defeated_ids=defeated_ids,
+            destroyed_ids=destroyed_ids
         )
 
         # Apply procedural spawn override if present
@@ -364,7 +365,7 @@ class LevelLoader:
         return grid, interactables, warp_tiles, player_start, enemies, boss_coords_list, module_sockets
 
     @staticmethod
-    def parse_map(prototype_array, entity_data=None, saved_enemies=None, map_name="unknown", defeated_ids=None):
+    def parse_map(prototype_array, entity_data=None, saved_enemies=None, map_name="unknown", defeated_ids=None, destroyed_ids=None):
         """
         Parses a string array and returns (grid, interactables, warp_tiles, player_start, enemies).
         If saved_enemies is provided, default spawner symbols for enemies are bypassed.
@@ -379,6 +380,7 @@ class LevelLoader:
         player_start = (PLAYER_START_X, PLAYER_START_Y)
         entity_data = entity_data or {}
         defeated_ids = defeated_ids or set()
+        destroyed_ids = destroyed_ids or set()
 
         # If we have saved enemies, reconstruct them directly (The Override Rule)
         if saved_enemies:
@@ -460,11 +462,16 @@ class LevelLoader:
 
                 elif char == 'B':
                     # Placeholder Prop / Barrel
+                    prop_id = f"{map_name}:prop:{x},{y}"
+                    if prop_id in destroyed_ids:
+                        continue # Already redacted
+
                     prop = GameObject(pos, dim)
                     prop.is_solid = True
                     prop.is_breakable = True
                     prop.health = 1.0
                     prop.name = "Barrel"
+                    prop.id = prop_id
                     interactables.append(prop)
 
                 elif char == 'h':

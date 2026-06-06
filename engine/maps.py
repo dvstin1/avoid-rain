@@ -4,7 +4,7 @@ import os
 from engine.world import World, LevelLoader
 from constants import get_generated_world_path
 
-def create_world(name: str, saved_enemies=None, defeated_ids=None) -> World:
+def create_world(name: str, saved_enemies=None, defeated_ids=None, destroyed_ids=None) -> World:
     """Factory function to create and populate a World instance by name."""
     print(f"[DEBUG] Fetching room prototype: {name}")
 
@@ -19,7 +19,7 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None) -> World:
         # Load from the temporary path
         world = World(name="generated_world")
         world.grid, world.interactables, world.warp_tiles, world.player_start, world.enemies, world.boss_coords_list, world.module_sockets = \
-            LevelLoader.load_json_map(temp_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids)
+            LevelLoader.load_json_map(temp_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids, destroyed_ids=destroyed_ids)
         return world
 
     world = World(name=name)
@@ -33,7 +33,7 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None) -> World:
         
     if os.path.exists(json_path):
         world.grid, world.interactables, world.warp_tiles, world.player_start, world.enemies, world.boss_coords_list, world.module_sockets = \
-            LevelLoader.load_json_map(json_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids)
+            LevelLoader.load_json_map(json_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids, destroyed_ids=destroyed_ids)
         return world
 
     # Fallback to programmatic/hardcoded prototypes
