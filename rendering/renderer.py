@@ -21,6 +21,25 @@ class Renderer:
         self.hud_font = pygame.font.SysFont("Arial", 14, bold=True)
         self.slot_font = pygame.font.SysFont("Arial", 12)
         self.bloom_font = pygame.font.SysFont("Times New Roman", 72, bold=True, italic=True)
+        
+        # Image Cache
+        self.image_cache = {}
+        self._load_barrel_assets()
+
+    def _load_barrel_assets(self):
+        """Pre-load barrel animation frames."""
+        import os
+        base_path = os.path.join("assets", "graphics")
+        for i in range(4):
+            name = f"barrel_{i}.png"
+            path = os.path.join(base_path, name)
+            if os.path.exists(path):
+                try:
+                    # Scale to 40x40 to match TILE_SIZE
+                    img = pygame.image.load(path).convert_alpha()
+                    self.image_cache[name] = pygame.transform.scale(img, (40, 40))
+                except Exception as e:
+                    print(f"[RENDER] Error loading {name}: {e}")
 
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
@@ -252,8 +271,12 @@ class Renderer:
                 inner_r = int(5 + pulse * 10)
                 pygame.draw.circle(self.screen, constants.COLOR_CYAN, (int(dr.centerx), int(dr.centery)), inner_r, 1)
             elif obj.name == "Barrel":
-                pygame.draw.rect(self.screen, (100, 80, 40), (obj.x - ox, obj.y - oy, obj.width, obj.height))
-                pygame.draw.rect(self.screen, (60, 40, 20), (obj.x - ox, obj.y - oy, obj.width, obj.height), 2)
+                img = self.image_cache.get("barrel_0.png")
+                if img:
+                    self.screen.blit(img, (obj.x - ox, obj.y - oy))
+                else:
+                    pygame.draw.rect(self.screen, (100, 80, 40), (obj.x - ox, obj.y - oy, obj.width, obj.height))
+                    pygame.draw.rect(self.screen, (60, 40, 20), (obj.x - ox, obj.y - oy, obj.width, obj.height), 2)
             elif obj.name == "Structure": pygame.draw.rect(self.screen, (80, 70, 60), (obj.x - ox, obj.y - oy, obj.width, obj.height))
             elif obj.name == "The Chronicler":
                 pygame.draw.rect(self.screen, (220, 220, 220), (obj.x - ox, obj.y - oy, obj.width, obj.height))
@@ -294,11 +317,37 @@ class Renderer:
                 pygame.draw.rect(self.screen, col, (obj.x - 2 - ox, obj.y - 2 - oy, obj.width + 4, obj.height + 4), 1)
         for item in getattr(state, 'loot', []): self.draw_loot(item, ox, oy)
         for fading in getattr(state, 'fading_entities', []):
-            obj, alpha = fading['obj'], int((fading['time'] / 0.1) * 255)
-            if alpha > 0:
-                s = pygame.Surface((obj.width, obj.height), pygame.SRCALPHA)
-                s.fill((100, 80, 40, alpha))
-                self.screen.blit(s, (obj.x - ox, obj.y - oy))
+            obj = fading['obj']
+            ox, oy = state.camera.get_offset() if hasattr(state, 'camera') else (0, 0)
+
+            if obj.name == "Barrel":
+                # Multi-frame Animation sequence
+                # Remaining time starts at 1.0s
+                elapsed = 1.0 - fading['time']
+
+                if elapsed < 0.020: # 20ms
+                    img = self.image_cache.get("barrel_1.png")
+                elif elapsed < 0.040: # +20ms
+                    img = self.image_cache.get("barrel_2.png")
+                else:
+                    img = self.image_cache.get("barrel_3.png")
+
+                if img:
+                    # Final Rubble Fades out
+                    if elapsed > 0.040:
+                        alpha = int((fading['time'] / 0.96) * 255)
+                        alpha = max(0, min(255, alpha))
+                        img.set_alpha(alpha)
+                    self.screen.blit(img, (obj.x - ox, obj.y - oy))
+                continue
+
+            # Standard fade (box) for other entities
+            alpha = int((fading['time'] / 0.1) * 255)
+            alpha = max(0, min(255, alpha))
+            s = pygame.Surface((obj.width, obj.height), pygame.SRCALPHA)
+            s.fill((100, 80, 40, alpha))
+            self.screen.blit(s, (obj.x - ox, obj.y - oy))
+
         try:
             from engine.enemy import BatEnemy
             from engine.actor import ActorState

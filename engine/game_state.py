@@ -692,7 +692,9 @@ class GameState:
                     if obj.is_dead():
                         try:
                             self.world.interactables.remove(obj)
-                            self.fading_entities.append({'obj': obj, 'time': 0.1})
+                            # Rule: Barrels get 1s for destruction animation, others 0.1s
+                            fade_time = 1.0 if obj.name == "Barrel" else 0.1
+                            self.fading_entities.append({'obj': obj, 'time': fade_time})
                             if audio_manager:
                                 audio_manager.play_sfx("prop_break.ogg")
                             from engine.loot import roll_drop
