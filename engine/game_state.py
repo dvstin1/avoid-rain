@@ -163,6 +163,8 @@ class GameState:
         self.enemies = []
         self.loot = []
         self.fading_entities = []
+        self.world_debris = []
+        self.destroyed_prop_ids = set()
         self.active_dialogue = None
 
     def trigger_bloom(self, text, priority=1):
@@ -186,8 +188,14 @@ class GameState:
         if run_data:
             world_name = run_data.get("world_name", "sanctuary")
             saved_enemies = run_data.get("enemies", [])
+            self.world_debris = run_data.get("world_debris", [])
             self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
-            self.world = create_world(world_name, saved_enemies=saved_enemies, defeated_ids=self.defeated_miniboss_ids)
+            self.destroyed_prop_ids = set(run_data.get("destroyed_prop_ids", []))
+            
+            self.world = create_world(world_name, saved_enemies=saved_enemies, 
+                                      defeated_ids=self.defeated_miniboss_ids,
+                                      destroyed_ids=self.destroyed_prop_ids)
+            
             p_data = run_data.get("player", {})
             spawn_x = float(p_data.get("x", self.world.player_start[0]))
             spawn_y = float(p_data.get("y", self.world.player_start[1]))
