@@ -12,6 +12,15 @@
     - **Per-Attack Hit Latch:** Implemented `has_hit_this_attack` to prevent enemies from one-shotting players with per-frame damage.
     - **Player i-frames:** Added damage invincibility during the `STAGGERED` and `DASHING` states for fair engagement.
 
+### Frame-Perfect Parry: High-Skill Defensive Combat
+- **Active Parry Window:** Implemented a 0.15s (9-frame) window at the start of a `BLOCK` or `DASH`.
+- **Damage Negation:** Successful parries reduce incoming damage to 0% and prevent stagger.
+- **Enemy Stun:** Parrying an attack triggers a long stagger (0.8s) on the hostile entity.
+- **Kinetic Reset:** Instantly resets the player's Dash cooldown upon a successful parry.
+- **Visual Feedback:** High-contrast ink spark VFX triggered at the point of impact.
+- **Audio Cues:** Integrated `combat_parry.ogg` trigger with OSD logging.
+- **Screen Shake:** Brief, intense shake effect to signify a powerful deflection.
+
 ### Dynamic Proximity Music & Core SFX Engine
 - **Euclidean Engagement Layer:** Overhauled GameState proximity tracking to use 600px Euclidean radius for elite engagement.
 - **Temporal Hysteresis:** Implemented a 3.0s temporal cooldown to prevent music jitter when exiting proximity.

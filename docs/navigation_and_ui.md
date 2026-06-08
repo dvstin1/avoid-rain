@@ -133,3 +133,26 @@ To provide a seamless experience, the engine monitors all input hardware concurr
   - Mode Keyboard: Displays `[ Input: Keyboard ]` in standard ivory white.
   - Mode Gamepad: Displays `[ Input: Gamepad ]` in stark gold/amber.
 - **The Menu Snapping Rule:** While `input_mode == "GAMEPAD"`, all active menu surfaces (Respite, Options) utilize directional index trapping. Moving the analog stick shifts focus loops between menu items, completely bypassing mouse cursor coordinate collision requirements.
+
+## 9. Map Editor Access & Core Controls
+The project includes a native Pygame-based map editor for designing modular sub-maps and macro layouts.
+
+- **Launch Command:** `python tools/edit_map.py`
+- **Primary Interface:** A 2D grid-based canvas with a tool sidebar.
+
+### 1. Navigation & Viewport
+- **WASD / Arrows:** Pan the camera around the map.
+- **Mouse Wheel / [+/-] Keys:** Zoom in and out.
+- **[H] Key:** Toggle the Help Dialog (Command Reference).
+
+### 2. Tools & Brushes
+- **1-0 Keys:** Select one of the 10 active tool slots.
+- **[SET] Button:** Click the "SET" label on a slot to open the Tool Registry modal and assign a new tile, enemy, or utility to that slot.
+- **Left-Click:** Place the active tool on the grid.
+- **Right-Click:** Eraser (sets tile to TILE_EMPTY).
+
+### 3. Canvas & File Management
+- **Ctrl+S:** Save the current map to `maps/`.
+- **Ctrl+O:** Open the visual map picker to load an existing JSON file.
+- **Ctrl+R:** Open the Resize Dialog to alter the grid dimensions.
+- **Ctrl+N:** Reset to a blank 20x20 canvas.

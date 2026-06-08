@@ -14,7 +14,11 @@ The application supports the following flags:
 
 ## 2. Decoupled Directory Structure
 - `engine/`: **Pure Logic.** No Pygame imports. Contains state management, physics, combat, and world generation.
-- `rendering/`: **Visuals & Input.** Handles drawing, camera offsets, and mapping raw input to engine actions.
+- `rendering/`: **Visuals.** Handles drawing, camera offsets, and sprite management.
+- `ui/`: **Interface logic.** Contains specialized menu components and HUD overlay logic.
+- `maps/`: **Assets.** JSON definitions for rooms, corridors, and the macro-world.
+- `tools/`: **Utilities.** Includes the native map editor (`edit_map.py`).
+- `tests/`: **Verification.** Pytest suite for engine logic and regression testing.
 - `constants.py`: **Central Registry.** All magic numbers and configuration must reside here.
 
 ## 3. State Schema (The Single Source of Truth)
