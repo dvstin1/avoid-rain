@@ -17,13 +17,10 @@ Short vignettes and visual beats for key events. Each section contains multiple 
 
 2) Reading the Chronicle (Opening a Run)
 
-- Variation A: Typographic bloom. Letters cascade from the top of the screen and assemble into the map outline. The map inks
-  itself in real time, then the camera snaps into the start room. Sound: layered paper rustle and a page-stitching hum.
-
-- Variation B: Author's Finger. A translucent quill traces the path you'll take; each stroke becomes occupied by transient NPC
+- Variation A: Author's Finger. A translucent quill traces the path you'll take; each stroke becomes occupied by transient NPC
   silhouettes. The last stroke ink-splashes and becomes the player spawn point.
 
-- Variation C: Fade to Draft. The Scriptorium's warm palette drains briefly into monochrome as the Chronicle is read; color floods
+- Variation B: Fade to Draft. The Scriptorium's warm palette drains briefly into monochrome as the Chronicle is read; color floods
   back when you step fully into the world.
 
 3) Arrival on the World Map (Transition into Run)
@@ -58,16 +55,6 @@ Short vignettes and visual beats for key events. Each section contains multiple 
 
 - Variation C: Typographic Eclipse. Constellations of the Void align above the Scriptorium; their lines cross and the sky rips open.
   A vertical seam of absolute white (a missing paragraph) opens. Walking toward it feels like stepping into the absence of a word.
-
-6) Optional Small Beats (Micro-animations to add life)
-
-- Respite Activation: A single glyph on the lectern pulses and blooms outward; nearby dust becomes motes of letters that settle
-  into the player.
-
-- Menu Transitions: The Chronicle's cloth cover slides like a curtain; menu items unroll as stamped headings.
-
-- Death Fade: The camera pulls back as ink drips from the character's silhouette; the world briefly loses color before snapping to
-  the Scriptorium.
 
 Notes for Implementation
 
