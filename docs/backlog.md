@@ -41,3 +41,10 @@
 - **Concept:** The Binder NPC acts as a procedural artisan, weaving "Scripts" (operational metaphors like "Hemming Script" for HP buffs) into the player's frame using Torn Pages.
 - **Mechanics:** Scripts act as tiny compilers in the margins altering stat allocations. They can be combined but are subject to "syntax conflicts" where scripts touching the same stat will fight, with the stronger one winning.
 - **Lore Integration:** The Binder seeks to "perfect the stitch." Completing a specific sequence of failed scripts may offer a path to a different ending, halting the ink-bleed cycle.
+
+## 8. Atmospheric Polish & Micro-Animations
+Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.
+- **Enhanced Death Sequence (Text Bleaching):** Replace the static gray overlay with a dynamic saturation drop and camera pull-back as the player "fades into a rejected draft."
+- **Tactile Menu Transitions:** Implement unrolling or sliding animations for the Chronicle (Title/Pause) menus to make them feel like physical parchment.
+- **Respite Activation Pulse:** Add a localized typographic bloom effect (drifting letters/glyphs) when resting at a Respite anchor.
+- **Typographic Run-Start:** Animate the world map "inking" itself using letters cascading into the room shapes during the Chronicle transition.
