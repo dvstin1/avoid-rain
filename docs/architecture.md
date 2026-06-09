@@ -153,3 +153,38 @@ To prevent canvas blackouts, the minimap must adhere to a strict pipeline:
 1. **Clear Surface:** `.fill()` with base background tone.
 2. **Sub-Surface Blit:** Draw tiles and entities using strict integer casting and boundary clamping.
 3. **Primary Blit:** Execute `main_screen.blit(minimap_surface, destination_rect)`.
+
+## 14. Local Area Network (LAN) Architecture & Phased Roadmap
+
+The engine supports local co-op sessions using a decentralized discovery and authoritative sync model.
+
+### 1. Phased Development Roadmap
+- **Phase 1: Local Discovery (Current)**
+  - Background UDP broadcasting on Port 55555.
+  - Identity payload broadcasting ("Dustin's Game").
+  - Automated subnet scanning for host beacons.
+- **Phase 2: Handshake & State Replication**
+  - TCP connection established between discovery peers.
+  - Initial state sync (Player coordinates, HP).
+- **Phase 3: Visual Synchronization**
+  - Rendering "Ghost" entities for connected peers.
+  - Interpolated movement for smooth non-local updates.
+- **Phase 4: Full Game State Authority**
+  - Host-side resolution of world events (Enemy deaths, Loot drops).
+  - Multi-client weather synchronization.
+
+## 14. Local Area Network (LAN) Architecture & Phased Roadmap
+
+The engine plans to support local Wi-Fi co-op sessions using an Authoritative Host / Mirror Client structure. The implementation is isolated into progressive phases.
+
+### 1. Phased Development Roadmap
+- **Phase 1: Local Presence & Identity (Current Focus)**
+  - Establish a local configuration string for `player_name`.
+  - Implement a background UDP broadcast socket loop to announce server hosting across the LAN subnet without manual IP input.
+- **Phase 2: Lobby Registration & Connection Handshake**
+  - Build a visual "Lobby Menu" reading found hosts.
+  - Implement a TCP socket handshake to verify connection states.
+- **Phase 3: Ghost Client State Replication**
+  - Render non-local client players as text-tagged coordinate clones.
+- **Phase 4: Authoritative Simulation Sync**
+  - Route client action commands (e.g., barrel damage hits) to the host for primary state resolution.
