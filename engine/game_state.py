@@ -156,6 +156,41 @@ class GameState:
         # Link actors to routes after everything is loaded
         LevelLoader.link_actors_to_routes(self)
 
+        # Network Phase 2: Manager Initialization
+        from engine.network_manager import NetworkManager
+        self.network_manager = NetworkManager()
+        self.network_manager.local_state_provider = self.get_local_state
+        self.network_manager.remote_state_handler = self.apply_remote_state
+        self.network_manager.on_disconnect_callback = self.on_network_disconnect
+        
+        # Start searching for hosts if in Sanctuary
+        if getattr(self.world, 'name', '') == "sanctuary":
+            self.network_manager.start_searching()
+
+    def get_local_state(self):
+        """Phase 2: Returns the local player state for network sync."""
+        if not self.player: return {"x": 0, "y": 0, "hp": 0}
+        return {
+            "x": self.player.x,
+            "y": self.player.y,
+            "hp": self.player.hp
+        }
+
+    def apply_remote_state(self, addr, data):
+        """Phase 2: Handles incoming remote player state data."""
+        # For Phase 2, the NetworkManager already stores this in self.remote_players.
+        pass
+
+    def on_network_disconnect(self):
+        """Handles connection loss by warping to Sanctuary."""
+        print("[NETWORK] Connection lost. Warping to Sanctuary.")
+        self.trigger_bloom("CONNECTION LOST", priority=2)
+        # Execute emergency Sanctuary warp
+        from engine.maps import create_world
+        self.world = create_world("sanctuary")
+        self.on_enter_sanctuary()
+        self.respawn_player()
+
     def deallocate(self):
         """Purge all runtime gameplay memory."""
         self.player = None
@@ -376,12 +411,18 @@ class GameState:
     def on_enter_sanctuary(self):
         """Rule: Absolute state purification upon entering the Sanctuary hub."""
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, SWORD_DAMAGE
-        
+
         self.player.is_exposed = False
         self.player.hp = float(self.player.max_hp)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
-        
+
+        # Network Reset: Stop active sessions and resume discovery
+        if hasattr(self, 'network_manager'):
+            self.network_manager.stop_network()
+            self.network_manager.start_searching()
+
         # Weapon Reset: Back to standard starting gear
+
         self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
         self.player.active_weapon_idx = 0
         

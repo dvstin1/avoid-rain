@@ -1,6 +1,13 @@
 # Changelog
 
 ## [Recently Completed]
+### Local Network Play (Phase 2): Handshake & State Replication
+- **TCP Handshake:** Implemented a reliable session initiation protocol between discovery peers to verify identity and connection readiness.
+- **UDP State Sync (30Hz):** Engineered a high-frequency synchronization loop for real-time player coordinates and HP transmission.
+- **Auto-Host Mechanism:** Configured the engine to automatically begin hosting when the player warps from the Sanctuary into the macro-world.
+- **Visual LAN Lobby:** Built a new UI menu in the Title Screen for automated host discovery and one-click connection.
+- **Fault Tolerance:** Implemented a heartbeat/timeout system that warps players back to the Sanctuary Hub upon network connection loss.
+
 ### Local Network Play (Phase 1): Discovery Foundation
 - **Identity & Config:** Established `PLAYER_NAME` and `LAN_PORT` (55555) in `constants.py` for standardized network identification.
 - **Non-Blocking Network Manager:** Created `engine/network_manager.py` using Python's `socket` and `threading` libraries.

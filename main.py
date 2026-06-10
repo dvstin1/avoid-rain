@@ -32,10 +32,24 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
             state.input_mode = INPUT_MODE_GAMEPAD
 
         if event.type == pygame.JOYBUTTONDOWN:
-            if event.button == 0: title_menu.confirm() # Cross/A
+            if event.button == 0: # Cross/A
+                if title_menu.state == TitleMenuState.LOBBY:
+                    # Trigger Lobby Connection
+                    hosts = list(state.network_manager.found_hosts.items())
+                    if hosts:
+                        sel = getattr(state, 'lobby_selection_idx', 0)
+                        if sel < len(hosts):
+                            addr, _ = hosts[sel]
+                            if state.network_manager.connect_to_host(addr):
+                                title_menu.confirm()
+                else:
+                    title_menu.confirm() 
             if event.button == 1: # Circle/B (Cancel)
                 if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
                     title_menu.state = TitleMenuState.MAIN
+                elif title_menu.state == TitleMenuState.LOBBY:
+                    title_menu.state = TitleMenuState.MAIN
+                    state.network_manager.stop_network()
                 elif getattr(title_menu.state, 'name', '') == 'CONTROLS':
                     title_menu.state = TitleMenuState.MAIN
         
@@ -54,23 +68,37 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
                     return True, True, False
                 return True, True, False
 
+            if title_menu.state == TitleMenuState.LOBBY:
+                if event.key == pygame.K_ESCAPE:
+                    title_menu.state = TitleMenuState.MAIN
+                    state.network_manager.stop_network()
+                    return True, True, False
+                if event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                    hosts = list(state.network_manager.found_hosts.items())
+                    if hosts:
+                        sel = getattr(state, 'lobby_selection_idx', 0)
+                        if sel < len(hosts):
+                            addr, _ = hosts[sel]
+                            if state.network_manager.connect_to_host(addr):
+                                title_menu.confirm()
+                    return True, True, False
+
             if event.key == pygame.K_ESCAPE:
                 return False, False, False
             if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                 title_menu.confirm()
 
-    # --- Unified Navigation Polling (Title) ---
+    # --- Unified Navigation Polling (Title / Lobby) ---
     move_dir = get_movement_actions(state)
     ratchet_reset = False
     
-    # Targeted Neutral Check: Only check vertical navigation axis
+    # Targeted Neutral Check
     keys = pygame.key.get_pressed()
     kb_v_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_UP], keys[pygame.K_DOWN]])
     
     gp_v_neutral = True
     if pygame.joystick.get_count() > 0:
         joy = pygame.joystick.Joystick(0)
-        # Hysteresis Reset: Must return to 0.3 or less to unlatch
         if abs(joy.get_axis(1)) > 0.3 or joy.get_hat(0)[1] != 0:
             gp_v_neutral = False
 
@@ -79,18 +107,23 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
     else:
         # Process Navigation if not latched and not on cooldown
         if not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
-            if move_dir[1] > 0.6: # Deliberate push to move
-                title_menu.navigate('down')
+            if move_dir[1] > 0.6: # Down
+                if title_menu.state == TitleMenuState.LOBBY:
+                    state.lobby_selection_idx = getattr(state, 'lobby_selection_idx', 0) + 1
+                else:
+                    title_menu.navigate('down')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
                 if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
-            elif move_dir[1] < -0.6:
-                title_menu.navigate('up')
+            elif move_dir[1] < -0.6: # Up
+                if title_menu.state == TitleMenuState.LOBBY:
+                    state.lobby_selection_idx = max(0, getattr(state, 'lobby_selection_idx', 0) - 1)
+                else:
+                    title_menu.navigate('up')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
                 if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
 
-        
     return True, True, ratchet_reset
 
 def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager: AudioManager = None):
@@ -284,7 +317,7 @@ def main():
 
             if in_title:
                 in_title, running, ratchet_reset = handle_title_events(state, renderer, title_menu, audio_manager=audio)
-                renderer.draw_title_screen(title_menu)
+                renderer.draw_title_screen(title_menu, state)
                 audio.update(dt, "title_theme.ogg")
                 if ratchet_reset: state.input_ratchet_latched = False
                 
@@ -292,6 +325,19 @@ def main():
                     selected = title_menu.get_selected()
                     title_menu.clear_confirm()
                     audio.play_sfx("menu_confirm.ogg")
+                    
+                    if selected == 'Join Game':
+                        if title_menu.state == TitleMenuState.MAIN:
+                            title_menu.state = TitleMenuState.LOBBY
+                            state.network_manager.start_searching()
+                        elif title_menu.state == TitleMenuState.LOBBY:
+                            # Connection happened in handle_title_events
+                            renderer.fade_to_black()
+                            state.reset_to_new_game()
+                            title_menu.state = TitleMenuState.MAIN
+                            in_title = False
+                        continue
+                        
                     if selected == 'Continue':
                         audio.play_sfx("warp_trigger.ogg")
                         renderer.fade_to_black()

@@ -1,129 +1,288 @@
 import socket
 import threading
 import time
+import json
 from constants import PLAYER_NAME, LAN_PORT
 
 class NetworkManager:
     """
-    Handles local network discovery (LAN) using UDP broadcasting.
-    Phase 1: Background discovery and host identification.
+    Handles local network discovery (LAN) and peer-to-peer synchronization.
+    Phase 2: Handshake (TCP) and State Replication (UDP).
     """
     
     def __init__(self, port=LAN_PORT, identity=PLAYER_NAME):
         self.port = port
+        self.tcp_port = port + 1
+        self.udp_sync_port = port + 2
         self.identity = identity
+        
         self.is_hosting = False
         self.is_searching = False
+        self.is_connected = False
+        self.network_mode = "OFFLINE" # "OFFLINE", "HOST", "CLIENT"
+        
         self.found_hosts = {} # {address: identity}
+        self.connected_peers = {} # {address: {"identity": str, "last_seen": float}}
+        self.server_address = None # For client mode
+        self.server_last_seen = 0.0
+        
+        # State Data
+        self.remote_players = {} # {address: {"x": float, "y": float, "hp": int}}
+        self.local_state_provider = None # Callback returning {"x": f, "y": f, "hp": i}
+        self.remote_state_handler = None # Callback accepting (addr, data)
+        self.on_disconnect_callback = None # Callback for handling connection loss
         
         self.stop_event = threading.Event()
-        self.broadcast_thread = None
-        self.scanner_thread = None
+        self.threads = []
 
     def start_hosting(self):
-        """Starts the UDP broadcast loop to announce this host on the network."""
-        if self.is_hosting:
-            return
+        """Starts the UDP discovery broadcast and TCP handshake server."""
+        if self.is_hosting: return
+        self.stop_network() # Clean start
         
         self.is_hosting = True
+        self.network_mode = "HOST"
         self.stop_event.clear()
-        self.broadcast_thread = threading.Thread(target=self._broadcast_loop, daemon=True)
-        self.broadcast_thread.start()
-        print(f"[NETWORK] Started hosting as '{self.identity}' on port {self.port}")
+        
+        # UDP Discovery Broadcast
+        t_discovery = threading.Thread(target=self._broadcast_loop, name="NetBroadcaster", daemon=True)
+        t_discovery.start()
+        self.threads.append(t_discovery)
+        
+        # TCP Handshake Server
+        t_handshake = threading.Thread(target=self._tcp_server_loop, name="NetTCPServer", daemon=True)
+        t_handshake.start()
+        self.threads.append(t_handshake)
+        
+        # UDP State Sync Receiver
+        t_udp_recv = threading.Thread(target=self._udp_receive_loop, name="NetUDPReceiver", daemon=True)
+        t_udp_recv.start()
+        self.threads.append(t_udp_recv)
 
-    def stop_hosting(self):
-        self.is_hosting = False
+        # UDP State Sync Sender
+        t_udp_send = threading.Thread(target=self._udp_send_loop, name="NetUDPSender", daemon=True)
+        t_udp_send.start()
+        self.threads.append(t_udp_send)
+
+        print(f"[NETWORK] HOSTING as '{self.identity}'. TCP:{self.tcp_port}, UDP:{self.udp_sync_port}")
+
+    def stop_network(self):
+        """Stops all networking threads and resets state."""
         self.stop_event.set()
-        if self.broadcast_thread:
-            self.broadcast_thread.join(timeout=1.0)
-        print("[NETWORK] Stopped hosting.")
+        self.is_hosting = False
+        self.is_searching = False
+        self.is_connected = False
+        self.network_mode = "OFFLINE"
+        self.found_hosts = {}
+        self.connected_peers = {}
+        self.remote_players = {}
+        self.server_address = None
+        
+        for t in self.threads:
+            t.join(timeout=0.1)
+        self.threads = []
 
     def start_searching(self):
-        """Starts the UDP scanner loop to find hosts on the network."""
-        if self.is_searching:
-            return
-        
+        """Starts the UDP scanner to find active hosts."""
+        if self.is_searching: return
         self.is_searching = True
         self.stop_event.clear()
-        self.scanner_thread = threading.Thread(target=self._scanner_loop, daemon=True)
-        self.scanner_thread.start()
-        print(f"[NETWORK] Started searching for hosts on port {self.port}")
+        t_scanner = threading.Thread(target=self._scanner_loop, name="NetScanner", daemon=True)
+        t_scanner.start()
+        self.threads.append(t_scanner)
+        print(f"[NETWORK] SEARCHING for hosts on port {self.port}")
 
-    def stop_searching(self):
-        self.is_searching = False
-        self.stop_event.set()
-        if self.scanner_thread:
-            self.scanner_thread.join(timeout=1.0)
-        print("[NETWORK] Stopped searching.")
+    def connect_to_host(self, address):
+        """Attempts to connect to a host via TCP handshake."""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2.0)
+            sock.connect((address, self.tcp_port))
+            
+            # Send Handshake
+            handshake = {"type": "HANDSHAKE", "identity": self.identity}
+            sock.sendall(json.dumps(handshake).encode('utf-8'))
+            
+            # Receive Acknowledgment
+            data = sock.recv(1024)
+            response = json.loads(data.decode('utf-8'))
+            
+            if response.get("status") == "ACCEPTED":
+                self.server_address = address
+                self.server_last_seen = time.time()
+                self.is_connected = True
+                self.network_mode = "CLIENT"
+                self.is_searching = False # Stop searching once connected
+                
+                # Start Sync Threads
+                t_udp_recv = threading.Thread(target=self._udp_receive_loop, name="NetUDPReceiver", daemon=True)
+                t_udp_recv.start()
+                self.threads.append(t_udp_recv)
+
+                t_udp_send = threading.Thread(target=self._udp_send_loop, name="NetUDPSender", daemon=True)
+                t_udp_send.start()
+                self.threads.append(t_udp_send)
+                
+                print(f"[NETWORK] CONNECTED to {address} as CLIENT.")
+                return True
+            else:
+                print(f"[NETWORK] Connection REJECTED by host: {response.get('reason')}")
+        except Exception as e:
+            print(f"[NETWORK] Connection FAILED: {e}")
+        return False
+
+    # --- Thread Loops ---
 
     def _broadcast_loop(self):
-        """UDP Broadcast loop: sends identity payload periodically."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        
         payload = self.identity.encode('utf-8')
-        
         while self.is_hosting and not self.stop_event.is_set():
-            try:
-                # Broadcast to the subnet
-                sock.sendto(payload, ('<broadcast>', self.port))
-            except Exception as e:
-                print(f"[NETWORK] Broadcast error: {e}")
-            
-            time.sleep(2.0) # Broadcast every 2 seconds
-        
+            try: sock.sendto(payload, ('<broadcast>', self.port))
+            except: pass
+            time.sleep(2.0)
         sock.close()
 
     def _scanner_loop(self):
-        """UDP Scanner loop: listens for broadcast identity payloads."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # Handle potential platform differences for REUSEADDR/REUSEPORT
-        try:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        except AttributeError:
-            pass
-            
+        try: sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except AttributeError: pass
         sock.bind(('', self.port))
-        sock.settimeout(1.0) # Check stop_event periodically
-        
+        sock.settimeout(1.0)
         while self.is_searching and not self.stop_event.is_set():
             try:
                 data, addr = sock.recvfrom(1024)
-                identity = data.decode('utf-8')
-                
-                if addr[0] not in self.found_hosts:
-                    self.found_hosts[addr[0]] = identity
-                    print(f"[NETWORK] Found Host: {identity} at {addr[0]}")
-                else:
-                    # Update identity if changed
-                    self.found_hosts[addr[0]] = identity
-                    
-            except socket.timeout:
-                continue
-            except Exception as e:
-                print(f"[NETWORK] Scanner error: {e}")
-        
+                self.found_hosts[addr[0]] = data.decode('utf-8')
+            except socket.timeout: continue
+            except: pass
         sock.close()
 
+    def _tcp_server_loop(self):
+        """Accepts incoming TCP connections for handshakes."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(('', self.tcp_port))
+        sock.listen(5)
+        sock.settimeout(1.0)
+        
+        while self.is_hosting and not self.stop_event.is_set():
+            try:
+                conn, addr = sock.accept()
+                t = threading.Thread(target=self._handle_handshake, args=(conn, addr), daemon=True)
+                t.start()
+            except socket.timeout: continue
+            except: pass
+        sock.close()
+
+    def _handle_handshake(self, conn, addr):
+        try:
+            data = conn.recv(1024)
+            msg = json.loads(data.decode('utf-8'))
+            if msg.get("type") == "HANDSHAKE":
+                identity = msg.get("identity", "Unknown")
+                print(f"[NETWORK] HANDSHAKE from {addr[0]} ({identity})")
+                
+                self.connected_peers[addr[0]] = {"identity": identity, "last_seen": time.time()}
+                response = {"status": "ACCEPTED", "identity": self.identity}
+                conn.sendall(json.dumps(response).encode('utf-8'))
+        except: pass
+        finally: conn.close()
+
+    def _udp_send_loop(self):
+        """Continuously sends local player state via UDP."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
+            if self.local_state_provider:
+                state_data = self.local_state_provider()
+                payload = json.dumps(state_data).encode('utf-8')
+                
+                try:
+                    if self.network_mode == "HOST":
+                        for addr in list(self.connected_peers.keys()):
+                            sock.sendto(payload, (addr, self.udp_sync_port))
+                    elif self.network_mode == "CLIENT" and self.server_address:
+                        sock.sendto(payload, (self.server_address, self.udp_sync_port))
+                except: pass
+            time.sleep(1.0 / 30.0) # 30Hz Sync
+        sock.close()
+
+    def _udp_receive_loop(self):
+        """Continuously listens for remote player state payloads."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try: sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except AttributeError: pass
+        sock.bind(('', self.udp_sync_port))
+        sock.settimeout(1.0)
+        
+        while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
+            try:
+                data, addr = sock.recvfrom(2048)
+                msg = json.loads(data.decode('utf-8'))
+                
+                # Update peer tracking
+                if addr[0] in self.connected_peers:
+                    self.connected_peers[addr[0]]["last_seen"] = time.time()
+                elif addr[0] == self.server_address:
+                    self.server_last_seen = time.time()
+                
+                # Update remote player state
+                self.remote_players[addr[0]] = msg
+                
+                if self.remote_state_handler:
+                    self.remote_state_handler(addr[0], msg)
+                    
+            except socket.timeout:
+                self._check_timeouts()
+                continue
+            except: pass
+        sock.close()
+
+    def _check_timeouts(self):
+        """Checks for timed out peers and handles disconnection."""
+        now = time.time()
+        timeout = 3.0
+        
+        if self.network_mode == "HOST":
+            to_remove = []
+            for addr, info in list(self.connected_peers.items()):
+                if now - info["last_seen"] > timeout:
+                    print(f"[NETWORK] Peer {addr} ({info['identity']}) timed out.")
+                    to_remove.append(addr)
+            for addr in to_remove:
+                if addr in self.connected_peers: del self.connected_peers[addr]
+                if addr in self.remote_players: del self.remote_players[addr]
+                    
+        elif self.network_mode == "CLIENT" and self.server_address:
+            if now - self.server_last_seen > timeout:
+                print(f"[NETWORK] Host {self.server_address} timed out.")
+                self.stop_network()
+                if self.on_disconnect_callback:
+                    self.on_disconnect_callback()
+
 if __name__ == "__main__":
-    # Test block for standalone verification
     import sys
-    
     nm = NetworkManager()
-    
+    nm.local_state_provider = lambda: {"x": 100, "y": 200, "hp": 100}
+    nm.remote_state_handler = lambda addr, data: print(f"Update from {addr}: {data}")
+
     if len(sys.argv) > 1:
         if sys.argv[1] == "host":
             nm.start_hosting()
             try:
                 while True: time.sleep(1)
-            except KeyboardInterrupt:
-                nm.stop_hosting()
+            except KeyboardInterrupt: nm.stop_network()
         elif sys.argv[1] == "search":
             nm.start_searching()
             try:
-                while True: time.sleep(1)
-            except KeyboardInterrupt:
-                nm.stop_searching()
+                while True:
+                    if nm.found_hosts:
+                        print(f"Found: {nm.found_hosts}")
+                        target = list(nm.found_hosts.keys())[0]
+                        if nm.connect_to_host(target):
+                            while True: time.sleep(1)
+                    time.sleep(1)
+            except KeyboardInterrupt: nm.stop_network()
     else:
         print("Usage: python engine/network_manager.py [host|search]")

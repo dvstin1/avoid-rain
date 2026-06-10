@@ -10,6 +10,7 @@ from engine.player import PlayerStateEnum
 from engine.combat import get_sword_hitbox
 from engine.camera import Camera
 from ui.menu import draw_respite_menu
+from ui.lobby_menu import draw_lobby_menu
 
 class Renderer:
     """Coordinates rendering of the game state."""
@@ -712,11 +713,11 @@ class Renderer:
         # 8. FINALLY BLIT SURFACE TO SCREEN
         self.screen.blit(minimap_surface, (constants.MINIMAP_PADDING, constants.MINIMAP_PADDING))
 
-    def draw_title_screen(self, menu=0):
+    def draw_title_screen(self, menu=0, state=None):
         """Draw title screen with atmospheric rain."""
         self.screen.fill(constants.COLOR_BLACK)
         sw, sh = self.screen.get_width(), self.screen.get_height()
-        
+
         # Atmospheric Rain on Title Screen (Selection Color: Amber/Gold)
         self.draw_weather(None, override_color=constants.COLOR_SELECTION, force_global=True)
 
@@ -726,12 +727,12 @@ class Renderer:
         self.screen.blit(instr, instr.get_rect(center=(sw//2, 280)))
         opts, sel = ["New Draft", "Quit"], 0
         from engine.title_menu import TitleMenuState
-        state = TitleMenuState.MAIN
+        menu_state = TitleMenuState.MAIN
         try:
             if hasattr(menu, 'get_options'):
                 opts = menu.get_options()
                 sel = menu.get_selected_index()
-                state = getattr(menu, 'state', TitleMenuState.MAIN)
+                menu_state = getattr(menu, 'state', TitleMenuState.MAIN)
             else:
                 sel = int(menu)
         except Exception:
@@ -742,11 +743,11 @@ class Renderer:
             surf = self.font.render(opt, True, col)
             self.screen.blit(surf, surf.get_rect(center=(sw//2, 340 + idx * 40)))
 
-        if state == TitleMenuState.CONFIRM_NEW_GAME:
+        if menu_state == TitleMenuState.CONFIRM_NEW_GAME:
             overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 200))
             self.screen.blit(overlay, (0, 0))
-            
+
             rect = pygame.Rect(0, 0, 600, 150)
             rect.center = self.screen.get_rect().center
             pygame.draw.rect(self.screen, (30, 30, 30), rect)
@@ -755,9 +756,10 @@ class Renderer:
             w_surf = self.font.render("This will permanently remove old progress.", True, constants.COLOR_RED)
             self.screen.blit(m_surf, m_surf.get_rect(center=self.screen.get_rect().center))
             self.screen.blit(w_surf, w_surf.get_rect(center=(sw//2, sh//2 + 30)))
-        elif getattr(state, 'name', '') == 'CONTROLS':
+        elif menu_state == TitleMenuState.LOBBY and state:
+            draw_lobby_menu(self.screen, self.font, state)
+        elif getattr(menu_state, 'name', '') == 'CONTROLS':
             self.draw_controls_overlay(True)
-        
         # Audio Debug OSD (Title Screen)
         debug_font = pygame.font.SysFont("Arial", 14, bold=True)
         debug_text = "[DEBUG_AUDIO: Playing title_theme.ogg]"
