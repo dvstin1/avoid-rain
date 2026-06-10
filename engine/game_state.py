@@ -416,10 +416,18 @@ class GameState:
         self.player.hp = float(self.player.max_hp)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
 
-        # Network Reset: Stop active sessions and resume discovery
+        # Network Reset Rule:
+        # - Hosts stop hosting when returning to Sanctuary (safety/cleanup).
+        # - Clients stay connected (they might be joining a host who is still in a run).
+        # - Offline players ensure searching is active for discovery.
         if hasattr(self, 'network_manager'):
-            self.network_manager.stop_network()
-            self.network_manager.start_searching()
+            mode = self.network_manager.network_mode
+            if mode == "HOST":
+                print("[NETWORK] Host returned to Sanctuary. Stopping host session.")
+                self.network_manager.stop_network()
+                self.network_manager.start_searching()
+            elif mode == "OFFLINE":
+                self.network_manager.start_searching()
 
         # Weapon Reset: Back to standard starting gear
 

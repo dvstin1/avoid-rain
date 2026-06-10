@@ -329,10 +329,12 @@ def main():
                     if selected == 'Join Game':
                         if title_menu.state == TitleMenuState.MAIN:
                             title_menu.state = TitleMenuState.LOBBY
-                            state.network_manager.start_searching()
+                            if not state.network_manager.is_connected:
+                                state.network_manager.start_searching()
                         elif title_menu.state == TitleMenuState.LOBBY:
                             # Connection happened in handle_title_events
                             renderer.fade_to_black()
+                            # Rule: State reset must preserve existing network session
                             state.reset_to_new_game()
                             title_menu.state = TitleMenuState.MAIN
                             in_title = False
