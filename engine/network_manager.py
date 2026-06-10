@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import json
+import random
 from constants import PLAYER_NAME, LAN_PORT
 
 class NetworkManager:
@@ -68,6 +69,9 @@ class NetworkManager:
 
     def stop_network(self):
         """Stops all networking threads and resets state."""
+        if not self.stop_event.is_set():
+            self._send_disconnect_signal()
+        
         self.stop_event.set()
         self.is_hosting = False
         self.is_searching = False
@@ -82,6 +86,20 @@ class NetworkManager:
         for t in self.threads:
             t.join(timeout=0.1)
         self.threads = []
+        print("[NETWORK] Cleanly stopped all network threads.")
+
+    def _send_disconnect_signal(self):
+        """Sends a final DISCONNECT packet to peers."""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            payload = json.dumps({"type": "DISCONNECT", "identity": self.identity}).encode('utf-8')
+            if self.network_mode == "HOST":
+                for addr in self.connected_peers:
+                    sock.sendto(payload, (addr, self.udp_sync_port))
+            elif self.network_mode == "CLIENT" and self.server_address:
+                sock.sendto(payload, (self.server_address, self.udp_sync_port))
+            sock.close()
+        except: pass
 
     def start_searching(self):
         """Starts the UDP scanner to find active hosts."""
@@ -268,6 +286,19 @@ class NetworkManager:
                 if not data: continue
                 
                 msg = json.loads(data.decode('utf-8'))
+                
+                if msg.get("type") == "DISCONNECT":
+                    identity = msg.get("identity", "Unknown")
+                    print(f"[NETWORK] Peer {addr[0]} ({identity}) has DISCONNECTED CLEANLY.")
+                    if self.network_mode == "HOST" and addr[0] in self.connected_peers:
+                        del self.connected_peers[addr[0]]
+                        if addr[0] in self.remote_players: del self.remote_players[addr[0]]
+                    elif self.network_mode == "CLIENT" and addr[0] == self.server_address:
+                        self.is_connected = False
+                        if self.on_disconnect_callback: self.on_disconnect_callback()
+                        self.stop_network()
+                    continue
+
                 if random.random() < 0.05: # 5% Log
                     print(f"[NETWORK] RECV from {addr[0]}: {msg.get('identity')} (Type: {msg.get('type')})")
                 
