@@ -64,7 +64,7 @@ class NetworkManager:
         t_udp_send.start()
         self.threads.append(t_udp_send)
 
-        print(f"[NETWORK] HOSTING as '{self.identity}'. TCP:{self.tcp_port}, UDP:{self.udp_sync_port}")
+        print(f"[NETWORK] HOSTING as '{self.identity}'. Discovery:{self.port}, TCP:{self.tcp_port}, UDP:{self.udp_sync_port}")
 
     def stop_network(self):
         """Stops all networking threads and resets state."""
@@ -78,6 +78,7 @@ class NetworkManager:
         self.remote_players = {}
         self.server_address = None
         
+        # Threads are daemon, but we join for cleanliness
         for t in self.threads:
             t.join(timeout=0.1)
         self.threads = []
@@ -138,8 +139,11 @@ class NetworkManager:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         payload = self.identity.encode('utf-8')
         while self.is_hosting and not self.stop_event.is_set():
-            try: sock.sendto(payload, ('<broadcast>', self.port))
-            except: pass
+            try: 
+                sock.sendto(payload, ('<broadcast>', self.port))
+            except Exception as e: 
+                if not self.stop_event.is_set():
+                    print(f"[NETWORK] Broadcast error: {e}")
             time.sleep(2.0)
         sock.close()
 
@@ -148,23 +152,37 @@ class NetworkManager:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try: sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         except AttributeError: pass
-        sock.bind(('', self.port))
+        
+        try:
+            sock.bind(('', self.port))
+        except Exception as e:
+            print(f"[NETWORK] Scanner bind error: {e}")
+            sock.close()
+            return
+
         sock.settimeout(1.0)
         while self.is_searching and not self.stop_event.is_set():
             try:
                 data, addr = sock.recvfrom(1024)
                 self.found_hosts[addr[0]] = data.decode('utf-8')
             except socket.timeout: continue
-            except: pass
+            except Exception as e:
+                if not self.stop_event.is_set():
+                    print(f"[NETWORK] Scanner recv error: {e}")
         sock.close()
 
     def _tcp_server_loop(self):
         """Accepts incoming TCP connections for handshakes."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(('', self.tcp_port))
-        sock.listen(5)
-        sock.settimeout(1.0)
+        try:
+            sock.bind(('', self.tcp_port))
+            sock.listen(5)
+            sock.settimeout(1.0)
+        except Exception as e:
+            print(f"[NETWORK] TCP server bind error: {e}")
+            sock.close()
+            return
         
         while self.is_hosting and not self.stop_event.is_set():
             try:
@@ -172,12 +190,15 @@ class NetworkManager:
                 t = threading.Thread(target=self._handle_handshake, args=(conn, addr), daemon=True)
                 t.start()
             except socket.timeout: continue
-            except: pass
+            except Exception as e:
+                if not self.stop_event.is_set():
+                    print(f"[NETWORK] TCP accept error: {e}")
         sock.close()
 
     def _handle_handshake(self, conn, addr):
         try:
             data = conn.recv(1024)
+            if not data: return
             msg = json.loads(data.decode('utf-8'))
             if msg.get("type") == "HANDSHAKE":
                 identity = msg.get("identity", "Unknown")
@@ -186,24 +207,35 @@ class NetworkManager:
                 self.connected_peers[addr[0]] = {"identity": identity, "last_seen": time.time()}
                 response = {"status": "ACCEPTED", "identity": self.identity}
                 conn.sendall(json.dumps(response).encode('utf-8'))
-        except: pass
-        finally: conn.close()
+        except Exception as e:
+            print(f"[NETWORK] Handshake handler error: {e}")
+        finally: 
+            conn.close()
 
     def _udp_send_loop(self):
         """Continuously sends local player state via UDP."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Add small buffer for socket issues
+        sock.settimeout(0.5)
+        
         while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
             if self.local_state_provider:
-                state_data = self.local_state_provider()
-                payload = json.dumps(state_data).encode('utf-8')
-                
                 try:
+                    state_data = self.local_state_provider()
+                    payload = json.dumps(state_data).encode('utf-8')
+                    
                     if self.network_mode == "HOST":
-                        for addr in list(self.connected_peers.keys()):
+                        # Send to all connected clients
+                        peers = list(self.connected_peers.keys())
+                        for addr in peers:
                             sock.sendto(payload, (addr, self.udp_sync_port))
                     elif self.network_mode == "CLIENT" and self.server_address:
+                        # Send to host
                         sock.sendto(payload, (self.server_address, self.udp_sync_port))
-                except: pass
+                except Exception as e:
+                    if not self.stop_event.is_set():
+                        # Don't spam send errors, just log once or sample
+                        pass
             time.sleep(1.0 / 30.0) # 30Hz Sync
         sock.close()
 
@@ -213,12 +245,21 @@ class NetworkManager:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try: sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         except AttributeError: pass
-        sock.bind(('', self.udp_sync_port))
-        sock.settimeout(1.0)
+        
+        try:
+            sock.bind(('', self.udp_sync_port))
+            sock.settimeout(1.0)
+            print(f"[NETWORK] UDP State Receiver bound to port {self.udp_sync_port}")
+        except Exception as e:
+            print(f"[NETWORK] UDP sync bind error: {e}")
+            sock.close()
+            return
         
         while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
             try:
-                data, addr = sock.recvfrom(2048)
+                data, addr = sock.recvfrom(4096) # Larger buffer for safety
+                if not data: continue
+                
                 msg = json.loads(data.decode('utf-8'))
                 
                 # Update peer tracking
@@ -236,13 +277,16 @@ class NetworkManager:
             except socket.timeout:
                 self._check_timeouts()
                 continue
-            except: pass
+            except Exception as e:
+                if not self.stop_event.is_set():
+                    # print(f"[NETWORK] UDP sync recv error: {e}")
+                    pass
         sock.close()
 
     def _check_timeouts(self):
         """Checks for timed out peers and handles disconnection."""
         now = time.time()
-        timeout = 3.0
+        timeout = 5.0 # Increased timeout for debugging stability
         
         if self.network_mode == "HOST":
             to_remove = []
@@ -257,9 +301,12 @@ class NetworkManager:
         elif self.network_mode == "CLIENT" and self.server_address:
             if now - self.server_last_seen > timeout:
                 print(f"[NETWORK] Host {self.server_address} timed out.")
-                self.stop_network()
-                if self.on_disconnect_callback:
-                    self.on_disconnect_callback()
+                # Use a flag to avoid recursive calls if stop_network is called within callback
+                if self.is_connected:
+                    self.is_connected = False 
+                    if self.on_disconnect_callback:
+                        self.on_disconnect_callback()
+                    self.stop_network()
 
 if __name__ == "__main__":
     import sys
