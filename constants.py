@@ -17,6 +17,10 @@ SCREEN_HEIGHT = 720
 FPS = 60
 TITLE = "Avoid Rain"
 
+# Network Configuration (Phase 1: Discovery)
+PLAYER_NAME = "Dustin"
+LAN_PORT = 55555
+
 # Input Modes
 INPUT_MODE_KEYBOARD = "KEYBOARD"
 INPUT_MODE_GAMEPAD = "GAMEPAD"

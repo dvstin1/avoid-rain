@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+from constants import PLAYER_NAME, LAN_PORT
 
 class NetworkManager:
     """
@@ -8,7 +9,7 @@ class NetworkManager:
     Phase 1: Background discovery and host identification.
     """
     
-    def __init__(self, port=55555, identity="Dustin's Game"):
+    def __init__(self, port=LAN_PORT, identity=PLAYER_NAME):
         self.port = port
         self.identity = identity
         self.is_hosting = False
