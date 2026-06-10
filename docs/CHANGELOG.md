@@ -1,6 +1,13 @@
 # Changelog
 
 ## [Recently Completed]
+### Local Network Play (Phase 3): Map Sync & Client Persistence
+- **Authoritative Map Transfer:** Established a TCP-based world synchronization protocol that transmits the Host's full generated macro-world JSON to clients.
+- **Warp Interception:** Modified the Chronicle interaction for Clients to fetch and load the Host's map instead of triggering local procedural generation.
+- **Host-Side Profile Caching:** Implemented a persistence layer on the Host that caches connected client states (equipment, stats, HP).
+- **Session Restoration:** Configured the TCP handshake to automatically restore a client's profile upon reconnection, preventing progress loss on crash or disconnect.
+- **Late Join Support:** Enabled clients to warp into an active Host's run at any time with synchronized geometry.
+
 ### Local Network Play (Phase 2): Handshake & State Replication
 - **TCP Handshake:** Implemented a reliable session initiation protocol between discovery peers to verify identity and connection readiness.
 - **UDP State Sync (30Hz):** Engineered a high-frequency synchronization loop for real-time player coordinates and HP transmission.

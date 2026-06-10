@@ -157,12 +157,21 @@ class GameState:
         # Link actors to routes after everything is loaded
         LevelLoader.link_actors_to_routes(self)
 
-        # Network Phase 2: Manager Initialization
+        # Network Phase 2 & 3: Manager Initialization
         from engine.network_manager import NetworkManager
         self.network_manager = NetworkManager()
         self.network_manager.local_state_provider = self.get_local_state
         self.network_manager.remote_state_handler = self.apply_remote_state
         self.network_manager.on_disconnect_callback = self.on_network_disconnect
+        
+        # Phase 3 Callbacks
+        self.network_manager.host_map_provider = self.get_host_map_payload
+        self.network_manager.host_client_state_restorer = self.host_restorer_callback
+        self.network_manager.host_client_state_cacher = self.host_cacher_callback
+        self.network_manager.client_restored_state_handler = self.apply_restored_state
+        
+        self.cached_client_states = {} # {identity: state_dict}
+        self.full_state_sync_timer = 0.0
         
         # Start searching for hosts if in Sanctuary
         if getattr(self.world, 'name', '') == "sanctuary":
@@ -183,6 +192,70 @@ class GameState:
         # Temporary Debug: Print incoming coordinates to verify sync
         if random.random() < 0.05: # Print 5% of packets to avoid flooding
              print(f"[NETWORK] Update from {addr}: X={data.get('x'):.1f}, Y={data.get('y'):.1f}")
+
+    def fetch_host_map(self):
+        """Phase 3: Requests the authoritative map from the host and saves it locally."""
+        if not self.network_manager.is_connected: return False
+        
+        map_json = self.network_manager.request_map()
+        if map_json:
+            import json
+            import os
+            from constants import get_generated_world_path
+            client_map_path = get_generated_world_path().replace(".json", "_client.json")
+            with open(client_map_path, 'w', encoding='utf-8') as f:
+                json.dump(map_json, f)
+            print(f"[NETWORK] Saved host map to {client_map_path}")
+            return True
+        return False
+
+    def get_host_map_payload(self):
+        """Phase 3: Reads the generated world JSON for transmission to clients."""
+        import json
+        import os
+        from constants import get_generated_world_path
+        path = get_generated_world_path()
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return None
+
+    def host_restorer_callback(self, identity, ip):
+        """Phase 3: Host provides cached state for a reconnecting client."""
+        return self.cached_client_states.get(identity)
+
+    def host_cacher_callback(self, identity, ip, state_data):
+        """Phase 3: Host caches incoming client state profile."""
+        print(f"[NETWORK] Cached state for client {identity} ({ip})")
+        self.cached_client_states[identity] = state_data
+
+    def apply_restored_state(self, state_data):
+        """Phase 3: Applies a full state profile to the local player."""
+        if not self.player or not state_data: return
+        self.player.x = float(state_data.get("x", self.player.x))
+        self.player.y = float(state_data.get("y", self.player.y))
+        self.player.hp = float(state_data.get("hp", self.player.hp))
+        self.player.max_hp = float(state_data.get("max_hp", self.player.max_hp))
+        self.player.flask_charges = int(state_data.get("flask_charges", self.player.flask_charges))
+        self.player.active_weapon_idx = int(state_data.get("active_weapon_idx", self.player.active_weapon_idx))
+        self.player.weapons = state_data.get("weapons", self.player.weapons)
+        self.player.stats = state_data.get("stats", self.player.stats)
+        if hasattr(self, 'camera'):
+            self.camera.instant_center(self.player.get_center())
+
+    def get_full_player_state(self):
+        """Phase 3: Returns the complete player profile for persistence caching."""
+        if not self.player: return {}
+        return {
+            "x": self.player.x,
+            "y": self.player.y,
+            "hp": self.player.hp,
+            "max_hp": self.player.max_hp,
+            "flask_charges": self.player.flask_charges,
+            "active_weapon_idx": self.player.active_weapon_idx,
+            "weapons": self.player.weapons,
+            "stats": self.player.stats
+        }
 
     def on_network_disconnect(self):
         """Handles connection loss by warping to Sanctuary."""
@@ -464,6 +537,14 @@ class GameState:
         attack_pressed = actions.get('attack', False)
         ratchet_reset = actions.get('ratchet_reset', False)
 
+        # Phase 3: Periodic Full State Sync (Client -> Host Profile Persistence)
+        if self.network_manager.network_mode == "CLIENT":
+            self.full_state_sync_timer += dt
+            if self.full_state_sync_timer >= 10.0: # Every 10 seconds
+                self.full_state_sync_timer = 0.0
+                full_state = self.get_full_player_state()
+                threading.Thread(target=self.network_manager.send_full_state, args=(full_state,), daemon=True).start()
+
         if ratchet_reset:
             self.input_ratchet_latched = False
 
@@ -647,6 +728,12 @@ class GameState:
                         self.active_respite = None
                         self.input_debounce_timer = 0.2
                         self.player.has_rested_this_session = False
+                        
+                        # Phase 3: Sync profile changes (upgrades) to Host
+                        if self.network_manager.network_mode == "CLIENT":
+                            full_state = self.get_full_player_state()
+                            threading.Thread(target=self.network_manager.send_full_state, args=(full_state,), daemon=True).start()
+
                         self.save_stats(wait=True)
                         return
                     
@@ -688,6 +775,11 @@ class GameState:
                     self.player.stats[stat] = self.player.stats.get(stat, 0) + val
                 self.active_choice = None
                 print(f"[FATE] Player chose {choice_node['name']}. Stats updated.")
+                
+                # Phase 3: Sync profile changes to Host
+                if self.network_manager.network_mode == "CLIENT":
+                    full_state = self.get_full_player_state()
+                    threading.Thread(target=self.network_manager.send_full_state, args=(full_state,), daemon=True).start()
             return
 
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
@@ -721,6 +813,10 @@ class GameState:
 
         if swap_pressed:
             self.player.swap_weapon()
+            # Phase 3: Sync profile change to Host
+            if self.network_manager.network_mode == "CLIENT":
+                full_state = self.get_full_player_state()
+                threading.Thread(target=self.network_manager.send_full_state, args=(full_state,), daemon=True).start()
 
         walls = self.world.get_nearby_walls(player_rect)
         speed_multiplier = 1.0

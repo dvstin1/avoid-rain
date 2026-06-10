@@ -340,6 +340,13 @@ def main():
                             renderer.fade_to_black()
                             # Rule: State reset must preserve existing network session
                             state.reset_to_new_game()
+                            
+                            # Phase 3: Immediate profile sync to Host
+                            if state.network_manager.network_mode == "CLIENT":
+                                full_state = state.get_full_player_state()
+                                import threading
+                                threading.Thread(target=state.network_manager.send_full_state, args=(full_state,), daemon=True).start()
+
                             title_menu.state = TitleMenuState.MAIN
                             in_title = False
                         continue

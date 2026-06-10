@@ -28,6 +28,8 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None, destroyed_ids
     # Special Rule: 'generated_world' loads from the temporary path
     if name == "generated_world":
         json_path = get_generated_world_path()
+    elif name == "generated_world_client":
+        json_path = get_generated_world_path().replace(".json", "_client.json")
     else:
         json_path = os.path.join("maps", f"{name}.json")
         

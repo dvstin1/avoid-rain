@@ -61,7 +61,15 @@ class WarpPortal(GameObject):
             from engine.maps import create_world
             print(f"[DEBUG] WarpPortal targeting: {self.target_name}")
 
-            game_state.world = create_world(self.target_name)
+            # Phase 3 Intercept: If Client entering macro-world, fetch host map
+            if game_state.network_manager.network_mode == "CLIENT" and self.target_name in ("macro_world", "outside"):
+                if game_state.fetch_host_map():
+                    game_state.world = create_world("generated_world_client")
+                else:
+                    print("[NETWORK] Map fetch failed. Falling back to local generation.")
+                    game_state.world = create_world(self.target_name)
+            else:
+                game_state.world = create_world(self.target_name)
 
             # Weather Sync Rule: Update boss center coordinates for the safe circle
             new_boss_list = getattr(game_state.world, 'boss_coords_list', None)
