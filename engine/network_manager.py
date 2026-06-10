@@ -215,28 +215,35 @@ class NetworkManager:
     def _udp_send_loop(self):
         """Continuously sends local player state via UDP."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Add small buffer for socket issues
         sock.settimeout(0.5)
         
         while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
+            payload_data = {"type": "HEARTBEAT", "identity": self.identity, "time": time.time()}
+            
+            # Phase 2: Add actual gameplay data if available
             if self.local_state_provider:
                 try:
-                    state_data = self.local_state_provider()
-                    payload = json.dumps(state_data).encode('utf-8')
-                    
-                    if self.network_mode == "HOST":
-                        # Send to all connected clients
-                        peers = list(self.connected_peers.keys())
-                        for addr in peers:
-                            sock.sendto(payload, (addr, self.udp_sync_port))
-                    elif self.network_mode == "CLIENT" and self.server_address:
-                        # Send to host
-                        sock.sendto(payload, (self.server_address, self.udp_sync_port))
-                except Exception as e:
-                    if not self.stop_event.is_set():
-                        # Don't spam send errors, just log once or sample
-                        pass
-            time.sleep(1.0 / 30.0) # 30Hz Sync
+                    game_data = self.local_state_provider()
+                    payload_data.update(game_data)
+                except: pass
+            
+            try:
+                payload = json.dumps(payload_data).encode('utf-8')
+                if self.network_mode == "HOST":
+                    peers = list(self.connected_peers.keys())
+                    for addr in peers:
+                        sock.sendto(payload, (addr, self.udp_sync_port))
+                        if random.random() < 0.01: # 1% Log
+                            print(f"[NETWORK] Sent sync to client {addr}")
+                elif self.network_mode == "CLIENT" and self.server_address:
+                    sock.sendto(payload, (self.server_address, self.udp_sync_port))
+                    if random.random() < 0.01: # 1% Log
+                        print(f"[NETWORK] Sent sync to host {self.server_address}")
+            except Exception as e:
+                if not self.stop_event.is_set():
+                    print(f"[NETWORK] UDP Send Error: {e}")
+            
+            time.sleep(1.0 / 10.0) # Lower frequency (10Hz) for debugging
         sock.close()
 
     def _udp_receive_loop(self):
@@ -249,18 +256,20 @@ class NetworkManager:
         try:
             sock.bind(('', self.udp_sync_port))
             sock.settimeout(1.0)
-            print(f"[NETWORK] UDP State Receiver bound to port {self.udp_sync_port}")
+            print(f"[NETWORK] UDP Receiver Active on port {self.udp_sync_port}")
         except Exception as e:
-            print(f"[NETWORK] UDP sync bind error: {e}")
+            print(f"[NETWORK] UDP bind error: {e}")
             sock.close()
             return
         
         while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
             try:
-                data, addr = sock.recvfrom(4096) # Larger buffer for safety
+                data, addr = sock.recvfrom(4096)
                 if not data: continue
                 
                 msg = json.loads(data.decode('utf-8'))
+                if random.random() < 0.05: # 5% Log
+                    print(f"[NETWORK] RECV from {addr[0]}: {msg.get('identity')} (Type: {msg.get('type')})")
                 
                 # Update peer tracking
                 if addr[0] in self.connected_peers:
@@ -279,8 +288,7 @@ class NetworkManager:
                 continue
             except Exception as e:
                 if not self.stop_event.is_set():
-                    # print(f"[NETWORK] UDP sync recv error: {e}")
-                    pass
+                    print(f"[NETWORK] UDP Recv Error: {e}")
         sock.close()
 
     def _check_timeouts(self):
