@@ -4,6 +4,7 @@ Manages the global game state and coordinates engine components.
 from typing import Optional
 import queue
 import threading
+import random
 
 from constants import (
     PLAYER_START_X, PLAYER_START_Y,
