@@ -290,6 +290,10 @@ def main():
 
     def shutdown_handler():
         try:
+            # Phase 2: Ensure network stop (sends DISCONNECT signal)
+            if 'state' in locals() and hasattr(state, 'network_manager'):
+                state.network_manager.stop_network()
+                
             if 'state' in locals() and getattr(state, 'save_stats', None) is not None:
                 state.save_stats(wait=True)
             if 'state' in locals() and getattr(state, 'shutdown_save_worker', None) is not None:
