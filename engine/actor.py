@@ -240,7 +240,7 @@ class Actor:
         
         # Advance index
         self.patrol_idx = (self.patrol_idx + 1) % len(self.patrol_route)
-        print(f"[ACTOR] {self.name} reached marker. Waiting {self.wait_timer:.1f}s")
+        # print(f"[ACTOR] {self.name} reached marker. Waiting {self.wait_timer:.1f}s")
 
     def _update_chase(self, dt, game_state):
         """Aggressive pursuit logic."""

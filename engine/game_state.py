@@ -179,7 +179,9 @@ class GameState:
     def apply_remote_state(self, addr, data):
         """Phase 2: Handles incoming remote player state data."""
         # For Phase 2, the NetworkManager already stores this in self.remote_players.
-        pass
+        # Temporary Debug: Print incoming coordinates to verify sync
+        if random.random() < 0.05: # Print 5% of packets to avoid flooding
+             print(f"[NETWORK] Update from {addr}: X={data.get('x'):.1f}, Y={data.get('y'):.1f}")
 
     def on_network_disconnect(self):
         """Handles connection loss by warping to Sanctuary."""
