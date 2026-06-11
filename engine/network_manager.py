@@ -27,6 +27,9 @@ class NetworkManager:
         self.server_address = None # For client mode
         self.server_last_seen = 0.0
         
+        # State Data
+        self.remote_players = {} # {address: {"x": float, "y": float, "hp": int}}
+        
         # Callbacks (Injected by GameState)
         self.local_state_provider = None # UDP: returns {"x": f, "y": f, "hp": i}
         self.remote_state_handler = None # UDP: accepts (addr, data)
