@@ -488,8 +488,9 @@ class GameState:
                     # Search for a meaningful room name
                     zone_name = "THE UNKNOWN MARGIN"
                     for s in getattr(self.world, 'module_sockets', []):
-                        # Fix: Check socket 'id' instead of 'name'
-                        if s.get('id') == current_room_id:
+                        # Fix: Check both 'name' and 'id' (world_generator uses 'name')
+                        s_id = s.get('id') or s.get('name')
+                        if s_id == current_room_id:
                             plug = s.get('active_plug', '').lower()
                             if 'forest' in plug: zone_name = "THE VERDANT SILENCE"
                             elif 'ruins' in plug: zone_name = "THE SCORCHED MARGIN"
