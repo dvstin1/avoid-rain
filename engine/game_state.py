@@ -279,6 +279,10 @@ class GameState:
         self._update_player_lifecycle(dt, actions, attack_pressed, audio_manager)
         self._update_ui_and_menus(dt, actions, attack_pressed, audio_manager)
 
+        # Phase 1 & 4: Viewport follow
+        if hasattr(self, 'camera') and self.player:
+            self.camera.update(self.player.get_center(), dt)
+
     def update_combat(self, dt, attack_pressed, actions, audio_manager):
         """Phase 1: Handles player attacks and damage resolution against enemies/props."""
         if not self.player: return
@@ -350,6 +354,7 @@ class GameState:
             self.trigger_bloom(self.weather_manager.pending_milestone_text, priority=2)
             self.weather_manager.pending_milestone_text = None
 
+        if self.shake_timer > 0: self.shake_timer -= dt
         self.update_damage_numbers(dt)
         for fading in self.fading_entities[:]:
             fading['time'] -= dt

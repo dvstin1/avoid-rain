@@ -201,6 +201,9 @@ class Wellspring(GameObject):
             game_state.player.flask_charges = FLASK_MAX_CHARGES
             game_state.trigger_bloom("HYDRATION RESTORED", priority=1)
             print("[WELLSPRING] Flasks refilled.")
+        else:
+            game_state.trigger_bloom("HYDRATION FULL", priority=1)
+            print("[WELLSPRING] Flasks already full.")
 
 class LoreFragment(GameObject):
     """Collectable piece of text that reveals world history."""
