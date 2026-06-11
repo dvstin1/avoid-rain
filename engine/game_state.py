@@ -74,6 +74,10 @@ class GameState:
         self.zone_cooldown_timer = 0.0
         self.sanctuary_reset_complete = False
         
+        self.active_choice = None
+        self.active_dialogue = None
+        self.active_respite = None
+        
         self.hit_stop_timer = 0.0
         self.shake_timer = 0.0
         self.death_timer = 0.0
@@ -256,6 +260,7 @@ class GameState:
 
         if ratchet_reset: self.input_ratchet_latched = False
         if self.input_debounce_timer > 0: self.input_debounce_timer -= dt
+        if self.menu_nav_cooldown > 0: self.menu_nav_cooldown -= dt
 
         # --- Interaction Phase (Pre-Combat) ---
         target = getattr(self.player, 'current_interactable', None)
@@ -524,7 +529,7 @@ class GameState:
         self.player = self.world = None
         self.enemies = self.loot = self.world_debris = []
         self.destroyed_prop_ids = set()
-        self.active_dialogue = None
+        self.active_dialogue = self.active_choice = self.active_respite = None
 
     def trigger_bloom(self, text, priority=1):
         if priority >= self.bloom_priority or self.bloom_timer <= 0:
@@ -564,6 +569,13 @@ class GameState:
             from engine.weather import WeatherManager
             self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
             self.weather_manager.from_dict(run_data.get("weather"))
+            
+            self.input_ratchet_latched = False
+            self.menu_nav_cooldown = 0.0
+            
+            self.active_dialogue = None
+            self.active_choice = None
+            self.active_respite = None
         else:
             # Fallback for empty run_state: reset to sanctuary
             self.reset_to_new_game()
@@ -589,11 +601,15 @@ class GameState:
         
         self.world_debris = []
         self.player.stats = {"edification": 1, "attack_modifier": 0, "max_hp_modifier": 0}
+        self.input_ratchet_latched = False
+        self.menu_nav_cooldown = 0.0
         from engine.weather import WeatherManager
         self.weather_manager = WeatherManager(boss_coords_list=None)
         self.loot = []
         self.damage_numbers = []
         self.active_dialogue = None
+        self.active_choice = None
+        self.active_respite = None
         from engine.world import LevelLoader
         LevelLoader.link_actors_to_routes(self)
 
