@@ -57,7 +57,9 @@ class GameState:
 
         # 3. Environment and Camera
         from engine.weather import WeatherManager
-        self.camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
+        world_w = len(self.world.grid[0]) * TILE_SIZE
+        world_h = len(self.world.grid) * TILE_SIZE
+        self.camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT, world_w, world_h, lerp_speed=CAMERA_LERP_SPEED)
         self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
         
         # UI and Visual State
@@ -425,6 +427,12 @@ class GameState:
         self.trigger_bloom("CONNECTION LOST", priority=2)
         from engine.maps import create_world
         self.world = create_world("sanctuary")
+        # Phase 4: Sync camera bounds
+        if hasattr(self, 'camera'):
+            self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
+            self.camera.world_h = len(self.world.grid) * TILE_SIZE
+            self.camera.instant_center(self.player.get_center())
+        
         self.on_enter_sanctuary()
         self.respawn_player()
 
@@ -453,6 +461,12 @@ class GameState:
             self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
             self.destroyed_prop_ids = set(run_data.get("destroyed_prop_ids", []))
             self.world = create_world(world_name, saved_enemies=run_data.get("enemies", []), defeated_ids=self.defeated_miniboss_ids, destroyed_ids=self.destroyed_prop_ids)
+            # Phase 4: Sync camera bounds
+            if hasattr(self, 'camera'):
+                self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
+                self.camera.world_h = len(self.world.grid) * TILE_SIZE
+                self.camera.instant_center(self.player.get_center())
+            
             p_data = run_data.get("player", {})
             self.player = Player(float(p_data.get("x", self.world.player_start[0])), float(p_data.get("y", self.world.player_start[1])))
             self.player.hp = float(p_data.get("hp", PLAYER_MAX_HP))
@@ -475,6 +489,12 @@ class GameState:
             except Exception: pass
         self.defeated_miniboss_ids = set()
         self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
+        # Phase 4: Sync camera bounds
+        if hasattr(self, 'camera'):
+            self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
+            self.camera.world_h = len(self.world.grid) * TILE_SIZE
+            self.camera.instant_center(self.player.get_center())
+        
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
         self.world_debris = []
         self.player.stats = {"edification": 1, "attack_modifier": 0, "max_hp_modifier": 0}

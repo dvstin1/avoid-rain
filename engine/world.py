@@ -102,9 +102,12 @@ class WarpPortal(GameObject):
             print(f"[DEBUG] Setting player physical position: ({target_x}, {target_y})")
             game_state.player.x = float(target_x)
             game_state.player.y = float(target_y)
-            # Recenter camera instantly
+            # Phase 4: Sync camera bounds to new world
             if hasattr(game_state, 'camera'):
+                game_state.camera.world_w = len(game_state.world.grid[0]) * TILE_SIZE
+                game_state.camera.world_h = len(game_state.world.grid) * TILE_SIZE
                 game_state.camera.instant_center(game_state.player.get_center())
+            
             # Update enemies list from the new world
             if hasattr(game_state.world, 'enemies'):
                 game_state.enemies = getattr(game_state.world, 'enemies', [])
