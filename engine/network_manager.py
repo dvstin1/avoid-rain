@@ -3,7 +3,7 @@ import threading
 import time
 import json
 import random
-from constants import PLAYER_NAME, LAN_PORT
+from constants import DEFAULT_PLAYER_NAME, LAN_PORT
 
 class NetworkManager:
     """
@@ -11,7 +11,7 @@ class NetworkManager:
     Phase 3: Map Synchronization and Client Persistence.
     """
     
-    def __init__(self, port=LAN_PORT, identity=PLAYER_NAME):
+    def __init__(self, port=LAN_PORT, identity=DEFAULT_PLAYER_NAME):
         self.port = port
         self.tcp_port = port + 1
         self.udp_sync_port = port + 2
