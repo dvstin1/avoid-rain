@@ -79,9 +79,10 @@ class WarpPortal(GameObject):
             if self.target_name == "sanctuary":
                 game_state.on_enter_sanctuary()
             else:
-                # Auto-Host Rule: Start hosting when entering the macro-world
+                # Auto-Host Rule: Start hosting when entering the macro-world (if not already connected)
                 if hasattr(game_state, 'network_manager'):
-                    game_state.network_manager.start_hosting()
+                    if game_state.network_manager.network_mode == "OFFLINE":
+                        game_state.network_manager.start_hosting()
                 
                 # State Reset Rule: When starting a new run through the book, reset result to INIT
                 if game_state.stats:
