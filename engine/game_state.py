@@ -66,6 +66,11 @@ class GameState:
         self.camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT, world_w, world_h, lerp_speed=CAMERA_LERP_SPEED)
         self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
         
+        # Environmental Sync State (Legacy access for Renderer)
+        self.active_safe_radius = self.weather_manager.active_safe_radius
+        self.bleed_state = self.weather_manager.bleed_state
+        self.current_boss_coords = self.weather_manager.get_current_boss_coords()
+        
         # UI and Visual State
         self.bloom_text = ""
         self.bloom_timer = 0.0
@@ -264,7 +269,6 @@ class GameState:
         if self.menu_nav_cooldown > 0: self.menu_nav_cooldown -= dt
 
         # 1. PRE-SYNC: Detection and State Management
-        # Rule: Interactable detection must precede the interaction phase for zero-latency response.
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         nearby = self.world.get_nearby_interactables(player_rect)
         self.player.current_interactable = nearby[0] if nearby else None
@@ -280,10 +284,22 @@ class GameState:
             for enemy in self.enemies: enemy.update(dt, self)
             self.update_combat(dt, attack_pressed, actions, audio_manager)
             self.weather_manager.update(dt, self.player, self.world, audio_manager=audio_manager)
+            
+            # --- Phase 1 & 4: Host World Events ---
+            self._update_world_events(dt)
 
         # 4. SHARED SYSTEMS (Visuals, Movement, UI)
         self._update_shared_world(dt)
-        self._update_player_lifecycle(dt, actions, attack_pressed, audio_manager)
+        
+        # Rule: Movement is suppressed if a menu or dialogue is active
+        if not self.active_dialogue and not getattr(self, 'active_choice', None):
+            self._update_player_lifecycle(dt, actions, attack_pressed, audio_manager)
+        else:
+            # Freeze momentum while in menus
+            self.player.vx = 0
+            self.player.vy = 0
+            self._update_audio_track(dt)
+            
         self._update_ui_and_menus(dt, actions, attack_pressed, audio_manager)
 
         # 5. CAMERA & VIEWPORT
@@ -294,6 +310,39 @@ class GameState:
         if self.shake_timer > 0:
             self.shake_timer -= dt
             if self.shake_timer < 0: self.shake_timer = 0.0
+
+    def _update_world_events(self, dt):
+        """Host-only logic for boss spawns and environmental transitions."""
+        # Boss Spawn Rule: Only if circle is closed (CLAMPED) and not already spawned
+        if self.weather_manager.is_boss_spawn_ready():
+            boss_alive = any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
+            if not boss_alive and self.weather_manager.bleed_state == "CLAMPED":
+                from engine.enemy import NightBoss
+                idx = self.weather_manager.current_boss_idx
+                boss_list = getattr(self.world, 'boss_coords_list', [])
+                if idx < len(boss_list):
+                    coords = boss_list[idx]
+                    from constants import TILE_SIZE
+                    bx, by = coords['x'] * TILE_SIZE, coords['y'] * TILE_SIZE
+                    new_boss = NightBoss(bx, by)
+                    new_boss.network_id = 9000 + idx
+                    self.enemies.append(new_boss)
+                    print(f"[THE BLEED] Night Boss manifested at ({bx}, {by}).")
+                    boss_alive = True
+            self.weather_manager.lock_circle_for_boss(boss_alive)
+
+        # Appendix Rule: Spawn portal after Night 2 defeat
+        if self.weather_manager.bleed_state == "APPENDIX" and not any(e.name == "Appendix Warp" for e in self.world.interactables):
+            idx = self.weather_manager.current_boss_idx
+            boss_list = getattr(self.world, 'boss_coords_list', []) or []
+            if idx < len(boss_list):
+                coords = boss_list[idx]
+                from engine.world import WarpPortal
+                from constants import TILE_SIZE
+                portal_rect = (coords['x'] * TILE_SIZE - 20, coords['y'] * TILE_SIZE - 20, 40, 40)
+                portal = WarpPortal("final_boss", 25, 25, portal_rect, name="Appendix Warp")
+                self.world.interactables.append(portal)
+                self.trigger_bloom("THE APPENDIX REVEALED", priority=2)
 
     def update_combat(self, dt, attack_pressed, actions, audio_manager):
         """Phase 1: Handles player attacks and damage resolution."""
@@ -420,9 +469,18 @@ class GameState:
         # Zone Discovery Bloom
         if getattr(self.world, 'name', '') not in ("", "sanctuary"):
             px, py = self.player.get_center()
+            from constants import TILE_SIZE, BLOOM_COOLDOWN
+            # Unit logic: 11x11 units of 40x40 tiles. Sub-rooms are indexed by (0, 4, 8)
             cur_unit_x, cur_unit_y = int(px // (TILE_SIZE * 40)), int(py // (TILE_SIZE * 40))
-            current_room_id = f"Room_{cur_unit_x}_{cur_unit_y}"
-            if current_room_id != self.last_zone_id:
+            
+            current_room_id = None
+            for ru_y in (0, 4, 8):
+                for ru_x in (0, 4, 8):
+                    if ru_x <= cur_unit_x < ru_x + 3 and ru_y <= cur_unit_y < ru_y + 3:
+                        current_room_id = f"Room_{ru_x}_{ru_y}"
+                        break
+            
+            if current_room_id and current_room_id != self.last_zone_id:
                 if self.zone_cooldown_timer <= 0:
                     self.last_zone_id = current_room_id
                     self.zone_cooldown_timer = BLOOM_COOLDOWN
@@ -430,7 +488,8 @@ class GameState:
                     # Search for a meaningful room name
                     zone_name = "THE UNKNOWN MARGIN"
                     for s in getattr(self.world, 'module_sockets', []):
-                        if s.get('name') == current_room_id:
+                        # Fix: Check socket 'id' instead of 'name'
+                        if s.get('id') == current_room_id:
                             plug = s.get('active_plug', '').lower()
                             if 'forest' in plug: zone_name = "THE VERDANT SILENCE"
                             elif 'ruins' in plug: zone_name = "THE SCORCHED MARGIN"
