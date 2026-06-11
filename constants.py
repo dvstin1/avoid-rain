@@ -18,7 +18,7 @@ FPS = 60
 TITLE = "Avoid Rain"
 
 # Network Configuration (Phase 1: Discovery)
-PLAYER_NAME = "Dustin"
+DEFAULT_PLAYER_NAME = "Scholar"
 LAN_PORT = 55555
 
 # Input Modes

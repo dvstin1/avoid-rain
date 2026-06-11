@@ -440,11 +440,40 @@ class Renderer:
 
         self.draw_weather(state)
         self.draw_bloom_overlay(state)
+
+        # Phase 4: Network Ghost Rendering
+        self.draw_remote_players(state, ox, oy)
         
         # Parry Sparks
         self.draw_parry_effects(state, ox, oy)
 
         pygame.display.flip()
+
+    def draw_remote_players(self, state, ox, oy):
+        """Phase 4: Render ghosts for other players on the network."""
+        remote_data = getattr(state.network_manager, 'remote_players', {})
+        for addr, data in remote_data.items():
+            if "x" not in data or "y" not in data: continue
+            
+            # Identity (Identity from Heartbeat or Handshake)
+            name = data.get("identity", "Stranger")
+            
+            # Rendering Coordinates
+            rx, ry = float(data["x"]) - ox, float(data["y"]) - oy
+            
+            # Draw Ghost Circle (Cyan for Host, Magenta for Clients)
+            # Logic: If I am HOST, then others are CLIENTS (Magenta). 
+            # If I am CLIENT, then the one at server_address is HOST (Cyan).
+            color = (255, 0, 255) # Default Magenta (Client)
+            if state.network_manager.network_mode == "CLIENT" and addr == state.network_manager.server_address:
+                color = constants.COLOR_CYAN # Host
+            
+            pygame.draw.circle(self.screen, color, (int(rx + 16), int(ry + 16)), 12)
+            pygame.draw.circle(self.screen, constants.COLOR_WHITE, (int(rx + 16), int(ry + 16)), 12, 1)
+            
+            # Identity Tag
+            id_surf = self.small_font.render(name, True, constants.COLOR_WHITE)
+            self.screen.blit(id_surf, (rx + 16 - id_surf.get_width() // 2, ry - 15))
 
     def draw_audio_debug(self, audio):
         """Draw OSD for currently playing music and recent SFX triggers."""
@@ -672,6 +701,17 @@ class Renderer:
                 pygame.draw.circle(minimap_surface, (255, 165, 0, 180), (mcx, mcy), mr, 1)
 
         # 6. Radar Entity Rules
+        # Remote Players: Cyan/Magenta Dot (Phase 4)
+        remote_data = getattr(state.network_manager, 'remote_players', {})
+        for addr, data in remote_data.items():
+            if "x" not in data or "y" not in data: continue
+            rx, ry = float(data["x"]) + 16, float(data["y"]) + 16
+            if vpx <= rx <= vpx + vpw and vpy <= ry <= vpy + vph:
+                dot_color = (255, 0, 255) # Magenta for Client
+                if state.network_manager.network_mode == "CLIENT" and addr == state.network_manager.server_address:
+                    dot_color = constants.COLOR_CYAN # Host
+                pygame.draw.circle(minimap_surface, dot_color, (int((rx - vpx) * sx), int((ry - vpy) * sy)), 3)
+
         # Enemies: Red Dot
         for e in getattr(state, 'enemies', []):
             ex, ey = e.x + e.width // 2, e.y + e.height // 2

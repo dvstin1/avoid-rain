@@ -400,7 +400,20 @@ class LevelLoader:
             for e_data in saved_enemies:
                 e_type = e_data.get("type")
                 if e_type in ENEMY_REGISTRY:
-                    enemies.append(ENEMY_REGISTRY[e_type].from_dict(e_data))
+                    enemy = ENEMY_REGISTRY[e_type].from_dict(e_data)
+                    # Phase 4 Network Rule: Assign numeric ID for sync
+                    enemy.network_id = get_next_id()
+                    enemies.append(enemy)
+        
+        # Phase 4 Network Rule: Assign numeric IDs to enemies for synchronization
+        # These are used to match Host enemies to Client enemies in the UDP sync.
+        # We use a simple counter during parsing.
+        next_enemy_id = 0
+        def get_next_id():
+            nonlocal next_enemy_id
+            id_val = next_enemy_id
+            next_enemy_id += 1
+            return id_val
         
         # Check for Lotus Topography symbols
         has_lotus = any('M' in row or 'X' in row for row in prototype_array)
@@ -554,6 +567,9 @@ class LevelLoader:
                         
                         data = entity_data.get((x, y), {})
                         temp_enemy = enemy_cls(pos[0], pos[1], id=enemy_id)
+                        
+                        # Phase 4 Network Rule: Assign numeric ID for sync
+                        temp_enemy.network_id = get_next_id()
                         
                         # Custom Instance Attributes
                         if data.get("is_stationary"):

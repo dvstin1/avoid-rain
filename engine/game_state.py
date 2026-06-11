@@ -159,7 +159,14 @@ class GameState:
 
         # Network Phase 2 & 3: Manager Initialization
         from engine.network_manager import NetworkManager
-        self.network_manager = NetworkManager()
+        from constants import DEFAULT_PLAYER_NAME
+        
+        # Load identity from stats or default
+        p_name = DEFAULT_PLAYER_NAME
+        if self.stats:
+            p_name = self.stats.data.get("player_name", DEFAULT_PLAYER_NAME)
+            
+        self.network_manager = NetworkManager(identity=p_name)
         self.network_manager.local_state_provider = self.get_local_state
         self.network_manager.remote_state_handler = self.apply_remote_state
         self.network_manager.on_disconnect_callback = self.on_network_disconnect
@@ -180,18 +187,72 @@ class GameState:
     def get_local_state(self):
         """Phase 2: Returns the local player state for network sync."""
         if not self.player: return {"x": 0, "y": 0, "hp": 0}
-        return {
+        
+        state = {
             "x": self.player.x,
             "y": self.player.y,
             "hp": self.player.hp
         }
+        
+        # Phase 4: Weather Sync (Host only)
+        if self.network_manager.network_mode == "HOST":
+            state["weather"] = {
+                "radius": self.weather_manager.radius,
+                "state": self.weather_manager.bleed_state,
+                "boss_idx": self.weather_manager.current_boss_idx
+            }
+            
+            # Phase 4: Enemy Sync (Host only)
+            state["enemies"] = [
+                {
+                    "id": getattr(e, "network_id", -1),
+                    "x": e.x,
+                    "y": e.y,
+                    "hp": e.hp,
+                    "state": e.state.name if hasattr(e.state, "name") else str(e.state)
+                }
+                for e in self.enemies
+            ]
+            
+        return state
 
     def apply_remote_state(self, addr, data):
-        """Phase 2: Handles incoming remote player state data."""
-        # For Phase 2, the NetworkManager already stores this in self.remote_players.
+        """Phase 2 & 4: Handles incoming remote player state data."""
+        # Phase 4: Weather Sync (Client only)
+        if self.network_manager.network_mode == "CLIENT":
+            w_data = data.get("weather")
+            if w_data:
+                self.weather_manager.radius = float(w_data.get("radius", self.weather_manager.radius))
+                self.weather_manager.bleed_state = w_data.get("state", self.weather_manager.bleed_state)
+                self.weather_manager.current_boss_idx = int(w_data.get("boss_idx", self.weather_manager.current_boss_idx))
+            
+            # Phase 4: Enemy Sync (Client only)
+            e_data = data.get("enemies")
+            if e_data:
+                self._sync_enemies_from_host(e_data)
+
         # Temporary Debug: Print incoming coordinates to verify sync
         if random.random() < 0.05: # Print 5% of packets to avoid flooding
              print(f"[NETWORK] Update from {addr}: X={data.get('x'):.1f}, Y={data.get('y'):.1f}")
+
+    def _sync_enemies_from_host(self, enemy_data_list):
+        """Phase 4: Forcefully updates local enemy states based on Host authoritative data."""
+        # Create a mapping for quick lookup
+        remote_enemies = {int(e_data["id"]): e_data for e_data in enemy_data_list if "id" in e_data}
+        
+        # Update existing local enemies
+        for enemy in self.enemies[:]:
+            net_id = getattr(enemy, "network_id", -1)
+            if net_id in remote_enemies:
+                e_data = remote_enemies[net_id]
+                enemy.x = float(e_data.get("x", enemy.x))
+                enemy.y = float(e_data.get("y", enemy.y))
+                enemy.hp = float(e_data.get("hp", enemy.hp))
+                # Note: We skip state mapping for now as it's complex with enums
+            else:
+                # If Host doesn't have it, it's dead/gone
+                if enemy in self.enemies:
+                    self.enemies.remove(enemy)
 
     def fetch_host_map(self):
         """Phase 3: Requests the authoritative map from the host and saves it locally."""

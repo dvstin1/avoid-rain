@@ -69,9 +69,29 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
                 return True, True, False
 
             if title_menu.state == TitleMenuState.LOBBY:
+                if getattr(state, 'lobby_editing_name', False):
+                    if event.key == pygame.K_RETURN:
+                        state.lobby_editing_name = False
+                        # Save and sync identity
+                        if state.stats:
+                            state.stats.data["player_name"] = state.network_manager.identity
+                            state.save_stats(wait=True)
+                        print(f"[NETWORK] Identity updated to: {state.network_manager.identity}")
+                        return True, True, False
+                    if event.key == pygame.K_BACKSPACE:
+                        state.network_manager.identity = state.network_manager.identity[:-1]
+                        return True, True, False
+                    if event.unicode and event.unicode.isprintable() and len(state.network_manager.identity) < 15:
+                        state.network_manager.identity += event.unicode
+                        return True, True, False
+                    return True, True, False
+
                 if event.key == pygame.K_ESCAPE:
                     title_menu.state = TitleMenuState.MAIN
                     state.network_manager.stop_network()
+                    return True, True, False
+                if event.key == pygame.K_n:
+                    state.lobby_editing_name = True
                     return True, True, False
                 if event.key in (pygame.K_SPACE, pygame.K_RETURN):
                     hosts = list(state.network_manager.found_hosts.items())
