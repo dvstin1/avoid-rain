@@ -509,6 +509,9 @@ class GameState:
                 threading.Thread(target=self.network_manager.send_full_state, args=(self.get_full_player_state(),), daemon=True).start()
 
     def _handle_victory_conditions(self, dt):
+        if getattr(self.world, 'name', '') != "final_boss":
+            return
+
         final_boss_dead = not any(getattr(e, 'name', '') == "The Final Author" for e in self.enemies)
         if final_boss_dead and getattr(self.stats, 'data', {}).get("last_run_result") != "VICTORY":
             if self.stats:
