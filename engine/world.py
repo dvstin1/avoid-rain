@@ -304,6 +304,22 @@ class Respite(GameObject):
         print(f"[DEBUG] Rest complete. {len(game_state.enemies)} threats re-manifested.")
         game_state.save_stats(wait=True)
 
+    def execute_upgrade(self, game_state, marked_idx, audio_manager=None):
+        """Finalize the marked upgrade."""
+        success = False
+        if marked_idx == 1:
+            success = game_state._handle_upgrade("edification", 1, 50)
+        elif marked_idx == 2:
+            success = game_state._handle_upgrade("attack_modifier", 5, 50)
+        elif marked_idx == 3:
+            success = game_state._handle_upgrade("max_hp_modifier", 10, 50)
+
+        if success and audio_manager:
+            audio_manager.play_sfx("menu_confirm.ogg")
+            print(f"[RESPITE] Upgrade {marked_idx} applied.")
+        elif not success:
+            print("[RESPITE] Upgrade failed (insufficient pages).")
+
 class LevelLoader:
     """
     Dedicated parser for 2D text matrix strings or JSON map definitions.

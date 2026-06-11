@@ -244,7 +244,7 @@ class GameState:
 
     def update(self, dt, actions, audio_manager=None):
         """Update all game logic."""
-        if self.player is None: return # Safety for deallocated state
+        if self.player is None: return
         
         self.audio_manager = audio_manager
         attack_pressed = actions.get('attack', False)
@@ -256,44 +256,58 @@ class GameState:
             if self.full_state_sync_timer >= 10.0:
                 self.full_state_sync_timer = 0.0
                 full_state = self.get_full_player_state()
+                import threading
                 threading.Thread(target=self.network_manager.send_full_state, args=(full_state,), daemon=True).start()
 
         if ratchet_reset: self.input_ratchet_latched = False
         if self.input_debounce_timer > 0: self.input_debounce_timer -= dt
         if self.menu_nav_cooldown > 0: self.menu_nav_cooldown -= dt
 
-        # --- Interaction Phase (Pre-Combat) ---
-        target = getattr(self.player, 'current_interactable', None)
+        # 1. PRE-SYNC: Detection and State Management
+        # Rule: Interactable detection must precede the interaction phase for zero-latency response.
+        player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
+        nearby = self.world.get_nearby_interactables(player_rect)
+        self.player.current_interactable = nearby[0] if nearby else None
+
+        # 2. INTERACTION PHASE
+        target = self.player.current_interactable
         if attack_pressed and target and not self.active_dialogue and not self.active_choice:
             target.execute_interaction(self)
             attack_pressed = False # Consume input
 
-        # --- AI & Combat (Host Only) ---
+        # 3. AI & COMBAT (Host Only)
         if not is_client:
             for enemy in self.enemies: enemy.update(dt, self)
             self.update_combat(dt, attack_pressed, actions, audio_manager)
             self.weather_manager.update(dt, self.player, self.world, audio_manager=audio_manager)
 
-        # --- Shared Lifecycle & Environmental Logic ---
+        # 4. SHARED SYSTEMS (Visuals, Movement, UI)
         self._update_shared_world(dt)
         self._update_player_lifecycle(dt, actions, attack_pressed, audio_manager)
         self._update_ui_and_menus(dt, actions, attack_pressed, audio_manager)
 
-        # Phase 1 & 4: Viewport follow
+        # 5. CAMERA & VIEWPORT
         if hasattr(self, 'camera') and self.player:
             self.camera.update(self.player.get_center(), dt)
+        
+        # 6. VFX DECAY
+        if self.shake_timer > 0:
+            self.shake_timer -= dt
+            if self.shake_timer < 0: self.shake_timer = 0.0
 
     def update_combat(self, dt, attack_pressed, actions, audio_manager):
-        """Phase 1: Handles player attacks and damage resolution against enemies/props."""
+        """Phase 1: Handles player attacks and damage resolution."""
         if not self.player: return
         if self.player.state == PlayerStateEnum.ATTACKING:
+            from engine.combat import get_sword_hitbox
+            from engine.physics import check_aabb_collision
             hitbox = get_sword_hitbox(self.player.get_center(), self.player.facing)
             active_weapon = self.player.get_active_weapon()
             bonus_atk = getattr(self.player, 'stats', {}).get('attack_modifier', 0)
             damage = active_weapon.get("damage", SWORD_DAMAGE) + bonus_atk
             hit_landed = False
 
-            # 1. Damage Enemies
+            # Enemies
             for enemy in list(self.enemies):
                 try:
                     if check_aabb_collision(hitbox, enemy.get_rect()):
@@ -308,7 +322,7 @@ class GameState:
                             })
                 except Exception: pass
 
-            # 2. Damage Props
+            # Props
             for obj in list(self.world.interactables):
                 if getattr(obj, 'is_breakable', False) and check_aabb_collision(hitbox, obj.rect):
                     obj.take_damage(damage)
@@ -328,7 +342,7 @@ class GameState:
             if hit_landed and audio_manager:
                 audio_manager.play_sfx("attack_hit.ogg")
 
-        # 3. Enemy Lifecycle (Death/Cleanup)
+        # Enemy Death/Cleanup
         for enemy in list(self.enemies):
             if enemy.is_dead():
                 try:
@@ -354,16 +368,12 @@ class GameState:
             self.trigger_bloom(self.weather_manager.pending_milestone_text, priority=2)
             self.weather_manager.pending_milestone_text = None
 
-        if self.shake_timer > 0: self.shake_timer -= dt
         self.update_damage_numbers(dt)
         for fading in self.fading_entities[:]:
             fading['time'] -= dt
             if fading['time'] <= 0:
                 if fading['obj'].name == "Barrel":
-                    self.world_debris.append({
-                        'name': 'BarrelRubble',
-                        'pos': (fading['obj'].x, fading['obj'].y)
-                    })
+                    self.world_debris.append({'name': 'BarrelRubble', 'pos': (fading['obj'].x, fading['obj'].y)})
                 self.fading_entities.remove(fading)
 
         for effect in self.parry_effects[:]:
