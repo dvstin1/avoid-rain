@@ -310,16 +310,29 @@ def main():
 
     def shutdown_handler():
         try:
-            # Phase 2: Ensure network stop (sends DISCONNECT signal)
-            if 'state' in locals() and hasattr(state, 'network_manager'):
-                state.network_manager.stop_network()
+            # Safely retrieve 'state' from the outer scope if available
+            target_state = globals().get('state') or locals().get('state')
+            if not target_state:
+                # Fallback to provisional_state if primary state wasn't assigned
+                target_state = locals().get('provisional_state')
+
+            if target_state:
+                # 1. Stop Network (sends DISCONNECT signal)
+                if hasattr(target_state, 'network_manager'):
+                    target_state.network_manager.stop_network()
                 
-            if 'state' in locals() and getattr(state, 'save_stats', None) is not None:
-                state.save_stats(wait=True)
-            if 'state' in locals() and getattr(state, 'shutdown_save_worker', None) is not None:
-                state.shutdown_save_worker()
-        except Exception: pass
-        pygame.quit()
+                # 2. Stop Autosave Worker
+                if hasattr(target_state, 'shutdown_save_worker'):
+                    target_state.shutdown_save_worker(timeout=0.5)
+
+                # 3. Final Stat Flush
+                if hasattr(target_state, 'save_stats'):
+                    target_state.save_stats(wait=True)
+                    
+        except Exception as e:
+            print(f"[SHUTDOWN] Error during cleanup: {e}")
+        finally:
+            pygame.quit()
 
     atexit.register(shutdown_handler)
     pause_menu = PauseMenu()

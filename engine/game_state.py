@@ -76,6 +76,7 @@ class GameState:
         
         self.hit_stop_timer = 0.0
         self.shake_timer = 0.0
+        self.death_timer = 0.0
         self.parry_effects = [] # Transient VFX sparks
 
         # 4. Input and Navigation State
