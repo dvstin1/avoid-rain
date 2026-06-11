@@ -418,7 +418,7 @@ class GameState:
 
     def _update_ui_and_menus(self, dt, actions, attack_pressed, audio_manager):
         # Zone Discovery Bloom
-        if getattr(self.world, 'name', '') != "sanctuary":
+        if getattr(self.world, 'name', '') not in ("", "sanctuary"):
             px, py = self.player.get_center()
             cur_unit_x, cur_unit_y = int(px // (TILE_SIZE * 40)), int(py // (TILE_SIZE * 40))
             current_room_id = f"Room_{cur_unit_x}_{cur_unit_y}"
@@ -426,7 +426,18 @@ class GameState:
                 if self.zone_cooldown_timer <= 0:
                     self.last_zone_id = current_room_id
                     self.zone_cooldown_timer = BLOOM_COOLDOWN
-                    self.trigger_bloom("THE UNKNOWN MARGIN", priority=1)
+                    
+                    # Search for a meaningful room name
+                    zone_name = "THE UNKNOWN MARGIN"
+                    for s in getattr(self.world, 'module_sockets', []):
+                        if s.get('name') == current_room_id:
+                            plug = s.get('active_plug', '').lower()
+                            if 'forest' in plug: zone_name = "THE VERDANT SILENCE"
+                            elif 'ruins' in plug: zone_name = "THE SCORCHED MARGIN"
+                            elif 'colophon' in plug: zone_name = "THE COLOPHON"
+                            elif 'boss' in plug: zone_name = "THE CROWN RING"
+                            break
+                    self.trigger_bloom(zone_name, priority=1)
         
         if self.zone_cooldown_timer > 0: self.zone_cooldown_timer -= dt
         if self.bloom_timer > 0: self.bloom_timer -= dt
@@ -522,7 +533,11 @@ class GameState:
             elif mode == "OFFLINE": self.network_manager.start_searching()
         self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
         self.player.active_weapon_idx = 0
-        if hasattr(self, 'weather_manager'): self.weather_manager.radius = WEATHER_MAX_RADIUS; self.weather_manager.bleed_state = "GRACE"
+        
+        # Weather Reset: Full system restore for hub safety
+        if hasattr(self, 'weather_manager'):
+            self.weather_manager.reset(boss_coords_list=None)
+            
         self.sanctuary_reset_complete = True
         self.save_stats(wait=True)
 
@@ -715,6 +730,12 @@ class GameState:
         if pages >= cost:
             self.stats.data["lifetime_stats"]["pages_collected"] -= cost
             self.player.stats[stat_name] = current_val + amount
+            
+            # Sync to persistent stats for UI parity
+            if self.stats:
+                if "run_state" in self.stats.data and self.stats.data["run_state"]:
+                    self.stats.data["run_state"]["player"]["stats"] = self.player.stats
+
             self.player.has_rested_this_session = False
             if getattr(self, 'active_respite', None): self.active_respite.execute_interaction(self)
             return True
