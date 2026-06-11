@@ -36,13 +36,17 @@ class GameState:
         stats_path: Optional[str] = None,
         auto_load: bool = True
     ):
-        # 1. Initialize core components with defaults
         from engine.maps import create_world
         from engine.world import LevelLoader
-        self.destroyed_prop_ids = set()
-        self.world = create_world("sanctuary", destroyed_ids=self.destroyed_prop_ids)
+        self.world = create_world("sanctuary")
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
         self.enemies = []
+        self.loot = []
+        self.fading_entities = []
+        self.world_debris = []
+        self.damage_numbers = []
+        self.defeated_miniboss_ids = set()
+        self.destroyed_prop_ids = set()
 
         # 2. Statistics tracker: prefer injected tracker; otherwise optionally auto-load
         self.stats = stats
@@ -261,6 +265,66 @@ class GameState:
         self._update_player_lifecycle(dt, actions, attack_pressed, audio_manager)
         self._update_ui_and_menus(dt, actions, attack_pressed, audio_manager)
 
+    def update_combat(self, dt, attack_pressed, actions, audio_manager):
+        """Phase 1: Handles player attacks and damage resolution against enemies/props."""
+        if self.player.state == PlayerStateEnum.ATTACKING:
+            hitbox = get_sword_hitbox(self.player.get_center(), self.player.facing)
+            active_weapon = self.player.get_active_weapon()
+            bonus_atk = getattr(self.player, 'stats', {}).get('attack_modifier', 0)
+            damage = active_weapon.get("damage", SWORD_DAMAGE) + bonus_atk
+            hit_landed = False
+
+            # 1. Damage Enemies
+            for enemy in list(self.enemies):
+                try:
+                    if check_aabb_collision(hitbox, enemy.get_rect()):
+                        if not enemy.is_staggered():
+                            enemy.take_damage(damage)
+                            hit_landed = True
+                            self.hit_stop_timer = HIT_STOP_DURATION
+                            self.shake_timer = SCREEN_SHAKE_DURATION
+                            self.damage_numbers.append({
+                                'val': damage, 'pos': (enemy.x + 10, enemy.y - 20),
+                                'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_SELECTION
+                            })
+                except Exception: pass
+
+            # 2. Damage Props
+            for obj in list(self.world.interactables):
+                if getattr(obj, 'is_breakable', False) and check_aabb_collision(hitbox, obj.rect):
+                    obj.take_damage(damage)
+                    hit_landed = True
+                    if obj.is_dead():
+                        try:
+                            if hasattr(obj, 'id') and obj.id:
+                                self.destroyed_prop_ids.add(obj.id)
+                            self.world.interactables.remove(obj)
+                            fade_time = 0.16 if obj.name == "Barrel" else 0.1
+                            self.fading_entities.append({'obj': obj, 'time': fade_time})
+                            if audio_manager: audio_manager.play_sfx("prop_break.ogg")
+                            from engine.loot import roll_drop
+                            roll_drop(4, (obj.x, obj.y), self)
+                        except Exception: pass
+            
+            if hit_landed and audio_manager:
+                audio_manager.play_sfx("attack_hit.ogg")
+
+        # 3. Enemy Lifecycle (Death/Cleanup)
+        for enemy in list(self.enemies):
+            if enemy.is_dead():
+                try:
+                    if getattr(enemy, 'is_miniboss', False) and getattr(enemy, 'id', None):
+                        self.defeated_miniboss_ids.add(enemy.id)
+                    if hasattr(enemy, 'on_death'): enemy.on_death(self)
+                    self.enemies.remove(enemy)
+                    if audio_manager: audio_manager.play_sfx("enemy_death.ogg")
+                    from engine.loot import roll_drop
+                    tier = getattr(enemy, 'loot_tier', 3)
+                    roll_drop(tier, (enemy.x, enemy.y), self)
+                except Exception: pass
+
+        resolve_enemy_player_collision(self.player, self.enemies)
+
     def _update_shared_world(self, dt):
         """Logic that runs on both Host and Client for visuals/vfx."""
         self.active_safe_radius = self.weather_manager.active_safe_radius
@@ -272,6 +336,16 @@ class GameState:
             self.weather_manager.pending_milestone_text = None
 
         self.update_damage_numbers(dt)
+        for fading in self.fading_entities[:]:
+            fading['time'] -= dt
+            if fading['time'] <= 0:
+                if fading['obj'].name == "Barrel":
+                    self.world_debris.append({
+                        'name': 'BarrelRubble',
+                        'pos': (fading['obj'].x, fading['obj'].y)
+                    })
+                self.fading_entities.remove(fading)
+
         for effect in self.parry_effects[:]:
             effect['time'] -= dt
             if effect['time'] <= 0: self.parry_effects.remove(effect)
