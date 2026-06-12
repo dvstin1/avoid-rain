@@ -788,10 +788,15 @@ class GameState:
     def _handle_upgrade(self, stat_name, amount):
         from constants import EDIFICATION_BASE_COST, EDIFICATION_COST_SCALE
         current_val = self.player.stats.get(stat_name, 0)
-        level = current_val // amount if amount > 0 else current_val
         
-        # Correct Formula: Base + (Level * Scale)
-        cost = EDIFICATION_BASE_COST + (level * EDIFICATION_COST_SCALE)
+        # Calculate current 1-based level
+        if stat_name == "edification":
+            current_level = current_val if current_val > 0 else 1
+        else:
+            current_level = 1 + (current_val // amount) if amount > 0 else 1
+        
+        # Correct Formula: Base + ((Level - 1) * Scale)
+        cost = EDIFICATION_BASE_COST + ((current_level - 1) * EDIFICATION_COST_SCALE)
         
         pages = self.stats.data["lifetime_stats"].get("pages_collected", 0)
         if pages >= cost:

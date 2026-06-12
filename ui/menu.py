@@ -17,12 +17,20 @@ def draw_respite_menu(screen, font, state):
     pygame.draw.rect(screen, constants.COLOR_WHITE, panel, 2)
     
     # 1. Header
-    edif = player.stats.get("edification", 0)
+    edif = player.stats.get("edification", 1)
+    prowess = player.stats.get("attack_modifier", 0)
+    fort = player.stats.get("max_hp_modifier", 0)
+    
+    # Calculate 1-based Levels
+    edif_lvl = edif
+    prowess_lvl = 1 + (prowess // 5)
+    fort_lvl = 1 + (fort // 10)
+
     pages = 0
     if state.stats:
         pages = state.stats.data["lifetime_stats"].get("pages_collected", 0)
     
-    header = font.render(f"Respite - Anchor of the First Edition (Understanding: Lvl {edif})", True, constants.COLOR_SELECTION)
+    header = font.render(f"Respite - Anchor of the First Edition (Understanding: Lvl {edif_lvl})", True, constants.COLOR_SELECTION)
     screen.blit(header, (x + 20, y + 10))
     
     stats_text = font.render(f"Torn Pages Available: {pages}", True, (200, 200, 255))
@@ -62,13 +70,10 @@ def draw_respite_menu(screen, font, state):
         
         y_off += spacing
 
-    # Calculate costs (matching Respite.execute_interaction logic)
-    prowess = player.stats.get("attack_modifier", 0)
-    fort = player.stats.get("max_hp_modifier", 0)
-    
-    edif_cost = constants.EDIFICATION_BASE_COST + (edif * constants.EDIFICATION_COST_SCALE)
-    prowess_cost = constants.EDIFICATION_BASE_COST + (prowess // 5 * constants.EDIFICATION_COST_SCALE)
-    fort_cost = constants.EDIFICATION_BASE_COST + (fort // 10 * constants.EDIFICATION_COST_SCALE)
+    # Calculate costs (Base + ((Level - 1) * Scale))
+    edif_cost = constants.EDIFICATION_BASE_COST + ((edif_lvl - 1) * constants.EDIFICATION_COST_SCALE)
+    prowess_cost = constants.EDIFICATION_BASE_COST + ((prowess_lvl - 1) * constants.EDIFICATION_COST_SCALE)
+    fort_cost = constants.EDIFICATION_BASE_COST + ((fort_lvl - 1) * constants.EDIFICATION_COST_SCALE)
 
     sel_idx = getattr(state, 'respite_selection_idx', 0)
 
@@ -84,9 +89,9 @@ def draw_respite_menu(screen, font, state):
     y_off += spacing * 1.5
 
     if player.has_rested_this_session:
-        draw_option(1, "Edify Understanding (Passive Defense)", edif, edif_cost, pages >= edif_cost)
-        draw_option(2, "Edify Prowess (+5 Attack)", prowess // 5, prowess_cost, pages >= prowess_cost)
-        draw_option(3, "Edify Fortification (+10 Max HP)", fort // 10, fort_cost, pages >= fort_cost)
+        draw_option(1, "Edify Understanding (Passive Defense)", edif_lvl, edif_cost, pages >= edif_cost)
+        draw_option(2, "Edify Prowess (+5 Attack)", prowess_lvl, prowess_cost, pages >= prowess_cost)
+        draw_option(3, "Edify Fortification (+10 Max HP)", fort_lvl, fort_cost, pages >= fort_cost)
     else:
         warn_box = font.render("  [ Must Rest to Unblock Level Up ]", True, constants.COLOR_SELECTION)
         screen.blit(warn_box, (x + 40, y + y_off))
