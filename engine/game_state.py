@@ -174,7 +174,7 @@ class GameState:
             # Weather
             w_data = data.get("weather")
             if w_data:
-                self.weather_manager.radius = float(w_data.get("radius", self.weather_manager.radius))
+                self.weather_manager.active_safe_radius = float(w_data.get("radius", self.weather_manager.active_safe_radius))
                 self.weather_manager.bleed_state = w_data.get("state", self.weather_manager.bleed_state)
                 self.weather_manager.current_boss_idx = int(w_data.get("boss_idx", self.weather_manager.current_boss_idx))
             
