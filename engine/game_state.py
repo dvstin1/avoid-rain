@@ -800,6 +800,9 @@ class GameState:
             self.stats.data["lifetime_stats"]["pages_collected"] -= cost
             self.player.stats[stat_name] = current_val + amount
             
+            if stat_name == "max_hp_modifier":
+                self.player.hp = self.player.max_hp
+            
             # Sync to persistent stats for UI parity
             if self.stats:
                 if "run_state" in self.stats.data and self.stats.data["run_state"]:
