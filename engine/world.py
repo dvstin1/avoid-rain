@@ -326,6 +326,11 @@ class LevelLoader:
     @staticmethod
     def load_json_map(file_path, saved_enemies=None, defeated_ids=None, destroyed_ids=None):
         """Loads a JSON map file and parses it, supporting modular stitching."""
+        import os
+        map_name = os.path.basename(file_path).replace(".json", "")
+        if "generated_world" in map_name:
+            map_name = "avoid_rain_generated_world"
+
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
@@ -372,12 +377,6 @@ class LevelLoader:
             except ValueError:
                 continue
 
-        map_name = os.path.basename(file_path).replace(".json", "")
-        if "generated_world_client" in map_name:
-            map_name = map_name.replace("generated_world_client", "generated_world")
-
-        print(f"[DEBUG] Assembled grid: {len(grid)}x{len(grid[0])}, Entities: {len(entity_data)}")
-
         grid, interactables, warp_tiles, player_start, enemies = LevelLoader.parse_map(
             ["".join(row) for row in grid], 
             entity_data, 
@@ -406,6 +405,7 @@ class LevelLoader:
         If saved_enemies is provided, default spawner symbols for enemies are bypassed.
         """
         from engine.enemy import SYMBOL_REGISTRY
+        
         h = len(prototype_array)
         w = len(prototype_array[0]) if h > 0 else 0
         grid = [[TILE_EMPTY for _ in range(w)] for _ in range(h)]
@@ -417,6 +417,15 @@ class LevelLoader:
         defeated_ids = defeated_ids or set()
         destroyed_ids = destroyed_ids or set()
 
+        # Phase 4 Network Rule: Assign numeric IDs to enemies for synchronization
+        # These are used to match Host enemies to Client enemies in the UDP sync.
+        next_enemy_id = 0
+        def get_next_id():
+            nonlocal next_enemy_id
+            id_val = next_enemy_id
+            next_enemy_id += 1
+            return id_val
+
         # If we have saved enemies, reconstruct them directly (The Override Rule)
         if saved_enemies:
             from engine.enemy import ENEMY_REGISTRY
@@ -427,16 +436,6 @@ class LevelLoader:
                     # Phase 4 Network Rule: Assign numeric ID for sync
                     enemy.network_id = get_next_id()
                     enemies.append(enemy)
-        
-        # Phase 4 Network Rule: Assign numeric IDs to enemies for synchronization
-        # These are used to match Host enemies to Client enemies in the UDP sync.
-        # We use a simple counter during parsing.
-        next_enemy_id = 0
-        def get_next_id():
-            nonlocal next_enemy_id
-            id_val = next_enemy_id
-            next_enemy_id += 1
-            return id_val
         
         # Check for Lotus Topography symbols
         has_lotus = any('M' in row or 'X' in row for row in prototype_array)

@@ -67,10 +67,10 @@ class Actor:
     def get_rect(self):
         return self.rect
 
-    def take_damage(self, amount):
+    def take_damage(self, amount, bypass_stagger=False):
         """Standard damage logic."""
         self.hp -= amount
-        if amount >= 10:
+        if not bypass_stagger and amount >= 10:
             self.stagger_timer = 0.2
 
     def is_staggered(self):

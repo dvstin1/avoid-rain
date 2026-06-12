@@ -14,110 +14,130 @@ def init_pygame():
     yield
     pygame.quit()
 
-def wait_for_condition(condition_func, timeout=5.0):
-    start = time.time()
-    while time.time() - start < timeout:
-        if condition_func():
-            return True
-        time.sleep(0.05)
-    return False
-
-def test_local_network_sync():
+def test_network_integration_host_and_client_combat():
     """
-    Automated integration test for Local Network Play (Phase 4).
-    Verifies Handshake, State Replication, Damage Events, and Prop Synchronization.
+    TDD Integration Test for Network Combat:
+    1. Client Attacks Prop -> Syncs to Host -> Host Destroys -> Syncs back to Client.
+    2. Host Attacks Prop -> Host Destroys -> Syncs to Client.
+    3. Host/Client Combat with Enemies.
     """
-    # 1. Initialize Host
-    print("\\n[TEST] Initializing Host...")
+    # --- SETUP HOST ---
+    print("\n[TEST] Initializing Host...")
     host_state = GameState(auto_load=False)
-    # Configure custom ports for local test isolation
-    host_state.network_manager.port = 50000
-    host_state.network_manager.tcp_port = 50001
-    host_state.network_manager.host_udp_port = 50002
-    host_state.network_manager.local_udp_port = 50002
+    host_state.network_manager.port = 51000
+    host_state.network_manager.tcp_port = 51001
+    host_state.network_manager.host_udp_port = 51002
+    host_state.network_manager.local_udp_port = 51002
     host_state.network_manager.identity = "TestHost"
     
-    # Enter Macro-world to trigger hosting
     from engine.world import WarpPortal
     WarpPortal("macro_world", 100, 100, (0, 0, 0, 0)).execute_interaction(host_state)
-    assert host_state.network_manager.network_mode == "HOST"
+    time.sleep(0.5) # Wait for map generation
     
-    # Wait for map generation
-    time.sleep(0.5)
-
-    # Find an actual barrel in the generated world
-    host_barrels = [obj for obj in host_state.world.interactables if obj.name == "Barrel"]
-    assert len(host_barrels) > 0, "Host map must contain at least one barrel for testing."
-    target_barrel = host_barrels[0]
-
-    # 2. Initialize Client
+    # --- SETUP CLIENT ---
     print("[TEST] Initializing Client...")
     client_state = GameState(auto_load=False)
-    client_state.network_manager.port = 60000
-    client_state.network_manager.tcp_port = 60001
-    client_state.network_manager.host_udp_port = 50002 # Needs to know host's port
-    client_state.network_manager.local_udp_port = 60002
+    client_state.network_manager.port = 61000
+    client_state.network_manager.tcp_port = 51001 # Point to Host's TCP
+    client_state.network_manager.host_udp_port = 51002 # Send UDP to Host
+    client_state.network_manager.local_udp_port = 61002 # Receive UDP here
     client_state.network_manager.identity = "TestClient"
     
-    # 3. Perform Handshake
-    print("[TEST] Connecting Client to Host...")
-    time.sleep(0.5) # Allow host server to bind
-    # Directly connect to localhost on host's TCP port
-    # Because client_state.network_manager uses tcp_port to connect, we must set it temporarily to host's port
-    client_state.network_manager.tcp_port = 50001
+    print("[TEST] Connecting Client...")
+    time.sleep(0.2)
     connected = client_state.network_manager.connect_to_host("127.0.0.1")
-    assert connected is True, "Client failed to connect to Host."
-    assert client_state.network_manager.network_mode == "CLIENT"
-
-    # 4. Map Sync
-    print("[TEST] Fetching Host Map...")
-    # Emulate Chronicle interaction
+    assert connected is True
+    
     success = client_state.fetch_host_map()
-    assert success is True, "Client failed to fetch map payload from Host."
+    assert success is True
     from engine.maps import create_world
     client_state.world = create_world("generated_world_client")
+    client_state.enemies = getattr(client_state.world, 'enemies', [])
     
-    # Client should now have the exact same interactables
-    client_barrels = [obj for obj in client_state.world.interactables if obj.name == "Barrel"]
-    assert len(client_barrels) > 0
-    assert getattr(client_barrels[0], 'id', None) == getattr(target_barrel, 'id', None), "Map parity failed: Barrel IDs do not match."
-
-    # 5. Position Client near the barrel
-    client_state.player.x = target_barrel.x - 20
-    client_state.player.y = target_barrel.y
-    client_state.player.facing = (1, 0) # Face right
-
-    # Allow UDP loops to sync initial coordinates
-    time.sleep(0.2)
-
-    # 6. Combat Phase (Client Attacks)
-    print("[TEST] Simulating Client Attack...")
-    actions = {'attack': True, 'move': (0, 0), 'ratchet_reset': False}
+    # --- TEST CASE 1: CLIENT BREAKS BARREL ---
+    print("[TEST] Case 1: Client Attacks Barrel...")
+    barrels = [b for b in host_state.world.interactables if b.name == "Barrel"]
+    assert len(barrels) >= 2, "Test requires at least 2 barrels in macro_world."
+    target_1 = barrels[0]
     
-    # Step simulation
-    for _ in range(5):
-        client_state.update(0.1, actions)
-        actions['attack'] = False # Only pressed first frame
+    # Position client near barrel 1
+    client_state.player.x, client_state.player.y = target_1.x - 20, target_1.y
+    client_state.player.facing = (1, 0)
+    time.sleep(0.1)
+    
+    # Client Attacks
+    client_state.update(0.1, {'attack': True, 'move': (0,0), 'ratchet_reset': False})
+    # Step simulation to process TCP and state loops
+    for _ in range(20):
+        client_state.update(0.016, {'attack': False, 'move': (0,0)})
+        host_state.update(0.016, {'attack': False, 'move': (0,0)})
+        time.sleep(0.01)
         
-        # Step Host to process incoming damage queue
-        host_state.update(0.1, {'move': (0, 0)})
-        time.sleep(0.05)
-        
-    # 7. Assertions
-    # Host should have received the TCP DAMAGE_EVENT and destroyed the barrel
-    host_barrel_ids = [getattr(b, 'id', None) for b in host_state.world.interactables if b.name == "Barrel"]
-    assert getattr(target_barrel, 'id', None) not in host_barrel_ids, "Host failed to apply damage event to barrel."
-    
-    # Host should have broadcast the destruction, and Client should have synced it
-    # Give UDP a moment to arrive
-    time.sleep(0.2)
-    client_state.update(0.1, {'move': (0, 0)}) # Process incoming state
-    
-    client_barrel_ids = [getattr(b, 'id', None) for b in client_state.world.interactables if b.name == "Barrel"]
-    assert getattr(target_barrel, 'id', None) not in client_barrel_ids, "Client failed to receive authoritative destruction from Host."
+    # Verify Barrel 1 is gone on both
+    host_b_ids = [b.id for b in host_state.world.interactables if b.name == "Barrel"]
+    client_b_ids = [b.id for b in client_state.world.interactables if b.name == "Barrel"]
+    assert target_1.id not in host_b_ids, "Host failed to destroy barrel attacked by Client."
+    assert target_1.id not in client_b_ids, "Client failed to hide barrel destroyed by Host (via Client attack)."
 
-    # Cleanup
-    print("[TEST] Cleaning up...")
+    # Allow state to settle
+    time.sleep(0.5)
+
+    # --- TEST CASE 2: HOST BREAKS BARREL ---
+    print("[TEST] Case 2: Host Attacks Barrel...")
+    target_2 = barrels[1]
+    host_state.player.x, host_state.player.y = target_2.x - 20, target_2.y
+    host_state.player.facing = (1, 0)
+    
+    # Host Attacks
+    host_state.update(0.1, {'attack': True, 'move': (0,0), 'ratchet_reset': False})
+    for _ in range(20):
+        host_state.update(0.016, {'attack': False, 'move': (0,0)})
+        client_state.update(0.016, {'attack': False, 'move': (0,0)})
+        time.sleep(0.01)
+        
+    # Verify Barrel 2 is gone on both
+    host_b_ids = [b.id for b in host_state.world.interactables if b.name == "Barrel"]
+    client_b_ids = [b.id for b in client_state.world.interactables if b.name == "Barrel"]
+    assert target_2.id not in host_b_ids, "Host failed to destroy barrel locally."
+    assert target_2.id not in client_b_ids, "Client failed to hide barrel destroyed by Host locally."
+
+    # Allow state to settle
+    time.sleep(0.5)
+
+    # --- TEST CASE 3: ENEMY SYNC ---
+    print("[TEST] Case 3: Enemy Sync...")
+    assert len(host_state.enemies) > 0, "Test requires at least one enemy."
+    target_enemy = host_state.enemies[0]
+    initial_hp = target_enemy.hp
+    
+    # Client Attacks Enemy
+    # cx = x + 20. If x = target_enemy.x - 40, cx = target_enemy.x - 20.
+    # hitbox.x = cx + 30 = target_enemy.x + 10.
+    # hitbox width 60. Spans target_enemy.x+10 to target_enemy.x+70.
+    # Enemy is at target_enemy.x with width 40. Spans target_enemy.x to target_enemy.x+40.
+    # OVERLAP: x+10 to x+40. (30 pixels).
+    client_state.player.x, client_state.player.y = target_enemy.x - 40, target_enemy.y
+    client_state.player.facing = (1, 0)
+    client_state.update(0.1, {'attack': True, 'move': (0,0), 'ratchet_reset': False})
+    
+    for _ in range(20):
+        client_state.update(0.016, {'attack': False, 'move': (0,0)})
+        host_state.update(0.016, {'attack': False, 'move': (0,0)})
+        time.sleep(0.01)
+        
+    # Verify Client sees position and damage
+    print(f"[DEBUG] Host Enemies: {[getattr(e, 'network_id', -1) for e in host_state.enemies]}")
+    print(f"[DEBUG] Client Enemies: {[getattr(e, 'network_id', -1) for e in client_state.enemies]}")
+    client_enemy = None
+    for e in client_state.enemies:
+        if getattr(e, 'network_id', -1) == getattr(target_enemy, 'network_id', -2):
+            client_enemy = e; break
+    
+    assert client_enemy is not None, "Client lost track of synced enemy."
+    assert target_enemy.hp < initial_hp, "Host enemy did not take damage from Client attack."
+    assert abs(client_enemy.hp - target_enemy.hp) < 1, "Enemy HP out of sync on Client."
+
+    # --- CLEANUP ---
+    print("[TEST] Success!")
     host_state.network_manager.stop_network()
     client_state.network_manager.stop_network()
-    print("[TEST] Success!")

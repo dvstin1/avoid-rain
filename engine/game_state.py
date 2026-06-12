@@ -200,11 +200,18 @@ class GameState:
 
     def _sync_props_from_host(self, destroyed_ids_list):
         incoming_ids = set(destroyed_ids_list)
-        new_destructions = incoming_ids - self.destroyed_prop_ids
-        if new_destructions:
-            self.destroyed_prop_ids.update(new_destructions)
-            for prop_id in new_destructions:
-                self.world.interactables = [obj for obj in self.world.interactables if getattr(obj, 'id', None) != prop_id]
+        # 1. Update our local set of destroyed IDs
+        self.destroyed_prop_ids.update(incoming_ids)
+        
+        # 2. Reconcile world interactables: remove anything that is in the destroyed set
+        for obj in self.world.interactables[:]:
+            prop_id = getattr(obj, 'id', None)
+            if prop_id and prop_id in self.destroyed_prop_ids:
+                try:
+                    self.world.interactables.remove(obj)
+                    # Trigger a small fade VFX if it was just found
+                    self.fading_entities.append({'obj': obj, 'time': 0.1})
+                except ValueError: pass
 
     def fetch_host_map(self):
         if not self.network_manager.is_connected: return False
@@ -281,7 +288,7 @@ class GameState:
 
         # 2. INTERACTION PHASE
         target = self.player.current_interactable
-        if attack_pressed and target and not self.active_dialogue and not self.active_choice:
+        if attack_pressed and target and getattr(target, 'is_interactive', False) and not self.active_dialogue and not self.active_choice:
             target.execute_interaction(self)
             attack_pressed = False # Consume input
 
@@ -396,7 +403,8 @@ class GameState:
             # Enemies
             for enemy in list(self.enemies):
                 try:
-                    if check_aabb_collision(hitbox, enemy.get_rect()):
+                    e_rect = enemy.get_rect()
+                    if check_aabb_collision(hitbox, e_rect):
                         if not enemy.is_staggered() or is_client:
                             # Rule: Clients bypass local stagger logic so they don't freeze enemies waiting for Host UDP sync
                             enemy.take_damage(damage, bypass_stagger=is_client)
@@ -450,8 +458,9 @@ class GameState:
                         roll_drop(tier, (enemy.x, enemy.y), self)
                     except Exception: pass
 
-        from engine.physics import resolve_enemy_player_collision
-        resolve_enemy_player_collision(self.player, self.enemies)
+        if not is_client:
+            from engine.physics import resolve_enemy_player_collision
+            resolve_enemy_player_collision(self.player, self.enemies)
 
 
     def _update_shared_world(self, dt):
