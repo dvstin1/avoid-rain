@@ -697,7 +697,7 @@ class GameState:
         self.input_ratchet_latched = False
         self.menu_nav_cooldown = 0.0
         from engine.weather import WeatherManager
-        self.weather_manager = WeatherManager(boss_coords_list=None)
+        self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
         self.loot = []
         self.damage_numbers = []
         self.active_dialogue = None
@@ -785,10 +785,14 @@ class GameState:
             if self.player.miniboss_cooldown_accumulator >= cooldown_limit: self.player.active_track_name = target_track
         else: self.player.active_track_name = target_track
 
-    def _handle_upgrade(self, stat_name, amount, cost_scale):
+    def _handle_upgrade(self, stat_name, amount):
+        from constants import EDIFICATION_BASE_COST, EDIFICATION_COST_SCALE
         current_val = self.player.stats.get(stat_name, 0)
         level = current_val // amount if amount > 0 else current_val
-        cost = (level + 1) * cost_scale
+        
+        # Correct Formula: Base + (Level * Scale)
+        cost = EDIFICATION_BASE_COST + (level * EDIFICATION_COST_SCALE)
+        
         pages = self.stats.data["lifetime_stats"].get("pages_collected", 0)
         if pages >= cost:
             self.stats.data["lifetime_stats"]["pages_collected"] -= cost
