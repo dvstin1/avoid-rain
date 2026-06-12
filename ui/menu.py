@@ -85,8 +85,8 @@ def draw_respite_menu(screen, font, state):
 
     if player.has_rested_this_session:
         draw_option(1, "Edify Understanding (Passive Defense)", edif, edif_cost, pages >= edif_cost)
-        draw_option(2, "Edify Prowess (+5 Attack)", prowess, prowess_cost, pages >= prowess_cost)
-        draw_option(3, "Edify Fortification (+10 Max HP)", fort, fort_cost, pages >= fort_cost)
+        draw_option(2, "Edify Prowess (+5 Attack)", prowess // 5, prowess_cost, pages >= prowess_cost)
+        draw_option(3, "Edify Fortification (+10 Max HP)", fort // 10, fort_cost, pages >= fort_cost)
     else:
         warn_box = font.render("  [ Must Rest to Unblock Level Up ]", True, constants.COLOR_SELECTION)
         screen.blit(warn_box, (x + 40, y + y_off))
