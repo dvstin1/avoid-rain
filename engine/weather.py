@@ -100,7 +100,8 @@ class WeatherManager:
             if self.grace_timer <= 0:
                 self.bleed_state = "SHRINKING"
                 self.timer = WEATHER_SHRINK_DURATION
-                self.target_radius = self.steps[self.current_step_idx] * TILE_SIZE
+                if self.current_step_idx < len(self.steps):
+                    self.target_radius = self.steps[self.current_step_idx] * TILE_SIZE
                 self.pending_milestone_text = "THE INK BEGINS TO RUN"
                 if audio_manager:
                     audio_manager.play_sfx("bleed_start.ogg")
@@ -112,10 +113,12 @@ class WeatherManager:
             if self.timer <= 0:
                 self.bleed_state = "SHRINKING"
                 self.timer = WEATHER_SHRINK_DURATION
-                self.target_radius = self.steps[self.current_step_idx] * TILE_SIZE
+                if self.current_step_idx < len(self.steps):
+                    self.target_radius = self.steps[self.current_step_idx] * TILE_SIZE
                 if audio_manager:
                     audio_manager.play_sfx("bleed_start.ogg")
-                print(f"[THE BLEED] The circle is closing. Target radius: {self.steps[self.current_step_idx]} units")
+                if self.current_step_idx < len(self.steps):
+                    print(f"[THE BLEED] The circle is closing. Target radius: {self.steps[self.current_step_idx]} units")
         
         elif self.bleed_state == "SHRINKING":
             if self.timer > 0:

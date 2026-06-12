@@ -216,8 +216,11 @@ class Player:
                 audio_manager.play_sfx("flask_use.ogg")
 
     def take_damage(self, amount: float, bypass_stagger: bool = False, audio_manager=None) -> None:
-        """Apply damage to the player; clamp at zero."""
-        print(f"[DEBUG] Player taking {amount} damage. Current HP: {self.hp}")
+        """Apply damage to the player; clamp at zero.
+
+        Includes conditional defensive parsing based on Edification level.
+        If bypass_stagger is True, the player's state is not changed.
+        """
         # 0. Damage Immunity (i-frames) during Stagger or Dash
         if self.state in (PlayerStateEnum.STAGGERED, PlayerStateEnum.DASHING):
             if not bypass_stagger: # Hazards like rain still tick

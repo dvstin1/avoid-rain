@@ -165,6 +165,7 @@ class Actor:
                 self.state = ActorState.WIND_UP
                 self.combat_timer = self.wind_up_duration
                 self.vx, self.vy = 0, 0 # Stop movement to wind up
+                self.has_hit_this_attack = False # Reset damage latch
 
                 # Auditory Trigger (Telegraph)
                 if hasattr(game_state, 'audio_manager') and game_state.audio_manager:

@@ -159,7 +159,8 @@ class GameState:
             state["enemies"] = [
                 {
                     "id": getattr(e, "network_id", -1),
-                    "x": round(e.x, 1), "y": round(e.y, 1), "hp": round(e.hp, 1)
+                    "x": round(e.x, 1), "y": round(e.y, 1), "hp": round(e.hp, 1),
+                    "state": e.state.value if hasattr(e, 'state') else 0
                 }
                 for e in self.enemies
             ]
@@ -245,6 +246,13 @@ class GameState:
                 enemy.x = float(e_data.get("x", enemy.x))
                 enemy.y = float(e_data.get("y", enemy.y))
                 enemy.hp = float(e_data.get("hp", enemy.hp))
+                
+                # Sync visual state for animations
+                if "state" in e_data:
+                    from engine.actor import ActorState
+                    try:
+                        enemy.state = ActorState(e_data["state"])
+                    except ValueError: pass
             else:
                 if enemy in self.enemies: self.enemies.remove(enemy)
 
@@ -306,7 +314,6 @@ class GameState:
         self.player.x = float(data.get("x", self.player.x))
         self.player.y = float(data.get("y", self.player.y))
         self.player.hp = float(data.get("hp", self.player.hp))
-        self.player.max_hp = float(data.get("max_hp", self.player.max_hp))
         self.player.flask_charges = int(data.get("flask_charges", self.player.flask_charges))
         self.player.active_weapon_idx = int(data.get("active_weapon_idx", self.player.active_weapon_idx))
         self.player.weapons = data.get("weapons", self.player.weapons)
@@ -393,7 +400,25 @@ class GameState:
 
     def _update_world_events(self, dt):
         """Host-only logic for boss spawns and environmental transitions."""
-        # Boss Spawn Rule: Only if circle is closed (CLAMPED) and not already spawned
+        from constants import TILE_SIZE, TILE_STRUCTURE, TILE_RESPITE
+        # 0. Weather Damage to Remote Players
+        if self.weather_manager.damage_enabled:
+            for identity, p_data in self.network_manager.remote_players.items():
+                # Estimate center
+                px, py = p_data["x"] + 20, p_data["y"] + 20
+                if not self.weather_manager.is_pos_safe(px, py):
+                    # Check for shelter
+                    tx, ty = int(px // TILE_SIZE), int(py // TILE_SIZE)
+                    is_sheltered = False
+                    if 0 <= ty < len(self.world.grid) and 0 <= tx < len(self.world.grid[0]):
+                        if self.world.grid[ty][tx] in (TILE_STRUCTURE, TILE_RESPITE):
+                            is_sheltered = True
+                    
+                    if not is_sheltered:
+                        # Apply authoritative damage
+                        p_data["hp"] = max(0.0, p_data["hp"] - (2.0 * dt))
+
+        # 1. Boss Spawn Rule: Only if circle is closed (CLAMPED) and not already spawned
         if self.weather_manager.is_boss_spawn_ready():
             boss_alive = any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
             if not boss_alive and self.weather_manager.bleed_state == "CLAMPED":
@@ -556,6 +581,14 @@ class GameState:
         if self.hit_stop_timer > 0:
             self.hit_stop_timer -= dt
             return
+        
+        # Check for death initiation
+        if self.player.hp <= 0 and self.death_timer <= 0:
+            self.death_timer = 2.0 # 2 seconds of death theme
+            self.player.vx = 0
+            self.player.vy = 0
+            print("[GAME] Scholar has been redacted.")
+
         if self.death_timer > 0:
             self.death_timer -= dt
             self._update_audio_track(dt)

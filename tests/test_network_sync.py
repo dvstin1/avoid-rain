@@ -165,6 +165,13 @@ def test_network_integration_host_and_client_combat():
     if client_enemy:
         assert target_enemy.hp < initial_hp, "Host enemy did not take damage from Client attack."
         assert abs(client_enemy.hp - target_enemy.hp) < 1, "Enemy HP out of sync on Client."
+        
+        # Test Case 4.1: Animation/State Sync (New)
+        # Force enemy into a visible state on Host
+        target_enemy.state = ActorState.WIND_UP
+        time.sleep(0.1)
+        client_state.update(0.1, {'attack': False, 'move': (0,0)})
+        assert client_enemy.state == ActorState.WIND_UP, "Enemy state (animations) failed to sync to Client."
     else:
         # Verify Host also removed it
         host_enemy_ids = [getattr(e, 'network_id', -1) for e in host_state.enemies]
@@ -205,7 +212,10 @@ def test_network_integration_host_and_client_combat():
     # Move everyone outside the safe zone (Players at 800,800. Safe zone center at 4000,4000)
     host_state.weather_manager.active_safe_radius = 5.0
     host_state.weather_manager.boss_coords_list = [{'x': 100, 'y': 100}]
+    host_state.weather_manager.bleed_state = "CLAMPED" # Bypass 60s grace period
+    
     client_state.weather_manager.boss_coords_list = [{'x': 100, 'y': 100}] # Sync manually for test
+    client_state.weather_manager.bleed_state = "CLAMPED"
     
     host_state.player.x, host_state.player.y = 800, 800
     client_state.player.x, client_state.player.y = 800, 800

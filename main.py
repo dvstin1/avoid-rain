@@ -310,12 +310,9 @@ def main():
 
     def shutdown_handler():
         try:
-            # Safely retrieve 'state' from the outer scope if available
-            target_state = globals().get('state') or locals().get('state')
-            if not target_state:
-                # Fallback to provisional_state if primary state wasn't assigned
-                target_state = locals().get('provisional_state')
-
+            # Use the 'state' and 'provisional_state' objects from the main() scope
+            target_state = state if 'state' in locals() else provisional_state
+            
             if target_state:
                 # 1. Stop Network (sends DISCONNECT signal)
                 if hasattr(target_state, 'network_manager'):
