@@ -131,6 +131,7 @@ class GameState:
         
         self.cached_client_states = {} # {identity: state_dict}
         self.full_state_sync_timer = 0.0
+        self.pending_remote_damage = [] # Thread-safe queue for TCP damage events
         
         # Start searching for hosts if in Sanctuary
         if getattr(self.world, 'name', '') == "sanctuary":
@@ -141,15 +142,15 @@ class GameState:
         if not self.player: return {"x": 0, "y": 0, "hp": 0}
         
         state = {
-            "x": self.player.x,
-            "y": self.player.y,
-            "hp": self.player.hp
+            "x": round(self.player.x, 1),
+            "y": round(self.player.y, 1),
+            "hp": round(self.player.hp, 1)
         }
         
         # Phase 4: Host Authority Sync
         if self.network_manager.network_mode == "HOST":
             state["weather"] = {
-                "radius": self.weather_manager.radius,
+                "radius": round(self.weather_manager.active_safe_radius, 1),
                 "state": self.weather_manager.bleed_state,
                 "boss_idx": self.weather_manager.current_boss_idx
             }
@@ -157,7 +158,7 @@ class GameState:
             state["enemies"] = [
                 {
                     "id": getattr(e, "network_id", -1),
-                    "x": e.x, "y": e.y, "hp": e.hp
+                    "x": round(e.x, 1), "y": round(e.y, 1), "hp": round(e.hp, 1)
                 }
                 for e in self.enemies
             ]
@@ -240,17 +241,8 @@ class GameState:
         if hasattr(self, 'camera'): self.camera.instant_center(self.player.get_center())
 
     def handle_remote_damage(self, target_type, target_id, amount):
-        """Phase 4: Applies damage events sent by remote clients."""
-        if target_type == "enemy":
-            for e in self.enemies:
-                if getattr(e, 'network_id', -1) == target_id:
-                    e.take_damage(amount)
-                    break
-        elif target_type == "prop":
-            for p in self.world.interactables:
-                if getattr(p, 'id', None) == target_id:
-                    p.take_damage(amount)
-                    break
+        """Phase 4: Queues damage events sent by remote clients."""
+        self.pending_remote_damage.append((target_type, target_id, amount))
 
     def get_full_player_state(self):
         if not self.player: return {}
@@ -362,12 +354,42 @@ class GameState:
     def update_combat(self, dt, attack_pressed, actions, audio_manager):
         """Phase 1: Handles player attacks and damage resolution."""
         if not self.player: return
+        
+        is_client = (self.network_manager.network_mode == "CLIENT")
+        
+        # 0. Process queued remote damage (Host Only)
+        if not is_client and self.pending_remote_damage:
+            for target_type, target_id, amount in self.pending_remote_damage:
+                if target_type == "enemy":
+                    for e in self.enemies:
+                        if getattr(e, 'network_id', -1) == target_id:
+                            e.take_damage(amount)
+                            self.damage_numbers.append({'val': amount, 'pos': (e.x + 10, e.y - 20), 'time': 1.0, 'color': (255, 255, 0)})
+                            break
+                elif target_type == "prop":
+                    for obj in list(self.world.interactables):
+                        if getattr(obj, 'id', None) == target_id:
+                            obj.take_damage(amount)
+                            if obj.is_dead():
+                                try:
+                                    if hasattr(obj, 'id') and obj.id:
+                                        self.destroyed_prop_ids.add(obj.id)
+                                    self.world.interactables.remove(obj)
+                                    self.fading_entities.append({'obj': obj, 'time': 0.16 if obj.name == "Barrel" else 0.1})
+                                    from engine.loot import roll_drop
+                                    roll_drop(4, (obj.x, obj.y), self)
+                                except Exception: pass
+                            break
+            self.pending_remote_damage.clear()
+
+        # 1. Local Attacks
         if self.player.state == PlayerStateEnum.ATTACKING:
             from engine.combat import get_sword_hitbox
             from engine.physics import check_aabb_collision
             hitbox = get_sword_hitbox(self.player.get_center(), self.player.facing)
             active_weapon = self.player.get_active_weapon()
             bonus_atk = getattr(self.player, 'stats', {}).get('attack_modifier', 0)
+            from constants import SWORD_DAMAGE, HIT_STOP_DURATION, SCREEN_SHAKE_DURATION, DAMAGE_NUMBER_LIFETIME, COLOR_SELECTION
             damage = active_weapon.get("damage", SWORD_DAMAGE) + bonus_atk
             hit_landed = False
 
@@ -375,10 +397,11 @@ class GameState:
             for enemy in list(self.enemies):
                 try:
                     if check_aabb_collision(hitbox, enemy.get_rect()):
-                        if not enemy.is_staggered():
-                            enemy.take_damage(damage)
+                        if not enemy.is_staggered() or is_client:
+                            # Rule: Clients bypass local stagger logic so they don't freeze enemies waiting for Host UDP sync
+                            enemy.take_damage(damage, bypass_stagger=is_client)
                             hit_landed = True
-                            if self.network_manager.network_mode == "CLIENT":
+                            if is_client:
                                 self.network_manager.send_damage_event("enemy", getattr(enemy, 'network_id', -1), damage)
                             self.hit_stop_timer = HIT_STOP_DURATION
                             self.shake_timer = SCREEN_SHAKE_DURATION
@@ -393,9 +416,11 @@ class GameState:
                 if getattr(obj, 'is_breakable', False) and check_aabb_collision(hitbox, obj.rect):
                     obj.take_damage(damage)
                     hit_landed = True
-                    if self.network_manager.network_mode == "CLIENT":
+                    if is_client:
                         self.network_manager.send_damage_event("prop", getattr(obj, 'id', None), damage)
-                    if obj.is_dead():
+                    
+                    # Only the Host officially kills props and spawns loot. Clients wait for the UDP state sync to hide them.
+                    if obj.is_dead() and not is_client:
                         try:
                             if hasattr(obj, 'id') and obj.id:
                                 self.destroyed_prop_ids.add(obj.id)
@@ -410,21 +435,24 @@ class GameState:
             if hit_landed and audio_manager:
                 audio_manager.play_sfx("attack_hit.ogg")
 
-        # Enemy Death/Cleanup
-        for enemy in list(self.enemies):
-            if enemy.is_dead():
-                try:
-                    if getattr(enemy, 'is_miniboss', False) and getattr(enemy, 'id', None):
-                        self.defeated_miniboss_ids.add(enemy.id)
-                    if hasattr(enemy, 'on_death'): enemy.on_death(self)
-                    self.enemies.remove(enemy)
-                    if audio_manager: audio_manager.play_sfx("enemy_death.ogg")
-                    from engine.loot import roll_drop
-                    tier = getattr(enemy, 'loot_tier', 3)
-                    roll_drop(tier, (enemy.x, enemy.y), self)
-                except Exception: pass
+        # 2. Enemy Lifecycle (Death/Cleanup) - Host Only handles death logic
+        if not is_client:
+            for enemy in list(self.enemies):
+                if enemy.is_dead():
+                    try:
+                        if getattr(enemy, 'is_miniboss', False) and getattr(enemy, 'id', None):
+                            self.defeated_miniboss_ids.add(enemy.id)
+                        if hasattr(enemy, 'on_death'): enemy.on_death(self)
+                        self.enemies.remove(enemy)
+                        if audio_manager: audio_manager.play_sfx("enemy_death.ogg")
+                        from engine.loot import roll_drop
+                        tier = getattr(enemy, 'loot_tier', 3)
+                        roll_drop(tier, (enemy.x, enemy.y), self)
+                    except Exception: pass
 
+        from engine.physics import resolve_enemy_player_collision
         resolve_enemy_player_collision(self.player, self.enemies)
+
 
     def _update_shared_world(self, dt):
         """Logic that runs on both Host and Client for visuals/vfx."""
