@@ -38,6 +38,7 @@ class NetworkManager:
         self.host_map_provider = None # TCP: returns full map dict
         self.host_client_state_restorer = None # TCP: accepts (identity, ip) returns state dict or None
         self.host_client_state_cacher = None # TCP: accepts (identity, ip, state_dict)
+        self.host_damage_handler = None # TCP: accepts (target_type, target_id, amount)
         self.client_restored_state_handler = None # TCP: accepts state_dict
         
         self.stop_event = threading.Event()
@@ -217,6 +218,24 @@ class NetworkManager:
         except Exception as e:
             print(f"[NETWORK] Full state update failed: {e}")
 
+    def send_damage_event(self, target_type, target_id, amount):
+        """Phase 4: Client sends damage events to the Host."""
+        if not self.is_connected or not self.server_address: return
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2.0)
+            sock.connect((self.server_address, self.tcp_port))
+            payload = {
+                "type": "DAMAGE_EVENT",
+                "identity": self.identity,
+                "target_type": target_type,
+                "target_id": target_id,
+                "amount": amount
+            }
+            sock.sendall(json.dumps(payload).encode('utf-8'))
+            sock.close()
+        except: pass
+
     # --- Thread Loops ---
 
     def _broadcast_loop(self):
@@ -303,6 +322,10 @@ class NetworkManager:
                 if self.host_client_state_cacher:
                     self.host_client_state_cacher(identity, addr[0], state_data)
 
+            elif m_type == "DAMAGE_EVENT":
+                if self.host_damage_handler:
+                    self.host_damage_handler(msg.get("target_type"), msg.get("target_id"), msg.get("amount"))
+
         except Exception as e:
             print(f"[NETWORK] TCP request error: {e}")
         finally: 
@@ -345,7 +368,7 @@ class NetworkManager:
         
         while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
             try:
-                data, addr = sock.recvfrom(4096)
+                data, addr = sock.recvfrom(65536)
                 if not data: continue
                 msg = json.loads(data.decode('utf-8'))
                 

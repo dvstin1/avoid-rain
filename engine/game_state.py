@@ -127,6 +127,7 @@ class GameState:
         self.network_manager.host_client_state_restorer = self.host_restorer_callback
         self.network_manager.host_client_state_cacher = self.host_cacher_callback
         self.network_manager.client_restored_state_handler = self.apply_restored_state
+        self.network_manager.host_damage_handler = self.handle_remote_damage
         
         self.cached_client_states = {} # {identity: state_dict}
         self.full_state_sync_timer = 0.0
@@ -238,6 +239,19 @@ class GameState:
         self.player.stats = data.get("stats", self.player.stats)
         if hasattr(self, 'camera'): self.camera.instant_center(self.player.get_center())
 
+    def handle_remote_damage(self, target_type, target_id, amount):
+        """Phase 4: Applies damage events sent by remote clients."""
+        if target_type == "enemy":
+            for e in self.enemies:
+                if getattr(e, 'network_id', -1) == target_id:
+                    e.take_damage(amount)
+                    break
+        elif target_type == "prop":
+            for p in self.world.interactables:
+                if getattr(p, 'id', None) == target_id:
+                    p.take_damage(amount)
+                    break
+
     def get_full_player_state(self):
         if not self.player: return {}
         return {
@@ -279,14 +293,15 @@ class GameState:
             target.execute_interaction(self)
             attack_pressed = False # Consume input
 
-        # 3. AI & COMBAT (Host Only)
+        # 3. AI & COMBAT
         if not is_client:
             for enemy in self.enemies: enemy.update(dt, self)
-            self.update_combat(dt, attack_pressed, actions, audio_manager)
             self.weather_manager.update(dt, self.player, self.world, audio_manager=audio_manager)
             
             # --- Phase 1 & 4: Host World Events ---
             self._update_world_events(dt)
+            
+        self.update_combat(dt, attack_pressed, actions, audio_manager)
 
         # 4. SHARED SYSTEMS (Visuals, Movement, UI)
         self._update_shared_world(dt)
@@ -363,6 +378,8 @@ class GameState:
                         if not enemy.is_staggered():
                             enemy.take_damage(damage)
                             hit_landed = True
+                            if self.network_manager.network_mode == "CLIENT":
+                                self.network_manager.send_damage_event("enemy", getattr(enemy, 'network_id', -1), damage)
                             self.hit_stop_timer = HIT_STOP_DURATION
                             self.shake_timer = SCREEN_SHAKE_DURATION
                             self.damage_numbers.append({
@@ -376,6 +393,8 @@ class GameState:
                 if getattr(obj, 'is_breakable', False) and check_aabb_collision(hitbox, obj.rect):
                     obj.take_damage(damage)
                     hit_landed = True
+                    if self.network_manager.network_mode == "CLIENT":
+                        self.network_manager.send_damage_event("prop", getattr(obj, 'id', None), damage)
                     if obj.is_dead():
                         try:
                             if hasattr(obj, 'id') and obj.id:
