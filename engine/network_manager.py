@@ -11,10 +11,15 @@ class NetworkManager:
     Phase 3: Map Synchronization and Client Persistence.
     """
     
-    def __init__(self, port=LAN_PORT, identity=DEFAULT_PLAYER_NAME):
+    def __init__(self, port=LAN_PORT, identity=DEFAULT_PLAYER_NAME, local_udp_port=None, host_tcp_port=None, host_udp_port=None):
         self.port = port
-        self.tcp_port = port + 1
-        self.udp_sync_port = port + 2
+        self.tcp_port = host_tcp_port if host_tcp_port is not None else port + 1
+        
+        # Determine the port to listen on for UDP state payloads
+        # If hosting, we listen on our explicit udp_sync_port. If client, we listen on local_udp_port (if provided)
+        self.host_udp_port = host_udp_port if host_udp_port is not None else port + 2
+        self.local_udp_port = local_udp_port if local_udp_port is not None else self.host_udp_port
+        
         self.identity = identity
         
         self.is_hosting = False
@@ -73,7 +78,7 @@ class NetworkManager:
         t_udp_send.start()
         self.threads.append(t_udp_send)
 
-        print(f"[NETWORK] HOSTING as '{self.identity}'. Discovery:{self.port}, TCP:{self.tcp_port}, UDP:{self.udp_sync_port}")
+        print(f"[NETWORK] HOSTING as '{self.identity}'. Discovery:{self.port}, TCP:{self.tcp_port}, UDP:{self.host_udp_port}")
 
     def stop_network(self):
         """Stops all networking threads and resets state."""
@@ -102,9 +107,9 @@ class NetworkManager:
             payload = json.dumps({"type": "DISCONNECT", "identity": self.identity}).encode('utf-8')
             if self.network_mode == "HOST":
                 for addr in list(self.connected_peers.keys()):
-                    sock.sendto(payload, (addr, self.udp_sync_port))
+                    sock.sendto(payload, (addr, self.host_udp_port))
             elif self.network_mode == "CLIENT" and self.server_address:
-                sock.sendto(payload, (self.server_address, self.udp_sync_port))
+                sock.sendto(payload, (self.server_address, self.host_udp_port))
             sock.close()
         except: pass
 
@@ -125,8 +130,8 @@ class NetworkManager:
             sock.settimeout(3.0)
             sock.connect((address, self.tcp_port))
             
-            # Send Handshake
-            handshake = {"type": "HANDSHAKE", "identity": self.identity}
+            # Send Handshake (include local_udp_port so Host knows where to send state)
+            handshake = {"type": "HANDSHAKE", "identity": self.identity, "udp_port": self.local_udp_port}
             sock.sendall(json.dumps(handshake).encode('utf-8'))
             
             # Receive Acknowledgment & Potential Restored State
@@ -312,7 +317,12 @@ class NetworkManager:
             
             if m_type == "HANDSHAKE":
                 print(f"[NETWORK] HANDSHAKE from {addr[0]} ({identity})")
-                self.connected_peers[addr[0]] = {"identity": identity, "last_seen": time.time()}
+                client_udp_port = msg.get("udp_port", self.host_udp_port)
+                self.connected_peers[addr[0]] = {
+                    "identity": identity, 
+                    "last_seen": time.time(),
+                    "udp_port": client_udp_port
+                }
                 
                 # Check for restored state from GameState
                 restored = None
@@ -361,10 +371,11 @@ class NetworkManager:
             try:
                 payload = json.dumps(payload_data).encode('utf-8')
                 if self.network_mode == "HOST":
-                    for addr in list(self.connected_peers.keys()):
-                        sock.sendto(payload, (addr, self.udp_sync_port))
+                    for addr, peer_info in list(self.connected_peers.items()):
+                        target_port = peer_info.get("udp_port", self.host_udp_port)
+                        sock.sendto(payload, (addr, target_port))
                 elif self.network_mode == "CLIENT" and self.server_address:
-                    sock.sendto(payload, (self.server_address, self.udp_sync_port))
+                    sock.sendto(payload, (self.server_address, self.host_udp_port))
             except Exception as e:
                 if not self.stop_event.is_set():
                     print(f"[NETWORK] UDP Send Error: {e} (Payload Size: {len(payload_data.get('enemies', []))} enemies)")
@@ -384,7 +395,7 @@ class NetworkManager:
         for _ in range(20):
             if self.stop_event.is_set(): return
             try:
-                sock.bind(('', self.udp_sync_port))
+                sock.bind(('', self.local_udp_port))
                 bound = True
                 break
             except Exception as e:

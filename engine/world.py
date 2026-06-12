@@ -373,8 +373,8 @@ class LevelLoader:
                 continue
 
         map_name = os.path.basename(file_path).replace(".json", "")
-        if map_name == "generated_world_client":
-            map_name = "generated_world"
+        if "generated_world_client" in map_name:
+            map_name = map_name.replace("generated_world_client", "generated_world")
 
         print(f"[DEBUG] Assembled grid: {len(grid)}x{len(grid[0])}, Entities: {len(entity_data)}")
 
