@@ -30,6 +30,7 @@ class WeatherManager:
         # 620 * 40 = 24800 pixels, covers the 17600px map
         self.active_safe_radius = 620.0 * TILE_SIZE 
         self.target_radius = self.active_safe_radius
+        self.damage_enabled = True
 
     def set_boss_coords_list(self, coords_list):
         """Update the list of potential boss centers."""
@@ -141,7 +142,7 @@ class WeatherManager:
         is_outside = dist_sq > self.active_safe_radius**2
         
         player.is_exposed = False
-        if is_outside:
+        if is_outside and self.damage_enabled:
             tx, ty = int(px // TILE_SIZE), int(py // TILE_SIZE)
             is_sheltered = False
             if 0 <= ty < len(world.grid) and 0 <= tx < len(world.grid[0]):

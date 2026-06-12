@@ -24,6 +24,9 @@ def test_network_integration_host_and_client_combat():
     # --- SETUP HOST ---
     print("\n[TEST] Initializing Host...")
     host_state = GameState(auto_load=False)
+    # Disable weather for testing stability
+    host_state.weather_manager.damage_enabled = False
+    
     host_state.network_manager.port = 51000
     host_state.network_manager.tcp_port = 51001
     host_state.network_manager.host_udp_port = 51002
@@ -104,13 +107,40 @@ def test_network_integration_host_and_client_combat():
     # Allow state to settle
     time.sleep(0.5)
 
-    # --- TEST CASE 3: ENEMY SYNC ---
-    print("[TEST] Case 3: Enemy Sync...")
+    # --- TEST CASE 3: VISIBILITY AND TARGETING ---
+    print("[TEST] Case 3: Visibility and Targeting Sync...")
+    
+    # 1. Visibility Check: Can Host see Client?
+    time.sleep(0.5) # Wait for UDP heartbeat
+    assert client_state.network_manager.identity in [p["identity"] for p in host_state.network_manager.remote_players.values()], \
+        f"Host failed to see Client '{client_state.network_manager.identity}' in remote_players."
+    
+    # 2. Visibility Check: Can Client see Host?
+    assert host_state.network_manager.identity in [p["identity"] for p in client_state.network_manager.remote_players.values()], \
+        f"Client failed to see Host '{host_state.network_manager.identity}' in remote_players."
+
+    # 3. Targeting Check: Enemy should target Client if Client is closer
     assert len(host_state.enemies) > 0, "Test requires at least one enemy."
     target_enemy = host_state.enemies[0]
     initial_hp = target_enemy.hp
     
-    # Client Attacks Enemy
+    # Move Host far away
+    host_state.player.x, host_state.player.y = 0, 0
+    # Move Client near enemy
+    client_state.player.x, client_state.player.y = target_enemy.x + 10, target_enemy.y
+    
+    # Allow a few frames for AI to update targeting
+    for _ in range(5):
+        host_state.update(0.1, {'attack': False, 'move': (0,0)})
+        client_state.update(0.1, {'attack': False, 'move': (0,0)})
+        time.sleep(0.05)
+        
+    from engine.actor import ActorState
+    assert target_enemy.state in (ActorState.CHASE, ActorState.WIND_UP, ActorState.STRIKE), \
+        f"Enemy should be engaging Client, but is in state {target_enemy.state}"
+    
+    # --- TEST CASE 4: COMBAT SYNC ---
+    print("[TEST] Case 4: Combat Sync...")
     # cx = x + 20. If x = target_enemy.x - 40, cx = target_enemy.x - 20.
     # hitbox.x = cx + 30 = target_enemy.x + 10.
     # hitbox width 60. Spans target_enemy.x+10 to target_enemy.x+70.
@@ -126,6 +156,7 @@ def test_network_integration_host_and_client_combat():
         time.sleep(0.01)
         
     # Verify Client sees position and damage
+    print(f"[DEBUG] Target Enemy Network ID: {getattr(target_enemy, 'network_id', -2)}")
     print(f"[DEBUG] Host Enemies: {[getattr(e, 'network_id', -1) for e in host_state.enemies]}")
     print(f"[DEBUG] Client Enemies: {[getattr(e, 'network_id', -1) for e in client_state.enemies]}")
     client_enemy = None

@@ -169,6 +169,16 @@ class GameState:
 
     def apply_remote_state(self, addr, data):
         """Phase 2 & 4: Handles incoming remote player state data."""
+        # Record remote player state for ghost rendering
+        identity = data.get("identity", "Unknown")
+        self.network_manager.remote_players[addr] = {
+            "identity": identity,
+            "x": float(data.get("x", 0)),
+            "y": float(data.get("y", 0)),
+            "hp": float(data.get("hp", 0)),
+            "time": data.get("time", 0)
+        }
+
         # Phase 4: Host-Authoritative Overrides (Client only)
         if self.network_manager.network_mode == "CLIENT":
             # Weather

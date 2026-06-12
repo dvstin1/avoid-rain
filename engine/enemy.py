@@ -99,10 +99,14 @@ class BatEnemy(Enemy):
         self._angle = random.uniform(0, 2 * math.pi)
 
     def _update_chase(self, dt, state):
-        """Move toward the player with a sine-wave oscillation."""
-        player_cx, player_cy = state.player.get_center()
+        """Move toward the active target with a sine-wave oscillation."""
+        if not self.active_target:
+            self.state = ActorState.IDLE
+            return
+
+        target_cx, target_cy = self.active_target
         cx, cy = self.get_center()
-        dx, dy = player_cx - cx, player_cy - cy
+        dx, dy = target_cx - cx, target_cy - cy
         dist = math.sqrt(dx*dx + dy*dy)
 
         if dist > 0.0:
@@ -218,17 +222,21 @@ class MinibossM3(Miniboss):
         self._tele_timer = 0.0
 
     def _update_chase(self, dt, state):
-        player_cx, player_cy = state.player.get_center()
+        if not self.active_target:
+            self.state = ActorState.IDLE
+            return
+
+        target_cx, target_cy = self.active_target
         cx, cy = self.x + self.width / 2, self.y + self.height / 2
-        dx, dy = player_cx - cx, player_cy - cy
+        dx, dy = target_cx - cx, target_cy - cy
         dist_sq = dx * dx + dy * dy
 
         if self._tele_timer > 0: self._tele_timer -= dt
 
         if dist_sq < (120**2) and self._tele_timer <= 0:
             angle = random.uniform(0, 2 * math.pi)
-            self.x = player_cx + math.cos(angle) * 300 - self.width / 2
-            self.y = player_cy + math.sin(angle) * 300 - self.height / 2
+            self.x = target_cx + math.cos(angle) * 300 - self.width / 2
+            self.y = target_cy + math.sin(angle) * 300 - self.height / 2
             self._tele_timer = self.teleport_cooldown
             self.vx, self.vy = 0, 0
             return
@@ -255,9 +263,13 @@ class FlutterEnemy(Enemy):
 
     def _update_chase(self, dt, state):
         """Fleeing behavior."""
-        player_cx, player_cy = state.player.get_center()
+        if not self.active_target:
+            self.state = ActorState.IDLE
+            return
+
+        target_cx, target_cy = self.active_target
         cx, cy = self.get_center()
-        dx, dy = cx - player_cx, cy - player_cy
+        dx, dy = cx - target_cx, cy - target_cy
         dist = math.sqrt(dx*dx + dy*dy)
         if dist > 0.0:
             self.vx, self.vy = (dx / dist) * self.speed, (dy / dist) * self.speed

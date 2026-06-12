@@ -55,6 +55,7 @@ class Actor:
         self.is_interactive = False  # NPCs override this
         self.is_solid = False
         self.loot_tier = 3
+        self.active_target = None # (x, y) target for chasing/attacking
 
     @property
     def rect(self):
@@ -136,15 +137,31 @@ class Actor:
         if self.state in (ActorState.WIND_UP, ActorState.STRIKE, ActorState.RECOVERY):
             return
 
-        # Enemies CHASE if player is detected
-        player_cx, player_cy = game_state.player.get_center()
-        cx, cy = self.get_center()
-        dist_sq = (player_cx - cx)**2 + (player_cy - cy)**2
+        # 1. Identify all potential targets (Local + Remote)
+        targets = []
+        if game_state.player:
+            targets.append(game_state.player.get_center())
         
-        if dist_sq <= self.detect_radius**2:
+        for p_data in getattr(game_state.network_manager, 'remote_players', {}).values():
+            tx = p_data["x"] + 20 # Center estimate
+            ty = p_data["y"] + 20
+            targets.append((tx, ty))
+
+        # 2. Find Nearest Target
+        cx, cy = self.get_center()
+        best_dist_sq = float('inf')
+        self.active_target = None
+
+        for tx, ty in targets:
+            d_sq = (tx - cx)**2 + (ty - cy)**2
+            if d_sq < best_dist_sq:
+                best_dist_sq = d_sq
+                self.active_target = (tx, ty)
+
+        # 3. State Transitions based on Target
+        if self.active_target and best_dist_sq <= self.detect_radius**2:
             # If close enough and off cooldown, trigger attack sequence
-            # Standard melee range: 2 tiles (80px)
-            if dist_sq <= (TILE_SIZE * 2)**2 and self.cooldown_timer <= 0:
+            if best_dist_sq <= (TILE_SIZE * 2)**2 and self.cooldown_timer <= 0:
                 self.state = ActorState.WIND_UP
                 self.combat_timer = self.wind_up_duration
                 self.vx, self.vy = 0, 0 # Stop movement to wind up
@@ -244,9 +261,13 @@ class Actor:
 
     def _update_chase(self, dt, game_state):
         """Aggressive pursuit logic."""
-        player_cx, player_cy = game_state.player.get_center()
+        if not self.active_target:
+            self.state = ActorState.IDLE
+            return
+            
+        target_cx, target_cy = self.active_target
         cx, cy = self.get_center()
-        dx, dy = player_cx - cx, player_cy - cy
+        dx, dy = target_cx - cx, target_cy - cy
         dist = math.sqrt(dx*dx + dy*dy)
         
         if dist > 0:
