@@ -353,8 +353,10 @@ class NetworkManager:
         while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
             payload_data = {"type": "HEARTBEAT", "identity": self.identity, "time": time.time()}
             if self.local_state_provider:
-                try: payload_data.update(self.local_state_provider())
-                except: pass
+                try: 
+                    payload_data.update(self.local_state_provider())
+                except Exception as e: 
+                    print(f"[NETWORK] local_state_provider Error: {e}")
             
             try:
                 payload = json.dumps(payload_data).encode('utf-8')
@@ -363,7 +365,9 @@ class NetworkManager:
                         sock.sendto(payload, (addr, self.udp_sync_port))
                 elif self.network_mode == "CLIENT" and self.server_address:
                     sock.sendto(payload, (self.server_address, self.udp_sync_port))
-            except: pass
+            except Exception as e:
+                if not self.stop_event.is_set():
+                    print(f"[NETWORK] UDP Send Error: {e} (Payload Size: {len(payload_data.get('enemies', []))} enemies)")
             
             time.sleep(1.0 / 20.0) # 20Hz Sync
         sock.close()
@@ -421,7 +425,9 @@ class NetworkManager:
             except socket.timeout:
                 self._check_timeouts()
                 continue
-            except: pass
+            except Exception as e:
+                if not self.stop_event.is_set():
+                    print(f"[NETWORK] UDP Recv Error: {e}")
         sock.close()
 
     def _check_timeouts(self):

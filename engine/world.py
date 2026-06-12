@@ -373,7 +373,9 @@ class LevelLoader:
                 continue
 
         map_name = os.path.basename(file_path).replace(".json", "")
-        
+        if map_name == "generated_world_client":
+            map_name = "generated_world"
+
         print(f"[DEBUG] Assembled grid: {len(grid)}x{len(grid[0])}, Entities: {len(entity_data)}")
 
         grid, interactables, warp_tiles, player_start, enemies = LevelLoader.parse_map(
