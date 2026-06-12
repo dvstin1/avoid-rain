@@ -270,11 +270,24 @@ class NetworkManager:
         """Accepts incoming TCP connections for handshakes and requests."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind(('', self.tcp_port))
-            sock.listen(5)
-            sock.settimeout(1.0)
-        except: return
+        
+        # Retry binding in case old thread is still shutting down
+        bound = False
+        for _ in range(20):
+            if self.stop_event.is_set(): return
+            try:
+                sock.bind(('', self.tcp_port))
+                bound = True
+                break
+            except Exception as e:
+                time.sleep(0.1)
+                
+        if not bound:
+            print("[NETWORK] TCP Server Bind Error: Address still in use.")
+            return
+
+        sock.listen(5)
+        sock.settimeout(1.0)
         
         while self.is_hosting and not self.stop_event.is_set():
             try:
@@ -282,7 +295,8 @@ class NetworkManager:
                 t = threading.Thread(target=self._handle_tcp_request, args=(conn, addr), daemon=True)
                 t.start()
             except socket.timeout: continue
-            except: pass
+            except Exception as e:
+                print(f"[NETWORK] TCP Accept Error: {e}")
         sock.close()
 
     def _handle_tcp_request(self, conn, addr):
@@ -361,10 +375,23 @@ class NetworkManager:
         try: sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         except AttributeError: pass
         
-        try:
-            sock.bind(('', self.udp_sync_port))
-            sock.settimeout(1.0)
-        except: return
+        # Retry binding in case old thread is still shutting down
+        bound = False
+        for _ in range(20):
+            if self.stop_event.is_set(): return
+            try:
+                sock.bind(('', self.udp_sync_port))
+                bound = True
+                break
+            except Exception as e:
+                time.sleep(0.1)
+                
+        if not bound:
+            print("[NETWORK] UDP State Receiver Bind Error: Address still in use.")
+            sock.close()
+            return
+            
+        sock.settimeout(1.0)
         
         while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
             try:
