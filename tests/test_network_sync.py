@@ -55,7 +55,7 @@ def test_network_integration_host_and_client_combat():
     assert success is True
     from engine.maps import create_world
     client_state.world = create_world("generated_world_client")
-    client_state.enemies = getattr(client_state.world, 'enemies', [])
+    client_state.enemies = client_state.world.enemies
     
     # --- TEST CASE 1: CLIENT BREAKS BARREL ---
     print("[TEST] Case 1: Client Attacks Barrel...")
@@ -141,34 +141,97 @@ def test_network_integration_host_and_client_combat():
     
     # --- TEST CASE 4: COMBAT SYNC ---
     print("[TEST] Case 4: Combat Sync...")
-    # cx = x + 20. If x = target_enemy.x - 40, cx = target_enemy.x - 20.
-    # hitbox.x = cx + 30 = target_enemy.x + 10.
-    # hitbox width 60. Spans target_enemy.x+10 to target_enemy.x+70.
-    # Enemy is at target_enemy.x with width 40. Spans target_enemy.x to target_enemy.x+40.
-    # OVERLAP: x+10 to x+40. (30 pixels).
+    # Refresh target enemy to ensure it's still alive and tracked
+    host_state.enemies = [e for e in host_state.enemies if not e.is_dead()]
+    assert len(host_state.enemies) > 0
+    target_enemy = host_state.enemies[0]
+    initial_hp = target_enemy.hp
+    
+    # 1. Client Damage to Enemy
     client_state.player.x, client_state.player.y = target_enemy.x - 40, target_enemy.y
     client_state.player.facing = (1, 0)
     client_state.update(0.1, {'attack': True, 'move': (0,0), 'ratchet_reset': False})
     
-    for _ in range(20):
+    for _ in range(30):
         client_state.update(0.016, {'attack': False, 'move': (0,0)})
         host_state.update(0.016, {'attack': False, 'move': (0,0)})
         time.sleep(0.01)
         
-    # Verify Client sees position and damage
-    print(f"[DEBUG] Target Enemy Network ID: {getattr(target_enemy, 'network_id', -2)}")
-    print(f"[DEBUG] Host Enemies: {[getattr(e, 'network_id', -1) for e in host_state.enemies]}")
-    print(f"[DEBUG] Client Enemies: {[getattr(e, 'network_id', -1) for e in client_state.enemies]}")
-    client_enemy = None
-    for e in client_state.enemies:
-        if getattr(e, 'network_id', -1) == getattr(target_enemy, 'network_id', -2):
-            client_enemy = e; break
+    # Verify Sync
+    client_enemy = next((e for e in client_state.enemies if getattr(e, 'network_id', -1) == getattr(target_enemy, 'network_id', -2)), None)
     
-    assert client_enemy is not None, "Client lost track of synced enemy."
-    assert target_enemy.hp < initial_hp, "Host enemy did not take damage from Client attack."
-    assert abs(client_enemy.hp - target_enemy.hp) < 1, "Enemy HP out of sync on Client."
+    # Rule: If enemy is GONE, it means it died and cleanup worked perfectly.
+    # If it is STILL THERE, it must have taken damage.
+    if client_enemy:
+        assert target_enemy.hp < initial_hp, "Host enemy did not take damage from Client attack."
+        assert abs(client_enemy.hp - target_enemy.hp) < 1, "Enemy HP out of sync on Client."
+    else:
+        # Verify Host also removed it
+        host_enemy_ids = [getattr(e, 'network_id', -1) for e in host_state.enemies]
+        assert getattr(target_enemy, 'network_id', -2) not in host_enemy_ids, \
+            "Client lost track of enemy while it was still alive on Host."
+
+    # 2. Enemy Damage to Client (New)
+    print("[TEST] Case 4.2: Enemy Attack Client...")
+    initial_client_hp = client_state.player.hp
+    # Put client directly on top of a NEW enemy to guarantee contact
+    host_state.enemies = [e for e in host_state.enemies if not e.is_dead()]
+    assert len(host_state.enemies) > 0
+    test_enemy = host_state.enemies[0]
+    
+    client_state.player.x, client_state.player.y = test_enemy.x, test_enemy.y
+    
+    # Force enemy into STRIKE state on Host
+    test_enemy.state = ActorState.STRIKE
+    test_enemy.combat_timer = 1.0
+    test_enemy.has_hit_this_attack = False
+    
+    # Update Host and Client
+    for _ in range(15):
+        host_state.update(0.1, {'attack': False, 'move': (0,0)})
+        client_state.update(0.1, {'attack': False, 'move': (0,0)})
+        time.sleep(0.05)
+        
+    # Verify Host recorded the damage and broadcast it back
+    assert client_state.player.hp < initial_client_hp, \
+        f"Client failed to receive authoritative damage from enemy attack. HP: {client_state.player.hp}"
+
+    # --- TEST CASE 5: WEATHER SYNC ---
+    print("[TEST] Case 5: Weather Sync and Damage...")
+    # Enable weather damage
+    host_state.weather_manager.damage_enabled = True
+    client_state.weather_manager.damage_enabled = True
+    
+    # Move everyone outside the safe zone (Players at 800,800. Safe zone center at 4000,4000)
+    host_state.weather_manager.active_safe_radius = 5.0
+    host_state.weather_manager.boss_coords_list = [{'x': 100, 'y': 100}]
+    client_state.weather_manager.boss_coords_list = [{'x': 100, 'y': 100}] # Sync manually for test
+    
+    host_state.player.x, host_state.player.y = 800, 800
+    client_state.player.x, client_state.player.y = 800, 800
+    
+    # Force tiles to be empty to ensure exposure
+    from constants import TILE_EMPTY
+    host_state.world.grid[20][20] = TILE_EMPTY
+    client_state.world.grid[20][20] = TILE_EMPTY
+    
+    initial_host_hp = host_state.player.hp
+    initial_client_hp = client_state.player.hp
+    
+    # Step simulation
+    for _ in range(10):
+        # Force a large delta time to ensure measurable damage
+        host_state.update(1.0, {'attack': False, 'move': (0,0)})
+        client_state.update(1.0, {'attack': False, 'move': (0,0)})
+        time.sleep(0.05)
+        
+    assert host_state.player.hp < initial_host_hp, f"Host failed to take rain damage. HP: {host_state.player.hp}"
+    assert client_state.player.hp < initial_client_hp, f"Client failed to take rain damage locally. HP: {client_state.player.hp}"
+    assert host_state.player.is_exposed is True, "Host should be marked as exposed."
+    assert client_state.player.is_exposed is True, "Client should be marked as exposed."
 
     # --- CLEANUP ---
-    print("[TEST] Success!")
+    print("[TEST] Cleaning up...")
     host_state.network_manager.stop_network()
     client_state.network_manager.stop_network()
+    print("[TEST] Success!")

@@ -17,22 +17,38 @@ class Enemy(Actor):
         self.is_parryable = False
 
     def attempt_damage_player(self, state):
-        """Apply damage on contact during STRIKE frames, handling parries."""
-        if check_aabb_collision(
-            self.get_rect(),
-            (state.player.x, state.player.y, state.player.width, state.player.height)
-        ):
-            # 1. Parry Check
-            if self.is_parryable and state.player.is_parry_active():
-                self._handle_parry(state)
-                return True # Latch hit so damage doesn't apply
+        """Apply damage on contact during STRIKE frames, handling parries for all players."""
+        # 1. Identify all potential victims (Local + Remote)
+        potential_victims = []
+        if state.player:
+            potential_victims.append(("local", None, state.player))
+        
+        remote_data = getattr(state.network_manager, 'remote_players', {})
+        for addr, p_data in remote_data.items():
+            victim_rect = (p_data["x"], p_data["y"], 40, 40) # Standard Player size
+            potential_victims.append(("remote", addr, victim_rect))
 
-            # 2. Standard Damage
-            try:
-                state.player.take_damage(self.damage, audio_manager=getattr(state, 'audio_manager', None))
-                return True
-            except Exception:
-                pass
+        for v_type, v_id, v_obj in potential_victims:
+            v_rect = v_obj if v_type == "remote" else v_obj.rect
+            
+            if check_aabb_collision(self.get_rect(), v_rect):
+                if v_type == "local":
+                    # print(f"[DEBUG] Enemy {getattr(self, 'network_id', -1)} hit LOCAL player")
+                    # Local Player Parry Check
+                    if self.is_parryable and v_obj.is_parry_active():
+                        self._handle_parry(state)
+                        return True
+                    
+                    # Local Damage
+                    try:
+                        v_obj.take_damage(self.damage, audio_manager=getattr(state, 'audio_manager', None))
+                        return True
+                    except Exception: pass
+                else:
+                    # Remote Player Damage (Host authoritative view)
+                    if v_id in state.network_manager.remote_players:
+                        state.network_manager.remote_players[v_id]["hp"] -= self.damage
+                        return True
         return False
 
     def _handle_parry(self, state):

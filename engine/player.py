@@ -198,6 +198,11 @@ class Player:
         return (self.x + self.width / 2, self.y + self.height / 2)
 
     @property
+    def rect(self):
+        """Standard rect tuple (x, y, w, h) for collision logic."""
+        return (self.x, self.y, self.width, self.height)
+
+    @property
     def max_hp(self):
         """Dynamic max HP including modifiers."""
         return PLAYER_MAX_HP + self.stats.get("max_hp_modifier", 0)
@@ -211,11 +216,8 @@ class Player:
                 audio_manager.play_sfx("flask_use.ogg")
 
     def take_damage(self, amount: float, bypass_stagger: bool = False, audio_manager=None) -> None:
-        """Apply damage to the player; clamp at zero.
-
-        Includes conditional defensive parsing based on Edification level.
-        If bypass_stagger is True, the player's state is not changed.
-        """
+        """Apply damage to the player; clamp at zero."""
+        print(f"[DEBUG] Player taking {amount} damage. Current HP: {self.hp}")
         # 0. Damage Immunity (i-frames) during Stagger or Dash
         if self.state in (PlayerStateEnum.STAGGERED, PlayerStateEnum.DASHING):
             if not bypass_stagger: # Hazards like rain still tick

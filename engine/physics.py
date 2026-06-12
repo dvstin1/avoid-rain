@@ -46,17 +46,18 @@ def resolve_wall_collision(player_rect, wall_rects):
 
     return px, py
 
-def resolve_enemy_player_collision(player, enemies):
+def resolve_enemy_player_collision(player, enemies, allow_push_enemies=True):
     """
     Implement a soft-body repulsion loop to prevent enemies from clipping directly inside the player.
+    If allow_push_enemies is False (Clients), the player is pushed but the enemy is not.
     """
     player_rect = (player.x, player.y, player.width, player.height)
     
     for enemy in enemies:
         enemy_rect = enemy.get_rect()
         if check_aabb_collision(player_rect, enemy_rect):
-            dx = (enemy.x + enemy.width / 2) - (player.x + player.width / 2)
-            dy = (enemy.y + enemy.height / 2) - (player.y + player.height / 2)
+            dx = (player.x + player.width / 2) - (enemy.x + enemy.width / 2)
+            dy = (player.y + player.height / 2) - (enemy.y + enemy.height / 2)
             
             if dx == 0 and dy == 0:
                 dx = random.uniform(-0.1, 0.1)
@@ -71,6 +72,13 @@ def resolve_enemy_player_collision(player, enemies):
                 (player.x, player.y, player.width, player.height),
                 (enemy.x, enemy.y, enemy.width, enemy.height)
             ) and iterations < 20:
-                enemy.x += push_x
-                enemy.y += push_y
+                # Always push player
+                player.x += push_x
+                player.y += push_y
+                
+                # Push enemy only if authoritative
+                if allow_push_enemies:
+                    enemy.x -= push_x
+                    enemy.y -= push_y
+                
                 iterations += 1

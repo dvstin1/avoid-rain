@@ -5,6 +5,7 @@ from typing import Optional
 import queue
 import threading
 import random
+import time
 import pygame
 
 from constants import (
@@ -165,34 +166,73 @@ class GameState:
             
             state["destroyed_props"] = list(self.destroyed_prop_ids)
             
+            # Broadcast the Host's view of all remote players (authoritative HP)
+            state["session_players"] = [
+                {"identity": p["identity"], "hp": p["hp"], "x": p["x"], "y": p["y"]}
+                for p in self.network_manager.remote_players.values()
+            ]
+            
         return state
 
     def apply_remote_state(self, addr, data):
         """Phase 2 & 4: Handles incoming remote player state data."""
         # Record remote player state for ghost rendering
         identity = data.get("identity", "Unknown")
-        self.network_manager.remote_players[addr] = {
-            "identity": identity,
-            "x": float(data.get("x", 0)),
-            "y": float(data.get("y", 0)),
-            "hp": float(data.get("hp", 0)),
-            "time": data.get("time", 0)
-        }
+        if identity == self.network_manager.identity:
+            # This is our own data bouncing back
+            pass
+        else:
+            # Rule: Host is authoritative for HP. 
+            # If we are the Host, we only update remote player coordinates, not their HP.
+            if self.network_manager.network_mode == "HOST":
+                current = self.network_manager.remote_players.get(identity, {"hp": float(data.get("hp", 0))})
+                self.network_manager.remote_players[identity] = {
+                    "identity": identity,
+                    "x": float(data.get("x", 0)),
+                    "y": float(data.get("y", 0)),
+                    "hp": current["hp"], # Authoritative Host-side HP
+                    "time": time.time()
+                }
+            else:
+                self.network_manager.remote_players[identity] = {
+                    "identity": identity,
+                    "x": float(data.get("x", 0)),
+                    "y": float(data.get("y", 0)),
+                    "hp": float(data.get("hp", 0)),
+                    "time": time.time()
+                }
 
         # Phase 4: Host-Authoritative Overrides (Client only)
         if self.network_manager.network_mode == "CLIENT":
-            # Weather
+            # 1. Weather
             w_data = data.get("weather")
             if w_data:
                 self.weather_manager.active_safe_radius = float(w_data.get("radius", self.weather_manager.active_safe_radius))
                 self.weather_manager.bleed_state = w_data.get("state", self.weather_manager.bleed_state)
                 self.weather_manager.current_boss_idx = int(w_data.get("boss_idx", self.weather_manager.current_boss_idx))
             
-            # Enemies
+            # 2. Session Players (Authoritative HP from Host)
+            session_players = data.get("session_players", [])
+            for p_info in session_players:
+                p_identity = p_info.get("identity")
+                # Update our own health if the host sent it
+                if p_identity == self.network_manager.identity:
+                    self.player.hp = float(p_info.get("hp", self.player.hp))
+                else:
+                    # Update other scholars for ghost rendering
+                    self.network_manager.remote_players[p_identity] = {
+                        "identity": p_identity,
+                        "x": float(p_info.get("x", 0)),
+                        "y": float(p_info.get("y", 0)),
+                        "hp": float(p_info.get("hp", 0)),
+                        "time": time.time()
+                    }
+            
+            # 3. Enemies
             e_data = data.get("enemies")
             if e_data: self._sync_enemies_from_host(e_data)
             
-            # Props
+            # 4. Props
             p_data = data.get("destroyed_props")
             if p_data: self._sync_props_from_host(p_data)
 
@@ -231,6 +271,22 @@ class GameState:
             from constants import get_generated_world_path
             path = get_generated_world_path().replace(".json", "_client.json")
             with open(path, 'w', encoding='utf-8') as f: json.dump(map_json, f)
+            print(f"[NETWORK] Received map payload ({len(json.dumps(map_json)) // 1024} KB).")
+            
+            # Immediately load to set state.enemies etc
+            from engine.world import World, LevelLoader
+            # Rule: We bypass create_world("generated_world_client") to avoid recursive generative triggers in some contexts
+            self.world = World("generated_world_client")
+            grid, interactables, warp_tiles, player_start, enemies, boss_coords, module_sockets = LevelLoader.load_json_map(path)
+            self.world.grid = grid
+            self.world.interactables = interactables
+            self.world.warp_tiles = warp_tiles
+            self.world.player_start = player_start
+            self.world.enemies = enemies
+            self.world.boss_coords_list = boss_coords
+            self.world.module_sockets = module_sockets
+            
+            self.enemies = self.world.enemies
             return True
         return False
 
@@ -305,11 +361,11 @@ class GameState:
         # 3. AI & COMBAT
         if not is_client:
             for enemy in self.enemies: enemy.update(dt, self)
-            self.weather_manager.update(dt, self.player, self.world, audio_manager=audio_manager)
             
             # --- Phase 1 & 4: Host World Events ---
             self._update_world_events(dt)
             
+        self.weather_manager.update(dt, self.player, self.world, audio_manager=audio_manager)
         self.update_combat(dt, attack_pressed, actions, audio_manager)
 
         # 4. SHARED SYSTEMS (Visuals, Movement, UI)
@@ -468,9 +524,10 @@ class GameState:
                         roll_drop(tier, (enemy.x, enemy.y), self)
                     except Exception: pass
 
-        if not is_client:
-            from engine.physics import resolve_enemy_player_collision
-            resolve_enemy_player_collision(self.player, self.enemies)
+        from engine.physics import resolve_enemy_player_collision
+        # Rule: Everyone resolves collision locally to prevent clipping.
+        # But if we are a client, we don't push the enemies (we trust Host position).
+        resolve_enemy_player_collision(self.player, self.enemies, allow_push_enemies=(not is_client))
 
 
     def _update_shared_world(self, dt):
@@ -883,7 +940,13 @@ class GameState:
         from engine.maps import create_world
         if self.stats: self.stats.data["last_run_result"] = "DEFEAT"; self.stats.data["active_session_in_progress"] = False; self.stats.data["run_state"] = None
         self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
+        
+        # Reset local player fully
         self.player.x, self.player.y = float(self.world.player_start[0]), float(self.world.player_start[1])
+        self.player.hp = self.player.max_hp
+        self.player.state = PlayerStateEnum.IDLE
+        self.death_timer = 0.0
+        
         if hasattr(self, 'camera'): self.camera.instant_center(self.player.get_center())
         self.on_enter_sanctuary()
         self.enemies, self.loot = [], []

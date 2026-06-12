@@ -422,16 +422,28 @@ class NetworkManager:
                     elif self.network_mode == "CLIENT" and addr[0] == self.server_address:
                         self.is_connected = False
                         if self.on_disconnect_callback: self.on_disconnect_callback()
-                        self.stop_network()
+                    
+                    if identity in self.remote_players: del self.remote_players[identity]
                     continue
 
-                if addr[0] in self.connected_peers:
-                    self.connected_peers[addr[0]]["last_seen"] = time.time()
-                elif addr[0] == self.server_address:
-                    self.server_last_seen = time.time()
+                identity = msg.get("identity", "Unknown")
+
+                # 1. Identity Check: Never process our own packets
+                if identity == self.identity:
+                    continue
+
+                # 2. Update peer activity
+                if self.network_mode == "HOST":
+                    if addr[0] in self.connected_peers:
+                        self.connected_peers[addr[0]]["last_seen"] = time.time()
+                elif self.network_mode == "CLIENT":
+                    if addr[0] == self.server_address:
+                        self.server_last_seen = time.time()
                 
+                # 3. Handle state update
                 if self.remote_state_handler:
                     self.remote_state_handler(addr[0], msg)
+
                     
             except socket.timeout:
                 self._check_timeouts()
@@ -445,15 +457,24 @@ class NetworkManager:
         now = time.time()
         timeout = 5.0
         if self.network_mode == "HOST":
-            to_remove = [addr for addr, info in self.connected_peers.items() if now - info["last_seen"] > timeout]
+            to_remove = []
+            for addr, info in self.connected_peers.items():
+                if now - info["last_seen"] > timeout:
+                    to_remove.append(addr)
+            
             for addr in to_remove:
-                print(f"[NETWORK] Peer {addr} timed out.")
+                identity = self.connected_peers[addr].get("identity", "Unknown")
+                print(f"[NETWORK] Peer {addr} ({identity}) timed out.")
                 if addr in self.connected_peers: del self.connected_peers[addr]
+                if identity in self.remote_players: del self.remote_players[identity]
+        
         elif self.network_mode == "CLIENT" and self.server_address:
             if now - self.server_last_seen > timeout:
                 print(f"[NETWORK] Host {self.server_address} timed out.")
                 if self.is_connected:
-                    self.is_connected = False 
+                    self.is_connected = False
+                    # Clear all ghosts on timeout
+                    self.remote_players.clear()
                     if self.on_disconnect_callback: self.on_disconnect_callback()
                     self.stop_network()
 
