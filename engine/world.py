@@ -308,10 +308,8 @@ class Respite(GameObject):
         """Finalize the marked upgrade."""
         success = False
         if marked_idx == 1:
-            success = game_state._handle_upgrade("edification", 1)
-        elif marked_idx == 2:
             success = game_state._handle_upgrade("attack_modifier", 5)
-        elif marked_idx == 3:
+        elif marked_idx == 2:
             success = game_state._handle_upgrade("max_hp_modifier", 10)
 
         if success and audio_manager:

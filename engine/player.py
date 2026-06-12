@@ -228,8 +228,13 @@ class Player:
             if audio_manager:
                 audio_manager.play_sfx("player_block.ogg")
 
-        # 2. Apply passive Edification parsing
-        edif = self.stats.get("edification", 0)
+        # 2. Apply passive Edification parsing (Global Level)
+        prowess = self.stats.get("attack_modifier", 0)
+        fort = self.stats.get("max_hp_modifier", 0)
+        prowess_lvl = 1 + (prowess // 5)
+        fort_lvl = 1 + (fort // 10)
+        edif = prowess_lvl + fort_lvl - 1
+        
         hp_ratio = self.hp / self.max_hp if self.max_hp > 0 else 0
 
         # Rule 1: Pristine Concentration (> 95% HP)

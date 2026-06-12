@@ -17,14 +17,15 @@ def draw_respite_menu(screen, font, state):
     pygame.draw.rect(screen, constants.COLOR_WHITE, panel, 2)
     
     # 1. Header
-    edif = player.stats.get("edification", 1)
     prowess = player.stats.get("attack_modifier", 0)
     fort = player.stats.get("max_hp_modifier", 0)
     
     # Calculate 1-based Levels
-    edif_lvl = edif
     prowess_lvl = 1 + (prowess // 5)
     fort_lvl = 1 + (fort // 10)
+    
+    # Understanding is the Global Level (Sum of upgrades)
+    edif_lvl = prowess_lvl + fort_lvl - 1
 
     pages = 0
     if state.stats:
@@ -71,7 +72,6 @@ def draw_respite_menu(screen, font, state):
         y_off += spacing
 
     # Calculate costs (Base + ((Level - 1) * Scale))
-    edif_cost = constants.EDIFICATION_BASE_COST + ((edif_lvl - 1) * constants.EDIFICATION_COST_SCALE)
     prowess_cost = constants.EDIFICATION_BASE_COST + ((prowess_lvl - 1) * constants.EDIFICATION_COST_SCALE)
     fort_cost = constants.EDIFICATION_BASE_COST + ((fort_lvl - 1) * constants.EDIFICATION_COST_SCALE)
 
@@ -89,9 +89,8 @@ def draw_respite_menu(screen, font, state):
     y_off += spacing * 1.5
 
     if player.has_rested_this_session:
-        draw_option(1, "Edify Understanding (Passive Defense)", edif_lvl, edif_cost, pages >= edif_cost)
-        draw_option(2, "Edify Prowess (+5 Attack)", prowess_lvl, prowess_cost, pages >= prowess_cost)
-        draw_option(3, "Edify Fortification (+10 Max HP)", fort_lvl, fort_cost, pages >= fort_cost)
+        draw_option(1, "Level Up Prowess (+5 Attack)", prowess_lvl, prowess_cost, pages >= prowess_cost)
+        draw_option(2, "Level Up Fortification (+10 Max HP)", fort_lvl, fort_cost, pages >= fort_cost)
     else:
         warn_box = font.render("  [ Must Rest to Unblock Level Up ]", True, constants.COLOR_SELECTION)
         screen.blit(warn_box, (x + 40, y + y_off))
