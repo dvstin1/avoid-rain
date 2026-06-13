@@ -169,12 +169,12 @@ def test_network_integration_host_and_client_combat():
         assert target_enemy.hp < initial_hp, "Host enemy did not take damage from Client attack."
         assert abs(client_enemy.hp - target_enemy.hp) < 1, "Enemy HP out of sync on Client."
         
-        # Test Case 4.1: Animation/State Sync (New)
+        # Test Case 4.1: Animation/State Sync
         # Force enemy into a visible state on Host
         target_enemy.state = ActorState.WIND_UP
         time.sleep(0.1)
         client_state.update(0.1, {'attack': False, 'move': (0,0)})
-        assert client_enemy.state == ActorState.WIND_UP, "Enemy state (animations) failed to sync to Client."
+        assert client_enemy.state == ActorState.WIND_UP, f"Enemy state failed to sync. Host:{target_enemy.state} Client:{client_enemy.state}"
     else:
         # Verify Host also removed it
         host_enemy_ids = [getattr(e, 'network_id', -1) for e in host_state.enemies]
@@ -183,7 +183,7 @@ def test_network_integration_host_and_client_combat():
 
     # 2. Enemy Damage to Client (New)
     print("[TEST] Case 4.2: Enemy Attack Client...")
-    initial_client_hp = client_state.player.hp
+    
     # Put client directly on top of a NEW enemy to guarantee contact
     host_state.enemies = [e for e in host_state.enemies if not e.is_dead()]
     assert len(host_state.enemies) > 0
@@ -191,13 +191,21 @@ def test_network_integration_host_and_client_combat():
     
     client_state.player.x, client_state.player.y = test_enemy.x, test_enemy.y
     
+    # Allow multiple heartbeats to sync Client position to Host
+    for _ in range(10):
+        client_state.update(0.1, {'attack': False, 'move': (0,0)})
+        host_state.update(0.1, {'attack': False, 'move': (0,0)})
+        time.sleep(0.05)
+
+    initial_client_hp = client_state.player.hp
+    
     # Force enemy into STRIKE state on Host
     test_enemy.state = ActorState.STRIKE
     test_enemy.combat_timer = 1.0
     test_enemy.has_hit_this_attack = False
     
-    # Update Host and Client
-    for _ in range(15):
+    # Update Host to deal damage and Client to receive it
+    for _ in range(30):
         host_state.update(0.1, {'attack': False, 'move': (0,0)})
         client_state.update(0.1, {'attack': False, 'move': (0,0)})
         time.sleep(0.05)
