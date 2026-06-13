@@ -370,11 +370,8 @@ class GameState:
         # 2. INTERACTION PHASE
         target = self.player.current_interactable
         if attack_pressed and target and getattr(target, 'is_interactive', False) and not self.active_dialogue and not self.active_choice:
-            # Rule: Weapon pickups are HUD-only or require a dedicated interaction (not SPACE)
-            from engine.world import WeaponPickup
-            if not isinstance(target, WeaponPickup):
-                target.execute_interaction(self)
-                attack_pressed = False # Consume input
+            target.execute_interaction(self)
+            attack_pressed = False # Consume input
         
         # HUD Click Interactions
         self._handle_hud_interactions(actions)
@@ -617,7 +614,14 @@ class GameState:
         swap_pressed = actions.get('swap', False)
 
         if swap_pressed:
-            self.player.swap_weapon()
+            # Rule: Contextual Swap. If standing on a weapon, 'Swap' picks it up.
+            target = self.player.current_interactable
+            from engine.world import WeaponPickup
+            if isinstance(target, WeaponPickup):
+                target.execute_interaction(self)
+            else:
+                self.player.swap_weapon()
+                
             if self.network_manager.network_mode == "CLIENT":
                 full_state = self.get_full_player_state()
                 threading.Thread(target=self.network_manager.send_full_state, args=(full_state,), daemon=True).start()

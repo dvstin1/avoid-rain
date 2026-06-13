@@ -16,23 +16,42 @@ class MockWorld:
     def get_nearby_walls(self, rect):
         return []
 
-def test_pickup_suppressed_from_space():
-    """Verify that SPACE bar does NOT trigger a weapon pickup."""
+def test_pickup_restored_via_space():
+    """Verify that SPACE bar (Interact) correctly triggers a weapon pickup again."""
     state = GameState(auto_load=False)
     state.world = MockWorld()
     state.player = Player(100, 100)
-    
+
     weapon_data = {"name": "Test Weapon", "damage": 20}
     pickup = WeaponPickup((100, 100), weapon_data)
     state.world.interactables.append(pickup)
-    
+
     # Simulate standing over the weapon and pressing SPACE
     actions = {'attack': True, 'move': (0,0)}
     state.update(0.1, actions)
-    
-    # Weapon should still be in the world (not picked up)
-    assert pickup in state.world.interactables
-    assert len(state.player.weapons) == 1
+
+    # Weapon should be picked up
+    assert pickup not in state.world.interactables
+    assert len(state.player.weapons) == 2
+
+def test_pickup_triggered_by_swap():
+    """Verify that the SWAP key (L1/TAB) triggers a weapon pickup when standing over one."""
+    state = GameState(auto_load=False)
+    state.world = MockWorld()
+    state.player = Player(100, 100)
+
+    weapon_data = {"name": "Swap Weapon", "damage": 25}
+    pickup = WeaponPickup((100, 100), weapon_data)
+    state.world.interactables.append(pickup)
+
+    # Simulate standing over the weapon and pressing SWAP
+    actions = {'swap': True, 'move': (0,0)}
+    state.update(0.1, actions)
+
+    # Weapon should be picked up
+    assert pickup not in state.world.interactables
+    assert state.player.weapons[-1]["name"] == "Swap Weapon"
+    assert len(state.player.weapons) == 2
 
 def test_pickup_triggered_by_button_click():
     """Verify that clicking the [PICK UP] HUD button triggers a pickup."""
