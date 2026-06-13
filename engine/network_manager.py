@@ -96,7 +96,7 @@ class NetworkManager:
         self.server_address = None
         
         for t in self.threads:
-            t.join(timeout=0.1)
+            t.join(timeout=0.5)
         self.threads = []
         print("[NETWORK] Cleanly stopped all network threads.")
 
@@ -116,6 +116,7 @@ class NetworkManager:
     def start_searching(self):
         """Starts the UDP scanner to find active hosts."""
         if self.is_searching: return
+        self.found_hosts = {} # Reset list
         self.is_searching = True
         self.stop_event.clear()
         t_scanner = threading.Thread(target=self._scanner_loop, name="NetScanner", daemon=True)

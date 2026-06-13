@@ -824,6 +824,11 @@ class GameState:
         from engine.maps import create_world
         try: self.stats = StatisticsTracker.load()
         except Exception: self.stats = StatisticsTracker()
+        
+        # Update Network Identity from loaded stats
+        if self.stats and hasattr(self, 'network_manager'):
+            self.network_manager.identity = self.stats.data.get("player_name", self.network_manager.identity)
+
         run_data = self.stats.data.get("run_state")
         if run_data:
             world_name = run_data.get("world_name", "sanctuary")
@@ -857,6 +862,12 @@ class GameState:
             self.active_dialogue = None
             self.active_choice = None
             self.active_respite = None
+            
+            # Auto-Host Rule: Start hosting if resuming outside Sanctuary
+            if world_name not in ("sanctuary", ""):
+                if hasattr(self, 'network_manager'):
+                    if self.network_manager.network_mode == "OFFLINE":
+                        self.network_manager.start_hosting()
         else:
             # Fallback for empty run_state: reset to sanctuary
             self.reset_to_new_game()
