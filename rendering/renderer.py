@@ -351,63 +351,19 @@ class Renderer:
             self.screen.blit(s, (obj.x - ox, obj.y - oy))
 
         try:
-            from engine.enemy import BatEnemy
-            from engine.actor import ActorState
             for enemy in getattr(state, 'enemies', []):
-                ed = pygame.Rect(enemy.x - ox, enemy.y - oy, enemy.width, enemy.height)
-                
-                # 1. Base Body Rendering
-                base_color = constants.COLOR_RED
-                if isinstance(enemy, BatEnemy):
-                    base_color = constants.COLOR_PURPLE
-                    pygame.draw.rect(self.screen, base_color, ed)
-                    pygame.draw.line(self.screen, base_color, (ed.left - 5, ed.centery), (ed.left, ed.centery - 5), 2)
-                    pygame.draw.line(self.screen, base_color, (ed.right + 5, ed.centery), (ed.right, ed.centery - 5), 2)
-                else:
-                    pygame.draw.rect(self.screen, base_color, ed)
-
-                # 2. Combat State Visuals (Stanza Tells)
-                if enemy.state == ActorState.WIND_UP:
-                    # Pulsing "Margin Red" Outline
-                    alpha = int((math.sin(time.time() * 20) + 1) * 127)
-                    outline_surf = pygame.Surface((enemy.width + 8, enemy.height + 8), pygame.SRCALPHA)
-                    pygame.draw.rect(outline_surf, (*constants.COLOR_MARGIN_RED, alpha), (0, 0, enemy.width + 8, enemy.height + 8), 3)
-                    self.screen.blit(outline_surf, (ed.x - 4, ed.y - 4))
-                
-                elif enemy.state == ActorState.STRIKE:
-                    # Flash Solid Red during damage frames
-                    pygame.draw.rect(self.screen, constants.COLOR_MARGIN_RED, ed)
-                    
-                    # Attack-Specific Visualization
-                    att_type = getattr(enemy, 'attack_type', 'LUNGE')
-                    if att_type == "THRUST":
-                        # Draw a sharp line pointing toward player
-                        player_cx, player_cy = state.player.get_center()
-                        ecx, ecy = enemy.get_center()
-                        dx, dy = player_cx - ecx, player_cy - ecy
-                        dist = math.sqrt(dx*dx + dy*dy)
-                        if dist > 0:
-                            tx, ty = ecx + (dx/dist) * 80 - ox, ecy + (dy/dist) * 80 - oy
-                            pygame.draw.line(self.screen, constants.COLOR_WHITE, (ecx - ox, ecy - oy), (tx, ty), 4)
-                    elif att_type == "SWING":
-                        # Draw a wide arc circle segment
-                        pygame.draw.circle(self.screen, constants.COLOR_WHITE, (int(ed.centerx), int(ed.centery)), 60, 2)
-
-                elif enemy.state == ActorState.RECOVERY:
-                    # Dimmed / Greyed out
-                    pygame.draw.rect(self.screen, constants.COLOR_GREY, ed, 1)
-
-                # 3. Stagger Visual
-                if getattr(enemy, 'stagger_timer', 0) > 0:
-                    pygame.draw.rect(self.screen, constants.COLOR_WHITE, ed, 2)
+                self.draw_actor_ghost(enemy, ox, oy, state)
         except Exception as e:
             print(f"[RENDER ERROR] Enemy Loop: {e}")
-        p_draw = pygame.Rect(state.player.x - ox, state.player.y - oy, state.player.width, state.player.height)
-        pygame.draw.rect(self.screen, constants.COLOR_BLUE, p_draw)
-        if state.player.state == PlayerStateEnum.STAGGERED: pygame.draw.rect(self.screen, constants.COLOR_WHITE, p_draw, 2)
+
+        # Local Player Rendering
+        self.draw_actor_ghost(state.player, ox, oy, state)
+        
+        # Sword Hitbox Visual (Optional debug-style but kept for feedback)
         if state.player.state == PlayerStateEnum.ATTACKING:
+            from engine.combat import get_sword_hitbox
             hb = get_sword_hitbox(state.player.get_center(), state.player.facing)
-            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, (hb[0] - ox, hb[1] - oy, hb[2], hb[3]))
+            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, (hb[0] - ox, hb[1] - oy, hb[2], hb[3]), 1)
         for num in state.damage_numbers:
             self.screen.blit(self.font.render(str(num['val']), True, num['color']), (num['pos'][0] - ox, num['pos'][1] - oy))
         if getattr(state.player, 'current_interactable', None): self.draw_interaction_prompt(state.player, ox, oy)
@@ -448,6 +404,86 @@ class Renderer:
         self.draw_parry_effects(state, ox, oy)
 
         pygame.display.flip()
+
+    def draw_actor_ghost(self, actor, ox, oy, state):
+        """Draws abstract indicators for an actor based on its visual packet."""
+        packet = actor.get_visual_packet()
+        rect = pygame.Rect(actor.x - ox, actor.y - oy, actor.width, actor.height)
+        
+        # 1. Posture Modifiers (Transformation)
+        draw_rect = rect.copy()
+        if packet["posture"] == "WOUNDED":
+            # Standing not as tall (Squashed)
+            original_h = draw_rect.height
+            draw_rect.height *= 0.7
+            draw_rect.y += (original_h - draw_rect.height)
+        elif packet["posture"] == "STAGGERED":
+            # Vibrating
+            draw_rect.x += random.randint(-2, 2)
+            draw_rect.y += random.randint(-2, 2)
+
+        # 2. Base Layer (Body)
+        color = packet.get("color_hint", (100, 100, 100))
+        if packet["base"] == "WIND_UP": color = (200, 100, 0) # Orange Telegraph
+        elif packet["base"] == "STRIKE": color = constants.COLOR_MARGIN_RED
+        elif packet["base"] == "RECOVERY": 
+            # Dim the base color
+            color = tuple(max(0, c - 50) for c in color)
+        elif packet["base"] == "DASH": color = constants.COLOR_CYAN
+        elif packet["base"] == "BLOCK": color = (80, 80, 120)
+
+        # Special coloring for local Player if no hint provided
+        if not packet.get("color_hint"):
+            if hasattr(actor, 'weapons'): color = constants.COLOR_BLUE
+            
+        pygame.draw.rect(self.screen, color, draw_rect)
+
+        # 3. Posture Layer (Outlines/Decorations)
+        if packet["posture"] == "STAGGERED":
+            pygame.draw.rect(self.screen, constants.COLOR_WHITE, draw_rect, 2)
+        elif packet["posture"] == "WOUNDED":
+            # Red pulse
+            pulse = (math.sin(time.time() * 10) + 1) / 2
+            pygame.draw.rect(self.screen, (255, 0, 0), draw_rect, int(1 + pulse * 2))
+
+        # 4. Overlays
+        for overlay in packet["overlays"]:
+            if overlay == "BIND":
+                # Green vine/web indicator
+                pygame.draw.rect(self.screen, (0, 150, 0), draw_rect, 3)
+                pygame.draw.line(self.screen, (0, 150, 0), draw_rect.topleft, draw_rect.bottomright, 2)
+                pygame.draw.line(self.screen, (0, 150, 0), draw_rect.topright, draw_rect.bottomleft, 2)
+            elif overlay == "EXPOSED":
+                # Rain exposure (Shimmering effect)
+                shimmer = (math.sin(time.time() * 15) + 1) / 2
+                s = pygame.Surface((draw_rect.width, draw_rect.height), pygame.SRCALPHA)
+                s.fill((100, 150, 255, int(50 + shimmer * 50)))
+                self.screen.blit(s, draw_rect.topleft)
+            elif overlay == "PARRY_WINDOW":
+                # Glowing blue/white border
+                pygame.draw.rect(self.screen, (200, 255, 255), draw_rect, 4)
+
+        # 5. Directional Indicator
+        fx, fy = packet["facing"]
+        ecx, ecy = draw_rect.center
+        pygame.draw.line(self.screen, constants.COLOR_WHITE, (ecx, ecy), (ecx + fx * 15, ecy + fy * 15), 2)
+        
+        # 6. Combat Progress Bar
+        if packet["base"] in ("WIND_UP", "STRIKE", "RECOVERY") and packet["timer"] > 0:
+            bar_w = int(draw_rect.width * 0.8)
+            bx = draw_rect.centerx - bar_w // 2
+            by = draw_rect.top - 10
+            
+            # Determine total duration for progress
+            total = 1.0
+            if packet["base"] == "WIND_UP": total = getattr(actor, 'wind_up_duration', 0.5)
+            elif packet["base"] == "STRIKE": total = getattr(actor, 'strike_duration', 0.2)
+            elif packet["base"] == "RECOVERY": total = getattr(actor, 'recovery_duration', 0.6)
+            
+            if total > 0:
+                progress = packet["timer"] / total
+                pygame.draw.rect(self.screen, (50, 50, 50), (bx, by, bar_w, 4))
+                pygame.draw.rect(self.screen, constants.COLOR_WHITE, (bx, by, int(bar_w * progress), 4))
 
     def draw_remote_players(self, state, ox, oy):
         """Phase 4: Render ghosts for other players on the network."""

@@ -17,6 +17,12 @@ class ActorState(Enum):
     RECOVERY = auto()    # Post-attack vulnerability
     ENGAGED = auto()     # Interaction/Dialogue pause
 
+class VisualLayer(Enum):
+    """Layers for animation composition."""
+    BASE = auto()      # The main action (IDLE, RUN, ATTACK)
+    POSTURE = auto()   # Physical state (READY, WOUNDED, STAGGERED)
+    OVERLAY = auto()   # Magical/Status effects (POISON, BIND, PARRY_GLOW)
+
 class Actor:
     """Base class for all mobile entities following the 'Stanza' movement system."""
     def __init__(self, x, y, width, height, hp, id=None, name="Actor"):
@@ -30,6 +36,7 @@ class Actor:
         self.vx = 0.0
         self.vy = 0.0
         self.speed = 100.0
+        self.facing = (1, 0)
         
         self.state = ActorState.IDLE
         self.patrol_route = [] # List of entity objects (PatrolPoints)
@@ -56,6 +63,33 @@ class Actor:
         self.is_solid = False
         self.loot_tier = 3
         self.active_target = None # (x, y) target for chasing/attacking
+
+    def get_visual_packet(self):
+        """Returns a composable packet of visual intents for the renderer."""
+        # 1. Base Layer
+        base = "IDLE"
+        if abs(self.vx) > 1.0 or abs(self.vy) > 1.0: base = "RUN"
+        if self.state == ActorState.WIND_UP: base = "WIND_UP"
+        if self.state == ActorState.STRIKE: base = "STRIKE"
+        if self.state == ActorState.RECOVERY: base = "RECOVERY"
+        
+        # 2. Posture Layer
+        posture = "READY"
+        if self.hp / self.max_hp < 0.3: posture = "WOUNDED"
+        if self.stagger_timer > 0: posture = "STAGGERED"
+        
+        # 3. Overlays
+        overlays = []
+        if getattr(self, 'bind_timer', 0) > 0: overlays.append("BIND")
+        
+        return {
+            "base": base,
+            "posture": posture,
+            "overlays": overlays,
+            "facing": self.facing,
+            "timer": self.combat_timer if self.combat_timer > 0 else 0.0,
+            "progress": 0.0 # To be calculated if needed
+        }
 
     @property
     def rect(self):

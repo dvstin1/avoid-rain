@@ -207,6 +207,35 @@ class Player:
         """Dynamic max HP including modifiers."""
         return PLAYER_MAX_HP + self.stats.get("max_hp_modifier", 0)
 
+    def get_visual_packet(self):
+        """Returns a composable packet of visual intents for the renderer."""
+        # 1. Base Layer
+        base = "IDLE"
+        if self.state == PlayerStateEnum.MOVING: base = "RUN"
+        if self.state == PlayerStateEnum.ATTACKING: base = "ATTACK"
+        if self.state == PlayerStateEnum.DASHING: base = "DASH"
+        if self.state == PlayerStateEnum.BLOCKING: base = "BLOCK"
+        
+        # 2. Posture Layer
+        posture = "READY"
+        if self.hp / self.max_hp < 0.3: posture = "WOUNDED"
+        if self.state == PlayerStateEnum.STAGGERED: posture = "STAGGERED"
+        
+        # 3. Overlays
+        overlays = []
+        if getattr(self, 'bind_timer', 0) > 0: overlays.append("BIND")
+        if self.is_exposed: overlays.append("EXPOSED")
+        if self.parry_timer > 0: overlays.append("PARRY_WINDOW")
+        
+        return {
+            "base": base,
+            "posture": posture,
+            "overlays": overlays,
+            "facing": self.facing,
+            "timer": self.attack_timer if self.state == PlayerStateEnum.ATTACKING else 0.0,
+            "progress": 0.0 
+        }
+
     def use_flask(self, audio_manager=None):
         """Consume a flask charge to restore HP."""
         if self.flask_charges > 0 and self.hp < self.max_hp:

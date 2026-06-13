@@ -100,6 +100,11 @@ class SlugEnemy(Enemy):
         self.recovery_duration = 0.8
         self.patrol_speed_multiplier = 0.3
 
+    def get_visual_packet(self):
+        packet = super().get_visual_packet()
+        packet["color_hint"] = (100, 100, 120) # Deep Slug Grey
+        return packet
+
 class BatEnemy(Enemy):
     """A fast, erratic enemy."""
     def __init__(self, x, y, hp=None, id=None):
@@ -119,6 +124,11 @@ class BatEnemy(Enemy):
         self.strike_duration = 0.2
         self.recovery_duration = 0.4
         self._angle = random.uniform(0, 2 * math.pi)
+
+    def get_visual_packet(self):
+        packet = super().get_visual_packet()
+        packet["color_hint"] = (150, 50, 150) # Bat Purple
+        return packet
 
     def _update_chase(self, dt, state):
         """Move toward the active target with a sine-wave oscillation."""
