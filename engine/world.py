@@ -62,10 +62,9 @@ class WarpPortal(GameObject):
             print(f"[DEBUG] WarpPortal targeting: {self.target_name}")
 
             # Phase 3 Intercept: If Client entering macro-world, fetch host map
-            if game_state.network_manager.network_mode == "CLIENT" and self.target_name in ("macro_world", "outside"):
-                if game_state.fetch_host_map():
-                    game_state.world = create_world("generated_world_client")
-                else:
+            is_client = (game_state.network_manager.network_mode == "CLIENT")
+            if is_client and self.target_name in ("macro_world", "outside"):
+                if not game_state.fetch_host_map():
                     print("[NETWORK] Map fetch failed. Falling back to local generation.")
                     game_state.world = create_world(self.target_name)
             else:

@@ -319,6 +319,11 @@ class NetworkManager:
             if m_type == "HANDSHAKE":
                 print(f"[NETWORK] HANDSHAKE from {addr[0]} ({identity})")
                 client_udp_port = msg.get("udp_port", self.host_udp_port)
+                
+                # Rule: Purify stale state for this identity to prevent "False Death" upon join
+                if identity in self.remote_players:
+                    del self.remote_players[identity]
+
                 self.connected_peers[addr[0]] = {
                     "identity": identity, 
                     "last_seen": time.time(),
