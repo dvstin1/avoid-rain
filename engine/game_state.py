@@ -59,6 +59,10 @@ class GameState:
                     self.stats = StatisticsTracker.load()
             except Exception:
                 self.stats = StatisticsTracker()
+        
+        # Hydration Rule: If we have a suspended run, restore it now
+        if self.stats and self.stats.data.get("run_state"):
+            self.hydrate_from_disk()
 
         # 3. Environment and Camera
         from engine.weather import WeatherManager
@@ -87,6 +91,7 @@ class GameState:
         self.hit_stop_timer = 0.0
         self.shake_timer = 0.0
         self.death_timer = 0.0
+        self.last_save_elapsed = 9999.0 # Start large to trigger early if needed
         self.parry_effects = [] # Transient VFX sparks
 
         # 4. Input and Navigation State
@@ -365,8 +370,14 @@ class GameState:
         # 2. INTERACTION PHASE
         target = self.player.current_interactable
         if attack_pressed and target and getattr(target, 'is_interactive', False) and not self.active_dialogue and not self.active_choice:
-            target.execute_interaction(self)
-            attack_pressed = False # Consume input
+            # Rule: Weapon pickups are HUD-only or require a dedicated interaction (not SPACE)
+            from engine.world import WeaponPickup
+            if not isinstance(target, WeaponPickup):
+                target.execute_interaction(self)
+                attack_pressed = False # Consume input
+        
+        # HUD Click Interactions
+        self._handle_hud_interactions(actions)
 
         # 3. AI & COMBAT
         if not is_client:
@@ -624,6 +635,35 @@ class GameState:
         self._update_audio_track(dt)
         self._handle_victory_conditions(dt)
 
+    def _handle_hud_interactions(self, actions):
+        """Phase 4: Handles mouse clicks on HUD elements."""
+        click_pos = actions.get('mouse_click')
+        if not click_pos: return
+        
+        from constants import (
+            SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT, HUD_PICKUP_BTN_RECT
+        )
+        
+        # Calculate HUD base position (matches renderer.py)
+        hx = 10
+        hy = SCREEN_HEIGHT - HUD_PANEL_H - 10
+        
+        mx, my = click_pos
+        
+        # 1. Swap Button
+        swr = HUD_SWAP_BTN_RECT
+        if hx + swr[0] <= mx <= hx + swr[0] + swr[2] and hy + swr[1] <= my <= hy + swr[1] + swr[3]:
+             self.player.swap_weapons()
+             return
+             
+        # 2. Pickup Button
+        pkr = HUD_PICKUP_BTN_RECT
+        if hx + pkr[0] <= mx <= hx + pkr[0] + pkr[2] and hy + pkr[1] <= my <= hy + pkr[1] + pkr[3]:
+             target = self.player.current_interactable
+             if target and getattr(target, 'is_interactive', False):
+                 target.execute_interaction(self)
+             return
+
     def _update_ui_and_menus(self, dt, actions, attack_pressed, audio_manager):
         # Zone Discovery Bloom
         if getattr(self.world, 'name', '') not in ("", "sanctuary"):
@@ -830,10 +870,14 @@ class GameState:
             self.bloom_priority = priority
 
     def hydrate_from_disk(self):
+        """Phase 2: Hydrate runtime objects from StatisticsTracker.data['run_state']."""
         from engine.stats import StatisticsTracker
         from engine.maps import create_world
-        try: self.stats = StatisticsTracker.load()
-        except Exception: self.stats = StatisticsTracker()
+        
+        # Priority: If we already have stats with a run, use it. Otherwise load from disk.
+        if not self.stats or not self.stats.data.get("run_state"):
+            try: self.stats = StatisticsTracker.load()
+            except Exception: self.stats = StatisticsTracker()
         
         # Update Network Identity from loaded stats
         if self.stats and hasattr(self, 'network_manager'):
@@ -931,13 +975,16 @@ class GameState:
 
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
         if self.stats is None or not getattr(self, '_save_worker_running', False): return
+        if self.player is None or self.world is None: return # Guard against deallocated state
         
-        # Rule: If outside Sanctuary, capture current run snapshot.
-        # Otherwise, do NOT clear it (clearing happens in explicit transitions).
+        # --- Persistence: Sanctuary is the hub; runs are completed/redacted here ---
         world_name = getattr(self.world, 'name', 'sanctuary')
         if world_name not in ("sanctuary", "") and self.player:
             self.stats.data["run_state"] = self.get_full_run_state()
             self.stats.data["active_session_in_progress"] = True
+        else:
+            self.stats.data["run_state"] = None
+            self.stats.data["active_session_in_progress"] = False
 
         try: self._save_queue.put_nowait({"stats": self.stats.data, "path": path})
         except queue.Full: pass

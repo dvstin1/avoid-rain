@@ -18,10 +18,15 @@ class MockWorld:
     def get_nearby_walls(self, rect):
         return []
 
+class MockNetworkManager:
+    def __init__(self):
+        self.remote_players = {}
+
 class MockState:
     def __init__(self, player_x, player_y):
         self.player = MockPlayer(player_x, player_y)
         self.world = MockWorld()
+        self.network_manager = MockNetworkManager()
 
 def test_flutter_flee_behavior():
     """Verify that the Flutter enemy moves away from the player."""
@@ -53,4 +58,4 @@ def test_flutter_idle_outside_radius():
 def test_flutter_loot_tier():
     """Verify the Flutter has the correct loot tier."""
     flutter = FlutterEnemy(0, 0)
-    assert flutter.loot_tier == 4
+    assert flutter.loot_tier == 3

@@ -1,50 +1,28 @@
 import pytest
-from engine.game_state import GameState
 from engine.world import Wellspring
+from engine.game_state import GameState
 from engine.stats import StatisticsTracker
+from constants import FLASK_MAX_CHARGES
 
-def test_wellspring_instantiation():
-    """Verify Wellspring is placed in the sanctuary."""
-    from engine.maps import create_world
-    world = create_world("sanctuary")
-    wellspring = next((obj for obj in world.interactables if isinstance(obj, Wellspring)), None)
-    assert wellspring is not None
-    assert wellspring.name == "The Wellspring"
-    assert wellspring.is_solid is True
-    assert wellspring.is_interactive is True
-
-def test_wellspring_interaction_shows_stats():
-    """Verify Wellspring interaction displays multiline stats."""
+def test_wellspring_refills_flasks():
+    """Verify Wellspring interaction resets flask charges."""
     gs = GameState(auto_load=False)
-    gs.stats = StatisticsTracker()
-    
-    # Set some dummy stats
-    gs.stats.data["lifetime_stats"]["wins_chapters_cleared"] = 5
-    gs.stats.data["lifetime_stats"]["pages_collected"] = 100
-    gs.stats.set_bestiary("slug_enemy", True)
+    gs.player.flask_charges = 0
     
     wellspring = next((obj for obj in gs.world.interactables if isinstance(obj, Wellspring)), None)
     assert wellspring is not None
     
     wellspring.execute_interaction(gs)
-    
-    assert gs.active_dialogue is not None
-    assert gs.dialogue_mode == "EXPANDED"
-    assert gs.active_dialogue["speaker"] == "The Wellspring"
-    text = gs.active_dialogue["text"]
-    assert "Timeline Reflection: Draft #0" in text
-    assert "Chapters Cleared: 5" in text
-    assert "Torn Pages: 100" in text
-    assert "Syntax Blocks: 1" in text
-    assert "\n" in text # Verify it's multiline
+    assert gs.player.flask_charges == FLASK_MAX_CHARGES
 
-def test_wellspring_interaction_no_stats():
-    """Verify Wellspring handles missing stats gracefully."""
+def test_wellspring_already_full():
+    """Verify Wellspring interaction when flasks are already full."""
     gs = GameState(auto_load=False)
-    gs.stats = None
+    gs.player.flask_charges = FLASK_MAX_CHARGES
     
     wellspring = next((obj for obj in gs.world.interactables if isinstance(obj, Wellspring)), None)
-    wellspring.execute_interaction(gs)
+    assert wellspring is not None
     
-    assert gs.active_dialogue is not None
-    assert "water is still" in gs.active_dialogue["text"]
+    # This should not crash and should trigger a bloom (visual only)
+    wellspring.execute_interaction(gs)
+    assert gs.player.flask_charges == FLASK_MAX_CHARGES

@@ -53,14 +53,19 @@ def test_m3_teleportation():
     from engine.stats import StatisticsTracker
     state = GameState(auto_load=False)
     state.stats = StatisticsTracker()
-    state.player = MockPlayer(100, 100)
-    m3 = MinibossM3(110, 110) # Player is very close
-    
+    # M3 at (0, 0), center (32, 32).
+    # Player at (72, 72), center (92, 92).
+    # dx=60, dy=60, dist_sq = 7200.
+    # 6400 (WIND_UP threshold) < 7200 < 14400 (TELEPORT threshold).
+    state.player = MockPlayer(72, 72)
+    m3 = MinibossM3(0, 0)
+
     initial_pos = (m3.x, m3.y)
     m3.update(0.1, state)
-    
-    # Dist was ~14, well below 120 threshold. Should teleport.
+
+    # dist_sq was 7200, should teleport.
     assert (m3.x, m3.y) != initial_pos
+
     assert m3._tele_timer > 0
 
 def test_lifecycle_session_boundaries():

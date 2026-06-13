@@ -12,10 +12,11 @@ def check_aabb_collision(rect_a, rect_b):
     ax, ay, aw, ah = rect_a
     bx, by, bw, bh = rect_b
 
-    return (ax < bx + bw and
+    res = (ax < bx + bw and
             ax + aw > bx and
             ay < by + bh and
             ay + ah > by)
+    return res
 
 def resolve_wall_collision(player_rect, wall_rects):
     """

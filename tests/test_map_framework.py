@@ -4,7 +4,7 @@ Tests for the map design framework (string-grid parsing and GameObjects).
 import pytest
 from engine.world import World, GameObject, WarpPortal, LevelLoader
 from engine.room_definitions import ROOM_PROTOTYPES, ENTITY_MANIFEST
-from constants import TILE_WALL, TILE_EMPTY, TILE_KEY, PLAYER_START_X, PLAYER_START_Y
+from constants import TILE_WALL, TILE_EMPTY, PLAYER_START_X, PLAYER_START_Y
 
 def test_level_loader_player_start():
     prototype = [
@@ -30,7 +30,7 @@ def test_game_object_initialization():
     assert obj.width == 40
     assert obj.height == 40
     assert obj.rect == (100, 200, 40, 40)
-    assert obj.is_solid is True
+    assert obj.is_solid is False
     assert obj.is_breakable is False
     assert obj.is_interactive is False
 
@@ -41,7 +41,7 @@ def test_world_load_from_prototype():
         "###"
     ]
     entity_data = {
-        (1, 1): {"target": "outside", "name": "Test Portal"}
+        (1, 1): {"target": "macro_world", "name": "Test Portal"}
     }
     
     world = World(name='custom')
@@ -55,7 +55,7 @@ def test_world_load_from_prototype():
     assert len(world.interactables) == 1
     portal = world.interactables[0]
     assert isinstance(portal, WarpPortal)
-    assert portal.target_name == "outside"
+    assert portal.target_name == "macro_world"
     assert portal.name == "Test Portal"
 
 def test_world_solid_game_objects_collision():
@@ -67,7 +67,7 @@ def test_world_solid_game_objects_collision():
     world = World(name='custom')
     world.load_from_prototype(prototype)
     
-    # Tree at (1, 1) -> (40, 40)
+    # Tree at (1, 1) -> (40, 40). 'T' is STRUCTURE, which is solid.
     player_rect = (45, 45, 30, 30) # Overlaps with (40, 40, 40, 40)
     
     walls = world.get_nearby_walls(player_rect)
@@ -88,5 +88,4 @@ def test_world_interactable_detection():
     
     interactables = world.get_nearby_interactables(player_rect)
     assert len(interactables) == 1
-    assert interactables[0].name == "Respite"
-
+    assert interactables[0].name == "Respite Anchor"

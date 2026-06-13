@@ -37,6 +37,10 @@ def test_hydrate_from_disk_restores_active_session():
                 "y": 600.0,
                 "hp": 42.0,
                 "flask_charges": 2
+            },
+            "weather": {
+                "bleed_state": "WAIT",
+                "active_safe_radius": 1000.0
             }
         }
         stats.save(tmp_path)
@@ -48,9 +52,8 @@ def test_hydrate_from_disk_restores_active_session():
         
         try:
             # 2. Hydrate
-            gs = GameState(auto_load=False)
-            gs.deallocate()
-            gs.hydrate_from_disk()
+            # GameState constructor will now automatically hydrate because run_state is present and auto_load is True
+            gs = GameState(auto_load=True)
             
             # 3. Verify exact restoration
             assert gs.world.name == "chapter1"
@@ -73,6 +76,7 @@ def test_save_stats_guards_deallocated_state():
     gs.stats.data["run_state"] = {"preserved": True}
     
     gs.deallocate()
+    # Ensure it doesn't crash
     gs.save_stats()
     
     assert gs.stats.data["run_state"] == {"preserved": True}

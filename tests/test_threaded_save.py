@@ -1,33 +1,34 @@
 """Tests for threaded save behavior via GameState.save_stats()."""
 import time
+import os
+import json
 from engine.game_state import GameState
 from engine.stats import StatisticsTracker
 
-
-class SlowStats(StatisticsTracker):
-    def __init__(self):
-        super().__init__()
-        self.saved = 0
-    def save(self, path=None):
-        # Simulate a slow save
-        time.sleep(0.1)
-        self.saved += 1
-
-
-def test_threaded_save_sets_flags(tmp_path):
-    st = SlowStats()
+def test_threaded_save_writes_file(tmp_path):
+    st = StatisticsTracker()
+    st.data["player_name"] = "ThreadedScholar"
     gs = GameState(stats=st, auto_load=False)
-    # Ensure not saving initially
-    assert not getattr(gs, 'saving_in_progress', False)
+    
+    save_path = str(tmp_path / 'profile_metrics.json')
+    
     # Call save_stats which enqueues a save for the worker
-    gs.save_stats(str(tmp_path / 'profile_metrics.json'))
-    # Wait until the save is processed (poll with timeout)
-    timeout = 1.0
+    gs.save_stats(save_path)
+    
+    # Wait until the file exists and is populated
+    timeout = 2.0
     waited = 0.0
-    interval = 0.01
-    while st.saved == 0 and waited < timeout:
+    interval = 0.05
+    while not os.path.exists(save_path) and waited < timeout:
         time.sleep(interval)
         waited += interval
-    assert st.saved == 1
-    # Shutdown worker for cleanliness
+        
+    assert os.path.exists(save_path)
+    
+    # Verify content
+    with open(save_path, 'r') as f:
+        data = json.load(f)
+    assert data["player_name"] == "ThreadedScholar"
+    
+    # Shutdown worker
     gs.shutdown_save_worker()

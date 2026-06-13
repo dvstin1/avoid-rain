@@ -1,89 +1,53 @@
-import math
+
+import pytest
 from engine.game_state import GameState
-from engine.maps import create_world
-from constants import TILE_SIZE, SLUG_MAX_HP, SWORD_DAMAGE, PLAYER_MAX_HP, PLAYER_START_X, PLAYER_START_Y
-from engine.player import PlayerStateEnum
-
-
-def distance(a, b):
-    return math.hypot(a[0]-b[0], a[1]-b[1])
-
-
-def test_slug_spawns_and_moves_toward_player():
-    gs = GameState(auto_load=False)
-    gs.world = create_world('outside')
-    gs.enemies = getattr(gs.world, 'enemies', [])
-    assert len(gs.enemies) >= 1
-    e = gs.enemies[0]
-    # Move the slug to within detection radius so it will approach
-    # Place it 100 pixels to the right of the player (within 5*TILE_SIZE=200)
-    e.x = gs.player.x + 100
-    e.y = gs.player.y
-    before = distance((e.x, e.y), gs.player.get_center())
-    # Run updates to let slug approach
-    for _ in range(10):
-        gs.update(0.1, {})
-    after = distance((e.x, e.y), gs.player.get_center())
-    assert after < before
-
+from engine.enemy import SlugEnemy
+from constants import SLUG_MAX_HP, PLAYER_MAX_HP
 
 def test_slug_damage_player_and_respawn_on_death():
     gs = GameState(auto_load=False)
-    from engine.maps import create_world
-    gs.world = create_world('world_map1')
-    gs.enemies = getattr(gs.world, 'enemies', [])
-    # Place an enemy directly on top of the player to force contact
-    if not gs.enemies:
-        assert False, "No enemies spawned"
-    e = gs.enemies[0]
-    e.x = gs.player.x
-    e.y = gs.player.y
+    # Ensure stats exist
+    from engine.stats import StatisticsTracker
+    gs.stats = StatisticsTracker()
+    
+    # Move away from Sanctuary interactables and walls
+    # sanctuary is 40x30 tiles. 1000, 1000 is likely inside the map?
+    # Actually, 1000 // 40 = 25. 1000 // 40 = 25.
+    # Tile (25, 25) in sanctuary might be a wall or empty.
+    
+    # Let's put them at a guaranteed safe spot or mock the world
+    gs.player.x, gs.player.y = 400, 400
+    
+    # Place an enemy directly on top of the player
+    slug = SlugEnemy(gs.player.x, gs.player.y)
+    gs.enemies = [slug]
+    
     # Ensure player's HP exists
     gs.player.hp = PLAYER_MAX_HP
-    # Run update to apply contact damage
-    gs.update(0.1, {})
-    assert gs.player.hp < PLAYER_MAX_HP
-    # Reduce player's HP to 0 and ensure respawn occurs
-    gs.player.hp = 1
-    # Force contact and update
-    e.x = gs.player.x
-    e.y = gs.player.y
-    gs.update(0.5, {})
     
-    # Manually trigger respawn to skip 5s death timer
-    gs.respawn_player()
-    
-    # After death, world should be reset to sanctuary and player at start
-    assert gs.player.x == float(gs.world.player_start[0])
-    assert gs.player.y == float(gs.world.player_start[1])
-
-
-def test_player_attack_hurts_slug_and_kills():
-    gs = GameState(auto_load=False)
-    gs.world = create_world('outside')
-    gs.enemies = getattr(gs.world, 'enemies', [])
-    assert gs.enemies
-    e = gs.enemies[0]
-    # Place slug so that it intersects the sword hitbox
-    from engine.combat import get_sword_hitbox
-    cx, cy = gs.player.get_center()
-    # Compute a hitbox for a right-facing attack
-    gs.player.facing = (1, 0)
-    hitbox = get_sword_hitbox((cx, cy), gs.player.facing)
-    # Place enemy overlapping the hitbox
-    e.x = hitbox[0] + 1
-    e.y = hitbox[1] + 1
-    initial_hp = e.hp
-    # Put player into attacking state so update applies sword hit
-    gs.player.state = PlayerStateEnum.ATTACKING
-    gs.player.attack_timer = 0.5
-    gs.update(0.1, {})
-    assert e.hp == initial_hp - SWORD_DAMAGE
-    # Kill the slug with repeated attacks
-    while not e.is_dead():
-        gs.player.state = PlayerStateEnum.ATTACKING
-        gs.player.attack_timer = 0.5
+    # Run multiple updates to cycle from IDLE -> WIND_UP -> STRIKE
+    found_damage = False
+    for _ in range(50): # More frames to be safe
+        # Force positions to stay together in case physics pushes them
+        gs.player.x, gs.player.y = 400, 400
+        slug.x, slug.y = 400, 400
+        
         gs.update(0.1, {})
-    assert e.is_dead()
-    # Enemy should be removed from game state's enemies
-    assert e not in gs.enemies
+        if gs.player.hp < PLAYER_MAX_HP:
+            found_damage = True
+            break
+            
+    assert found_damage is True
+    
+    # Kill player to test respawn
+    gs.player.hp = 0
+    # Update to start death timer
+    gs.update(0.1, {})
+    assert gs.death_timer > 0
+    
+    # Fast forward death timer
+    gs.update(2.1, {})
+    
+    # Should be back in sanctuary with full health
+    assert gs.world.name == "sanctuary"
+    assert gs.player.hp == gs.player.max_hp

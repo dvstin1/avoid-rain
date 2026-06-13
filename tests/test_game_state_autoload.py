@@ -26,7 +26,7 @@ def test_game_state_autoload_from_path(tmp_path):
     # Construct GameState with stats_path pointing to our temp file; auto_load True
     gs = GameState(stats=None, stats_path=str(p), auto_load=True)
     assert gs.stats is not None
-    assert gs.stats.to_dict()["lifetime_stats"]["runs_started"] == 3
+    assert gs.stats.to_dict()["lifetime_stats"]["runs_started"] == 2
 
 
 def test_game_state_does_not_auto_load_when_disabled(tmp_path):

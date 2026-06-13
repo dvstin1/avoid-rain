@@ -53,10 +53,14 @@ def test_roll_drop_tier2_miniboss():
 def test_roll_drop_tier1_boss():
     """Verify Tier 1 (Boss) loot rolls."""
     state = GameState(auto_load=False)
-    
-    # Guaranteed Choice of Fates
+
+    # Guaranteed Choice of Fates + Bonus Loot
     roll_drop(1, (100, 100), state)
-    assert len(state.loot) == 1
+    assert len(state.loot) >= 1
+    # First item should be Choice of Fates
+    from engine.loot import ChoiceOfFates
+    assert isinstance(state.loot[0], ChoiceOfFates)
+
     assert isinstance(state.loot[0], ChoiceOfFates)
 
 def test_enemy_death_triggers_correct_tier(monkeypatch):

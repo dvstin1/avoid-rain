@@ -25,7 +25,7 @@ def test_barrel_destruction():
     
     barrel.take_damage(SWORD_DAMAGE)
     assert barrel.health <= 0
-    assert barrel.is_destroyed() is True
+    assert barrel.is_dead() is True
 
 def test_game_state_barrel_hit():
     # Setup a game state with a barrel near the player
@@ -95,6 +95,7 @@ def test_roll_drop_tier4_logic():
 
 def test_heal_item_pickup():
     state = GameState(auto_load=False)
+    state.player.stats = {"attack_modifier": 0, "max_hp_modifier": 0}
     state.player.hp = 50
     # state.player.max_hp is 100 by default (PLAYER_MAX_HP)
     

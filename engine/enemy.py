@@ -42,6 +42,12 @@ class Enemy(Actor):
                     # Local Damage
                     try:
                         v_obj.take_damage(self.damage, audio_manager=getattr(state, 'audio_manager', None))
+                        
+                        # Phase 4: Status Effects (BIND)
+                        if self.attack_type == "BIND" and hasattr(v_obj, 'bind_timer'):
+                            from constants import BIND_DURATION
+                            v_obj.bind_timer = BIND_DURATION
+
                         return True
                     except Exception: pass
                 else:
@@ -133,8 +139,11 @@ class BatEnemy(Enemy):
             self._angle += dt * 10.0
             perp_x, perp_y = -vy, vx
             
-            self.x += (vx + perp_x * math.sin(self._angle)) * dt
-            self.y += (vy + perp_y * math.sin(self._angle)) * dt
+            self.vx = vx + perp_x * math.sin(self._angle)
+            self.vy = vy + perp_y * math.sin(self._angle)
+            
+            self.x += self.vx * dt
+            self.y += self.vy * dt
             
             walls = state.world.get_nearby_walls(self.get_rect())
             self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
@@ -158,6 +167,23 @@ class BindlingEnemy(Enemy):
         self.strike_duration = 0.2
         self.recovery_duration = 0.5
 
+    def update(self, dt, state):
+        """Rule: Ink-Affinity. Heals if touching a Margin wall."""
+        from constants import BINDLING_HEAL_RATE, BINDLING_MAX_HP
+        from engine.physics import check_aabb_collision
+        
+        # Check nearby walls
+        walls = state.world.get_nearby_walls(self.get_rect())
+        near_wall = False
+        for wall in walls:
+            if check_aabb_collision(self.get_rect(), wall):
+                near_wall = True
+                break
+        
+        if near_wall:
+            self.hp = min(BINDLING_MAX_HP, self.hp + BINDLING_HEAL_RATE * dt)
+
+        super().update(dt, state)
 
 class Boss(Enemy):
     """Base class for all Elites and Bosses. Implements weapon telegraphs and parrying."""
@@ -293,6 +319,28 @@ class FlutterEnemy(Enemy):
             self.y += self.vy * dt
             walls = state.world.get_nearby_walls(self.get_rect())
             self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+
+    def _update_state_logic(self, dt, state):
+        """Override to always CHASE (flee) when player detected."""
+        targets = []
+        if state.player: targets.append(state.player.get_center())
+        remote_data = getattr(state.network_manager, 'remote_players', {})
+        for p_data in remote_data.values():
+            targets.append((p_data["x"] + 20, p_data["y"] + 20))
+
+        cx, cy = self.get_center()
+        best_dist_sq = float('inf')
+        self.active_target = None
+        for tx, ty in targets:
+            d_sq = (tx - cx)**2 + (ty - cy)**2
+            if d_sq < best_dist_sq:
+                best_dist_sq = d_sq
+                self.active_target = (tx, ty)
+
+        if self.active_target and best_dist_sq <= self.detect_radius**2:
+            self.state = ActorState.CHASE
+        else:
+            self.state = ActorState.IDLE
 
 class SmearEnemy(Enemy):
     """Splitting puddle enemy."""

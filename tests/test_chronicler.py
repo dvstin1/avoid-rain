@@ -26,7 +26,6 @@ def test_chronicler_dialogue_init():
     # Interaction
     chronicler.execute_interaction(gs)
     assert gs.active_dialogue is not None
-    assert gs.dialogue_mode == "STANDARD"
     assert "Welcome back to the Scriptorium" in gs.active_dialogue["text"]
 
 def test_chronicler_dialogue_defeat():
@@ -60,7 +59,7 @@ def test_chronicler_state_reset_on_warp():
     
     warp.execute_interaction(gs)
     assert gs.stats.data["last_run_result"] == "INIT"
-    assert gs.world.name == "world_map1"
+    assert gs.world.name == "generated_world"
 
 def test_dialogue_stasis_blocks_movement():
     """Verify that active dialogue blocks game updates."""

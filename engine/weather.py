@@ -190,6 +190,7 @@ class WeatherManager:
 
     def from_dict(self, data):
         """Restore weather state from dictionary."""
+        if not data: return
         self.bleed_state = data.get("bleed_state", "GRACE_PERIOD")
         self.grace_timer = data.get("grace_timer", 60.0)
         self.timer = data.get("timer", 0.0)
