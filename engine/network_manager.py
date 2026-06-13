@@ -92,7 +92,7 @@ class NetworkManager:
         self.network_mode = "OFFLINE"
         self.found_hosts = {}
         self.connected_peers = {}
-        # self.remote_players = {} # Keep remote players for rendering ghosts until deallocate? No, stop means stop.
+        self.remote_players = {} 
         self.server_address = None
         
         for t in self.threads:
