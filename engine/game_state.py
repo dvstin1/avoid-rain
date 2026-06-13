@@ -865,8 +865,32 @@ class GameState:
         from engine.world import LevelLoader
         LevelLoader.link_actors_to_routes(self)
 
+    def get_full_run_state(self):
+        """Serializes the complete current world and player state for persistence."""
+        if not self.world or not self.player: return None
+        return {
+            "world_name": getattr(self.world, 'name', 'macro_world'),
+            "world_debris": self.world_debris,
+            "defeated_miniboss_ids": list(self.defeated_miniboss_ids),
+            "destroyed_prop_ids": list(self.destroyed_prop_ids),
+            "enemies": [e.to_dict() for e in self.enemies],
+            "player": self.get_full_player_state(),
+            "weather": self.weather_manager.to_dict() if hasattr(self, 'weather_manager') else None
+        }
+
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
         if self.stats is None or not getattr(self, '_save_worker_running', False): return
+        
+        # Rule: If outside Sanctuary, capture current run state for 'Continue' functionality
+        world_name = getattr(self.world, 'name', 'sanctuary')
+        if world_name not in ("sanctuary", ""):
+            self.stats.data["run_state"] = self.get_full_run_state()
+            self.stats.data["active_session_in_progress"] = True
+        else:
+            # Purification: Clear session data when in hub
+            self.stats.data["run_state"] = None
+            self.stats.data["active_session_in_progress"] = False
+
         try: self._save_queue.put_nowait({"stats": self.stats.data, "path": path})
         except queue.Full: pass
         if wait: self._save_queue.join()
