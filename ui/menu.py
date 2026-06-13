@@ -97,7 +97,7 @@ def draw_respite_menu(screen, font, state):
         y_off += spacing * 3
 
     # 4. Finalize Button (Index 4)
-    y_off = h - 120
+    y_off = h - 100
     fin_focused = (sel_idx == 4)
     mark_idx = getattr(state, 'respite_marked_idx', -1)
     fin_available = (mark_idx != -1 and player.has_rested_this_session)
@@ -115,7 +115,8 @@ def draw_respite_menu(screen, font, state):
     screen.blit(font.render(fin_text, True, fin_col), (x + 40, y + y_off))
 
     # 5. Close Button (Index 5)
+    y_off += spacing
     close_focused = (sel_idx == 5)
     close_col = constants.COLOR_SELECTION if close_focused else constants.COLOR_GREY
     close_text = f"{'> ' if close_focused else '  '}[ CLOSE MENU ]"
-    screen.blit(font.render(close_text, True, close_col), (x + w - 250, y + h - 40))
+    screen.blit(font.render(close_text, True, close_col), (x + 40, y + y_off))

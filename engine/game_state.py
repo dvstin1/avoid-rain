@@ -691,17 +691,18 @@ class GameState:
             move_dir = actions.get('move', (0, 0))
             if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
                 if move_dir[1] > 0.6:
-                    self.respite_selection_idx = (self.respite_selection_idx + 1) % 6
+                    self.respite_selection_idx = self._get_next_respite_idx(self.respite_selection_idx)
                     self.input_ratchet_latched = True
                     self.menu_nav_cooldown = 0.2
                 elif move_dir[1] < -0.6:
-                    self.respite_selection_idx = (self.respite_selection_idx - 1) % 6
+                    self.respite_selection_idx = self._get_prev_respite_idx(self.respite_selection_idx)
                     self.input_ratchet_latched = True
                     self.menu_nav_cooldown = 0.2
             if attack_pressed and not self.input_ratchet_latched:
                 self.input_ratchet_latched = True
                 if self.respite_selection_idx == 0: active_respite.execute_rest(self, audio_manager=audio_manager)
-                elif 1 <= self.respite_selection_idx <= 3 and self.player.has_rested_this_session: self.respite_marked_idx = self.respite_selection_idx
+                elif 1 <= self.respite_selection_idx <= 2 and self.player.has_rested_this_session: 
+                    self.respite_marked_idx = self.respite_selection_idx
                 elif self.respite_selection_idx == 4:
                     if self.respite_marked_idx != -1: active_respite.execute_upgrade(self, self.respite_marked_idx, audio_manager=audio_manager)
                     if not self.player.has_rested_this_session: self.respite_marked_idx = -1; self.respite_selection_idx = 5
@@ -711,6 +712,29 @@ class GameState:
                     if self.network_manager.network_mode == "CLIENT":
                         threading.Thread(target=self.network_manager.send_full_state, args=(self.get_full_player_state(),), daemon=True).start()
                     self.save_stats(wait=True)
+
+    def _get_next_respite_idx(self, current_idx):
+        """Helper to find the next valid Respite menu index."""
+        idx = (current_idx + 1) % 6
+        has_rested = self.player.has_rested_this_session
+        # Skip rules:
+        # 1. Skip 1, 2, 3 if not rested
+        # 2. Always skip 3 (unused)
+        while True:
+            if idx == 3: idx = (idx + 1) % 6; continue
+            if not has_rested and (1 <= idx <= 3): idx = (idx + 1) % 6; continue
+            break
+        return idx
+
+    def _get_prev_respite_idx(self, current_idx):
+        """Helper to find the previous valid Respite menu index."""
+        idx = (current_idx - 1) % 6
+        has_rested = self.player.has_rested_this_session
+        while True:
+            if idx == 3: idx = (idx - 1) % 6; continue
+            if not has_rested and (1 <= idx <= 3): idx = (idx - 1) % 6; continue
+            break
+        return idx
 
     def _handle_choice_ui(self, actions, attack_pressed):
         move_dir = actions.get('move', (0, 0))
