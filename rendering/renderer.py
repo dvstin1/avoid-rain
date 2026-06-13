@@ -576,6 +576,14 @@ class Renderer:
         edif_lvl = player.stats.get("edification", 1)
         edif_text = f"LVL: {edif_lvl}"
         hud_surf.blit(self.hud_font.render(edif_text, True, constants.COLOR_CYAN), (340, 10))
+        
+        # [Multiplayer: Scholar Count]
+        scholar_count = 1
+        if hasattr(state, 'network_manager'):
+            scholar_count = 1 + len(getattr(state.network_manager, 'remote_players', {}))
+        
+        scholar_text = f"Scholars: {scholar_count}"
+        hud_surf.blit(self.hud_font.render(scholar_text, True, constants.COLOR_WHITE), (440, 10))
 
         # [Input Mode Indicator]
         mode = getattr(state, 'input_mode', constants.INPUT_MODE_KEYBOARD)

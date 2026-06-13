@@ -893,7 +893,7 @@ class GameState:
             self.camera.instant_center(self.player.get_center())
         
         self.world_debris = []
-        self.player.stats = {"attack_modifier": 0, "max_hp_modifier": 0}
+        self.player.stats = {"attack_modifier": 0, "max_hp_modifier": 0, "edification": 1}
         self.input_ratchet_latched = False
         self.menu_nav_cooldown = 0.0
         from engine.weather import WeatherManager
@@ -1024,6 +1024,11 @@ class GameState:
             if stat_name == "max_hp_modifier":
                 self.player.hp = self.player.max_hp
             
+            # Recalculate Global Edification Level
+            prowess = self.player.stats.get("attack_modifier", 0)
+            fort = self.player.stats.get("max_hp_modifier", 0)
+            self.player.stats["edification"] = (prowess // 5) + (fort // 10) + 1
+
             # Sync to persistent stats for UI parity
             if self.stats:
                 if "run_state" in self.stats.data and self.stats.data["run_state"]:
