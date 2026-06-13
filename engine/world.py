@@ -86,6 +86,7 @@ class WarpPortal(GameObject):
                 # State Reset Rule: When starting a new run through the book, reset result to INIT
                 if game_state.stats:
                     game_state.stats.data["last_run_result"] = "INIT"
+                    game_state.stats.data["active_session_in_progress"] = True
 
             # Position player at spawn coords (Priority: World default/player_start, then WarpPortal explicit)
             # Procedural Generation Rule: If create_world returned a world with a valid player_start, use it.

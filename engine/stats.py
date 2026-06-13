@@ -46,6 +46,10 @@ class StatisticsTracker:
     def __init__(self, data: Dict[str, Any] | None = None) -> None:
         if data is None:
             self.data: Dict[str, Any] = {
+                "player_name": "Scholar",
+                "active_session_in_progress": False,
+                "run_state": None,
+                "last_run_result": "INIT",
                 "lifetime_stats": {
                     "runs_started": 0,
                     "wins_chapters_cleared": 0,

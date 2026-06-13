@@ -39,7 +39,8 @@ def test_network_integration_host_and_client_combat():
     
     # --- SETUP CLIENT ---
     print("[TEST] Initializing Client...")
-    client_state = GameState(auto_load=False)
+    from engine.stats import StatisticsTracker
+    client_state = GameState(auto_load=False, stats=StatisticsTracker())
     client_state.network_manager.port = 61000
     client_state.network_manager.tcp_port = 51001 # Point to Host's TCP
     client_state.network_manager.host_udp_port = 51002 # Send UDP to Host
@@ -56,6 +57,8 @@ def test_network_integration_host_and_client_combat():
     from engine.maps import create_world
     client_state.world = create_world("generated_world_client")
     client_state.enemies = client_state.world.enemies
+    if client_state.stats:
+        client_state.stats.data["active_session_in_progress"] = True
     
     # --- TEST CASE 1: CLIENT BREAKS BARREL ---
     print("[TEST] Case 1: Client Attacks Barrel...")

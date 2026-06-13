@@ -167,11 +167,14 @@ class GameState:
             
             state["destroyed_props"] = list(self.destroyed_prop_ids)
             
-            # Broadcast the Host's view of all remote players (authoritative HP)
+            # Broadcast the Host's view of all remote players AND themselves (authoritative HP)
             state["session_players"] = [
-                {"identity": p["identity"], "hp": p["hp"], "x": p["x"], "y": p["y"]}
-                for p in self.network_manager.remote_players.values()
+                {"identity": self.network_manager.identity, "hp": self.player.hp, "x": self.player.x, "y": self.player.y}
             ]
+            for p in self.network_manager.remote_players.values():
+                state["session_players"].append(
+                    {"identity": p["identity"], "hp": p["hp"], "x": p["x"], "y": p["y"]}
+                )
             
         return state
 
@@ -770,13 +773,20 @@ class GameState:
         self.player.is_exposed = False
         self.player.hp = float(self.player.max_hp)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
+        
+        # Network Rule: If we just returned from a draft (world), clear session.
+        # But if we just joined from the lobby (is_connected), keep it!
         if hasattr(self, 'network_manager'):
             mode = self.network_manager.network_mode
             if mode in ("HOST", "CLIENT"):
-                self.network_manager.stop_network()
-                self.network_manager.start_searching()
+                # Only stop if we weren't already in the hub or just connected
+                # Check active_session_in_progress as a proxy for "was in a run"
+                if self.stats and self.stats.data.get("active_session_in_progress"):
+                    self.network_manager.stop_network()
+                    self.network_manager.start_searching()
             elif mode == "OFFLINE":
                 self.network_manager.start_searching()
+        
         self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
         self.player.active_weapon_idx = 0
         
@@ -1041,7 +1051,7 @@ class GameState:
 
     def respawn_player(self):
         from engine.maps import create_world
-        if self.stats: self.stats.data["last_run_result"] = "DEFEAT"; self.stats.data["active_session_in_progress"] = False; self.stats.data["run_state"] = None
+        if self.stats: self.stats.data["last_run_result"] = "DEFEAT"
         self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
         
         # Reset local player fully
