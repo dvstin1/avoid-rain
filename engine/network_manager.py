@@ -53,39 +53,39 @@ class NetworkManager:
         """Starts the UDP discovery broadcast and TCP handshake server."""
         if self.is_hosting: return
         self.stop_network() # Clean start
-        
+
         self.is_hosting = True
         self.network_mode = "HOST"
-        self.stop_event.clear()
-        
+        self.stop_event = threading.Event()
+        stop_signal = self.stop_event
+
         # UDP Discovery Broadcast
-        t_discovery = threading.Thread(target=self._broadcast_loop, name="NetBroadcaster", daemon=True)
+        t_discovery = threading.Thread(target=self._broadcast_loop, args=(stop_signal,), name="NetBroadcaster", daemon=True)
         t_discovery.start()
         self.threads.append(t_discovery)
-        
+
         # TCP Request/Handshake Server
-        t_handshake = threading.Thread(target=self._tcp_server_loop, name="NetTCPServer", daemon=True)
+        t_handshake = threading.Thread(target=self._tcp_server_loop, args=(stop_signal,), name="NetTCPServer", daemon=True)
         t_handshake.start()
         self.threads.append(t_handshake)
-        
+
         # UDP State Sync Receiver
-        t_udp_recv = threading.Thread(target=self._udp_receive_loop, name="NetUDPReceiver", daemon=True)
+        t_udp_recv = threading.Thread(target=self._udp_receive_loop, args=(stop_signal,), name="NetUDPReceiver", daemon=True)
         t_udp_recv.start()
         self.threads.append(t_udp_recv)
 
         # UDP State Sync Sender
-        t_udp_send = threading.Thread(target=self._udp_send_loop, name="NetUDPSender", daemon=True)
+        t_udp_send = threading.Thread(target=self._udp_send_loop, args=(stop_signal,), name="NetUDPSender", daemon=True)
         t_udp_send.start()
         self.threads.append(t_udp_send)
-
         print(f"[NETWORK] HOSTING as '{self.identity}'. Discovery:{self.port}, TCP:{self.tcp_port}, UDP:{self.host_udp_port}")
 
     def stop_network(self):
         """Stops all networking threads and resets state."""
-        if not self.stop_event.is_set():
+        if self.stop_event and not self.stop_event.is_set():
             self._send_disconnect_signal()
-        
-        self.stop_event.set()
+            self.stop_event.set()
+
         self.is_hosting = False
         self.is_searching = False
         self.is_connected = False
@@ -94,9 +94,9 @@ class NetworkManager:
         self.connected_peers = {}
         self.remote_players = {} 
         self.server_address = None
-        
+
         for t in self.threads:
-            t.join(timeout=0.5)
+            t.join(timeout=0.2)
         self.threads = []
         print("[NETWORK] Cleanly stopped all network threads.")
 
@@ -116,13 +116,16 @@ class NetworkManager:
     def start_searching(self):
         """Starts the UDP scanner to find active hosts."""
         if self.is_searching: return
+        self.stop_network() # Ensure clean state
         self.found_hosts = {} # Reset list
         self.is_searching = True
-        self.stop_event.clear()
-        t_scanner = threading.Thread(target=self._scanner_loop, name="NetScanner", daemon=True)
+        self.stop_event = threading.Event()
+        stop_signal = self.stop_event
+        t_scanner = threading.Thread(target=self._scanner_loop, args=(stop_signal,), name="NetScanner", daemon=True)
         t_scanner.start()
         self.threads.append(t_scanner)
         print(f"[NETWORK] SEARCHING for hosts on port {self.port}")
+
 
     def connect_to_host(self, address):
         """Attempts to connect to a host via TCP handshake."""
@@ -154,16 +157,18 @@ class NetworkManager:
                     self.client_restored_state_handler(restored)
 
                 # Start Sync Threads
-                t_udp_recv = threading.Thread(target=self._udp_receive_loop, name="NetUDPReceiver", daemon=True)
+                self.stop_event = threading.Event()
+                stop_signal = self.stop_event
+
+                t_udp_recv = threading.Thread(target=self._udp_receive_loop, args=(stop_signal,), name="NetUDPReceiver", daemon=True)
                 t_udp_recv.start()
                 self.threads.append(t_udp_recv)
 
-                t_udp_send = threading.Thread(target=self._udp_send_loop, name="NetUDPSender", daemon=True)
+                t_udp_send = threading.Thread(target=self._udp_send_loop, args=(stop_signal,), name="NetUDPSender", daemon=True)
                 t_udp_send.start()
                 self.threads.append(t_udp_send)
-                
+
                 print(f"[NETWORK] CONNECTED to {address} as CLIENT.")
-                sock.close()
                 return True
             else:
                 print(f"[NETWORK] Connection REJECTED by host: {response.get('reason')}")
@@ -244,17 +249,20 @@ class NetworkManager:
 
     # --- Thread Loops ---
 
-    def _broadcast_loop(self):
+    def _broadcast_loop(self, stop_signal):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         payload = self.identity.encode('utf-8')
-        while self.is_hosting and not self.stop_event.is_set():
+        while not stop_signal.is_set():
             try: sock.sendto(payload, ('<broadcast>', self.port))
             except: pass
-            time.sleep(2.0)
+            # Sleep in small increments to remain responsive to stop signal
+            for _ in range(20):
+                if stop_signal.is_set(): break
+                time.sleep(0.1)
         sock.close()
 
-    def _scanner_loop(self):
+    def _scanner_loop(self, stop_signal):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try: sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
@@ -264,7 +272,7 @@ class NetworkManager:
         except: return
 
         sock.settimeout(1.0)
-        while self.is_searching and not self.stop_event.is_set():
+        while not stop_signal.is_set():
             try:
                 data, addr = sock.recvfrom(1024)
                 self.found_hosts[addr[0]] = data.decode('utf-8')
@@ -272,15 +280,17 @@ class NetworkManager:
             except: pass
         sock.close()
 
-    def _tcp_server_loop(self):
+    def _tcp_server_loop(self, stop_signal):
         """Accepts incoming TCP connections for handshakes and requests."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try: sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except AttributeError: pass
         
         # Retry binding in case old thread is still shutting down
         bound = False
         for _ in range(20):
-            if self.stop_event.is_set(): return
+            if stop_signal.is_set(): return
             try:
                 sock.bind(('', self.tcp_port))
                 bound = True
@@ -295,14 +305,15 @@ class NetworkManager:
         sock.listen(5)
         sock.settimeout(1.0)
         
-        while self.is_hosting and not self.stop_event.is_set():
+        while not stop_signal.is_set():
             try:
                 conn, addr = sock.accept()
                 t = threading.Thread(target=self._handle_tcp_request, args=(conn, addr), daemon=True)
                 t.start()
             except socket.timeout: continue
             except Exception as e:
-                print(f"[NETWORK] TCP Accept Error: {e}")
+                if not stop_signal.is_set():
+                    print(f"[NETWORK] TCP Accept Error: {e}")
         sock.close()
 
     def _handle_tcp_request(self, conn, addr):
@@ -361,12 +372,12 @@ class NetworkManager:
         finally: 
             conn.close()
 
-    def _udp_send_loop(self):
+    def _udp_send_loop(self, stop_signal):
         """Continuously sends local player state via UDP."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(0.5)
         
-        while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
+        while not stop_signal.is_set():
             payload_data = {"type": "HEARTBEAT", "identity": self.identity, "time": time.time()}
             if self.local_state_provider:
                 try: 
@@ -383,13 +394,13 @@ class NetworkManager:
                 elif self.network_mode == "CLIENT" and self.server_address:
                     sock.sendto(payload, (self.server_address, self.host_udp_port))
             except Exception as e:
-                if not self.stop_event.is_set():
+                if not stop_signal.is_set():
                     print(f"[NETWORK] UDP Send Error: {e} (Payload Size: {len(payload_data.get('enemies', []))} enemies)")
             
             time.sleep(1.0 / 20.0) # 20Hz Sync
         sock.close()
 
-    def _udp_receive_loop(self):
+    def _udp_receive_loop(self, stop_signal):
         """Continuously listens for remote player state payloads."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -399,7 +410,7 @@ class NetworkManager:
         # Retry binding in case old thread is still shutting down
         bound = False
         for _ in range(20):
-            if self.stop_event.is_set(): return
+            if stop_signal.is_set(): return
             try:
                 sock.bind(('', self.local_udp_port))
                 bound = True
@@ -414,7 +425,7 @@ class NetworkManager:
             
         sock.settimeout(1.0)
         
-        while (self.is_hosting or self.is_connected) and not self.stop_event.is_set():
+        while not stop_signal.is_set():
             try:
                 data, addr = sock.recvfrom(65536)
                 if not data: continue
@@ -455,7 +466,7 @@ class NetworkManager:
                 self._check_timeouts()
                 continue
             except Exception as e:
-                if not self.stop_event.is_set():
+                if not stop_signal.is_set():
                     print(f"[NETWORK] UDP Recv Error: {e}")
         sock.close()
 
