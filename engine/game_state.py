@@ -756,6 +756,11 @@ class GameState:
         self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
         self.player.active_weapon_idx = 0
         
+        # Purification: Clear run state when entering Hub
+        if self.stats:
+            self.stats.data["run_state"] = None
+            self.stats.data["active_session_in_progress"] = False
+
         # Weather Reset: Full system restore for hub safety
         if hasattr(self, 'weather_manager'):
             self.weather_manager.reset(boss_coords_list=None)
@@ -836,7 +841,8 @@ class GameState:
         from engine.maps import create_world
         if self.stats:
             self.stats.data["lifetime_stats"]["pages_collected"] = 0
-            self.stats.data["run_state"] = self.stats.data["active_session_in_progress"] = False
+            self.stats.data["run_state"] = None
+            self.stats.data["active_session_in_progress"] = False
             self.stats.data["last_run_result"] = "INIT"
             try: self.stats.increment("runs_started", 1)
             except Exception: pass
@@ -881,15 +887,12 @@ class GameState:
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
         if self.stats is None or not getattr(self, '_save_worker_running', False): return
         
-        # Rule: If outside Sanctuary, capture current run state for 'Continue' functionality
+        # Rule: If outside Sanctuary, capture current run snapshot.
+        # Otherwise, do NOT clear it (clearing happens in explicit transitions).
         world_name = getattr(self.world, 'name', 'sanctuary')
-        if world_name not in ("sanctuary", ""):
+        if world_name not in ("sanctuary", "") and self.player:
             self.stats.data["run_state"] = self.get_full_run_state()
             self.stats.data["active_session_in_progress"] = True
-        else:
-            # Purification: Clear session data when in hub
-            self.stats.data["run_state"] = None
-            self.stats.data["active_session_in_progress"] = False
 
         try: self._save_queue.put_nowait({"stats": self.stats.data, "path": path})
         except queue.Full: pass
