@@ -748,8 +748,11 @@ class GameState:
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
         if hasattr(self, 'network_manager'):
             mode = self.network_manager.network_mode
-            if mode == "HOST": self.network_manager.stop_network(); self.network_manager.start_searching()
-            elif mode == "OFFLINE": self.network_manager.start_searching()
+            if mode in ("HOST", "CLIENT"):
+                self.network_manager.stop_network()
+                self.network_manager.start_searching()
+            elif mode == "OFFLINE":
+                self.network_manager.start_searching()
         self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
         self.player.active_weapon_idx = 0
         
@@ -863,7 +866,7 @@ class GameState:
         LevelLoader.link_actors_to_routes(self)
 
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
-        if self.stats is None: return
+        if self.stats is None or not getattr(self, '_save_worker_running', False): return
         try: self._save_queue.put_nowait({"stats": self.stats.data, "path": path})
         except queue.Full: pass
         if wait: self._save_queue.join()

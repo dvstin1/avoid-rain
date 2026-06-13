@@ -240,6 +240,29 @@ def test_network_integration_host_and_client_combat():
     assert host_state.player.is_exposed is True, "Host should be marked as exposed."
     assert client_state.player.is_exposed is True, "Client should be marked as exposed."
 
+    # --- TEST CASE 6: CLIENT DEATH ---
+    print("[TEST] Case 6: Client Death and Disconnect...")
+    # Force client to 0 HP
+    client_state.player.hp = 0
+    # Update to trigger death sequence
+    client_state.update(0.1, {'attack': False, 'move': (0,0)})
+    assert client_state.death_timer > 0, "Client failed to initiate death sequence."
+    
+    # Fast forward death timer
+    client_state.death_timer = 0.01
+    client_state.update(0.1, {'attack': False, 'move': (0,0)})
+    
+    # Client should now be in Sanctuary and OFFLINE
+    assert client_state.world.name == "sanctuary"
+    assert client_state.network_manager.network_mode == "OFFLINE", \
+        f"Client failed to disconnect after death. Mode: {client_state.network_manager.network_mode}"
+    
+    # Host should eventually see client is gone (after disconnect signal processed)
+    time.sleep(0.5)
+    host_state.update(0.1, {'attack': False, 'move': (0,0)})
+    assert "TestClient" not in [p["identity"] for p in host_state.network_manager.remote_players.values()], \
+        "Host failed to remove dead Client from its visibility list."
+
     # --- CLEANUP ---
     print("[TEST] Cleaning up...")
     host_state.network_manager.stop_network()

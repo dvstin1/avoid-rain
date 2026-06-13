@@ -318,20 +318,19 @@ def main():
                 if hasattr(target_state, 'network_manager'):
                     target_state.network_manager.stop_network()
                 
-                # 2. Stop Autosave Worker
-                if hasattr(target_state, 'shutdown_save_worker'):
-                    target_state.shutdown_save_worker(timeout=0.5)
-
-                # 3. Final Stat Flush
+                # 2. Final Stat Flush (MUST happen before worker shutdown)
                 if hasattr(target_state, 'save_stats'):
                     target_state.save_stats(wait=True)
+
+                # 3. Stop Autosave Worker
+                if hasattr(target_state, 'shutdown_save_worker'):
+                    target_state.shutdown_save_worker(timeout=0.5)
                     
         except Exception as e:
             print(f"[SHUTDOWN] Error during cleanup: {e}")
         finally:
             pygame.quit()
 
-    atexit.register(shutdown_handler)
     pause_menu = PauseMenu()
     
     # [Initialization] Detect existing save file to enable 'Continue'
