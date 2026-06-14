@@ -413,7 +413,8 @@ class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
         from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
-        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP * 5
+        # Triple the new Miniboss max HP (300 * 3 = 900)
+        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP * 3
         super().__init__(x, y, 80, 80, initial_hp, id=id, name="The Final Author")
         self.speed = MINIBOSS_SPEED * 0.8
         self.detect_radius = 2000.0

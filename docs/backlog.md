@@ -32,6 +32,16 @@
 - **LAN Multiplayer:** Implement UDP broadcast (`SO_BROADCAST`) for automatic game discovery on the same subnet.
 - **State Serialization:** Ensure player entities cleanly serialize position and movement vectors into lightweight JSON/byte structs for low-latency networking.
 
+## 5. Network & Multiplayer Stabilization (High Priority)
+- **Client Healing Regressions:**
+    - Using a heal as a client sometimes consumes all charges instantly.
+    - Healing effects often fail to apply to actual health for clients (authoritative desync).
+- **Respite Desync:** Respites are not functioning correctly for clients, preventing level-ups and state checkpoints.
+- **Boss Visibility:**
+    - Clients cannot see the Night 2 Boss when it manifests.
+    - Clients cannot see the "Appendix Revealed" bloom or the resulting Appendix Warp portal.
+- **Combat Balance:** Damaging enemies as a client currently results in 'instant kills' regardless of enemy HP, suggesting a multi-hit or data parsing glitch on the Host.
+
 ## 6. Combat Refinement (Speculative)
 - **Weapon Arts:** Unique special attacks or passive effects for "Anomalous" weapons (e.g., Ink Bleed triggering a small AoE puddle on strike).
 - **Quill Pressure (Stamina):** A resource meter that limits rapid-fire attacks and dashes, encouraging tactical positioning and deliberate timing.
