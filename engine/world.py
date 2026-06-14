@@ -60,6 +60,9 @@ class WarpPortal(GameObject):
         try:
             from engine.maps import create_world
             print(f"[DEBUG] WarpPortal targeting: {self.target_name}")
+            
+            # Universal Reset: Clear visual debris on every map transition
+            game_state.world_debris = []
 
             # Phase 3 Intercept: If Client entering macro-world, fetch host map
             is_client = (game_state.network_manager.network_mode == "CLIENT")

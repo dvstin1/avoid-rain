@@ -834,7 +834,10 @@ class GameState:
         self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
         self.player.active_weapon_idx = 0
         
-        # Purification: Clear run state when entering Hub
+        # Purification: Clear run state and persistent world changes when entering Hub
+        self.world_debris = []
+        self.destroyed_prop_ids.clear()
+
         if self.stats:
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
