@@ -44,6 +44,7 @@ class NetworkManager:
         self.host_client_state_restorer = None # TCP: accepts (identity, ip) returns state dict or None
         self.host_client_state_cacher = None # TCP: accepts (identity, ip, state_dict)
         self.host_damage_handler = None # TCP: accepts (target_type, target_id, amount)
+        self.host_heal_handler = None # TCP: accepts (identity, amount)
         self.client_restored_state_handler = None # TCP: accepts state_dict
         
         self.stop_event = threading.Event()
@@ -228,19 +229,38 @@ class NetworkManager:
             sock.close()
         except Exception as e:
             print(f"[NETWORK] Full state update failed: {e}")
-
     def send_damage_event(self, target_type, target_id, amount):
-        """Phase 4: Client sends damage events to the Host."""
-        if not self.is_connected or not self.server_address: return
+        """Phase 4: Client notifies Host of damage dealt to shared entities."""
+        if self.network_mode != "CLIENT" or not self.server_address:
+            return
+
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(2.0)
+            sock.settimeout(1.0)
             sock.connect((self.server_address, self.tcp_port))
             payload = {
                 "type": "DAMAGE_EVENT",
                 "identity": self.identity,
                 "target_type": target_type,
                 "target_id": target_id,
+                "amount": amount
+            }
+            sock.sendall(json.dumps(payload).encode('utf-8'))
+            sock.close()
+        except: pass
+
+    def send_heal_event(self, amount):
+        """Phase 4: Client notifies Host of healing action."""
+        if self.network_mode != "CLIENT" or not self.server_address:
+            return
+
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1.0)
+            sock.connect((self.server_address, self.tcp_port))
+            payload = {
+                "type": "HEAL_EVENT",
+                "identity": self.identity,
                 "amount": amount
             }
             sock.sendall(json.dumps(payload).encode('utf-8'))
@@ -366,6 +386,10 @@ class NetworkManager:
             elif m_type == "DAMAGE_EVENT":
                 if self.host_damage_handler:
                     self.host_damage_handler(msg.get("target_type"), msg.get("target_id"), msg.get("amount"))
+
+            elif m_type == "HEAL_EVENT":
+                if self.host_heal_handler:
+                    self.host_heal_handler(identity, msg.get("amount"))
 
         except Exception as e:
             print(f"[NETWORK] TCP request error: {e}")

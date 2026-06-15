@@ -58,6 +58,8 @@ class Player:
         # Attack Latching (Prevent multi-hit per swing)
         self.hit_entities_this_attack = set()
         self.hit_props_this_attack = set()
+        
+        self.flask_latched = False
 
     def swap_weapon(self, audio_manager=None):
         """Toggle the active weapon slot if the player is not currently attacking."""
@@ -79,10 +81,12 @@ class Player:
         dash_pressed=False, block_pressed=False, speed_multiplier=1.0, audio_manager=None
     ):
         """
-        Update player position and state.
+        Update player position and state. Returns True if a heal was performed.
         """
         from constants import DASH_DURATION, DASH_COOLDOWN, DASH_SPEED_MULTIPLIER, BLOCK_SPEED_MULTIPLIER, PARRY_WINDOW
 
+        healed = False
+        
         # 0. Parry Timer Update
         if self.parry_timer > 0:
             self.parry_timer -= dt
@@ -91,13 +95,13 @@ class Player:
             self.stagger_timer -= dt
             if self.stagger_timer <= 0:
                 self.state = PlayerStateEnum.IDLE
-            return
+            return False
 
         if self.state == PlayerStateEnum.ATTACKING:
             self.attack_timer -= dt
             if self.attack_timer <= 0:
                 self.state = PlayerStateEnum.IDLE
-            return
+            return False
 
         if self.state == PlayerStateEnum.DASHING:
             self.dash_timer -= dt
@@ -114,7 +118,7 @@ class Player:
                     (self.x, self.y, self.width, self.height),
                     walls
                 )
-            return
+            return False
 
         # Update dash cooldown
         if hasattr(self, 'dash_cooldown_timer') and self.dash_cooldown_timer > 0:
@@ -127,7 +131,12 @@ class Player:
 
         # 0. Handle Flask
         if flask_pressed:
-            self.use_flask(audio_manager=audio_manager)
+            if not self.flask_latched:
+                if self.use_flask(audio_manager=audio_manager):
+                    healed = True
+                self.flask_latched = True
+        else:
+            self.flask_latched = False
 
         dx, dy = move_dir
 
@@ -194,6 +203,8 @@ class Player:
         world_pixel_height = GRID_HEIGHT * TILE_SIZE
         self.x = max(0, min(self.x, world_pixel_width - self.width))
         self.y = max(0, min(self.y, world_pixel_height - self.height))
+        
+        return healed
 
     def get_pos(self):
         """Returns the current position as a tuple."""
@@ -243,12 +254,14 @@ class Player:
         }
 
     def use_flask(self, audio_manager=None):
-        """Consume a flask charge to restore HP."""
+        """Consume a flask charge to restore HP. Returns True if heal performed."""
         if self.flask_charges > 0 and self.hp < self.max_hp:
             self.flask_charges -= 1
             self.hp = min(self.max_hp, self.hp + FLASK_HEAL_AMOUNT)
             if audio_manager:
                 audio_manager.play_sfx("flask_use.ogg")
+            return True
+        return False
 
     def take_damage(self, amount: float, bypass_stagger: bool = False, audio_manager=None) -> None:
         """Apply damage to the player; clamp at zero.

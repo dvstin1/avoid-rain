@@ -135,10 +135,12 @@ class GameState:
         self.network_manager.host_client_state_cacher = self.host_cacher_callback
         self.network_manager.client_restored_state_handler = self.apply_restored_state
         self.network_manager.host_damage_handler = self.handle_remote_damage
+        self.network_manager.host_heal_handler = self.handle_remote_heal
         
         self.cached_client_states = {} # {identity: state_dict}
         self.full_state_sync_timer = 0.0
         self.pending_remote_damage = [] # Thread-safe queue for TCP damage events
+        self.pending_remote_heals = [] # Thread-safe queue for TCP heal events
         
         # Start searching for hosts if in Sanctuary
         if getattr(self.world, 'name', '') == "sanctuary":
@@ -333,6 +335,10 @@ class GameState:
         """Phase 4: Queues damage events sent by remote clients."""
         self.pending_remote_damage.append((target_type, target_id, amount))
 
+    def handle_remote_heal(self, identity, amount):
+        """Phase 4: Queues heal events sent by remote clients."""
+        self.pending_remote_heals.append((identity, amount))
+
     def get_full_player_state(self):
         if not self.player: return {}
         return {
@@ -492,6 +498,16 @@ class GameState:
                                 except Exception: pass
                             break
             self.pending_remote_damage.clear()
+            
+        if not is_client and self.pending_remote_heals:
+            for identity, amount in self.pending_remote_heals:
+                if identity in self.network_manager.remote_players:
+                    p_data = self.network_manager.remote_players[identity]
+                    # Attempt to find max_hp in cached states
+                    cached = self.cached_client_states.get(identity, {})
+                    m_hp = float(cached.get("max_hp", 100.0))
+                    p_data["hp"] = min(m_hp, p_data["hp"] + amount)
+            self.pending_remote_heals.clear()
 
         # 1. Local Attacks
         if self.player.state == PlayerStateEnum.ATTACKING:
@@ -643,7 +659,11 @@ class GameState:
                     speed_multiplier = 0.5
                     break
         
-        self.player.update(dt, move_dir, walls, actions, attack_pressed, flask_pressed, dash_pressed, block_pressed, speed_multiplier)
+        healed = self.player.update(dt, move_dir, walls, actions, attack_pressed, flask_pressed, dash_pressed, block_pressed, speed_multiplier)
+        if healed and self.network_manager.network_mode == "CLIENT":
+            from constants import FLASK_HEAL_AMOUNT
+            self.network_manager.send_heal_event(FLASK_HEAL_AMOUNT)
+
         self._update_audio_track(dt)
         self._handle_victory_conditions(dt)
 
