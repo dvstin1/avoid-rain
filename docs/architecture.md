@@ -154,27 +154,7 @@ To prevent canvas blackouts, the minimap must adhere to a strict pipeline:
 2. **Sub-Surface Blit:** Draw tiles and entities using strict integer casting and boundary clamping.
 3. **Primary Blit:** Execute `main_screen.blit(minimap_surface, destination_rect)`.
 
-## 14. Local Area Network (LAN) Architecture & Phased Roadmap
-
-The engine supports local co-op sessions using a decentralized discovery and authoritative sync model.
-
-### 1. Phased Development Roadmap
-- **Phase 1: Local Discovery (Current)**
-  - Background UDP broadcasting on Port 55555.
-  - Identity payload broadcasting ("Dustin's Game").
-  - Automated subnet scanning for host beacons.
-- **Phase 2: Handshake & State Replication**
-  - TCP connection established between discovery peers.
-  - Initial state sync (Player coordinates, HP).
-- **Phase 3: Visual Synchronization**
-  - Rendering "Ghost" entities for connected peers.
-  - Interpolated movement for smooth non-local updates.
-- **Phase 4: Full Game State Authority**
-  - Host-side resolution of world events (Enemy deaths, Loot drops).
-  - Multi-client weather synchronization.
-
-## 14. Local Area Network (LAN) Architecture & Phased Roadmap
-
+## 14. Local Area Network (LAN) Architecture
 The engine plans to support local Wi-Fi co-op sessions using an Authoritative Host / Mirror Client structure. The implementation is isolated into progressive phases.
 
 ### 1. Phased Development Roadmap
@@ -188,3 +168,17 @@ The engine plans to support local Wi-Fi co-op sessions using an Authoritative Ho
   - Render non-local client players as text-tagged coordinate clones.
 - **Phase 4: Authoritative Simulation Sync**
   - Route client action commands (e.g., barrel damage hits) to the host for primary state resolution.
+
+## 15. Layered Visual System (Ghost Indicators)
+A decoupled animation architecture that translates internal state flags into composable visual "intents."
+
+### 1. The Visual Packet
+Every mobile entity (`Actor`, `Player`) implements `get_visual_packet()`, which returns a schema including:
+- **Base:** The primary animation (IDLE, RUN, ATTACK, DASH).
+- **Posture:** Physical transformations (WOUNDED squashing, STAGGERED vibration).
+- **Overlays:** Status effect indicators (BIND vines, EXPOSED shimmer, PARRY glow).
+- **Metadata:** Facing vectors and combat progress timers.
+
+### 2. Composable Rendering
+The `Renderer` consumes these packets to draw **"Ghost Indicators"**—abstract representations that provide full tactical feedback without requiring finalized sprite assets.
+- **Composition Rule:** Postures (squash/stretch) are applied first, followed by the base body color, then overlays and progress bars are layered on top.

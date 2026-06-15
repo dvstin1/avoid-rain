@@ -12,10 +12,11 @@ To maintain a decoupled design, input is translated from raw hardware events int
 | Input | Keyboard | Gamepad | Action |
 | :--- | :--- | :--- | :--- |
 | **Move** | WASD / Arrows | L-Stick / D-Pad | Movement / Navigation |
-| **Action** | SPACE | Cross / A | Attack / Interact / Confirm |
+| **Action** | SPACE | Cross / A | Attack / Interact / Pick up |
 | **Dash** | L_SHIFT | Circle / B | Invulnerable Dash |
 | **Heal** | 1 | Triangle / Y | Use Flask |
-| **Swap** | Q | L1 / LB | Toggle Weapon Slots |
+| **Swap** | Q | L1 / LB | Toggle Weapon / Contextual Pickup |
+| **Inspect** | TAB (Hold) | R1 / RB (Hold) | Reveal Weapon Details |
 | **Block** | K | R2 / RT | Raise Shield |
 | **Pause** | ESCAPE | Start / Options | Toggle Menu |
 
@@ -36,7 +37,12 @@ The title screen adaptively presents options based on the physical presence of `
 Text items in the HUD use a compact 14pt font line size to prevent viewport crowding:
 - **Metrics:** `HP`, `Flasks`, `Pages`, and `Level`.
 - **Equipment:** Dual weapon slots with tier coloring (White: Common, Purple: Anomalous).
-- **Hotkeys:** Integrated labels showing `[Q / L1]` for Swapping and `[SPACE / A]` for Pickups.
+- **Interaction Rules:**
+    - **Pick up:** Stand near an item and press `SPACE / A` to collect it.
+    - **Contextual Swap:** Press `Q / L1` while over a weapon to immediately swap it into your current slot.
+- **Expanded Inspect View (Hold TAB / R1):** Reveals stylized "Marginalia" parchment tooltips for all equipped quills and any weapon on the floor.
+    - **Full Metadata:** Reveals full name, flavor description (Critique), and explicit stat modifiers (e.g., `Bleed`, `Attack`, `Max HP`).
+    - **Side-by-Side Comparison:** Tooltips are arranged horizontally for quick evaluation of floor items against current loadouts.
 
 ### 3.3. System Diagnostic Telemetry (Top-Center & Left)
 - **Audio OSD (Center):** Displays the active background track (e.g., `[ AUDIO_OSD ] MUSIC: night_boss.ogg`) in Toxic Green.

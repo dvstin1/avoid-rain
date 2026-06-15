@@ -16,6 +16,7 @@
 
 ## Agent Behavior Rules
 - Always create a single git commit for each user prompt that requires code or documentation changes. Each commit should be atomic, include a clear message, and include the required Co-authored-by trailer.
+- **Testing Enforcement:** Every code modification must be verified by running the full unit test suite (`pytest`). Never assume a change is safe; project stability is verified only through 100% green tests.
 - Do NOT push commits to remote automatically. Pushing is not needed unless explicitly requested.
 - Keep changes low-coupled and limited to the files required by the user's request.
 - **Map Editor Architecture Rules:**

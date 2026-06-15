@@ -33,7 +33,6 @@ class Enemy(Actor):
             
             if check_aabb_collision(self.get_rect(), v_rect):
                 if v_type == "local":
-                    # print(f"[DEBUG] Enemy {getattr(self, 'network_id', -1)} hit LOCAL player")
                     # Local Player Parry Check
                     if self.is_parryable and v_obj.is_parry_active():
                         self._handle_parry(state)

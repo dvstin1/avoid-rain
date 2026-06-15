@@ -189,7 +189,8 @@ def test_network_integration_host_and_client_combat():
     assert len(host_state.enemies) > 0
     test_enemy = host_state.enemies[0]
     
-    # Disable enemy movement for stability
+    # Reset stagger and disable movement for stability
+    test_enemy.stagger_timer = 0
     test_enemy.speed = 0
     
     client_state.player.x, client_state.player.y = test_enemy.x, test_enemy.y
@@ -221,6 +222,10 @@ def test_network_integration_host_and_client_combat():
     # Update Host to deal damage and Client to receive it
     found_host_side_damage = False
     for _ in range(40):
+        # Center client on enemy
+        client_state.player.x = test_enemy.x + test_enemy.width // 2 - 20
+        client_state.player.y = test_enemy.y + test_enemy.height // 2 - 20
+        
         host_state.update(0.1, {'attack': False, 'move': (0,0)})
         client_state.update(0.1, {'attack': False, 'move': (0,0)})
         time.sleep(0.05)

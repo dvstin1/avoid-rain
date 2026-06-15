@@ -1,7 +1,23 @@
 # Changelog
 
 ## [Recently Completed]
-### Local Network Play (Phase 3): Map Sync & Client Persistence
+### Layered Visuals & Input Refinement: "The Ghost Indicator System"
+- **Layered Visual Architecture:** Implemented a decoupled animation system in `Actor` and `Player` that generates 'Visual Packets' containing base actions, physical postures, and status overlays.
+- **Renderer "Ghost Indicators":** Overhauled character rendering to draw abstract visual cues:
+    - **Postures:** Actors now "squash" (wounded) or vibrate (staggered) based on state.
+    - **Overlays:** Added stylized indicators for `BIND` (green vines), `EXPOSED` (shimmer), and `PARRY_WINDOW` (glow).
+    - **Progress Bars:** Integrated timing bars above heads for combat telegraphs.
+- **Expanded Inspect HUD:**
+    - Added a 'Held' inspect action mapped to `TAB` (KB) and `R1` (Gamepad).
+    - Holding inspect reveals stylized tooltips with full weapon names, flavor descriptions, and explicit stat modifiers.
+    - Supported side-by-side comparison for equipped quills and floor items.
+- **Contextual Input Overhaul:**
+    - Restored `SPACE / A` interaction for all world objects, including weapons.
+    - Implemented **Contextual Swap**: Pressing `Q / L1` while over a weapon immediately collects and equips it.
+- **World Balancing & Stability:**
+    - **Boss Scaling:** Doubled HP for Minibosses/Night Bosses and tripled HP for the Final Author.
+    - **Sanctuary Purification:** Fixed a visual bug where broken barrels persisted in the Hub; the Sanctuary now reset to a pristine state upon entry.
+    - **Unit Test Restoration:** Fixed 52+ regression failures and optimized performance by removing high-volume debug logs.
 - **Authoritative Map Transfer:** Established a TCP-based world synchronization protocol that transmits the Host's full generated macro-world JSON to clients.
 - **Warp Interception:** Modified the Chronicle interaction for Clients to fetch and load the Host's map instead of triggering local procedural generation.
 - **Host-Side Profile Caching:** Implemented a persistence layer on the Host that caches connected client states (equipment, stats, HP).

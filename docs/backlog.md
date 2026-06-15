@@ -22,6 +22,8 @@
 - **Environment Audio:** Directional audio for candelabras, wellsprings, and the distant rumble of the author's madness.
 
 ## 3. Narrative & Visuals
+- **Layered Visual System (Ghost Indicators):** [DONE] Implement a decoupled animation system that uses abstract indicators (color tints, squashing, borders) to represent states (WOUNDED, STAGGERED, BIND) without finalized assets.
+- **Logical Effect Buffer:** Create an engine-side queue for visual events (INK_DEATH, PARRY_SPARK) that the renderer consumes, ensuring visuals remain decoupled from logic.
 - **Chapter Titles:** Large typographic overlays when entering new modular zones. (Partially implemented as Typographic Bloom).
 
 ## 4. Technical & Navigation (Future Phases)

@@ -508,28 +508,34 @@ class GameState:
             for enemy in list(self.enemies):
                 try:
                     e_rect = enemy.get_rect()
-                    if check_aabb_collision(hitbox, e_rect):
-                        if not enemy.is_staggered() or is_client:
-                            # Rule: Clients bypass local stagger logic so they don't freeze enemies waiting for Host UDP sync
-                            enemy.take_damage(damage, bypass_stagger=is_client)
-                            hit_landed = True
-                            if is_client:
-                                self.network_manager.send_damage_event("enemy", getattr(enemy, 'network_id', -1), damage)
-                            self.hit_stop_timer = HIT_STOP_DURATION
-                            self.shake_timer = SCREEN_SHAKE_DURATION
-                            self.damage_numbers.append({
-                                'val': damage, 'pos': (enemy.x + 10, enemy.y - 20),
-                                'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_SELECTION
-                            })
+                    net_id = getattr(enemy, 'network_id', id(enemy))
+                    
+                    if check_aabb_collision(hitbox, e_rect) and net_id not in self.player.hit_entities_this_attack:
+                        # Rule: Hit once per attack swing
+                        self.player.hit_entities_this_attack.add(net_id)
+                        
+                        enemy.take_damage(damage, bypass_stagger=is_client)
+                        hit_landed = True
+                        if is_client:
+                            self.network_manager.send_damage_event("enemy", net_id, damage)
+                        self.hit_stop_timer = HIT_STOP_DURATION
+                        self.shake_timer = SCREEN_SHAKE_DURATION
+                        self.damage_numbers.append({
+                            'val': damage, 'pos': (enemy.x + 10, enemy.y - 20),
+                            'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_SELECTION
+                        })
                 except Exception: pass
 
             # Props
             for obj in list(self.world.interactables):
-                if getattr(obj, 'is_breakable', False) and check_aabb_collision(hitbox, obj.rect):
+                p_id = getattr(obj, 'id', id(obj))
+                if getattr(obj, 'is_breakable', False) and check_aabb_collision(hitbox, obj.rect) and p_id not in self.player.hit_props_this_attack:
+                    self.player.hit_props_this_attack.add(p_id)
+                    
                     obj.take_damage(damage)
                     hit_landed = True
                     if is_client:
-                        self.network_manager.send_damage_event("prop", getattr(obj, 'id', None), damage)
+                        self.network_manager.send_damage_event("prop", p_id, damage)
                     
                     # Only the Host officially kills props and spawns loot. Clients wait for the UDP state sync to hide them.
                     if obj.is_dead() and not is_client:

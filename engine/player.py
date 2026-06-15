@@ -54,6 +54,10 @@ class Player:
         # Parry Mechanics
         self.parry_timer = 0.0
         self.was_blocking = False
+        
+        # Attack Latching (Prevent multi-hit per swing)
+        self.hit_entities_this_attack = set()
+        self.hit_props_this_attack = set()
 
     def swap_weapon(self, audio_manager=None):
         """Toggle the active weapon slot if the player is not currently attacking."""
@@ -148,6 +152,8 @@ class Player:
             self.state = PlayerStateEnum.ATTACKING
             self.attack_timer = SWORD_DURATION
             self.vx, self.vy = 0, 0
+            self.hit_entities_this_attack.clear()
+            self.hit_props_this_attack.clear()
             return
 
         # Apply blocking state
