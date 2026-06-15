@@ -657,7 +657,8 @@ class Renderer:
         # [PICK UP] Button - only visible if standing over a WeaponPickup
         from engine.world import WeaponPickup
         target = state.player.current_interactable
-        if isinstance(target, WeaponPickup):
+        is_near_weapon = isinstance(target, WeaponPickup)
+        if is_near_weapon:
             pkr = pygame.Rect(constants.HUD_PICKUP_BTN_RECT)
             # Use tier color for button outline
             col = constants.COLOR_PURPLE if "modifiers" in target.weapon_data else constants.COLOR_WHITE
@@ -666,7 +667,87 @@ class Renderer:
             pkt = self.hud_font.render("SPACE / A (GP)", True, constants.COLOR_WHITE)
             hud_surf.blit(pkt, (pkr.centerx - pkt.get_width()//2, pkr.centery - pkt.get_height()//2))
 
-        self.screen.blit(hud_surf, (10, self.screen.get_height() - constants.HUD_PANEL_H - 10))
+        hud_x = 10
+        hud_y = self.screen.get_height() - constants.HUD_PANEL_H - 10
+        self.screen.blit(hud_surf, (hud_x, hud_y))
+
+        # --- EXPANDED INSPECT VIEW ---
+        if getattr(state, 'inspect_active', False):
+            tip_w = 200
+            tip_y = hud_y - 5
+            
+            # 1. Equipped Slot A
+            if len(player.weapons) > 0:
+                self.draw_weapon_details(player.weapons[0], hud_x + 10, tip_y, tip_w, title="SLOT A")
+                
+            # 2. Equipped Slot B
+            if len(player.weapons) > 1:
+                self.draw_weapon_details(player.weapons[1], hud_x + tip_w + 20, tip_y, tip_w, title="SLOT B")
+                
+            # 3. Ground Comparison
+            if is_near_weapon:
+                self.draw_weapon_details(target.weapon_data, hud_x + (tip_w + 20) * 2, tip_y, tip_w, title="ON FLOOR")
+
+    def draw_weapon_details(self, weapon, x, y, width, title="EQUIPPED"):
+        """Draw a detailed tooltip for a weapon (Marginalia Style)."""
+        if not weapon: return 0
+        
+        # 1. Setup Surface & Content
+        lines = []
+        # Title (e.g., SLOT A)
+        lines.append(self.hud_font.render(title, True, (150, 150, 150)))
+        
+        # Name (Use small font to avoid cutoff)
+        col = constants.COLOR_PURPLE if "modifiers" in weapon else constants.COLOR_WHITE
+        lines.append(self.small_font.render(weapon.get("name", "Unknown Quill"), True, col))
+        
+        # DMG Info
+        dmg_text = f"Damage: {weapon.get('damage', 0)}"
+        lines.append(self.small_font.render(dmg_text, True, (200, 200, 200)))
+
+        # 2. Modifiers Section (Detailed Stats)
+        mods = weapon.get("modifiers", {})
+        if mods:
+            lines.append(self.small_font.render("--- Modifiers ---", True, (100, 100, 100)))
+            for m_key, m_val in mods.items():
+                label = m_key.replace("_modifier", "").capitalize()
+                sign = "+" if m_val > 0 else ""
+                mod_text = f"{label}: {sign}{m_val}"
+                lines.append(self.small_font.render(mod_text, True, constants.COLOR_CYAN))
+
+        # 3. Description Section (Flavor)
+        desc = weapon.get("description")
+        if desc:
+            lines.append(self.small_font.render("--- Critique ---", True, (100, 100, 100)))
+            # Simple word wrap for description
+            words = desc.split()
+            cur_line = ""
+            for w in words:
+                test_line = cur_line + (" " if cur_line else "") + w
+                if self.small_font.size(test_line)[0] < width - 20:
+                    cur_line = test_line
+                else:
+                    lines.append(self.small_font.render(cur_line, True, (180, 180, 180)))
+                    cur_line = w
+            if cur_line:
+                lines.append(self.small_font.render(cur_line, True, (180, 180, 180)))
+
+        # 4. Calculate Height & Background
+        line_h = 18
+        h = 15 + len(lines) * line_h + 10
+        
+        tip_surf = pygame.Surface((width, h), pygame.SRCALPHA)
+        tip_surf.fill((20, 20, 30, 240)) # Slightly darker for clarity
+        pygame.draw.rect(tip_surf, (100, 100, 110), (0, 0, width, h), 1)
+        
+        # 5. Blit lines
+        cur_y = 10
+        for surf in lines:
+            tip_surf.blit(surf, (10, cur_y))
+            cur_y += line_h
+            
+        self.screen.blit(tip_surf, (x, y - h))
+        return h
 
     def draw_loot(self, item, offset_x, offset_y):
         """Draw loot items."""
@@ -941,6 +1022,7 @@ class Renderer:
             ("Heal (Flask)", "1", "(GP) Triangle"),
             ("Block (Shield)", "K", "(GP) R2"),
             ("Swap Weapon", "Q / Click", "(GP) L1"),
+            ("Inspect Details", "TAB (Hold)", "(GP) R1 (Hold)"),
             ("Pause Game", "ESC", "(GP) Start"),
         ]
         
