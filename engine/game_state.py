@@ -92,6 +92,7 @@ class GameState:
         self.shake_timer = 0.0
         self.death_timer = 0.0
         self.last_save_elapsed = 9999.0 # Start large to trigger early if needed
+        self.inspect_active = False
         self.parry_effects = [] # Transient VFX sparks
 
         # 4. Input and Navigation State
@@ -348,6 +349,7 @@ class GameState:
         self.audio_manager = audio_manager
         attack_pressed = actions.get('attack', False)
         ratchet_reset = actions.get('ratchet_reset', False)
+        self.inspect_active = actions.get('inspect', False)
         is_client = (self.network_manager.network_mode == "CLIENT")
 
         if is_client:

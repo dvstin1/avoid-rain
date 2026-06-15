@@ -153,6 +153,7 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
     flask = False
     dash = False
     swap = False
+    inspect = False
     mouse_click = None
     
     for event in pygame.event.get():
@@ -188,6 +189,7 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
                 if event.button == 1: dash = True   # Cancel/Dash
                 if event.button == 3: flask = True  # Flask
                 if event.button == 4: swap = True   # L1 Swap
+                if event.button == 5: inspect = True # R1 Inspect
                 if event.button == 6: # Options/Share
                     if pause_menu: pause_menu.toggle()
 
@@ -204,6 +206,7 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
             if event.key == pygame.K_SPACE: attack = True
             if event.key == pygame.K_1: flask = True
             if event.key == pygame.K_q: swap = True
+            if event.key == pygame.K_TAB: inspect = True
             if event.key == pygame.K_LSHIFT: dash = True
             if pause_menu is not None and pause_menu.is_open():
                 if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
@@ -245,7 +248,7 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
                 if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
 
 
-    return running, attack, flask, dash, swap, mouse_click, ratchet_reset
+    return running, attack, flask, dash, swap, inspect, mouse_click, ratchet_reset
 
 def get_movement_actions(state):
     """Poll keyboard and joysticks for movement actions."""
@@ -410,7 +413,7 @@ def main():
                     if selected == 'Quit': running = False
             else:
                 ev_res = handle_game_events(state, pause_menu=pause_menu, audio_manager=audio)
-                running, attack, flask, dash, swap, mouse_click, ratchet_reset = ev_res
+                running, attack, flask, dash, swap, inspect, mouse_click, ratchet_reset = ev_res
                 if ratchet_reset: state.input_ratchet_latched = False
                 
                 if pause_menu.is_open():
@@ -429,6 +432,7 @@ def main():
                     actions = {
                         'move': get_movement_actions(state),
                         'attack': attack, 'flask': flask, 'dash': dash, 'swap': swap,
+                        'inspect': inspect,
                         'mouse_click': mouse_click, 'ratchet_reset': ratchet_reset,
                         'block': pygame.key.get_pressed()[pygame.K_k],
                         'key_r': pygame.key.get_pressed()[pygame.K_r],
@@ -442,6 +446,7 @@ def main():
                         if joy.get_button(3): actions['flask'] = True
                         if joy.get_button(7): actions['block'] = True
                         if joy.get_button(1): actions['key_r'] = True
+                        if joy.get_button(5): actions['inspect'] = True
                     
                     state.update(dt, actions, audio_manager=audio)
                     audio.update(dt, state.player.active_track_name)
