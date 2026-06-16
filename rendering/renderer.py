@@ -26,21 +26,44 @@ class Renderer:
         # Image Cache
         self.image_cache = {}
         self._load_barrel_assets()
+        self._load_tile_assets()
 
     def _load_barrel_assets(self):
         """Pre-load barrel animation frames."""
         import os
         base_path = os.path.join("assets", "graphics")
+        display_init = pygame.display.get_init()
+        
         for i in range(4):
             name = f"barrel_{i}.png"
             path = os.path.join(base_path, name)
             if os.path.exists(path):
                 try:
+                    img = pygame.image.load(path)
+                    if display_init:
+                        img = img.convert_alpha()
                     # Scale to 40x40 to match TILE_SIZE
-                    img = pygame.image.load(path).convert_alpha()
                     self.image_cache[name] = pygame.transform.scale(img, (40, 40))
                 except Exception as e:
                     print(f"[RENDER] Error loading {name}: {e}")
+
+    def _load_tile_assets(self):
+        """Pre-load tile assets like walls and floors."""
+        import os
+        base_path = os.path.join("assets", "graphics")
+        display_init = pygame.display.get_init()
+        
+        # 1. Brown Wall
+        name = "brown_wall.png"
+        path = os.path.join(base_path, name)
+        if os.path.exists(path):
+            try:
+                img = pygame.image.load(path)
+                if display_init:
+                    img = img.convert_alpha()
+                self.image_cache[name] = pygame.transform.scale(img, (constants.TILE_SIZE, constants.TILE_SIZE))
+            except Exception as e:
+                print(f"[RENDER] Error loading {name}: {e}")
 
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
@@ -258,7 +281,12 @@ class Renderer:
             for x in range(sx, ex):
                 dr = (x * constants.TILE_SIZE - ox, y * constants.TILE_SIZE - oy, constants.TILE_SIZE, constants.TILE_SIZE)
                 tile = state.world.grid[y][x]
-                if tile == constants.TILE_WALL: pygame.draw.rect(self.screen, constants.COLOR_WALL, dr)
+                if tile == constants.TILE_WALL:
+                    img = self.image_cache.get("brown_wall.png")
+                    if img:
+                        self.screen.blit(img, (dr[0], dr[1]))
+                    else:
+                        pygame.draw.rect(self.screen, constants.COLOR_WALL, dr)
                 elif tile == constants.TILE_LOTUS_FRAME: pygame.draw.rect(self.screen, (40, 40, 80), dr)
                 else: pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
         
