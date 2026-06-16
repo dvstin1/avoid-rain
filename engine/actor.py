@@ -162,6 +162,21 @@ class Actor:
             self._update_recovery(dt, state)
         # ENGAGED: No movement
 
+        # 3. Update Facing (Unified Rule)
+        # Priority 1: If attacking, face the target
+        if self.state in (ActorState.WIND_UP, ActorState.STRIKE) and self.active_target:
+            tx, ty = self.active_target
+            cx, cy = self.get_center()
+            dx, dy = tx - cx, ty - cy
+            mag = math.sqrt(dx*dx + dy*dy)
+            if mag > 0.1:
+                self.facing = (dx/mag, dy/mag)
+        # Priority 2: If moving, face the direction of travel
+        elif abs(self.vx) > 0.1 or abs(self.vy) > 0.1:
+            mag = math.sqrt(self.vx**2 + self.vy**2)
+            if mag > 0.1:
+                self.facing = (self.vx/mag, self.vy/mag)
+
     def _update_state_logic(self, dt, game_state):
         """Determine current behavior state."""
         # NPCs (Chronicler) never CHASE. They only ENGAGE or PATROL.
