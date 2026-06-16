@@ -55,6 +55,8 @@ class Actor:
         
         self.stagger_timer = 0.0
         self.name = name
+        self.animation_timer = 0.0
+        self.frame_index = 0
         self.detect_radius = 5.0 * TILE_SIZE
         self.is_miniboss = False
         self.is_stationary = False
@@ -88,6 +90,7 @@ class Actor:
             "overlays": overlays,
             "facing": self.facing,
             "timer": self.combat_timer if self.combat_timer > 0 else 0.0,
+            "anim_timer": self.animation_timer,
             "progress": 0.0 # To be calculated if needed
         }
 
@@ -132,6 +135,7 @@ class Actor:
 
     def update(self, dt, state):
         """Unified state machine update."""
+        self.animation_timer += dt
         if self.stagger_timer > 0:
             self.stagger_timer -= dt
             return

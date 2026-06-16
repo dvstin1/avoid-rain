@@ -27,6 +27,7 @@ class Player:
     def __init__(self, x, y):
         self.x = x
         self.y = y
+        self.name = "Player"
         self.vx = 0.0
         self.vy = 0.0
         self.width = PLAYER_WIDTH

@@ -27,6 +27,7 @@ class Renderer:
         self.image_cache = {}
         self._load_barrel_assets()
         self._load_tile_assets()
+        self._load_slug_assets()
 
     def _load_barrel_assets(self):
         """Pre-load barrel animation frames."""
@@ -44,6 +45,26 @@ class Renderer:
                         img = img.convert_alpha()
                     # Scale to 40x40 to match TILE_SIZE
                     self.image_cache[name] = pygame.transform.scale(img, (40, 40))
+                except Exception as e:
+                    print(f"[RENDER] Error loading {name}: {e}")
+
+    def _load_slug_assets(self):
+        """Pre-load slug enemy animation frames."""
+        import os
+        base_path = os.path.join("assets", "graphics")
+        display_init = pygame.display.get_init()
+        
+        # 1, 2, 3, 4 are directions/alternates. attack_1, attack_2 are attack states.
+        slug_frames = ["slug_1.png", "slug_2.png", "slug_3.png", "slug_4.png", "slug_attack_1.png", "slug_attack_2.png"]
+        for name in slug_frames:
+            path = os.path.join(base_path, name)
+            if os.path.exists(path):
+                try:
+                    img = pygame.image.load(path)
+                    if display_init:
+                        img = img.convert_alpha()
+                    # Scale slug to 48x48 (slightly larger than its 32x32 box for visual presence)
+                    self.image_cache[name] = pygame.transform.scale(img, (48, 48))
                 except Exception as e:
                     print(f"[RENDER] Error loading {name}: {e}")
 
@@ -434,73 +455,115 @@ class Renderer:
         pygame.display.flip()
 
     def draw_actor_ghost(self, actor, ox, oy, state):
-        """Draws abstract indicators for an actor based on its visual packet."""
+        """Draws sprites or abstract indicators for an actor based on its visual packet."""
         packet = actor.get_visual_packet()
         rect = pygame.Rect(actor.x - ox, actor.y - oy, actor.width, actor.height)
         
-        # 1. Posture Modifiers (Transformation)
-        draw_rect = rect.copy()
-        if packet["posture"] == "WOUNDED":
-            # Standing not as tall (Squashed)
-            original_h = draw_rect.height
-            draw_rect.height *= 0.7
-            draw_rect.y += (original_h - draw_rect.height)
-        elif packet["posture"] == "STAGGERED":
-            # Vibrating
-            draw_rect.x += random.randint(-2, 2)
-            draw_rect.y += random.randint(-2, 2)
-
-        # 2. Base Layer (Body)
-        color = packet.get("color_hint", (100, 100, 100))
-        if packet["base"] == "WIND_UP": color = (200, 100, 0) # Orange Telegraph
-        elif packet["base"] == "STRIKE": color = constants.COLOR_MARGIN_RED
-        elif packet["base"] == "RECOVERY": 
-            # Dim the base color
-            color = tuple(max(0, c - 50) for c in color)
-        elif packet["base"] == "DASH": color = constants.COLOR_CYAN
-        elif packet["base"] == "BLOCK": color = (80, 80, 120)
-
-        # Special coloring for local Player if no hint provided
-        if not packet.get("color_hint"):
-            if hasattr(actor, 'weapons'): color = constants.COLOR_BLUE
+        # --- SPRITE RESOLUTION ---
+        sprite = None
+        actor_tag = actor.name.lower()
+        
+        if "slug" in actor_tag:
+            # 1. Determine direction (1=Right, 2=Left)
+            # Slug frames: 1/3 (Right), 2/4 (Left)
+            # Attack frames: attack_1 (Right), attack_2 (Left)
+            fx, fy = packet["facing"]
+            suffix = "1" if fx >= 0 else "2"
             
-        pygame.draw.rect(self.screen, color, draw_rect)
+            if packet["base"] in ("WIND_UP", "STRIKE"):
+                sprite = self.image_cache.get(f"slug_attack_{suffix}.png")
+            else:
+                # Alternate frames if moving
+                if packet["base"] == "RUN":
+                    # Swap every 0.3s
+                    if int(packet["anim_timer"] * 3) % 2 == 1:
+                        suffix = "3" if fx >= 0 else "4"
+                sprite = self.image_cache.get(f"slug_{suffix}.png")
 
-        # 3. Posture Layer (Outlines/Decorations)
-        if packet["posture"] == "STAGGERED":
-            pygame.draw.rect(self.screen, constants.COLOR_WHITE, draw_rect, 2)
-        elif packet["posture"] == "WOUNDED":
-            # Red pulse
-            pulse = (math.sin(time.time() * 10) + 1) / 2
-            pygame.draw.rect(self.screen, (255, 0, 0), draw_rect, int(1 + pulse * 2))
+        # --- DRAWING ---
+        if sprite:
+            # Center sprite on actor rect
+            s_rect = sprite.get_rect(center=rect.center)
+            # Posture: Squashing if wounded
+            if packet["posture"] == "WOUNDED":
+                h = int(s_rect.height * 0.7)
+                sprite = pygame.transform.scale(sprite, (s_rect.width, h))
+                s_rect = sprite.get_rect(midbottom=rect.midbottom)
+            
+            self.screen.blit(sprite, s_rect)
+            
+            # Draw persistent overlays on top of sprite
+            if packet["posture"] == "STAGGERED":
+                pygame.draw.rect(self.screen, constants.COLOR_WHITE, rect, 2)
+        else:
+            # 1. Posture Modifiers (Transformation)
+            draw_rect = rect.copy()
+            if packet["posture"] == "WOUNDED":
+                # Standing not as tall (Squashed)
+                original_h = draw_rect.height
+                draw_rect.height *= 0.7
+                draw_rect.y += (original_h - draw_rect.height)
+            elif packet["posture"] == "STAGGERED":
+                # Vibrating
+                draw_rect.x += random.randint(-2, 2)
+                draw_rect.y += random.randint(-2, 2)
 
-        # 4. Overlays
+            # 2. Base Layer (Body)
+            color = packet.get("color_hint", (100, 100, 100))
+            if packet["base"] == "WIND_UP": color = (200, 100, 0) # Orange Telegraph
+            elif packet["base"] == "STRIKE": color = constants.COLOR_MARGIN_RED
+            elif packet["base"] == "RECOVERY": 
+                # Dim the base color
+                color = tuple(max(0, c - 50) for c in color)
+            elif packet["base"] == "DASH": color = constants.COLOR_CYAN
+            elif packet["base"] == "BLOCK": color = (80, 80, 120)
+
+            # Special coloring for local Player if no hint provided
+            if not packet.get("color_hint"):
+                if hasattr(actor, 'weapons'): color = constants.COLOR_BLUE
+                
+            pygame.draw.rect(self.screen, color, draw_rect)
+
+        # 3. Universal Posture Layer (Outlines/Decorations)
+        if not sprite: # Ghost-only outlines
+            if packet["posture"] == "STAGGERED":
+                pygame.draw.rect(self.screen, constants.COLOR_WHITE, draw_rect, 2)
+            elif packet["posture"] == "WOUNDED":
+                # Red pulse
+                pulse = (math.sin(time.time() * 10) + 1) / 2
+                pygame.draw.rect(self.screen, (255, 0, 0), draw_rect, int(1 + pulse * 2))
+
+        # 4. Overlays (Applied to both sprites and ghosts)
+        # Use draw_rect if available, otherwise rect
+        overlay_rect = draw_rect if not sprite else rect
+        
         for overlay in packet["overlays"]:
             if overlay == "BIND":
                 # Green vine/web indicator
-                pygame.draw.rect(self.screen, (0, 150, 0), draw_rect, 3)
-                pygame.draw.line(self.screen, (0, 150, 0), draw_rect.topleft, draw_rect.bottomright, 2)
-                pygame.draw.line(self.screen, (0, 150, 0), draw_rect.topright, draw_rect.bottomleft, 2)
+                pygame.draw.rect(self.screen, (0, 150, 0), overlay_rect, 3)
+                pygame.draw.line(self.screen, (0, 150, 0), overlay_rect.topleft, overlay_rect.bottomright, 2)
+                pygame.draw.line(self.screen, (0, 150, 0), overlay_rect.topright, overlay_rect.bottomleft, 2)
             elif overlay == "EXPOSED":
                 # Rain exposure (Shimmering effect)
                 shimmer = (math.sin(time.time() * 15) + 1) / 2
-                s = pygame.Surface((draw_rect.width, draw_rect.height), pygame.SRCALPHA)
+                s = pygame.Surface((overlay_rect.width, overlay_rect.height), pygame.SRCALPHA)
                 s.fill((100, 150, 255, int(50 + shimmer * 50)))
-                self.screen.blit(s, draw_rect.topleft)
+                self.screen.blit(s, overlay_rect.topleft)
             elif overlay == "PARRY_WINDOW":
                 # Glowing blue/white border
-                pygame.draw.rect(self.screen, (200, 255, 255), draw_rect, 4)
+                pygame.draw.rect(self.screen, (200, 255, 255), overlay_rect, 4)
 
-        # 5. Directional Indicator
-        fx, fy = packet["facing"]
-        ecx, ecy = draw_rect.center
-        pygame.draw.line(self.screen, constants.COLOR_WHITE, (ecx, ecy), (ecx + fx * 15, ecy + fy * 15), 2)
+        # 5. Directional Indicator (Only for ghosts)
+        if not sprite:
+            fx, fy = packet["facing"]
+            ecx, ecy = draw_rect.center
+            pygame.draw.line(self.screen, constants.COLOR_WHITE, (ecx, ecy), (ecx + fx * 15, ecy + fy * 15), 2)
         
-        # 6. Combat Progress Bar
+        # 6. Combat Progress Bar (Universal)
         if packet["base"] in ("WIND_UP", "STRIKE", "RECOVERY") and packet["timer"] > 0:
-            bar_w = int(draw_rect.width * 0.8)
-            bx = draw_rect.centerx - bar_w // 2
-            by = draw_rect.top - 10
+            bar_w = int(overlay_rect.width * 0.8)
+            bx = overlay_rect.centerx - bar_w // 2
+            by = overlay_rect.top - 10
             
             # Determine total duration for progress
             total = 1.0
