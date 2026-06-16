@@ -86,6 +86,18 @@ class Renderer:
             except Exception as e:
                 print(f"[RENDER] Error loading {name}: {e}")
 
+        # 2. Floor Tile
+        name = "tile_floor.png"
+        path = os.path.join(base_path, name)
+        if os.path.exists(path):
+            try:
+                img = pygame.image.load(path)
+                if display_init:
+                    img = img.convert_alpha()
+                self.image_cache[name] = pygame.transform.scale(img, (constants.TILE_SIZE, constants.TILE_SIZE))
+            except Exception as e:
+                print(f"[RENDER] Error loading {name}: {e}")
+
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
         wx, wy, ww, wh = warp.rect
@@ -308,6 +320,12 @@ class Renderer:
                         self.screen.blit(img, (dr[0], dr[1]))
                     else:
                         pygame.draw.rect(self.screen, constants.COLOR_WALL, dr)
+                elif tile == constants.TILE_EMPTY:
+                    img = self.image_cache.get("tile_floor.png")
+                    if img:
+                        self.screen.blit(img, (dr[0], dr[1]))
+                    else:
+                        pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
                 elif tile == constants.TILE_LOTUS_FRAME: pygame.draw.rect(self.screen, (40, 40, 80), dr)
                 else: pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
         
