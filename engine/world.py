@@ -40,6 +40,19 @@ class GameObject:
         if self.is_breakable:
             self.health -= amount
 
+    def to_dict(self):
+        """Serialize object state for networking."""
+        return {
+            "id": getattr(self, 'id', id(self)),
+            "name": self.name,
+            "x": round(self.x, 1),
+            "y": round(self.y, 1),
+            "w": self.width,
+            "h": self.height,
+            "hp": round(self.health, 1),
+            "active": True
+        }
+
     def is_dead(self):
         """Check if object is destroyed."""
         return self.is_breakable and self.health <= 0
@@ -294,6 +307,11 @@ class Respite(GameObject):
         game_state.player.flask_charges = int(FLASK_MAX_CHARGES)
         game_state.player.has_rested_this_session = True
 
+        # Phase 4: Network Notify
+        if game_state.network_manager.network_mode == "CLIENT":
+            game_state.network_manager.send_respite_event("REST")
+            return # Exit early: Host will handle world respawn and sync back
+
         # 2. World Re-population
         print(f"[DEBUG] Respite resting: Re-manifesting threats in {game_state.world.name}")
 
@@ -315,8 +333,15 @@ class Respite(GameObject):
         elif marked_idx == 2:
             success = game_state._handle_upgrade("max_hp_modifier", 10)
 
-        if success and audio_manager:
-            audio_manager.play_sfx("menu_confirm.ogg")
+        if success:
+            # Phase 4: Network Notify
+            if game_state.network_manager.network_mode == "CLIENT":
+                # Include updated max_hp in the event
+                data = {"max_hp": game_state.player.max_hp}
+                game_state.network_manager.send_respite_event("UPGRADE", marked_idx=marked_idx, data=data)
+                
+            if audio_manager:
+                audio_manager.play_sfx("menu_confirm.ogg")
             print(f"[RESPITE] Upgrade {marked_idx} applied.")
         elif not success:
             print("[RESPITE] Upgrade failed (insufficient pages).")

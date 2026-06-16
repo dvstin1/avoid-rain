@@ -45,6 +45,7 @@ class NetworkManager:
         self.host_client_state_cacher = None # TCP: accepts (identity, ip, state_dict)
         self.host_damage_handler = None # TCP: accepts (target_type, target_id, amount)
         self.host_heal_handler = None # TCP: accepts (identity, amount)
+        self.host_respite_handler = None # TCP: accepts (identity, action_type, marked_idx)
         self.client_restored_state_handler = None # TCP: accepts state_dict
         
         self.stop_event = threading.Event()
@@ -267,6 +268,26 @@ class NetworkManager:
             sock.close()
         except: pass
 
+    def send_respite_event(self, action_type, marked_idx=None, data=None):
+        """Phase 4: Client notifies Host of Respite action (REST, UPGRADE)."""
+        if self.network_mode != "CLIENT" or not self.server_address:
+            return
+
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1.0)
+            sock.connect((self.server_address, self.tcp_port))
+            payload = {
+                "type": "RESPITE_ACTION",
+                "identity": self.identity,
+                "action": action_type, # "REST" or "UPGRADE"
+                "marked_idx": marked_idx,
+                "data": data or {}
+            }
+            sock.sendall(json.dumps(payload).encode('utf-8'))
+            sock.close()
+        except: pass
+
     # --- Thread Loops ---
 
     def _broadcast_loop(self, stop_signal):
@@ -391,6 +412,10 @@ class NetworkManager:
                 if self.host_heal_handler:
                     self.host_heal_handler(identity, msg.get("amount"))
 
+            elif m_type == "RESPITE_ACTION":
+                if self.host_respite_handler:
+                    self.host_respite_handler(identity, msg.get("action"), msg.get("marked_idx"), msg.get("data"))
+
         except Exception as e:
             print(f"[NETWORK] TCP request error: {e}")
         finally: 
@@ -413,7 +438,8 @@ class NetworkManager:
                 payload = json.dumps(payload_data).encode('utf-8')
                 if self.network_mode == "HOST":
                     for addr, peer_info in list(self.connected_peers.items()):
-                        target_port = peer_info.get("udp_port", self.host_udp_port)
+                        # Fix: use 'or' to handle None values in dict
+                        target_port = peer_info.get("udp_port") or self.host_udp_port
                         sock.sendto(payload, (addr, target_port))
                 elif self.network_mode == "CLIENT" and self.server_address:
                     sock.sendto(payload, (self.server_address, self.host_udp_port))

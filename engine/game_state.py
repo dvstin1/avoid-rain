@@ -136,11 +136,13 @@ class GameState:
         self.network_manager.client_restored_state_handler = self.apply_restored_state
         self.network_manager.host_damage_handler = self.handle_remote_damage
         self.network_manager.host_heal_handler = self.handle_remote_heal
+        self.network_manager.host_respite_handler = self.handle_remote_respite
         
         self.cached_client_states = {} # {identity: state_dict}
         self.full_state_sync_timer = 0.0
         self.pending_remote_damage = [] # Thread-safe queue for TCP damage events
         self.pending_remote_heals = [] # Thread-safe queue for TCP heal events
+        self.pending_remote_respite_actions = [] # Thread-safe queue for TCP respite events
         
         # Start searching for hosts if in Sanctuary
         if getattr(self.world, 'name', '') == "sanctuary":
@@ -167,12 +169,15 @@ class GameState:
             state["enemies"] = [
                 {
                     "id": getattr(e, "network_id", -1),
+                    "name": getattr(e, "name", "Enemy"),
                     "x": round(e.x, 1), "y": round(e.y, 1), "hp": round(e.hp, 1),
                     "state": e.state.value if hasattr(e, 'state') else 0
                 }
                 for e in self.enemies
             ]
             
+            # Optimization: Only broadcast dynamic/crucial interactables in high-frequency heartbeat
+            state["interactables"] = [obj.to_dict() for obj in self.world.interactables if obj.name == "Appendix Warp"]
             state["destroyed_props"] = list(self.destroyed_prop_ids)
             
             # Broadcast the Host's view of all remote players AND themselves (authoritative HP)
@@ -241,15 +246,23 @@ class GameState:
                     }
             
             # 3. Enemies
-            e_data = data.get("enemies")
-            if e_data: self._sync_enemies_from_host(e_data)
-            
-            # 4. Props
+            e_data_list = data.get("enemies", [])
+            if e_data_list: self._sync_enemies_from_host(e_data_list)
+
+            # 4. Interactables
+            i_data_list = data.get("interactables", [])
+            if i_data_list: self._sync_interactables_from_host(i_data_list)
+
+            # 5. Props
             p_data = data.get("destroyed_props")
             if p_data: self._sync_props_from_host(p_data)
 
+
     def _sync_enemies_from_host(self, enemy_data_list):
         remote_enemies = {int(e_data["id"]): e_data for e_data in enemy_data_list if "id" in e_data}
+        local_net_ids = [getattr(e, 'network_id', -1) for e in self.enemies]
+        
+        # 1. Update/Remove existing
         for enemy in self.enemies[:]:
             net_id = getattr(enemy, "network_id", -1)
             if net_id in remote_enemies:
@@ -261,11 +274,50 @@ class GameState:
                 # Sync visual state for animations
                 if "state" in e_data:
                     from engine.actor import ActorState
-                    try:
-                        enemy.state = ActorState(e_data["state"])
+                    try: enemy.state = ActorState(e_data["state"])
                     except ValueError: pass
             else:
                 if enemy in self.enemies: self.enemies.remove(enemy)
+
+        # 2. Spawn new ones
+        for net_id, e_data in remote_enemies.items():
+            if net_id not in local_net_ids:
+                # We need to map Name back to Class.
+                from engine.enemy import SlugEnemy, BatEnemy, NightBoss, MinibossM2, MinibossM3
+                mapping = {
+                    "Slug": SlugEnemy, "Bat": BatEnemy, "Night Boss": NightBoss,
+                    "Ink-Stained": MinibossM2, "Forgotten Binder": MinibossM3
+                }
+                cls = mapping.get(e_data.get("name"), SlugEnemy)
+                new_e = cls(e_data["x"], e_data["y"], hp=e_data["hp"])
+                new_e.network_id = net_id
+                self.enemies.append(new_e)
+
+    def _sync_interactables_from_host(self, interactable_data_list):
+        """Syncs dynamically spawned objects (Warp Portals, Chests)."""
+        remote_objs = {obj_data["id"]: obj_data for obj_data in interactable_data_list}
+        local_ids = [getattr(obj, 'id', id(obj)) for obj in self.world.interactables]
+        
+        # 1. Update/Remove
+        for obj in self.world.interactables[:]:
+            oid = getattr(obj, 'id', id(obj))
+            if oid in remote_objs:
+                o_data = remote_objs[oid]
+                obj.x, obj.y = o_data["x"], o_data["y"]
+                obj.health = o_data.get("hp", 100.0)
+            else:
+                # Rule: Only remove if it was likely a dynamic object or destroyed
+                if obj.name in ("Appendix Warp", "Loot"):
+                    self.world.interactables.remove(obj)
+
+        # 2. Spawn New (Appendix Warp is the main one needed)
+        for oid, o_data in remote_objs.items():
+            if oid not in local_ids:
+                if o_data["name"] == "Appendix Warp":
+                    from engine.world import WarpPortal
+                    new_obj = WarpPortal("final_boss", 25, 25, (o_data["x"], o_data["y"], 40, 40), name="Appendix Warp")
+                    new_obj.id = oid
+                    self.world.interactables.append(new_obj)
 
     def _sync_props_from_host(self, destroyed_ids_list):
         incoming_ids = set(destroyed_ids_list)
@@ -338,6 +390,10 @@ class GameState:
     def handle_remote_heal(self, identity, amount):
         """Phase 4: Queues heal events sent by remote clients."""
         self.pending_remote_heals.append((identity, amount))
+
+    def handle_remote_respite(self, identity, action_type, marked_idx, data):
+        """Phase 4: Queues respite events (REST, UPGRADE) sent by remote clients."""
+        self.pending_remote_respite_actions.append((identity, action_type, marked_idx, data))
 
     def get_full_player_state(self):
         if not self.player: return {}
@@ -508,6 +564,23 @@ class GameState:
                     m_hp = float(cached.get("max_hp", 100.0))
                     p_data["hp"] = min(m_hp, p_data["hp"] + amount)
             self.pending_remote_heals.clear()
+            
+        if not is_client and self.pending_remote_respite_actions:
+            for identity, action_type, marked_idx, data in self.pending_remote_respite_actions:
+                from engine.world import Respite
+                anchor = next((obj for obj in self.world.interactables if isinstance(obj, Respite)), None)
+                
+                if identity in self.network_manager.remote_players:
+                    p_data = self.network_manager.remote_players[identity]
+                    cached = self.cached_client_states.get(identity, {})
+                    m_hp = float(data.get("max_hp", cached.get("max_hp", 100.0)))
+                    
+                    if action_type == "REST":
+                        p_data["hp"] = m_hp
+                        if anchor: anchor.execute_rest(self)
+                    elif action_type == "UPGRADE":
+                        p_data["hp"] = m_hp 
+            self.pending_remote_respite_actions.clear()
 
         # 1. Local Attacks
         if self.player.state == PlayerStateEnum.ATTACKING:
