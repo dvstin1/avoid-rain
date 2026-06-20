@@ -496,7 +496,6 @@ class Renderer:
                 self.screen.blit(s, (sx, sy))
                 
                 # Flashing outline
-                import math
                 pulse = (math.sin(time.time() * 15) + 1) / 2
                 outline_color = (255, 140, 0, int(150 + pulse * 105))
                 s_outline = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
@@ -661,7 +660,6 @@ class Renderer:
         ink_color = (20, 20, 30)      # Deep black/blue ink
         steel_color = (192, 192, 192) # Silver quill nib
         
-        import math
         base_angle = math.atan2(fy, fx)
         
         if attack_type == "THRUST":
