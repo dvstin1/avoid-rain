@@ -962,17 +962,103 @@ class Renderer:
             tip_w = 200
             tip_y = hud_y - 5
             
+            curr_x = hud_x + 10
+            step = tip_w + 15
+            
             # 1. Equipped Slot A
             if len(player.weapons) > 0:
-                self.draw_weapon_details(player.weapons[0], hud_x + 10, tip_y, tip_w, title="SLOT A")
+                self.draw_weapon_details(player.weapons[0], curr_x, tip_y, tip_w, title="SLOT A")
+                curr_x += step
                 
             # 2. Equipped Slot B
             if len(player.weapons) > 1:
-                self.draw_weapon_details(player.weapons[1], hud_x + tip_w + 20, tip_y, tip_w, title="SLOT B")
+                self.draw_weapon_details(player.weapons[1], curr_x, tip_y, tip_w, title="SLOT B")
+                curr_x += step
                 
-            # 3. Ground Comparison
+            # 3. Character Upgrades
+            self.draw_character_upgrades(player, curr_x, tip_y, tip_w)
+            curr_x += step
+            
+            # 4. Ground Comparison
             if is_near_weapon:
-                self.draw_weapon_details(target.weapon_data, hud_x + (tip_w + 20) * 2, tip_y, tip_w, title="ON FLOOR")
+                self.draw_weapon_details(target.weapon_data, curr_x, tip_y, tip_w, title="ON FLOOR")
+
+    def draw_character_upgrades(self, player, x, y, width):
+        """Draw a detailed tooltip for player character stats and upgrades (Marginalia Style)."""
+        lines = []
+        # Title
+        lines.append(self.hud_font.render("CHARACTER", True, (150, 150, 150)))
+        
+        # Global Level (Edification / Understanding)
+        edif = player.stats.get("edification", 1)
+        lines.append(self.small_font.render(f"Understanding: Lvl {edif}", True, constants.COLOR_SELECTION))
+        
+        # Prowess Level / modifier
+        prowess_mod = player.stats.get("attack_modifier", 0)
+        prowess_lvl = 1 + (prowess_mod // 5)
+        lines.append(self.small_font.render(
+            f"Prowess: Lvl {prowess_lvl} (+{prowess_mod} Atk)", True, constants.COLOR_WHITE
+        ))
+        
+        # Fortification Level / modifier
+        fort_mod = player.stats.get("max_hp_modifier", 0)
+        fort_lvl = 1 + (fort_mod // 10)
+        lines.append(self.small_font.render(
+            f"Fortification: Lvl {fort_lvl} (+{fort_mod} HP)", True, constants.COLOR_WHITE
+        ))
+        
+        # Any power ups / passive modifiers / active effects
+        all_mods = player.get_all_modifiers()
+        active_mods = {k: v for k, v in all_mods.items() if v != 0}
+        
+        if active_mods:
+            lines.append(self.small_font.render("--- Passive Effects ---", True, (100, 100, 100)))
+            for m_key, m_val in active_mods.items():
+                label = (
+                    m_key.replace("_modifier", "")
+                    .replace("_on_hit", "")
+                    .replace("_boost", "")
+                    .replace("_hp_", " ")
+                    .capitalize()
+                )
+                sign = "+" if m_val > 0 else ""
+                if m_key == "slow_hp_regen":
+                    mod_text = f"{label}: {sign}{m_val}/s"
+                elif m_key == "damage_negation_on_hit":
+                    mod_text = f"Ward on Hit: {sign}{m_val}%"
+                else:
+                    mod_text = f"{label}: {sign}{m_val}"
+                lines.append(self.small_font.render(mod_text, True, constants.COLOR_CYAN))
+                
+        # Draw active timers
+        neg_amount = getattr(player, 'negation_amount', 0.0)
+        neg_timer = getattr(player, 'negation_timer', 0.0)
+        bind_timer = getattr(player, 'bind_timer', 0.0)
+        
+        if neg_timer > 0.0 or bind_timer > 0.0:
+            lines.append(self.small_font.render("--- Active Buffs/Debuffs ---", True, (100, 100, 100)))
+            if neg_timer > 0.0:
+                lines.append(self.small_font.render(
+                    f"Ward: -{int(neg_amount)} ({neg_timer:.1f}s)", True, (255, 215, 0)
+                ))
+            if bind_timer > 0.0:
+                lines.append(self.small_font.render(f"Bound: {bind_timer:.1f}s", True, (255, 100, 100)))
+
+        # Calculate Height & Background
+        line_h = 18
+        h = 15 + len(lines) * line_h + 10
+        
+        tip_surf = pygame.Surface((width, h), pygame.SRCALPHA)
+        tip_surf.fill((20, 20, 30, 240))
+        pygame.draw.rect(tip_surf, (100, 100, 110), (0, 0, width, h), 1)
+        
+        cur_y = 10
+        for surf in lines:
+            tip_surf.blit(surf, (10, cur_y))
+            cur_y += line_h
+            
+        self.screen.blit(tip_surf, (x, y - h))
+        return h
 
     def draw_weapon_details(self, weapon, x, y, width, title="EQUIPPED"):
         """Draw a detailed tooltip for a weapon (Marginalia Style)."""

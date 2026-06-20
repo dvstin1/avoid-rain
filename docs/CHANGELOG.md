@@ -535,3 +535,10 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **HP Restoration:** Ensured current HP and maximum HP are cleanly reset back to default base stats (`PLAYER_MAX_HP` = 100.0) upon sanctuary entry.
 - **Sequence Calibration:** Adjusted the reset order in `on_enter_sanctuary` to reset player stats and weapons *before* setting `self.player.hp` to ensure `self.player.max_hp` matches the default value perfectly.
 - **Unit Test Coverage:** Added unit test `test_warp_level_reset` in `tests/test_warp.py` verifying state reset to level 1 and 100 max HP upon warp portal interactions.
+
+## [ARCHIVED] Character Upgrades Inspect View HUD Integration - June 2026
+- **Inspect HUD Upgrades Panel:** Upgraded the `inspect_active` view (held `R1` / `TAB`) to render a dedicated "CHARACTER" panel display.
+- **Player Stats Display:** Programmed the new panel to detail the player's global `Understanding` (Edification level), `Prowess` level (with raw attack modifier), and `Fortification` level (with raw max HP modifier).
+- **Passive Effects & Buffs/Debuffs:** Included tracking of active weapon passive effects (HP regen, Max HP boost, Ward on Hit, Bleed on Hit) and real-time active buff/debuff timers (Ward negation shields, movement binds).
+- **Renderer Tests:** Wrote headless unit tests in `tests/test_renderer_inspect_upgrades.py` ensuring correct blit operations and visual labels when inspecting player stats.
+
