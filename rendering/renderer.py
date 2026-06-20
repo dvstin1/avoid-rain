@@ -479,6 +479,34 @@ class Renderer:
         packet = actor.get_visual_packet()
         rect = pygame.Rect(actor.x - ox, actor.y - oy, actor.width, actor.height)
         
+        # --- Boss Attack Hitbox / Warning Telegraph Overlay ---
+        if packet["base"] in ("WIND_UP", "STRIKE") and hasattr(actor, 'get_attack_hitbox'):
+            hb = actor.get_attack_hitbox()
+            sx = hb[0] - ox
+            sy = hb[1] - oy
+            
+            s = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
+            if packet["base"] == "WIND_UP":
+                # Flashing semi-transparent orange warning zone
+                s.fill((255, 120, 0, 70))
+                self.screen.blit(s, (sx, sy))
+                
+                # Flashing outline
+                import math
+                pulse = (math.sin(time.time() * 15) + 1) / 2
+                outline_color = (255, 140, 0, int(150 + pulse * 105))
+                s_outline = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
+                pygame.draw.rect(s_outline, outline_color, (0, 0, hb[2], hb[3]), 2)
+                self.screen.blit(s_outline, (sx, sy))
+            elif packet["base"] == "STRIKE":
+                # Semi-transparent red active damage zone
+                s.fill((255, 0, 0, 110))
+                self.screen.blit(s, (sx, sy))
+                
+                s_outline = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
+                pygame.draw.rect(s_outline, (255, 0, 0), (0, 0, hb[2], hb[3]), 2)
+                self.screen.blit(s_outline, (sx, sy))
+
         # --- SPRITE RESOLUTION ---
         sprite = None
         actor_tag = actor.name.lower()
@@ -595,6 +623,100 @@ class Renderer:
                 progress = packet["timer"] / total
                 pygame.draw.rect(self.screen, (50, 50, 50), (bx, by, bar_w, 4))
                 pygame.draw.rect(self.screen, constants.COLOR_WHITE, (bx, by, int(bar_w * progress), 4))
+
+        # 7. Boss Attack Weapon/Limb Visuals
+        if hasattr(actor, 'get_attack_hitbox'):
+            self.draw_boss_weapon(actor, ox, oy)
+
+    def draw_boss_weapon(self, actor, ox, oy):
+        """Draws a literal weapon held by a limb that swings or thrusts dynamically based on attack state."""
+        if not hasattr(actor, 'state') or not hasattr(actor, 'combat_timer'):
+            return
+            
+        from engine.actor import ActorState
+        if actor.state not in (ActorState.WIND_UP, ActorState.STRIKE, ActorState.RECOVERY):
+            return
+            
+        cx = actor.x + actor.width / 2 - ox
+        cy = actor.y + actor.height / 2 - oy
+        fx, fy = actor.facing
+        
+        # Determine animation progress t (0 to 1)
+        t = 0.0
+        if actor.state == ActorState.WIND_UP and actor.wind_up_duration > 0:
+            t = max(0.0, min(1.0, 1.0 - (actor.combat_timer / actor.wind_up_duration)))
+        elif actor.state == ActorState.STRIKE and actor.strike_duration > 0:
+            t = max(0.0, min(1.0, 1.0 - (actor.combat_timer / actor.strike_duration)))
+        elif actor.state == ActorState.RECOVERY and actor.recovery_duration > 0:
+            t = max(0.0, min(1.0, 1.0 - (actor.combat_timer / actor.recovery_duration)))
+            
+        attack_type = getattr(actor, 'attack_type', 'THRUST')
+        
+        # Visual styling: Bosses carry a giant ink-dripping quill/blade
+        wood_color = (139, 90, 43)   # Dark brown shaft
+        ink_color = (20, 20, 30)      # Deep black/blue ink
+        steel_color = (192, 192, 192) # Silver quill nib
+        
+        import math
+        base_angle = math.atan2(fy, fx)
+        
+        if attack_type == "THRUST":
+            # Determine weapon length L based on state
+            if actor.state == ActorState.WIND_UP:
+                L = 60.0 - t * 25.0
+            elif actor.state == ActorState.STRIKE:
+                L = 35.0 + math.sin(t * math.pi) * 95.0
+            else: # RECOVERY
+                L = 35.0 + t * 25.0
+                
+            px = cx + fx * L
+            py = cy + fy * L
+            
+            # Draw wood shaft from boss center to tip
+            pygame.draw.line(self.screen, wood_color, (cx, cy), (px, py), 6)
+            # Draw silver steel nib at the end
+            nib_start_x = cx + fx * (L - 15)
+            nib_start_y = cy + fy * (L - 15)
+            pygame.draw.line(self.screen, steel_color, (nib_start_x, nib_start_y), (px, py), 8)
+            # Draw ink drop at the very tip
+            pygame.draw.circle(self.screen, ink_color, (int(px), int(py)), 6)
+            
+        else: # SWING
+            # Determine swing angle based on state
+            if actor.state == ActorState.WIND_UP:
+                angle = base_angle - 1.2 * t
+                L = 60.0
+            elif actor.state == ActorState.STRIKE:
+                angle = (base_angle - 1.2) + t * 2.4
+                L = 70.0
+                
+                # Draw swing trail
+                trail_surf = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
+                trail_angle_start = base_angle - 1.2
+                trail_angle_end = angle
+                points = [(cx, cy)]
+                steps = 10
+                for i in range(steps + 1):
+                    a = trail_angle_start + (trail_angle_end - trail_angle_start) * (i / steps)
+                    points.append((cx + math.cos(a) * L, cy + math.sin(a) * L))
+                if len(points) > 2:
+                    pygame.draw.polygon(trail_surf, (0, 180, 255, 60), points)
+                self.screen.blit(trail_surf, (0, 0))
+            else: # RECOVERY
+                angle = (base_angle + 1.2) - t * 1.2
+                L = 60.0
+                
+            px = cx + math.cos(angle) * L
+            py = cy + math.sin(angle) * L
+            
+            # Draw wood shaft
+            pygame.draw.line(self.screen, wood_color, (cx, cy), (px, py), 6)
+            # Draw silver quill nib/blade
+            blade_start_x = cx + math.cos(angle) * (L - 20)
+            blade_start_y = cy + math.sin(angle) * (L - 20)
+            pygame.draw.line(self.screen, steel_color, (blade_start_x, blade_start_y), (px, py), 8)
+            # Draw ink drop
+            pygame.draw.circle(self.screen, ink_color, (int(px), int(py)), 6)
 
     def draw_remote_players(self, state, ox, oy):
         """Phase 4: Render ghosts for other players on the network."""

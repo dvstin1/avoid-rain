@@ -512,4 +512,11 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Dynamic Defeat Syncing:** Stored the gating miniboss ID on the Respite object and updated `GameState.update` to dynamically synchronize Respite active status with the miniboss's entry in `defeated_miniboss_ids`.
 - **Modular Test Coverage:** Added unit test `test_respite_gating_modular_proximity` in `tests/test_respite_rain_and_gate.py` to verify correct gating and activation on custom/stitched maps.
 
+## [ARCHIVED] Boss Attack Hitbox Expansion and Visual Cues - June 2026
+- **Hitbox Expansion:** Implemented custom attack hitboxes for the `Boss` class (and subclasses like `Miniboss`, `NightBoss`, and `FinalAuthor`), extending the damage reach beyond the boss's physical body during `STRIKE` frames based on facing direction and attack type.
+- **Telegraph Warning Zones:** Developed transparent visual overlays on the ground during attacks: a flashing semi-transparent orange zone with an active pulse outline during `WIND_UP` to telegraph the attack, and a bright semi-transparent red zone during `STRIKE` to indicate active damage.
+- **Animated Weapon Rendering:** Coded dynamic animated rendering of a giant ink quill weapon held by a limb that thrusts out (for `THRUST` attacks) or swings in a wide arc (for `SWING` attacks), complete with a semi-transparent blue swing trail effect.
+- **Hitbox Tests:** Wrote unit tests in `tests/test_boss_hitbox.py` verifying get_attack_hitbox calculations and front-vs-back damage collision logic.
+
+
 

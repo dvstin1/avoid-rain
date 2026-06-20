@@ -28,10 +28,15 @@ class Enemy(Actor):
             victim_rect = (p_data["x"], p_data["y"], 40, 40) # Standard Player size
             potential_victims.append(("remote", addr, victim_rect))
 
+        if hasattr(self, 'get_attack_hitbox'):
+            source_rect = self.get_attack_hitbox()
+        else:
+            source_rect = self.get_rect()
+
         for v_type, v_id, v_obj in potential_victims:
             v_rect = v_obj if v_type == "remote" else v_obj.rect
             
-            if check_aabb_collision(self.get_rect(), v_rect):
+            if check_aabb_collision(source_rect, v_rect):
                 if v_type == "local":
                     # Local Player Parry Check
                     if self.is_parryable and v_obj.is_parry_active():
@@ -206,6 +211,46 @@ class Boss(Enemy):
         self.strike_duration = 0.25
         self.recovery_duration = 0.6
         self.attack_type = "THRUST"
+
+    def get_attack_hitbox(self):
+        """Calculate the boss's current strike hitbox based on position, size, facing direction, and attack type."""
+        cx = self.x + self.width / 2
+        cy = self.y + self.height / 2
+        fx, fy = self.facing
+        
+        # Base offset is proportional to size
+        base_offset = max(self.width, self.height) / 2
+        
+        if self.attack_type == "THRUST":
+            # Long, narrow thrust
+            length = 100.0
+            thickness = 30.0
+            offset = base_offset + 10.0
+            
+            if abs(fx) > abs(fy): # Horizontal
+                w, h = length, thickness
+                x = cx + offset if fx > 0 else cx - offset - w
+                y = cy - h / 2
+            else: # Vertical
+                w, h = thickness, length
+                x = cx - w / 2
+                y = cy + offset if fy > 0 else cy - offset - h
+        else: # SWING or default
+            # Wide, shorter swing
+            length = 50.0
+            thickness = 120.0
+            offset = base_offset + 5.0
+            
+            if abs(fx) > abs(fy): # Horizontal swing (covers height)
+                w, h = length, thickness
+                x = cx + offset if fx > 0 else cx - offset - w
+                y = cy - h / 2
+            else: # Vertical swing (covers width)
+                w, h = thickness, length
+                x = cx - w / 2
+                y = cy + offset if fy > 0 else cy - offset - h
+                
+        return (x, y, w, h)
 
     def _update_wind_up(self, dt, state):
         """Randomize attack type at the start of a wind-up."""
