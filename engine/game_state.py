@@ -48,6 +48,7 @@ class GameState:
         self.damage_numbers = []
         self.defeated_miniboss_ids = set()
         self.destroyed_prop_ids = set()
+        self.respite_upgrades = {1: 0, 2: 0}
 
         # 2. Statistics tracker: prefer injected tracker; otherwise optionally auto-load
         self.stats = stats
@@ -473,6 +474,7 @@ class GameState:
             if not self.weather_manager.is_pos_safe(rx, ry):
                 self.active_respite = None
                 self.active_dialogue = None
+                self.respite_upgrades = {1: 0, 2: 0}
                 self.respite_selection_idx = 0
                 self.respite_marked_idx = -1
                 self.player.has_rested_this_session = False
@@ -878,15 +880,31 @@ class GameState:
                     self.menu_nav_cooldown = 0.2
             if attack_pressed and not self.input_ratchet_latched:
                 self.input_ratchet_latched = True
-                if self.respite_selection_idx == 0: active_respite.execute_rest(self, audio_manager=audio_manager)
-                elif 1 <= self.respite_selection_idx <= 2 and self.player.has_rested_this_session: 
-                    self.respite_marked_idx = self.respite_selection_idx
+                if self.respite_selection_idx == 0:
+                    active_respite.execute_rest(self, audio_manager=audio_manager)
+                elif 1 <= self.respite_selection_idx <= 2 and self.player.has_rested_this_session:
+                    info = self.get_staged_respite_info()
+                    pages = self.stats.data["lifetime_stats"].get("pages_collected", 0) if self.stats else 0
+                    available = pages - info["total_staged_cost"]
+                    if self.respite_selection_idx == 1:
+                        if available >= info["next_prowess_cost"]:
+                            self.respite_upgrades[1] += 1
+                            if audio_manager:
+                                audio_manager.play_sfx("menu_confirm.ogg")
+                    elif self.respite_selection_idx == 2:
+                        if available >= info["next_fort_cost"]:
+                            self.respite_upgrades[2] += 1
+                            if audio_manager:
+                                audio_manager.play_sfx("menu_confirm.ogg")
                 elif self.respite_selection_idx == 4:
-                    if self.respite_marked_idx != -1: active_respite.execute_upgrade(self, self.respite_marked_idx, audio_manager=audio_manager)
-                    if not self.player.has_rested_this_session: self.respite_marked_idx = -1; self.respite_selection_idx = 5
+                    success = active_respite.execute_finalize_upgrades(self, audio_manager=audio_manager)
+                    if success:
+                        self.player.has_rested_this_session = False
+                        self.respite_selection_idx = 5
                 elif self.respite_selection_idx == 5:
                     self.active_dialogue = self.active_respite = None
                     self.player.has_rested_this_session = False
+                    self.respite_upgrades = {1: 0, 2: 0}
                     if self.network_manager.network_mode == "CLIENT":
                         threading.Thread(target=self.network_manager.send_full_state, args=(self.get_full_player_state(),), daemon=True).start()
                     self.save_stats(wait=True)
@@ -1200,6 +1218,48 @@ class GameState:
             self.player.miniboss_cooldown_accumulator += dt
             if self.player.miniboss_cooldown_accumulator >= cooldown_limit: self.player.active_track_name = target_track
         else: self.player.active_track_name = target_track
+
+    def get_staged_respite_info(self):
+        """Calculate levels, staged counts, next costs, and total costs for respite upgrades."""
+        from constants import EDIFICATION_BASE_COST, EDIFICATION_COST_SCALE
+        
+        # 1. Prowess (Attack modifier, steps of 5)
+        prowess = self.player.stats.get("attack_modifier", 0)
+        prowess_lvl = 1 + (prowess // 5)
+        staged_prowess = self.respite_upgrades.get(1, 0)
+        
+        prowess_staged_cost = 0
+        for i in range(staged_prowess):
+            lvl = prowess_lvl + i
+            prowess_staged_cost += EDIFICATION_BASE_COST + ((lvl - 1) * EDIFICATION_COST_SCALE)
+            
+        next_prowess_lvl = prowess_lvl + staged_prowess
+        next_prowess_cost = EDIFICATION_BASE_COST + ((next_prowess_lvl - 1) * EDIFICATION_COST_SCALE)
+        
+        # 2. Fortification (HP modifier, steps of 10)
+        fort = self.player.stats.get("max_hp_modifier", 0)
+        fort_lvl = 1 + (fort // 10)
+        staged_fort = self.respite_upgrades.get(2, 0)
+        
+        fort_staged_cost = 0
+        for i in range(staged_fort):
+            lvl = fort_lvl + i
+            fort_staged_cost += EDIFICATION_BASE_COST + ((lvl - 1) * EDIFICATION_COST_SCALE)
+            
+        next_fort_lvl = fort_lvl + staged_fort
+        next_fort_cost = EDIFICATION_BASE_COST + ((next_fort_lvl - 1) * EDIFICATION_COST_SCALE)
+        
+        total_staged_cost = prowess_staged_cost + fort_staged_cost
+        
+        return {
+            "prowess_lvl": prowess_lvl,
+            "staged_prowess": staged_prowess,
+            "next_prowess_cost": next_prowess_cost,
+            "fort_lvl": fort_lvl,
+            "staged_fort": staged_fort,
+            "next_fort_cost": next_fort_cost,
+            "total_staged_cost": total_staged_cost
+        }
 
     def _handle_upgrade(self, stat_name, amount):
         from constants import EDIFICATION_BASE_COST, EDIFICATION_COST_SCALE

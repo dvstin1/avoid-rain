@@ -337,26 +337,66 @@ class Respite(GameObject):
         print(f"[DEBUG] Rest complete. {len(game_state.enemies)} threats re-manifested.")
         game_state.save_stats(wait=True)
 
-    def execute_upgrade(self, game_state, marked_idx, audio_manager=None):
-        """Finalize the marked upgrade."""
-        success = False
-        if marked_idx == 1:
-            success = game_state._handle_upgrade("attack_modifier", 5)
-        elif marked_idx == 2:
-            success = game_state._handle_upgrade("max_hp_modifier", 10)
+    def execute_finalize_upgrades(self, game_state, audio_manager=None):
+        """Apply all staged upgrades permanently, deduct cost, heal player, and lock upgrades."""
+        info = game_state.get_staged_respite_info()
+        total_cost = info["total_staged_cost"]
+        if total_cost <= 0:
+            return False
 
-        if success:
-            # Phase 4: Network Notify
-            if game_state.network_manager.network_mode == "CLIENT":
-                # Include updated max_hp in the event
-                data = {"max_hp": game_state.player.max_hp}
-                game_state.network_manager.send_respite_event("UPGRADE", marked_idx=marked_idx, data=data)
-                
-            if audio_manager:
-                audio_manager.play_sfx("menu_confirm.ogg")
-            print(f"[RESPITE] Upgrade {marked_idx} applied.")
-        elif not success:
-            print("[RESPITE] Upgrade failed (insufficient pages).")
+        pages = game_state.stats.data["lifetime_stats"].get("pages_collected", 0) if game_state.stats else 0
+        if pages < total_cost:
+            return False
+
+        # Deduct pages
+        if game_state.stats:
+            game_state.stats.data["lifetime_stats"]["pages_collected"] -= total_cost
+
+        # Apply prowess
+        staged_prowess = info["staged_prowess"]
+        if staged_prowess > 0:
+            current_prowess = game_state.player.stats.get("attack_modifier", 0)
+            game_state.player.stats["attack_modifier"] = current_prowess + (staged_prowess * 5)
+
+        # Apply fort
+        staged_fort = info["staged_fort"]
+        if staged_fort > 0:
+            current_fort = game_state.player.stats.get("max_hp_modifier", 0)
+            game_state.player.stats["max_hp_modifier"] = current_fort + (staged_fort * 10)
+
+        # Heal player to new max HP
+        game_state.player.hp = game_state.player.max_hp
+
+        # Recalculate edification level
+        prowess = game_state.player.stats.get("attack_modifier", 0)
+        fort = game_state.player.stats.get("max_hp_modifier", 0)
+        game_state.player.stats["edification"] = (prowess // 5) + (fort // 10) + 1
+
+        # Sync to persistent stats
+        if game_state.stats:
+            if "run_state" in game_state.stats.data and game_state.stats.data["run_state"]:
+                game_state.stats.data["run_state"]["player"]["stats"] = game_state.player.stats
+
+        game_state.player.has_rested_this_session = False
+        game_state.respite_upgrades = {1: 0, 2: 0}
+
+        # Phase 4: Network Notify
+        if game_state.network_manager.network_mode == "CLIENT":
+            data = {"max_hp": game_state.player.max_hp}
+            game_state.network_manager.send_respite_event("UPGRADE", marked_idx=None, data=data)
+
+        if audio_manager:
+            audio_manager.play_sfx("menu_confirm.ogg")
+
+        return True
+
+    def execute_upgrade(self, game_state, marked_idx, audio_manager=None):
+        """Legacy upgrade method. Stages the marked index once and immediately finalizes."""
+        if marked_idx in (1, 2):
+            game_state.respite_upgrades = {1: 0, 2: 0}
+            game_state.respite_upgrades[marked_idx] = 1
+            return self.execute_finalize_upgrades(game_state, audio_manager=audio_manager)
+        return False
 
 class LevelLoader:
     """
