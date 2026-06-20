@@ -13,7 +13,7 @@ import pytest
 import pygame
 
 from engine.game_state import GameState
-from engine.world import Respite
+from engine.world import Respite, LevelLoader
 from engine.maps import create_world
 from engine.weather import WeatherManager
 
@@ -48,6 +48,8 @@ def test_respite_gating_on_forest_and_ruins():
         assert r.is_active is False, "Respite should be inactive while miniboss is alive."
 
     # Remove all minibosses to simulate defeating them
+    for e in minibosses:
+        state.defeated_miniboss_ids.add(e.id)
     state.enemies = [e for e in state.enemies if not getattr(e, 'is_miniboss', False)]
 
     # Update game state to run the activation logic
@@ -142,3 +144,37 @@ def test_respite_rain_auto_closure():
     # Menu should be closed instantly
     assert state.active_respite is None, "Respite menu should close instantly when rained on."
     assert state.active_dialogue is None, "Dialogue should close as well."
+
+
+def test_respite_gating_modular_proximity():
+    """
+    Verifies that proximity-based Respite gating works correctly on a custom/stitched map.
+    """
+
+    # 1. Define a prototype array where 'R' and 'E' (miniboss) are placed near each other (distance = 2)
+    grid_proto = [
+        "..........",
+        "....R.E...",
+        ".........."
+    ]
+
+    # 2. Parse the map using a custom/modular name
+    _, interactables, _, _, _ = LevelLoader.parse_map(
+        grid_proto, map_name="modular_world_test", defeated_ids=set()
+    )
+
+    # 3. Find the Respite and verify its gated_by_miniboss_id is set
+    respites = [obj for obj in interactables if isinstance(obj, Respite)]
+    assert len(respites) == 1
+    respite = respites[0]
+
+    # Expected gating miniboss coordinate is (6, 1) since E is at x=6, y=1
+    assert respite.gated_by_miniboss_id == "modular_world_test:6,1"
+    assert respite.is_active is False, "Respite should start inactive because miniboss is not defeated."
+
+    # 4. If we parse with the miniboss already in defeated_ids
+    _, interactables_def, _, _, _ = LevelLoader.parse_map(
+        grid_proto, map_name="modular_world_test", defeated_ids={"modular_world_test:6,1"}
+    )
+    respite_def = [obj for obj in interactables_def if isinstance(obj, Respite)][0]
+    assert respite_def.is_active is True, "Respite should start active if the gating miniboss was defeated."

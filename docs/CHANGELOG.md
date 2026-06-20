@@ -507,3 +507,9 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Instant Weather Closure:** Enforced instant closure of the Respite level-up UI/menu if the active Respite starts getting rained on.
 - **Comprehensive Unit Testing:** Implemented custom tests in `tests/test_respite_rain_and_gate.py` verifying correct behavior for gating, other-map immunity, rain interaction blocking, and instant UI closure.
 
+## [ARCHIVED] Proximity-Based Modular Respite Gating - June 2026
+- **Proximity-Based Gating:** Refactored Respite gating from static map name filters to dynamic proximity search (5-tile radius) during map parsing, ensuring proper gating of Respite anchors near minibosses in modularly stitched or procedurally generated maps.
+- **Dynamic Defeat Syncing:** Stored the gating miniboss ID on the Respite object and updated `GameState.update` to dynamically synchronize Respite active status with the miniboss's entry in `defeated_miniboss_ids`.
+- **Modular Test Coverage:** Added unit test `test_respite_gating_modular_proximity` in `tests/test_respite_rain_and_gate.py` to verify correct gating and activation on custom/stitched maps.
+
+

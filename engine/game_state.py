@@ -426,13 +426,13 @@ class GameState:
         if self.input_debounce_timer > 0: self.input_debounce_timer -= dt
         if self.menu_nav_cooldown > 0: self.menu_nav_cooldown -= dt
 
-        # Activate Respite on forest/ruins maps if the miniboss has been defeated
-        if self.world and self.world.name in ("forest", "ruins"):
-            has_miniboss = any(getattr(e, 'is_miniboss', False) for e in self.enemies)
-            if not has_miniboss:
-                for obj in self.world.interactables:
-                    if type(obj).__name__ == "Respite" and not getattr(obj, 'is_active', True):
-                        obj.is_active = True
+        # Dynamically update the is_active status of any gated respites in the world
+        if self.world:
+            for obj in self.world.interactables:
+                if type(obj).__name__ == "Respite" and getattr(obj, 'gated_by_miniboss_id', None):
+                    is_defeated = (obj.gated_by_miniboss_id in self.defeated_miniboss_ids)
+                    if obj.is_active != is_defeated:
+                        obj.is_active = is_defeated
 
         # 1. PRE-SYNC: Detection and State Management
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)

@@ -280,6 +280,7 @@ class Respite(GameObject):
         self.is_interactive = True
         self.is_solid = True
         self.is_active = True
+        self.gated_by_miniboss_id = None
 
     def execute_interaction(self, game_state):
         """Trigger the Respite Level-Up UI in GameState."""
@@ -519,9 +520,24 @@ class LevelLoader:
                 elif char == 'R':
                     # Respite
                     respite = Respite(pos, dim)
-                    if map_name in ("forest", "ruins"):
-                        miniboss_defeated = any(bid.startswith(f"{map_name}:") for bid in defeated_ids)
-                        respite.is_active = miniboss_defeated
+                    gated_id = None
+                    search_range = 5
+                    h_grid = len(prototype_array)
+                    w_grid = len(prototype_array[0]) if h_grid > 0 else 0
+                    for dy in range(-search_range, search_range + 1):
+                        for dx in range(-search_range, search_range + 1):
+                            ny, nx = y + dy, x + dx
+                            if 0 <= ny < h_grid and 0 <= nx < w_grid:
+                                nearby_char = prototype_array[ny][nx]
+                                if nearby_char in ('E', '2', '3'):
+                                    gated_id = f"{map_name}:{nx},{ny}"
+                                    break
+                        if gated_id:
+                            break
+
+                    if gated_id:
+                        respite.gated_by_miniboss_id = gated_id
+                        respite.is_active = (gated_id in defeated_ids)
                     else:
                         respite.is_active = True
                     interactables.append(respite)
