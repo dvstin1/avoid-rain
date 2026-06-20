@@ -82,9 +82,9 @@ class WarpPortal(GameObject):
             if is_client and self.target_name in ("macro_world", "outside"):
                 if not game_state.fetch_host_map():
                     print("[NETWORK] Map fetch failed. Falling back to local generation.")
-                    game_state.world = create_world(self.target_name)
+                    game_state.world = create_world(self.target_name, defeated_ids=game_state.defeated_miniboss_ids)
             else:
-                game_state.world = create_world(self.target_name)
+                game_state.world = create_world(self.target_name, defeated_ids=game_state.defeated_miniboss_ids)
 
             # Weather Sync Rule: Update boss center coordinates for the safe circle
             new_boss_list = getattr(game_state.world, 'boss_coords_list', None)

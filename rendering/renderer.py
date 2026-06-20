@@ -491,24 +491,15 @@ class Renderer:
             
             s = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
             if packet["base"] == "WIND_UP":
-                # Subtle flashing desaturated grey warning zone
-                s.fill((220, 220, 220, 30))
-                self.screen.blit(s, (sx, sy))
-                
-                # Flashing outline (very soft grey)
+                # Subtle flashing desaturated grey warning zone (no border)
                 pulse = (math.sin(time.time() * 15) + 1) / 2
-                outline_color = (200, 200, 200, int(60 + pulse * 60))
-                s_outline = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
-                pygame.draw.rect(s_outline, outline_color, (0, 0, hb[2], hb[3]), 2)
-                self.screen.blit(s_outline, (sx, sy))
-            elif packet["base"] == "STRIKE":
-                # Subtle desaturated grey active damage zone
-                s.fill((220, 220, 220, 50))
+                alpha = int(15 + pulse * 25)
+                s.fill((220, 220, 220, alpha))
                 self.screen.blit(s, (sx, sy))
-                
-                s_outline = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
-                pygame.draw.rect(s_outline, (200, 200, 200, 100), (0, 0, hb[2], hb[3]), 2)
-                self.screen.blit(s_outline, (sx, sy))
+            elif packet["base"] == "STRIKE":
+                # Subtle desaturated grey active damage zone (no border)
+                s.fill((220, 220, 220, 45))
+                self.screen.blit(s, (sx, sy))
 
         # --- SPRITE RESOLUTION ---
         sprite = None

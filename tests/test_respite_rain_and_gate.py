@@ -178,3 +178,40 @@ def test_respite_gating_modular_proximity():
     )
     respite_def = [obj for obj in interactables_def if isinstance(obj, Respite)][0]
     assert respite_def.is_active is True, "Respite should start active if the gating miniboss was defeated."
+
+
+def test_respite_multiplayer_defeated_sync():
+    """
+    Verifies that a Host's defeated miniboss set is correctly serialized
+    and applied on the Client, which then activates the gated Respite.
+    """
+    # 1. Setup Host
+    host = GameState(auto_load=False)
+    host.network_manager.network_mode = "HOST"
+    host.world = create_world("forest")
+    host.defeated_miniboss_ids.add("forest:10,20") # Simulate a defeated boss
+
+    # 2. Get local state payload (simulating host send)
+    payload = host.get_local_state()
+    assert "defeated_miniboss_ids" in payload
+    assert "forest:10,20" in payload["defeated_miniboss_ids"]
+
+    # 3. Setup Client
+    client = GameState(auto_load=False)
+    client.network_manager.network_mode = "CLIENT"
+    client.world = create_world("forest")
+
+    # Verify client respite is initially inactive
+    respites = [obj for obj in client.world.interactables if isinstance(obj, Respite)]
+    for r in respites:
+        r.gated_by_miniboss_id = "forest:10,20" # Gate it by our boss
+        r.is_active = False
+
+    # 4. Apply remote state on client (simulating client receive)
+    client.apply_remote_state("127.0.0.1", payload)
+    assert "forest:10,20" in client.defeated_miniboss_ids
+
+    # 5. Run client update loop to trigger Respite activation update
+    client.update(0.1, {"move": (0, 0)})
+    for r in respites:
+        assert r.is_active is True, "Client Respite should activate after receiving sync data from Host."

@@ -179,6 +179,7 @@ class GameState:
             # Optimization: Only broadcast dynamic/crucial interactables in high-frequency heartbeat
             state["interactables"] = [obj.to_dict() for obj in self.world.interactables if obj.name == "Appendix Warp"]
             state["destroyed_props"] = list(self.destroyed_prop_ids)
+            state["defeated_miniboss_ids"] = list(self.defeated_miniboss_ids)
             
             # Broadcast the Host's view of all remote players AND themselves (authoritative HP)
             state["session_players"] = [
@@ -256,6 +257,11 @@ class GameState:
             # 5. Props
             p_data = data.get("destroyed_props")
             if p_data: self._sync_props_from_host(p_data)
+
+            # 6. Defeated Minibosses
+            def_bosses = data.get("defeated_miniboss_ids")
+            if def_bosses is not None:
+                self.defeated_miniboss_ids = set(def_bosses)
 
 
     def _sync_enemies_from_host(self, enemy_data_list):
@@ -348,7 +354,10 @@ class GameState:
             from engine.world import World, LevelLoader
             # Rule: We bypass create_world("generated_world_client") to avoid recursive generative triggers in some contexts
             self.world = World("generated_world_client")
-            grid, interactables, warp_tiles, player_start, enemies, boss_coords, module_sockets = LevelLoader.load_json_map(path)
+            grid, interactables, warp_tiles, player_start, enemies, boss_coords, module_sockets = LevelLoader.load_json_map(
+                path,
+                defeated_ids=self.defeated_miniboss_ids
+            )
             self.world.grid = grid
             self.world.interactables = interactables
             self.world.warp_tiles = warp_tiles
