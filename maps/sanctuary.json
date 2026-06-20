@@ -21,9 +21,11 @@
     "F": "Wellspring",
     "L": "Lore",
     "R": "Respite",
+    "M": "Lotus Frame",
+    "X": "Wall Boundary",
     "1": "Patrol Marker 1",
-    "2": "Patrol Marker 2",
-    "3": "Patrol Marker 3",
+    "2": "Miniboss M2",
+    "3": "Miniboss M3",
     "4": "Patrol Marker 4",
     "5": "Patrol Marker 5",
     "6": "Patrol Marker 6",
@@ -35,7 +37,8 @@
     "f": "Flutter",
     "b": "Bindling",
     "s": "Smear",
-    "E": "Miniboss M1"
+    "E": "Miniboss M1",
+    "!": "The Final Author"
   },
   "grid": [
     "################################",
@@ -43,8 +46,8 @@
     "#K.................BBB.....K...#",
     "#.........############....KK...#",
     "#K.......B#h...l...h.#...KK....#",
-    "#K.......B#d.......d.#........S#",
-    "#KK......B#1.......2.#........S#",
+    "#K.......B#d.......d.#.........#",
+    "#KK......B#1.........#........S#",
     "#KK......B#L...C..PF.#.........#",
     "#KK.......#d...v...d.#.....K...#",
     "#.K.......#....W.....#.....KK..#",
@@ -55,24 +58,28 @@
     "#######.KK.................#####",
     "#######....................#####",
     "######....................######",
-    "######....................######",
-    "######....................######",
-    "########.................K######",
-    "##########..K.......K..KKK######",
+    "######.vvv................######",
+    "######vvvvv...............######",
+    "########vvv..............K######",
+    "##########v.K.......K..KKK######",
     "################################"
   ],
   "entities": {
     "11,6": {
       "type": "PatrolPoint",
       "route_id": "chron_research",
-      "caste_filter": ["Chronicler"],
+      "caste_filter": [
+        "Chronicler"
+      ],
       "wait_min": 10.0,
       "wait_max": 20.0
     },
     "19,6": {
       "type": "PatrolPoint",
       "route_id": "chron_research",
-      "caste_filter": ["Chronicler"],
+      "caste_filter": [
+        "Chronicler"
+      ],
       "wait_min": 15.0,
       "wait_max": 30.0
     },

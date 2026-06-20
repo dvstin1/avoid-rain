@@ -638,10 +638,10 @@ class GameState:
                         enemy.take_damage(damage, bypass_stagger=is_client)
                         
                         # Apply anomalous weapon modifiers on hit
-                        mods = active_weapon.get("modifiers", {})
-                        if "bleed" in mods and enemy.hp > 0:
+                        all_mods = self.player.get_all_modifiers()
+                        if "bleed" in all_mods and enemy.hp > 0:
                             enemy.bleed_timer = 5.0
-                            enemy.bleed_damage = mods["bleed"]
+                            enemy.bleed_damage = all_mods["bleed"]
                             enemy.bleed_tick_timer = 1.0
 
                         hit_landed = True

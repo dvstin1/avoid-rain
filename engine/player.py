@@ -78,6 +78,17 @@ class Player:
         """Return the currently selected weapon dictionary."""
         return self.weapons[self.active_weapon_idx]
 
+    def get_all_modifiers(self):
+        """Accumulates all modifiers from all weapons the player possesses."""
+        all_mods = {}
+        if hasattr(self, 'weapons') and self.weapons:
+            for weapon in self.weapons:
+                mods = weapon.get("modifiers", {})
+                for k, v in mods.items():
+                    if k in ("slow_hp_regen", "max_hp_boost", "damage_negation_on_hit", "bleed"):
+                        all_mods[k] = all_mods.get(k, 0.0) + v
+        return all_mods
+
     def is_parry_active(self):
         """Returns True if the player is currently in an active parry window."""
         return self.parry_timer > 0.0
@@ -95,10 +106,9 @@ class Player:
 
         # Tick HP regeneration from anomalous weapon
         if self.hp > 0:
-            active_weapon = self.get_active_weapon()
-            mods = active_weapon.get("modifiers", {})
-            if "slow_hp_regen" in mods:
-                self.hp = min(self.max_hp, self.hp + mods["slow_hp_regen"] * dt)
+            all_mods = self.get_all_modifiers()
+            if "slow_hp_regen" in all_mods:
+                self.hp = min(self.max_hp, self.hp + all_mods["slow_hp_regen"] * dt)
 
         # Tick negation buff timer
         if hasattr(self, 'negation_timer') and self.negation_timer > 0:
@@ -246,11 +256,9 @@ class Player:
     def max_hp(self):
         """Dynamic max HP including modifiers."""
         base = PLAYER_MAX_HP + self.stats.get("max_hp_modifier", 0)
-        if hasattr(self, 'weapons') and self.weapons:
-            active_weapon = self.get_active_weapon()
-            mods = active_weapon.get("modifiers", {})
-            if "max_hp_boost" in mods:
-                base += mods["max_hp_boost"]
+        all_mods = self.get_all_modifiers()
+        if "max_hp_boost" in all_mods:
+            base += all_mods["max_hp_boost"]
         return base
 
     def get_visual_packet(self):
@@ -272,6 +280,7 @@ class Player:
         if getattr(self, 'bind_timer', 0) > 0: overlays.append("BIND")
         if self.is_exposed: overlays.append("EXPOSED")
         if self.parry_timer > 0: overlays.append("PARRY_WINDOW")
+        if getattr(self, 'negation_timer', 0.0) > 0.0: overlays.append("NEGATION")
         
         return {
             "base": base,
@@ -337,11 +346,10 @@ class Player:
         self.hp = max(0.0, self.hp - amount)
 
         # Check active weapon for damage negation on hit modifier
-        active_weapon = self.get_active_weapon()
-        mods = active_weapon.get("modifiers", {})
-        if "damage_negation_on_hit" in mods and amount > 0:
+        all_mods = self.get_all_modifiers()
+        if "damage_negation_on_hit" in all_mods and amount > 0:
             self.negation_timer = 3.0
-            self.negation_amount = mods["damage_negation_on_hit"]
+            self.negation_amount = all_mods["damage_negation_on_hit"]
         
         # Only stagger if they took actual damage and stagger isn't bypassed
         if not bypass_stagger and self.hp > 0 and amount > 0:

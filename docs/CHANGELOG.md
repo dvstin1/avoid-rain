@@ -523,3 +523,9 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Interactive Multi-Page Help Overlay:** Replaced the static help popup with a larger, tabbed, multi-page reference dialog toggleable via `H` or the sidebar button. Page 1 displays controls, Page 2 lists all tile obstacles and prop sizes/behaviors, and Page 3 lists all enemies, bosses, and patrol waypoint coordinates with collision sizes and behaviors.
 - **Tab and Page Navigation:** Implemented page cycling using `A`/`D` or the `Left`/`Right` arrow keys, and mouse-click selection on the tab headers.
 - **Real-Time Sidebar Brush Details:** Upgraded the sidebar to fetch the currently selected brush's name, size, and description in real-time, wrapping descriptions cleanly to fit inside the sidebar bounds.
+
+## [ARCHIVED] Active anomalous weapon passives and HUD status indicators - June 2026
+- **Global Passive Modifier Accumulation:** Refactored modifier logic to accumulate passives across all owned weapons, allowing effects (HP regen, Max HP boost, damage negation, bleed on hit) to remain active regardless of slot.
+- **Player Character Glowing Effect:** Implemented a visual gold shimmer glow overlay and border around the player sprite/ghost when the `NEGATION` (Ward) effect is active.
+- **HUD Status Badge Display:** Added dynamic color-coded active status indicators next to status metrics on the HUD panel for `WARD` (damage negation timer/amount), `BOUND` (movement bind status timer), and `REGEN` (passive HP regen rate).
+- **Unit Test Coverage:** Updated HP boost unit tests and added `test_inactive_weapon_modifiers` in `tests/test_anomalous_weapon_effects.py` to verify slot-independent passive effect application.

@@ -40,14 +40,15 @@ def test_anomalous_hp_regen():
     assert player.hp == player.max_hp
 
 def test_anomalous_max_hp_boost():
-    """Verify that max HP boost weapon dynamically increases max HP and handles swap clamping."""
+    """Verify that max HP boost weapon dynamically increases max HP regardless of slot."""
     player = Player(0, 0)
     player.weapons = [
         {"name": "Standard Quill", "damage": 10},
         {"name": "Stout Quill", "damage": 10, "modifiers": {"max_hp_boost": 20.0}}
     ]
+    # Max HP boost is active even when Standard Quill is selected
     player.active_weapon_idx = 0
-    assert player.max_hp == 100.0
+    assert player.max_hp == 120.0
 
     # Swap to Stout Quill (Max HP boost)
     player.active_weapon_idx = 1
@@ -56,10 +57,11 @@ def test_anomalous_max_hp_boost():
     # Heal to new max HP
     player.hp = 120.0
 
-    # Swap back, current HP should clamp to 100
+    # Remove Stout Quill from inventory, max HP should go back to 100.0
+    player.weapons = [{"name": "Standard Quill", "damage": 10}]
     player.active_weapon_idx = 0
-    player.update(0.1, (0, 0), [], {}) # update ticks clamping
     assert player.max_hp == 100.0
+    player.update(0.1, (0, 0), [], {})  # update ticks clamping
     assert player.hp == 100.0
 
 def test_anomalous_damage_negation():
@@ -121,3 +123,25 @@ def test_anomalous_enemy_bleed():
     prev_hp = enemy.hp
     enemy.update(1.0, state)
     assert enemy.hp == prev_hp - 5.0
+
+def test_inactive_weapon_modifiers():
+    """Verify that passive weapon modifiers apply even when they are in an inactive slot."""
+    player = Player(0, 0)
+    player.weapons = [
+        {"name": "Standard Quill", "damage": 10},
+        {
+            "name": "Stout Regen Quill",
+            "damage": 10,
+            "modifiers": {"max_hp_boost": 20.0, "slow_hp_regen": 10.0}
+        }
+    ]
+    # Standard Quill is active (slot 0)
+    player.active_weapon_idx = 0
+
+    # Max HP boost should still be active
+    assert player.max_hp == 120.0
+
+    # HP regen should still be active
+    player.hp = 50.0
+    player.update(1.0, (0, 0), [], {})
+    assert player.hp == 60.0

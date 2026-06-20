@@ -594,6 +594,13 @@ class Renderer:
             elif overlay == "PARRY_WINDOW":
                 # Glowing blue/white border
                 pygame.draw.rect(self.screen, (200, 255, 255), overlay_rect, 4)
+            elif overlay == "NEGATION":
+                # Glowing gold/yellow overlay
+                glow = (math.sin(time.time() * 12) + 1) / 2
+                s = pygame.Surface((overlay_rect.width, overlay_rect.height), pygame.SRCALPHA)
+                s.fill((255, 215, 0, int(40 + glow * 40)))
+                self.screen.blit(s, overlay_rect.topleft)
+                pygame.draw.rect(self.screen, (255, 215, 0), overlay_rect, 1)
 
         # 5. Directional Indicator (Only for ghosts)
         if not sprite:
@@ -892,6 +899,59 @@ class Renderer:
             pygame.draw.rect(hud_surf, col, pkr, 2)
             pkt = self.hud_font.render("SPACE / A (GP)", True, constants.COLOR_WHITE)
             hud_surf.blit(pkt, (pkr.centerx - pkt.get_width()//2, pkr.centery - pkt.get_height()//2))
+
+        # Draw Active Status Effects on HUD
+        status_x = 325
+        status_y = 50
+        active_statuses = []
+        if getattr(player, 'negation_timer', 0.0) > 0.0:
+            active_statuses.append({
+                "name": "WARD",
+                "val": f"-{int(player.negation_amount)}",
+                "time": f"{player.negation_timer:.1f}s",
+                "color": (255, 215, 0),  # Gold
+                "bg": (60, 50, 20)
+            })
+        if getattr(player, 'bind_timer', 0.0) > 0.0:
+            active_statuses.append({
+                "name": "BOUND",
+                "val": "",
+                "time": f"{player.bind_timer:.1f}s",
+                "color": (255, 100, 100),  # Pink/Red
+                "bg": (60, 20, 20)
+            })
+
+        all_mods = player.get_all_modifiers()
+        if "slow_hp_regen" in all_mods:
+            active_statuses.append({
+                "name": "REGEN",
+                "val": f"+{int(all_mods['slow_hp_regen'])}/s",
+                "time": "PASSIVE",
+                "color": (0, 255, 128),  # Cyan-green
+                "bg": (20, 50, 35)
+            })
+
+        for status in active_statuses:
+            badge_w = 85
+            badge_h = 45
+            badge_rect = pygame.Rect(status_x, status_y, badge_w, badge_h)
+
+            pygame.draw.rect(hud_surf, status["bg"], badge_rect, border_radius=4)
+            pygame.draw.rect(hud_surf, status["color"], badge_rect, 1, border_radius=4)
+
+            name_surf = self.hud_font.render(status["name"], True, status["color"])
+            hud_surf.blit(name_surf, (badge_rect.x + 5, badge_rect.y + 3))
+
+            val_time_str = status["val"]
+            if status["val"] and status["time"] != "PASSIVE":
+                val_time_str += f" ({status['time']})"
+            else:
+                val_time_str += status["time"]
+
+            info_surf = self.slot_font.render(val_time_str, True, constants.COLOR_WHITE)
+            hud_surf.blit(info_surf, (badge_rect.x + 5, badge_rect.y + 22))
+
+            status_x += badge_w + 10
 
         hud_x = 10
         hud_y = self.screen.get_height() - constants.HUD_PANEL_H - 10
