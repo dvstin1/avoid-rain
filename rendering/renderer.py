@@ -491,23 +491,23 @@ class Renderer:
             
             s = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
             if packet["base"] == "WIND_UP":
-                # Flashing semi-transparent orange warning zone
-                s.fill((255, 120, 0, 70))
+                # Subtle flashing desaturated grey warning zone
+                s.fill((220, 220, 220, 30))
                 self.screen.blit(s, (sx, sy))
                 
-                # Flashing outline
+                # Flashing outline (very soft grey)
                 pulse = (math.sin(time.time() * 15) + 1) / 2
-                outline_color = (255, 140, 0, int(150 + pulse * 105))
+                outline_color = (200, 200, 200, int(60 + pulse * 60))
                 s_outline = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
                 pygame.draw.rect(s_outline, outline_color, (0, 0, hb[2], hb[3]), 2)
                 self.screen.blit(s_outline, (sx, sy))
             elif packet["base"] == "STRIKE":
-                # Semi-transparent red active damage zone
-                s.fill((255, 0, 0, 110))
+                # Subtle desaturated grey active damage zone
+                s.fill((220, 220, 220, 50))
                 self.screen.blit(s, (sx, sy))
                 
                 s_outline = pygame.Surface((hb[2], hb[3]), pygame.SRCALPHA)
-                pygame.draw.rect(s_outline, (255, 0, 0), (0, 0, hb[2], hb[3]), 2)
+                pygame.draw.rect(s_outline, (200, 200, 200, 100), (0, 0, hb[2], hb[3]), 2)
                 self.screen.blit(s_outline, (sx, sy))
 
         # --- SPRITE RESOLUTION ---
@@ -702,7 +702,7 @@ class Renderer:
                     a = trail_angle_start + (trail_angle_end - trail_angle_start) * (i / steps)
                     points.append((cx + math.cos(a) * L, cy + math.sin(a) * L))
                 if len(points) > 2:
-                    pygame.draw.polygon(trail_surf, (0, 180, 255, 60), points)
+                    pygame.draw.polygon(trail_surf, (220, 220, 220, 25), points)
                 self.screen.blit(trail_surf, (0, 0))
             else: # RECOVERY
                 angle = (base_angle + 1.2) - t * 1.2
