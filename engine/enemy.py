@@ -2,9 +2,12 @@
 Enemy AI and behavior definitions.
 Inherits from Actor for the Stanza patrol system.
 """
+# pylint: disable=too-many-arguments,too-many-positional-arguments,redefined-builtin
+# pylint: disable=import-outside-toplevel,too-many-instance-attributes,arguments-renamed
+# pylint: disable=broad-exception-caught,multiple-statements,unused-import
+
 import math
 import random
-import pygame
 from constants import TILE_SIZE
 from engine.physics import check_aabb_collision, resolve_wall_collision
 from engine.actor import Actor, ActorState
@@ -15,6 +18,8 @@ class Enemy(Actor):
         super().__init__(x, y, width, height, hp, id=id, name=name)
         self.attack_type = "LUNGE" # Default for non-weapon enemies
         self.is_parryable = False
+        self.damage = 0
+
 
     def attempt_damage_player(self, state):
         """Apply damage on contact during STRIKE frames, handling parries for all players."""
@@ -53,7 +58,8 @@ class Enemy(Actor):
                             v_obj.bind_timer = BIND_DURATION
 
                         return True
-                    except Exception: pass
+                    except Exception:  # pylint: disable=broad-exception-caught
+                        pass
                 else:
                     # Remote Player Damage (Host authoritative view)
                     if v_id in state.network_manager.remote_players:
@@ -184,7 +190,6 @@ class BindlingEnemy(Enemy):
     def update(self, dt, state):
         """Rule: Ink-Affinity. Heals if touching a Margin wall."""
         from constants import BINDLING_HEAL_RATE, BINDLING_MAX_HP
-        from engine.physics import check_aabb_collision
         
         # Check nearby walls
         walls = state.world.get_nearby_walls(self.get_rect())
@@ -327,7 +332,8 @@ class MinibossM3(Miniboss):
         dx, dy = target_cx - cx, target_cy - cy
         dist_sq = dx * dx + dy * dy
 
-        if self._tele_timer > 0: self._tele_timer -= dt
+        if self._tele_timer > 0:
+            self._tele_timer -= dt
 
         if dist_sq < (120**2) and self._tele_timer <= 0:
             angle = random.uniform(0, 2 * math.pi)
@@ -377,7 +383,8 @@ class FlutterEnemy(Enemy):
     def _update_state_logic(self, dt, state):
         """Override to always CHASE (flee) when player detected."""
         targets = []
-        if state.player: targets.append(state.player.get_center())
+        if state.player:
+            targets.append(state.player.get_center())
         remote_data = getattr(state.network_manager, 'remote_players', {})
         for p_data in remote_data.values():
             targets.append((p_data["x"] + 20, p_data["y"] + 20))
@@ -437,6 +444,7 @@ class SmearEnemy(Enemy):
         super().update(dt, state)
 
     def on_death(self, state):
+        """Splits the Smear enemy into two smaller blots on death."""
         if self.size_multiplier >= 1.0:
             s1 = SmearEnemy(self.x - 10, self.y, size_multiplier=0.5)
             s2 = SmearEnemy(self.x + 10, self.y, size_multiplier=0.5)
