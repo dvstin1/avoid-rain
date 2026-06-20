@@ -20,45 +20,318 @@ from constants import (
 
 # Master Registry of all available tools and brushes
 MASTER_TOOL_REGISTRY = [
-    {"id": "tile_wall", "char": "#", "name": "Wall Tile", "type": "tile"},
-    {"id": "tile_floor", "char": ".", "name": "Floor Tile", "type": "tile"},
-    {"id": "tile_barrel", "char": "B", "name": "Barrel", "type": "tile"},
-    {"id": "tile_bench", "char": "S", "name": "Bench", "type": "tile"},
-    {"id": "tile_candelabra", "char": "l", "name": "Candelabra", "type": "tile"},
-    {"id": "tile_ink_puddle", "char": "v", "name": "Ink Puddle", "type": "tile"},
-    {"id": "tile_ink_urn", "char": "d", "name": "Ink Urn", "type": "tile"},
-    {"id": "tile_bookcase", "char": "h", "name": "Bookcase", "type": "tile"},
-    {"id": "tile_structure", "char": "T", "name": "Structure", "type": "tile"},
-    {"id": "tile_rock", "char": "K", "name": "Rock", "type": "tile"},
-    {"id": "tile_warp", "char": "W", "name": "Warp", "type": "tile"},
-    {"id": "tile_player_start", "char": "P", "name": "Player Start", "type": "tile"},
-    {"id": "tile_chronicler", "char": "C", "name": "Chronicler", "type": "tile"},
-    {"id": "tile_wellspring", "char": "F", "name": "Wellspring", "type": "tile"},
-    {"id": "tile_lore", "char": "L", "name": "Lore", "type": "tile"},
-    {"id": "tile_respite", "char": "R", "name": "Respite", "type": "tile"},
+    {
+        "id": "tile_wall",
+        "char": "#",
+        "name": "Wall Tile",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Solid structural wall obstacle. Blocks movement."
+    },
+    {
+        "id": "tile_floor",
+        "char": ".",
+        "name": "Floor Tile",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Walkable floor tile. Default terrain."
+    },
+    {
+        "id": "tile_barrel",
+        "char": "B",
+        "name": "Barrel",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Solid, breakable prop with 1 HP. Can contain loot."
+    },
+    {
+        "id": "tile_bench",
+        "char": "S",
+        "name": "Bench",
+        "type": "tile",
+        "size": "40x80 px (1x2 tiles)",
+        "desc": "Solid sitting bench prop. Spans 2 tiles vertically."
+    },
+    {
+        "id": "tile_candelabra",
+        "char": "l",
+        "name": "Candelabra",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Solid iron light source candleholder prop."
+    },
+    {
+        "id": "tile_ink_puddle",
+        "char": "v",
+        "name": "Ink Puddle",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Non-solid environment hazard. Slows player down."
+    },
+    {
+        "id": "tile_ink_urn",
+        "char": "d",
+        "name": "Ink Urn",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Solid urn prop. Slowly drips ink hazard puddles."
+    },
+    {
+        "id": "tile_bookcase",
+        "char": "h",
+        "name": "Bookcase",
+        "type": "tile",
+        "size": "80x40 px (2x1 tiles)",
+        "desc": "Solid heavy bookcase prop. Spans 2 tiles horizontally."
+    },
+    {
+        "id": "tile_structure",
+        "char": "T",
+        "name": "Structure",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Solid column or tree obstacle."
+    },
+    {
+        "id": "tile_rock",
+        "char": "K",
+        "name": "Rock",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Solid environmental rock obstacle."
+    },
+    {
+        "id": "tile_warp",
+        "char": "W",
+        "name": "Warp",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Warp portal linking current map to another sector."
+    },
+    {
+        "id": "tile_player_start",
+        "char": "P",
+        "name": "Player Start",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Defines spawn position locator for the players."
+    },
+    {
+        "id": "tile_chronicler",
+        "char": "C",
+        "name": "Chronicler",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Friendly NPC. Interacting saves game progress."
+    },
+    {
+        "id": "tile_wellspring",
+        "char": "F",
+        "name": "Wellspring",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Sacred fountain. Restores player HP/charges."
+    },
+    {
+        "id": "tile_lore",
+        "char": "L",
+        "name": "Lore",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Fragment of narrative text. Adds world lore entries."
+    },
+    {
+        "id": "tile_respite",
+        "char": "R",
+        "name": "Respite",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Upgrade rest point. Gated by nearest miniboss."
+    },
+    {
+        "id": "tile_lotus_frame",
+        "char": "M",
+        "name": "Lotus Frame",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Lotus frame floor tile. Holds the chapter anchor."
+    },
+    {
+        "id": "tile_wall_boundary",
+        "char": "X",
+        "name": "Wall Boundary",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Solid boundary tile that acts as a wall."
+    },
 
-    {"id": "patrol_1", "char": "1", "name": "Patrol Marker 1", "type": "patrol"},
-    {"id": "patrol_2", "char": "2", "name": "Patrol Marker 2", "type": "patrol"},
-    {"id": "patrol_3", "char": "3", "name": "Patrol Marker 3", "type": "patrol"},
-    {"id": "patrol_4", "char": "4", "name": "Patrol Marker 4", "type": "patrol"},
-    {"id": "patrol_5", "char": "5", "name": "Patrol Marker 5", "type": "patrol"},
-    {"id": "patrol_6", "char": "6", "name": "Patrol Marker 6", "type": "patrol"},
-    {"id": "patrol_7", "char": "7", "name": "Patrol Marker 7", "type": "patrol"},
-    {"id": "patrol_8", "char": "8", "name": "Patrol Marker 8", "type": "patrol"},
-    {"id": "patrol_9", "char": "9", "name": "Patrol Marker 9", "type": "patrol"},
+    {
+        "id": "patrol_1",
+        "char": "1",
+        "name": "Patrol Marker 1",
+        "type": "patrol",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Patrol waypoint coordinate. Step 1 of path routes."
+    },
+    {
+        "id": "patrol_2",
+        "char": "2",
+        "name": "Patrol Marker 2",
+        "type": "patrol",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Patrol waypoint coordinate. Step 2 of path routes."
+    },
+    {
+        "id": "patrol_3",
+        "char": "3",
+        "name": "Patrol Marker 3",
+        "type": "patrol",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Patrol waypoint coordinate. Step 3 of path routes."
+    },
+    {
+        "id": "patrol_4",
+        "char": "4",
+        "name": "Patrol Marker 4",
+        "type": "patrol",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Patrol waypoint coordinate. Step 4 of path routes."
+    },
+    {
+        "id": "patrol_5",
+        "char": "5",
+        "name": "Patrol Marker 5",
+        "type": "patrol",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Patrol waypoint coordinate. Step 5 of path routes."
+    },
+    {
+        "id": "patrol_6",
+        "char": "6",
+        "name": "Patrol Marker 6",
+        "type": "patrol",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Patrol waypoint coordinate. Step 6 of path routes."
+    },
+    {
+        "id": "patrol_7",
+        "char": "7",
+        "name": "Patrol Marker 7",
+        "type": "patrol",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Patrol waypoint coordinate. Step 7 of path routes."
+    },
+    {
+        "id": "patrol_8",
+        "char": "8",
+        "name": "Patrol Marker 8",
+        "type": "patrol",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Patrol waypoint coordinate. Step 8 of path routes."
+    },
+    {
+        "id": "patrol_9",
+        "char": "9",
+        "name": "Patrol Marker 9",
+        "type": "patrol",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Patrol waypoint coordinate. Step 9 of path routes."
+    },
 
-    {"id": "enemy_bat", "char": "A", "name": "Bat", "type": "enemy"},
-    {"id": "enemy_slug", "char": "Z", "name": "Slug", "type": "enemy"},
-    {"id": "enemy_flutter", "char": "f", "name": "Flutter", "type": "enemy"},
-    {"id": "enemy_bindling", "char": "b", "name": "Bindling", "type": "enemy"},
-    {"id": "enemy_smear", "char": "s", "name": "Smear", "type": "enemy"},
-    {"id": "enemy_miniboss_m1", "char": "E", "name": "Miniboss M1", "type": "enemy"},
-    {"id": "enemy_miniboss_m2", "char": "2", "name": "Miniboss M2", "type": "enemy"},
-    {"id": "enemy_miniboss_m3", "char": "3", "name": "Miniboss M3", "type": "enemy"},
+    {
+        "id": "enemy_bat",
+        "char": "A",
+        "name": "Bat",
+        "type": "enemy",
+        "size": "24x24 px (~0.6 tile)",
+        "desc": "Fast flyer. Erratic sine-wave tracking movement."
+    },
+    {
+        "id": "enemy_slug",
+        "char": "Z",
+        "name": "Slug",
+        "type": "enemy",
+        "size": "32x32 px (~0.8 tile)",
+        "desc": "Slow crawler. Contact damage with lunges."
+    },
+    {
+        "id": "enemy_flutter",
+        "char": "f",
+        "name": "Flutter",
+        "type": "enemy",
+        "size": "16x16 px (~0.4 tile)",
+        "desc": "Tiny, skittish ink moth. Runs away on sight."
+    },
+    {
+        "id": "enemy_bindling",
+        "char": "b",
+        "name": "Bindling",
+        "type": "enemy",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Crawler. Binds movement on contact; heals near walls."
+    },
+    {
+        "id": "enemy_smear",
+        "char": "s",
+        "name": "Smear",
+        "type": "enemy",
+        "size": "48x48 px (~1.2 tiles)",
+        "desc": "Drops puddles. Splits into two smaller smears on death."
+    },
+    {
+        "id": "enemy_miniboss_m1",
+        "char": "E",
+        "name": "Miniboss M1",
+        "type": "enemy",
+        "size": "64x64 px (~1.6 tiles)",
+        "desc": "Strong Elite Boss. Swing/Thrust; drops Quill/weapon."
+    },
+    {
+        "id": "enemy_miniboss_m2",
+        "char": "2",
+        "name": "Miniboss M2",
+        "type": "enemy",
+        "size": "64x64 px (~1.6 tiles)",
+        "desc": "Fast Elite Boss: Bleeding Scribe. Moves 40% faster."
+    },
+    {
+        "id": "enemy_miniboss_m3",
+        "char": "3",
+        "name": "Miniboss M3",
+        "type": "enemy",
+        "size": "64x64 px (~1.6 tiles)",
+        "desc": "Elite Forgotten Binder. Teleports closer when player is away."
+    },
+    {
+        "id": "enemy_final_author",
+        "char": "!",
+        "name": "The Final Author",
+        "type": "enemy",
+        "size": "80x80 px (2x2 tiles)",
+        "desc": "Final Boss. High HP; sweeping, area-of-effect parryable attacks."
+    },
 
-    {"id": "tool_pencil", "name": "Pencil Tool", "type": "utility"},
-    {"id": "tool_rect", "name": "Rectangle Tool", "type": "utility"},
-    {"id": "tool_socket", "name": "Socket Tool", "type": "utility"},
+    {
+        "id": "tool_pencil",
+        "name": "Pencil Tool",
+        "type": "utility",
+        "size": "N/A",
+        "desc": "Draws single tiles/entities with click-and-drag."
+    },
+    {
+        "id": "tool_rect",
+        "name": "Rectangle Tool",
+        "type": "utility",
+        "size": "N/A",
+        "desc": "Draws solid rectangles of the selected tile."
+    },
+    {
+        "id": "tool_socket",
+        "name": "Socket Tool",
+        "type": "utility",
+        "size": "N/A",
+        "desc": "Creates connection boundaries (sockets) for procedural loom loading."
+    }
 ]
 
 class MapEditor:
@@ -115,6 +388,7 @@ class MapEditor:
         self.drag_current = (0, 0)
         self.pending_socket_bounds = None
         self.selected_socket_idx = -1
+        self.help_page = 0
 
     def select_hotbar_slot(self, idx):
         """Selects a tool slot and updates editor state."""
@@ -345,9 +619,43 @@ class MapEditor:
         tool_text = f"Tool: {self.active_tool}"
         self.screen.blit(self.font.render(tool_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
         y_off += 25
+
+        brush_info = None
+        if self.active_tool in ("PENCIL", "RECTANGLE"):
+            brush_info = next(
+                (t for t in MASTER_TOOL_REGISTRY if t.get("char") == self.current_brush_char),
+                None
+            )
+
         brush_text = f"Brush: {self.current_brush_char}"
+        if brush_info:
+            brush_text += f" - {brush_info['name']}"
         self.screen.blit(self.font.render(brush_text, True, COLOR_YELLOW), (sidebar_x + 10, y_off))
         y_off += 25
+
+        if brush_info:
+            size_lbl = f"Size: {brush_info.get('size', 'N/A')}"
+            self.screen.blit(self.small_font.render(size_lbl, True, COLOR_CYAN), (sidebar_x + 15, y_off))
+            y_off += 20
+
+            desc_text = brush_info.get('desc', '')
+            words = desc_text.split(' ')
+            lines = []
+            curr_line = ""
+            for word in words:
+                if len(curr_line) + len(word) + 1 > 35:
+                    lines.append(curr_line)
+                    curr_line = word
+                else:
+                    curr_line = (curr_line + " " + word).strip()
+            if curr_line:
+                lines.append(curr_line)
+
+            for line in lines:
+                self.screen.blit(self.small_font.render(line, True, COLOR_WHITE), (sidebar_x + 15, y_off))
+                y_off += 18
+            y_off += 5
+
         zoom_text = f"Zoom: {self.zoom:.1f}x"
         self.screen.blit(self.font.render(zoom_text, True, COLOR_WHITE), (sidebar_x + 10, y_off))
         y_off += 30
@@ -494,40 +802,117 @@ class MapEditor:
         self.screen.blit(b_surf, (b_rect.centerx - b_surf.get_width() // 2, b_rect.y + 60))
 
     def draw_help_dialog(self):
-        """Draws a help dialog with all controls."""
-        overlay_w, overlay_h = 500, 400
-        x, y = (SCREEN_WIDTH + self.sidebar_width) // 2 - overlay_w // 2, SCREEN_HEIGHT // 2 - overlay_h // 2
+        """Draws a multi-page help and reference dialog."""
+        overlay_w, overlay_h = 920, 530
+        x = (SCREEN_WIDTH + self.sidebar_width) // 2 - overlay_w // 2
+        y = SCREEN_HEIGHT // 2 - overlay_h // 2
         rect = pygame.Rect(x, y, overlay_w, overlay_h)
 
-        pygame.draw.rect(self.screen, (30, 30, 40), rect)
+        # Background and Border
+        pygame.draw.rect(self.screen, (25, 25, 35), rect)
         pygame.draw.rect(self.screen, COLOR_WHITE, rect, 2)
 
-        title = self.large_font.render("Editor Controls", True, COLOR_YELLOW)
-        self.screen.blit(title, (rect.centerx - title.get_width() // 2, rect.y + 10))
+        # Tabs Header
+        tab_y = y + 20
+        tab1_rect = pygame.Rect(x + 40, tab_y, 220, 30)
+        tab2_rect = pygame.Rect(x + 280, tab_y, 280, 30)
+        tab3_rect = pygame.Rect(x + 580, tab_y, 300, 30)
 
-        controls = [
-            "WASD: Pan Map",
-            "Left Click: Use Tool / Drag Rect",
-            "1-0: Select Hotbar Slot",
-            "B: Toggle Pencil / Rectangle",
-            "J: Socket Tool",
-            "+ / -: Zoom In / Out",
-            "Mouse Wheel: Zoom In / Out",
-            "Ctrl + S: Save Map",
-            "Ctrl + O: Load Map",
-            "Ctrl + N: New Map",
-            "Ctrl + R: Resize Map",
-            "Esc: Unselect Socket / Clear Tool",
-            "H: Toggle Help",
-            "",
-            "Press ESC or H to Close"
-        ]
+        color_active = (60, 60, 90)
+        color_inactive = (35, 35, 50)
 
-        y_off = rect.y + 60
-        for line in controls:
-            surf = self.font.render(line, True, COLOR_WHITE)
-            self.screen.blit(surf, (rect.x + 40, y_off))
-            y_off += 22
+        pygame.draw.rect(self.screen, color_active if self.help_page == 0 else color_inactive, tab1_rect)
+        pygame.draw.rect(self.screen, COLOR_GREY, tab1_rect, 1)
+        t1_surf = self.font.render("1. Editor Controls", True, COLOR_WHITE if self.help_page == 0 else COLOR_GREY)
+        self.screen.blit(t1_surf, (tab1_rect.centerx - t1_surf.get_width() // 2, tab1_rect.centery - 9))
+
+        pygame.draw.rect(self.screen, color_active if self.help_page == 1 else color_inactive, tab2_rect)
+        pygame.draw.rect(self.screen, COLOR_GREY, tab2_rect, 1)
+        t2_surf = self.font.render("2. Tiles & Elements", True, COLOR_WHITE if self.help_page == 1 else COLOR_GREY)
+        self.screen.blit(t2_surf, (tab2_rect.centerx - t2_surf.get_width() // 2, tab2_rect.centery - 9))
+
+        pygame.draw.rect(self.screen, color_active if self.help_page == 2 else color_inactive, tab3_rect)
+        pygame.draw.rect(self.screen, COLOR_GREY, tab3_rect, 1)
+        t3_surf = self.font.render("3. Enemies & Spawners", True, COLOR_WHITE if self.help_page == 2 else COLOR_GREY)
+        self.screen.blit(t3_surf, (tab3_rect.centerx - t3_surf.get_width() // 2, tab3_rect.centery - 9))
+
+        # Divider line
+        pygame.draw.line(self.screen, COLOR_GREY, (x + 20, y + 65), (x + overlay_w - 20, y + 65), 1)
+
+        # Footer
+        footer_text = "A/D or Arrow Keys: Switch Pages | Mouse Click to Select Tabs | H or ESC: Close"
+        foot_surf = self.small_font.render(footer_text, True, COLOR_YELLOW)
+        self.screen.blit(foot_surf, (rect.centerx - foot_surf.get_width() // 2, y + overlay_h - 30))
+
+        content_y = y + 80
+        if self.help_page == 0:
+            # Render Controls
+            controls = [
+                "WASD keys            - Pan camera around the map",
+                "Left Click          - Use selected tool (draw or select socket)",
+                "1-0 number keys     - Select tool hotbar slot 1-10",
+                "B key               - Cycle active tool between PENCIL and RECTANGLE",
+                "J key               - Select SOCKET Tool (drag to define procedural loom socket bounds)",
+                "Plus / Minus (+/-)  - Zoom map view in / out (or use Mouse Scroll Wheel)",
+                "Ctrl + S / Ctrl + O - Save map to file / Open file picker to load map",
+                "Ctrl + N / Ctrl + R - Start blank canvas / Resize canvas grid dimensions",
+                "Esc key             - Deselect current socket, clear current tool",
+                "H key               - Toggle this reference and controls guide"
+            ]
+            for line in controls:
+                surf = self.font.render(line, True, COLOR_WHITE)
+                self.screen.blit(surf, (x + 60, content_y))
+                content_y += 32
+        elif self.help_page == 1:
+            header_lbl = "Sym  Name                  Size                 Description"
+            header_surf = self.font.render(header_lbl, True, COLOR_CYAN)
+            self.screen.blit(header_surf, (x + 40, content_y))
+            content_y += 24
+            pygame.draw.line(self.screen, COLOR_GREY, (x + 40, content_y - 4), (x + overlay_w - 40, content_y - 4), 1)
+            
+            tiles = [t for t in MASTER_TOOL_REGISTRY if t.get("type") == "tile"]
+            for item in tiles:
+                char_lbl = f" {item.get('char', ' ')} "
+                name_lbl = item.get("name", "")
+                size_lbl = item.get("size", "N/A")
+                desc_lbl = item.get("desc", "")
+                
+                self.screen.blit(self.font.render(char_lbl, True, COLOR_YELLOW), (x + 45, content_y))
+                self.screen.blit(self.font.render(name_lbl, True, COLOR_WHITE), (x + 95, content_y))
+                self.screen.blit(self.font.render(size_lbl, True, COLOR_CYAN), (x + 295, content_y))
+                self.screen.blit(self.small_font.render(desc_lbl, True, COLOR_WHITE), (x + 485, content_y + 2))
+                content_y += 21
+        elif self.help_page == 2:
+            header_lbl = "Sym  Name                  Size                 Description"
+            header_surf = self.font.render(header_lbl, True, COLOR_CYAN)
+            self.screen.blit(header_surf, (x + 40, content_y))
+            content_y += 24
+            pygame.draw.line(self.screen, COLOR_GREY, (x + 40, content_y - 4), (x + overlay_w - 40, content_y - 4), 1)
+
+            enemies = [t for t in MASTER_TOOL_REGISTRY if t.get("type") == "enemy"]
+            for item in enemies:
+                char_lbl = f" {item.get('char', ' ')} "
+                name_lbl = item.get("name", "")
+                size_lbl = item.get("size", "N/A")
+                desc_lbl = item.get("desc", "")
+                
+                self.screen.blit(self.font.render(char_lbl, True, COLOR_YELLOW), (x + 45, content_y))
+                self.screen.blit(self.font.render(name_lbl, True, COLOR_WHITE), (x + 95, content_y))
+                self.screen.blit(self.font.render(size_lbl, True, COLOR_CYAN), (x + 295, content_y))
+                self.screen.blit(self.small_font.render(desc_lbl, True, COLOR_WHITE), (x + 485, content_y + 2))
+                content_y += 22
+
+            content_y += 10
+            header_patrol = self.font.render("Waypoints:", True, COLOR_CYAN)
+            self.screen.blit(header_patrol, (x + 40, content_y))
+            content_y += 24
+            pygame.draw.line(self.screen, COLOR_GREY, (x + 40, content_y - 4), (x + overlay_w - 40, content_y - 4), 1)
+
+            self.screen.blit(self.font.render("1-9", True, COLOR_YELLOW), (x + 45, content_y))
+            self.screen.blit(self.font.render("Patrol Waypoints", True, COLOR_WHITE), (x + 95, content_y))
+            self.screen.blit(self.font.render("40x40 px (1x1 tile)", True, COLOR_CYAN), (x + 295, content_y))
+            desc_pat = "Waypoint markers defining steering paths for enemies."
+            self.screen.blit(self.small_font.render(desc_pat, True, COLOR_WHITE), (x + 485, content_y + 2))
 
     def draw(self):
         """Draws the editor state to the screen."""
@@ -738,6 +1123,7 @@ class MapEditor:
 
         if event.key == pygame.K_h:
             self.input_mode = 'HELP'
+            self.help_page = 0
             return
 
         if pygame.K_1 <= event.key <= pygame.K_9:
@@ -802,6 +1188,7 @@ class MapEditor:
                 help_rect = pygame.Rect(SCREEN_WIDTH + 10, SCREEN_HEIGHT - 50, self.sidebar_width - 20, 40)
                 if help_rect.collidepoint(mx, my):
                     self.input_mode = 'HELP'
+                    self.help_page = 0
                     return
             elif event.button == 1:
                 ts = int(TILE_SIZE * self.zoom)
@@ -843,6 +1230,26 @@ class MapEditor:
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_ESCAPE, pygame.K_h):
                 self.input_mode = None
+            elif event.key in (pygame.K_LEFT, pygame.K_a):
+                self.help_page = (self.help_page - 1) % 3
+            elif event.key in (pygame.K_RIGHT, pygame.K_d):
+                self.help_page = (self.help_page + 1) % 3
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mx, my = pygame.mouse.get_pos()
+            overlay_w, overlay_h = 920, 530
+            ox = (SCREEN_WIDTH + self.sidebar_width) // 2 - overlay_w // 2
+            oy = SCREEN_HEIGHT // 2 - overlay_h // 2
+
+            tab1 = pygame.Rect(ox + 40, oy + 20, 220, 30)
+            tab2 = pygame.Rect(ox + 280, oy + 20, 280, 30)
+            tab3 = pygame.Rect(ox + 580, oy + 20, 300, 30)
+
+            if tab1.collidepoint(mx, my):
+                self.help_page = 0
+            elif tab2.collidepoint(mx, my):
+                self.help_page = 1
+            elif tab3.collidepoint(mx, my):
+                self.help_page = 2
 
     def handle_input(self):
         """Handles user input for the editor."""

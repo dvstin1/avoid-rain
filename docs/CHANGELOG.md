@@ -518,5 +518,8 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Animated Weapon Rendering:** Coded dynamic animated rendering of a giant ink quill weapon held by a limb that thrusts out (for `THRUST` attacks) or swings in a wide arc (for `SWING` attacks), complete with a semi-transparent blue swing trail effect.
 - **Hitbox Tests:** Wrote unit tests in `tests/test_boss_hitbox.py` verifying get_attack_hitbox calculations and front-vs-back damage collision logic.
 
-
-
+## [ARCHIVED] Map Editor Reference Overlay and Real-Time Brush Details - June 2026
+- **Palette Registry Synchronization:** Synchronized the map editor's palette loading dictionary (`MASTER_TOOL_REGISTRY`) to match engine configurations, adding the missing symbols: Lotus Frame (`M`), Wall Boundary (`X`), and The Final Author (`!`).
+- **Interactive Multi-Page Help Overlay:** Replaced the static help popup with a larger, tabbed, multi-page reference dialog toggleable via `H` or the sidebar button. Page 1 displays controls, Page 2 lists all tile obstacles and prop sizes/behaviors, and Page 3 lists all enemies, bosses, and patrol waypoint coordinates with collision sizes and behaviors.
+- **Tab and Page Navigation:** Implemented page cycling using `A`/`D` or the `Left`/`Right` arrow keys, and mouse-click selection on the tab headers.
+- **Real-Time Sidebar Brush Details:** Upgraded the sidebar to fetch the currently selected brush's name, size, and description in real-time, wrapping descriptions cleanly to fit inside the sidebar bounds.
