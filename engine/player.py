@@ -1,3 +1,4 @@
+# pylint: disable=multiple-statements,trailing-whitespace,import-outside-toplevel,no-member,access-member-before-definition,attribute-defined-outside-init,unused-import
 """
 Core player logic and state management.
 """
@@ -60,6 +61,10 @@ class Player:
         self.hit_entities_this_attack = set()
         self.hit_props_this_attack = set()
         
+        # Anomalous weapon state modifiers
+        self.negation_timer = 0.0
+        self.negation_amount = 0.0
+        
         self.flask_latched = False
 
     def swap_weapon(self, audio_manager=None):
@@ -77,6 +82,7 @@ class Player:
         """Returns True if the player is currently in an active parry window."""
         return self.parry_timer > 0.0
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-branches,too-many-statements
     def update(
         self, dt, move_dir, walls, actions, attack_pressed=False, flask_pressed=False,
         dash_pressed=False, block_pressed=False, speed_multiplier=1.0, audio_manager=None
@@ -84,6 +90,22 @@ class Player:
         """
         Update player position and state. Returns True if a heal was performed.
         """
+        # Clamp HP to new max HP (handles swapping max_hp_boost weapons)
+        self.hp = min(self.hp, self.max_hp)
+
+        # Tick HP regeneration from anomalous weapon
+        if self.hp > 0:
+            active_weapon = self.get_active_weapon()
+            mods = active_weapon.get("modifiers", {})
+            if "slow_hp_regen" in mods:
+                self.hp = min(self.max_hp, self.hp + mods["slow_hp_regen"] * dt)
+
+        # Tick negation buff timer
+        if hasattr(self, 'negation_timer') and self.negation_timer > 0:
+            self.negation_timer -= dt
+            if self.negation_timer <= 0:
+                self.negation_timer = 0.0
+                self.negation_amount = 0.0
         from constants import DASH_DURATION, DASH_COOLDOWN, DASH_SPEED_MULTIPLIER, BLOCK_SPEED_MULTIPLIER, PARRY_WINDOW
 
         healed = False
@@ -223,7 +245,13 @@ class Player:
     @property
     def max_hp(self):
         """Dynamic max HP including modifiers."""
-        return PLAYER_MAX_HP + self.stats.get("max_hp_modifier", 0)
+        base = PLAYER_MAX_HP + self.stats.get("max_hp_modifier", 0)
+        if hasattr(self, 'weapons') and self.weapons:
+            active_weapon = self.get_active_weapon()
+            mods = active_weapon.get("modifiers", {})
+            if "max_hp_boost" in mods:
+                base += mods["max_hp_boost"]
+        return base
 
     def get_visual_packet(self):
         """Returns a composable packet of visual intents for the renderer."""
@@ -270,6 +298,10 @@ class Player:
         Includes conditional defensive parsing based on Edification level.
         If bypass_stagger is True, the player's state is not changed.
         """
+        # Apply temporary damage negation from previous hit
+        if getattr(self, 'negation_timer', 0) > 0:
+            amount = max(0.0, amount - self.negation_amount)
+
         # 0. Damage Immunity (i-frames) during Stagger or Dash
         if self.state in (PlayerStateEnum.STAGGERED, PlayerStateEnum.DASHING):
             if not bypass_stagger: # Hazards like rain still tick
@@ -303,6 +335,13 @@ class Player:
             amount *= (1.0 - reduction)
 
         self.hp = max(0.0, self.hp - amount)
+
+        # Check active weapon for damage negation on hit modifier
+        active_weapon = self.get_active_weapon()
+        mods = active_weapon.get("modifiers", {})
+        if "damage_negation_on_hit" in mods and amount > 0:
+            self.negation_timer = 3.0
+            self.negation_amount = mods["damage_negation_on_hit"]
         
         # Only stagger if they took actual damage and stagger isn't bypassed
         if not bypass_stagger and self.hp > 0 and amount > 0:

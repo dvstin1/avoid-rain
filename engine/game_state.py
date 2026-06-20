@@ -636,6 +636,14 @@ class GameState:
                         self.player.hit_entities_this_attack.add(net_id)
                         
                         enemy.take_damage(damage, bypass_stagger=is_client)
+                        
+                        # Apply anomalous weapon modifiers on hit
+                        mods = active_weapon.get("modifiers", {})
+                        if "bleed" in mods and enemy.hp > 0:
+                            enemy.bleed_timer = 5.0
+                            enemy.bleed_damage = mods["bleed"]
+                            enemy.bleed_tick_timer = 1.0
+
                         hit_landed = True
                         if is_client:
                             self.network_manager.send_damage_event("enemy", net_id, damage)

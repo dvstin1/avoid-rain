@@ -295,12 +295,34 @@ class Miniboss(Boss):
             weapon_data = {"name": "Refined Quill", "damage": 15}
         else:
             # Anomalous Upgrade: Random powerful variant
-            names = ["Anomalous Ink-Bleed", "Anomalous Void-Strike", "Anomalous Cleft-Nib"]
-            name = random.choice(names)
+            variants = [
+                {
+                    "name": "Anomalous Ink-Bleed",
+                    "modifiers": {"bleed": 5.0},
+                    "description": "Inflicts ink-bleed, dealing 5 damage per second on hit."
+                },
+                {
+                    "name": "Anomalous Life-Thread",
+                    "modifiers": {"slow_hp_regen": 1.0},
+                    "description": "Slowly mends the Reader, regenerating 1 HP per second."
+                },
+                {
+                    "name": "Anomalous Iron-Nib",
+                    "modifiers": {"damage_negation_on_hit": 5.0},
+                    "description": "Taking damage temporarily reduces next damage taken by 5."
+                },
+                {
+                    "name": "Anomalous Stout-Draft",
+                    "modifiers": {"max_hp_boost": 20.0},
+                    "description": "Gives the Reader a small boost of +20 Max HP."
+                }
+            ]
+            chosen = random.choice(variants)
             weapon_data = {
-                "name": name, 
+                "name": chosen["name"],
                 "damage": 20 + random.randint(0, 10),
-                "modifiers": {"bleed": 5.0} # Placeholder for now
+                "modifiers": chosen["modifiers"],
+                "description": chosen["description"]
             }
         
         state.world.interactables.append(WeaponPickup((self.x, self.y), weapon_data))

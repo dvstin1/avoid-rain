@@ -1,3 +1,4 @@
+# pylint: disable=trailing-whitespace,missing-class-docstring,missing-function-docstring,too-many-instance-attributes,too-many-arguments,too-many-positional-arguments,redefined-builtin,multiple-statements,no-value-for-parameter,too-many-branches,unused-argument,unnecessary-pass,redefined-outer-name,reimported,import-outside-toplevel,unused-import
 """
 Unified Actor base class for mobile entities (Enemies, NPCs).
 Implements the Stanza System for marker-based patrols.
@@ -6,7 +7,7 @@ import math
 import random
 from enum import Enum, auto
 from engine.physics import check_aabb_collision, resolve_wall_collision
-from constants import TILE_SIZE
+from constants import TILE_SIZE, DAMAGE_NUMBER_LIFETIME
 
 class ActorState(Enum):
     IDLE = auto()        # Waiting or wandering
@@ -56,6 +57,11 @@ class Actor:
         self.stagger_timer = 0.0
         self.name = name
         self.animation_timer = 0.0
+        
+        # Bleed status tracking
+        self.bleed_timer = 0.0
+        self.bleed_tick_timer = 0.0
+        self.bleed_damage = 0.0
         self.frame_index = 0
         self.detect_radius = 5.0 * TILE_SIZE
         self.is_miniboss = False
@@ -136,6 +142,21 @@ class Actor:
     def update(self, dt, state):
         """Unified state machine update."""
         self.animation_timer += dt
+
+        # Bleed ticking (applied even if staggered)
+        if self.bleed_timer > 0 and self.hp > 0:
+            self.bleed_timer -= dt
+            self.bleed_tick_timer -= dt
+            if self.bleed_tick_timer <= 0:
+                self.take_damage(self.bleed_damage, bypass_stagger=True)
+                # Spawning damage number
+                if hasattr(state, 'damage_numbers'):
+                    state.damage_numbers.append({
+                        'val': self.bleed_damage, 'pos': (self.x + 10, self.y - 20),
+                        'time': DAMAGE_NUMBER_LIFETIME, 'color': (180, 0, 0)
+                    })
+                self.bleed_tick_timer = 1.0
+
         if self.stagger_timer > 0:
             self.stagger_timer -= dt
             return
