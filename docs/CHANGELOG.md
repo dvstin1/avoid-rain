@@ -529,3 +529,9 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Player Character Glowing Effect:** Implemented a visual gold shimmer glow overlay and border around the player sprite/ghost when the `NEGATION` (Ward) effect is active.
 - **HUD Status Badge Display:** Added dynamic color-coded active status indicators next to status metrics on the HUD panel for `WARD` (damage negation timer/amount), `BOUND` (movement bind status timer), and `REGEN` (passive HP regen rate).
 - **Unit Test Coverage:** Updated HP boost unit tests and added `test_inactive_weapon_modifiers` in `tests/test_anomalous_weapon_effects.py` to verify slot-independent passive effect application.
+
+## [ARCHIVED] Sanctuary Level and Stat Reset Restoration - June 2026
+- **Level Reset:** Restored the reset of player's Edification level to 1 and attribute stats (`attack_modifier` and `max_hp_modifier` to 0) upon entering the Sanctuary hub.
+- **HP Restoration:** Ensured current HP and maximum HP are cleanly reset back to default base stats (`PLAYER_MAX_HP` = 100.0) upon sanctuary entry.
+- **Sequence Calibration:** Adjusted the reset order in `on_enter_sanctuary` to reset player stats and weapons *before* setting `self.player.hp` to ensure `self.player.max_hp` matches the default value perfectly.
+- **Unit Test Coverage:** Added unit test `test_warp_level_reset` in `tests/test_warp.py` verifying state reset to level 1 and 100 max HP upon warp portal interactions.

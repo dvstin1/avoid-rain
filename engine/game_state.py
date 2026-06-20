@@ -972,6 +972,17 @@ class GameState:
         """Rule: Absolute state purification upon entering the Sanctuary hub."""
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, SWORD_DAMAGE
         self.player.is_exposed = False
+        
+        # Reset stats/level to starting levels
+        self.player.stats = {
+            "attack_modifier": 0,
+            "max_hp_modifier": 0,
+            "edification": 1
+        }
+        
+        self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
+        self.player.active_weapon_idx = 0
+        
         self.player.hp = float(self.player.max_hp)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
         
@@ -987,9 +998,6 @@ class GameState:
                     self.network_manager.start_searching()
             elif mode == "OFFLINE":
                 self.network_manager.start_searching()
-        
-        self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
-        self.player.active_weapon_idx = 0
         
         # Purification: Clear run state and persistent world changes when entering Hub
         self.world_debris = []
