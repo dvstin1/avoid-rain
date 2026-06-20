@@ -426,6 +426,14 @@ class GameState:
         if self.input_debounce_timer > 0: self.input_debounce_timer -= dt
         if self.menu_nav_cooldown > 0: self.menu_nav_cooldown -= dt
 
+        # Activate Respite on forest/ruins maps if the miniboss has been defeated
+        if self.world and self.world.name in ("forest", "ruins"):
+            has_miniboss = any(getattr(e, 'is_miniboss', False) for e in self.enemies)
+            if not has_miniboss:
+                for obj in self.world.interactables:
+                    if type(obj).__name__ == "Respite" and not getattr(obj, 'is_active', True):
+                        obj.is_active = True
+
         # 1. PRE-SYNC: Detection and State Management
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         nearby = self.world.get_nearby_interactables(player_rect)
@@ -448,6 +456,19 @@ class GameState:
             self._update_world_events(dt)
             
         self.weather_manager.update(dt, self.player, self.world, audio_manager=audio_manager)
+
+        # Close Respite instantly if it is getting rained on
+        if getattr(self, 'active_respite', None):
+            rx = self.active_respite.x + self.active_respite.width / 2
+            ry = self.active_respite.y + self.active_respite.height / 2
+            if not self.weather_manager.is_pos_safe(rx, ry):
+                self.active_respite = None
+                self.active_dialogue = None
+                self.respite_selection_idx = 0
+                self.respite_marked_idx = -1
+                self.player.has_rested_this_session = False
+                print("[RESPITE] Closed instantly due to rain exposure.")
+
         self.update_combat(dt, attack_pressed, actions, audio_manager)
 
         # 4. SHARED SYSTEMS (Visuals, Movement, UI)

@@ -279,9 +279,20 @@ class Respite(GameObject):
         self.name = "Respite Anchor"
         self.is_interactive = True
         self.is_solid = True
+        self.is_active = True
 
     def execute_interaction(self, game_state):
         """Trigger the Respite Level-Up UI in GameState."""
+        rx = self.x + self.width / 2
+        ry = self.y + self.height / 2
+        if hasattr(game_state, 'weather_manager') and not game_state.weather_manager.is_pos_safe(rx, ry):
+            game_state.active_dialogue = {
+                "speaker": "Respite Anchor",
+                "text": "The glyphs are smothered under a thick layer of liquid ink. The sanctuary's power is drowned until the rain clears."
+            }
+            game_state.active_respite = None
+            return
+
         # Only reset and log if first opening
         if getattr(game_state, 'active_respite', None) != self:
             game_state.respite_selection_idx = 0
@@ -508,6 +519,11 @@ class LevelLoader:
                 elif char == 'R':
                     # Respite
                     respite = Respite(pos, dim)
+                    if map_name in ("forest", "ruins"):
+                        miniboss_defeated = any(bid.startswith(f"{map_name}:") for bid in defeated_ids)
+                        respite.is_active = miniboss_defeated
+                    else:
+                        respite.is_active = True
                     interactables.append(respite)
 
                 elif char == 'T':
@@ -737,7 +753,7 @@ class World:
         # Solid GameObjects
         from engine.physics import check_aabb_collision
         for obj in self.interactables:
-            if obj.is_solid and check_aabb_collision(player_rect, obj.rect):
+            if obj.is_solid and getattr(obj, 'is_active', True) and check_aabb_collision(player_rect, obj.rect):
                 walls.append((obj.rect[0], obj.rect[1], obj.rect[2], obj.rect[3]))
 
         return walls
@@ -751,6 +767,6 @@ class World:
         from engine.physics import check_aabb_collision
         nearby = []
         for obj in self.interactables:
-            if obj.is_interactive and check_aabb_collision(expanded_rect, obj.rect):
+            if obj.is_interactive and getattr(obj, 'is_active', True) and check_aabb_collision(expanded_rect, obj.rect):
                 nearby.append(obj)
         return nearby

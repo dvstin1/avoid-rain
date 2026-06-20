@@ -500,3 +500,10 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **True Victory Loop:** Integrated run-victory logic; defeating The Final Author triggers a permanent Dilution effect, records a Chapter Clear statistic, and extracts the player to the Sanctuary.
 - **Cinematic Feedback:** Linked all major lifecycle transitions (Appendix Reveal, Dilution, Second Draft) to the Typographic Bloom system for high-impact cinematic alerts.
 - **State Persistence:** Verified and enforced full weather and run-progress serialization, ensuring mid-run storm states survive application restarts.
+
+## [ARCHIVED] Gated Respite and Rain Close Mechanics - June 2026
+- **Gated Respite Loading:** Gated Respite visibility, solidity, and interaction on the `forest` and `ruins` maps so that the Respite anchor does not appear or function until the map's miniboss is defeated.
+- **Lore-Accurate Rain Denial:** Prevented Respite interaction if the Respite is being rained on (outside the active safe circle), displaying a lore accurate dialogue message stating that the glyphs are smothered under liquid ink.
+- **Instant Weather Closure:** Enforced instant closure of the Respite level-up UI/menu if the active Respite starts getting rained on.
+- **Comprehensive Unit Testing:** Implemented custom tests in `tests/test_respite_rain_and_gate.py` verifying correct behavior for gating, other-map immunity, rain interaction blocking, and instant UI closure.
+

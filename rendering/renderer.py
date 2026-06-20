@@ -339,6 +339,8 @@ class Renderer:
         for obj in getattr(state.world, 'interactables', []):
             if hasattr(obj, 'target_name'): self.draw_warp(obj, ox, oy)
             elif "Respite" in obj.name:
+                if not getattr(obj, 'is_active', True):
+                    continue
                 # Draw Respite Anchor as a large pulsing sigil
                 dr = pygame.Rect(obj.x - ox, obj.y - oy, obj.width, obj.height)
                 pygame.draw.rect(self.screen, (20, 40, 60), dr) # Dark base
