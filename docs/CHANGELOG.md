@@ -542,3 +542,11 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Passive Effects & Buffs/Debuffs:** Included tracking of active weapon passive effects (HP regen, Max HP boost, Ward on Hit, Bleed on Hit) and real-time active buff/debuff timers (Ward negation shields, movement binds).
 - **Renderer Tests:** Wrote headless unit tests in `tests/test_renderer_inspect_upgrades.py` ensuring correct blit operations and visual labels when inspecting player stats.
 
+## [ARCHIVED] Data-Driven Grass Floor Tile Integration - June 2026
+- **Tile Registration:** Registered the new passable "Grass Floor Tile" mapped to tile character "g" and code TILE_GRASS = 12 in constants.py.
+- **Pre-Generated Sprites:** Configured the Renderer to load grass_small.png on startup and generate three distinct RAM variants (original, flipped, and programmatically tinted yellow via BLEND_RGBA_MULT).
+- **Cluster Spawning Logic:** Implemented randomized cluster generation inside World.generate_grass_decorations() when loading maps, spawning between 2 to 6 grass instances per "g" tile with local offsets of [-12, 12].
+- **Map Editor Synchronization:** Registered tile_grass in MASTER_TOOL_REGISTRY inside tools/edit_map.py to maintain synchronization with engine configurations (Palette Divergence Law).
+- **Unit Test Coverage:** Wrote tests in tests/test_grass_tile.py verifying grid character mapping, decoration cluster bounds, and rendering safety.
+
+

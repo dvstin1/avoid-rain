@@ -535,6 +535,9 @@ class LevelLoader:
                 elif char == 'M':
                     from constants import TILE_LOTUS_FRAME
                     grid[y][x] = TILE_LOTUS_FRAME
+                elif char == 'g':
+                    from constants import TILE_GRASS
+                    grid[y][x] = TILE_GRASS
                 else:
                     # Every other symbol defaults to empty floor for collision/base grid purposes
                     grid[y][x] = TILE_EMPTY
@@ -781,6 +784,7 @@ class World:
         self.player_start = (PLAYER_START_X, PLAYER_START_Y)
         self.module_sockets = []
         self.boss_coords_list = []
+        self.grass_decorations = {}
 
     def load_from_prototype(self, prototype_array, entity_data=None, saved_enemies=None):
         """
@@ -788,6 +792,26 @@ class World:
         """
         self.grid, self.interactables, self.warp_tiles, self.player_start, self.enemies = \
             LevelLoader.parse_map(prototype_array, entity_data, saved_enemies)
+        self.generate_grass_decorations()
+
+    def generate_grass_decorations(self):
+        """Scan the grid for TILE_GRASS and generate random grass instances."""
+        from constants import TILE_GRASS
+        self.grass_decorations = {}
+        h = len(self.grid)
+        w = len(self.grid[0]) if h > 0 else 0
+        
+        for y in range(h):
+            for x in range(w):
+                if self.grid[y][x] == TILE_GRASS:
+                    num_instances = random.randint(2, 6)
+                    instances = []
+                    for _ in range(num_instances):
+                        variant = random.randint(0, 2)
+                        dx = random.randint(-12, 12)
+                        dy = random.randint(-12, 12)
+                        instances.append(("small", variant, dx, dy))
+                    self.grass_decorations[(x, y)] = instances
 
     def get_nearby_walls(self, player_rect):
         """Returns wall rectangles (grid or solid GameObjects) near the player."""

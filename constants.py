@@ -216,11 +216,13 @@ TILE_HAZARD = 8
 TILE_LIGHT = 9
 TILE_STRUCTURE = 10
 TILE_PATROL = 11
+TILE_GRASS = 12
 
 TILE_KEY = {
     '#': TILE_WALL,
     ' ': TILE_EMPTY, # Explicitly open floor
     '.': TILE_EMPTY,
+    'g': TILE_GRASS,
     'W': TILE_WARP,
     'R': TILE_RESPITE,
     'T': TILE_STRUCTURE, # Protective Structure

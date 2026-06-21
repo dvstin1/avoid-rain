@@ -37,6 +37,14 @@ MASTER_TOOL_REGISTRY = [
         "desc": "Walkable floor tile. Default terrain."
     },
     {
+        "id": "tile_grass",
+        "char": "g",
+        "name": "Grass Floor",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Passable grass floor tile with decorative grass patches."
+    },
+    {
         "id": "tile_barrel",
         "char": "B",
         "name": "Barrel",

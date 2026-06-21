@@ -32,6 +32,8 @@ class Renderer:
         self._load_barrel_assets()
         self._load_tile_assets()
         self._load_slug_assets()
+        self.grass_pools = {}
+        self._load_grass_assets()
 
     def _load_barrel_assets(self):
         """Pre-load barrel animation frames."""
@@ -101,6 +103,47 @@ class Renderer:
                 self.image_cache[name] = pygame.transform.scale(img, (constants.TILE_SIZE, constants.TILE_SIZE))
             except Exception as e:
                 print(f"[RENDER] Error loading {name}: {e}")
+
+    def _load_grass_assets(self):
+        """Pre-load grass assets and generate 3 variants on startup."""
+        import os
+        base_path = os.path.join("assets", "graphics")
+        display_init = pygame.display.get_init()
+        
+        name = "grass_small.png"
+        path = os.path.join(base_path, name)
+        
+        self.grass_pools = {
+            "small": []
+        }
+        
+        if os.path.exists(path):
+            try:
+                img = pygame.image.load(path)
+                if display_init:
+                    img = img.convert_alpha()
+                base_img = pygame.transform.scale(img, (16, 16))
+                
+                # Variant 0: Pristine original
+                v0 = base_img.copy()
+                
+                # Variant 1: Horizontally flipped
+                v1 = pygame.transform.flip(base_img, True, False)
+                
+                # Variant 2: Slightly yellow-tinted copy
+                v2 = base_img.copy()
+                try:
+                    tint_surf = pygame.Surface((16, 16), pygame.SRCALPHA)
+                    tint_surf.fill((255, 230, 150, 255))
+                    v2.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+                except Exception as tint_err:
+                    print(f"[RENDER] Grass tinting fallback: {tint_err}")
+                    v2 = base_img.copy()
+                
+                self.grass_pools["small"] = [v0, v1, v2]
+                print("[RENDER] Successfully generated 3 grass variants for grass_small")
+            except Exception as e:
+                print(f"[RENDER] Error loading grass assets: {e}")
 
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
@@ -330,6 +373,27 @@ class Renderer:
                         self.screen.blit(img, (dr[0], dr[1]))
                     else:
                         pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
+                elif tile == constants.TILE_GRASS:
+                    img = self.image_cache.get("tile_floor.png")
+                    if img:
+                        self.screen.blit(img, (dr[0], dr[1]))
+                    else:
+                        pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
+                    
+                    # Blit the grass instances on top of it
+                    decorations = getattr(state.world, 'grass_decorations', {})
+                    if (x, y) in decorations:
+                        # Center of the 40x40 tile in screen coordinates
+                        center_x = x * constants.TILE_SIZE - ox + 20
+                        center_y = y * constants.TILE_SIZE - oy + 20
+                        
+                        for pool_key, variant, dx, dy in decorations[(x, y)]:
+                            pool = getattr(self, 'grass_pools', {}).get(pool_key)
+                            if pool and variant < len(pool):
+                                grass_img = pool[variant]
+                                blit_x = center_x + dx - grass_img.get_width() // 2
+                                blit_y = center_y + dy - grass_img.get_height() // 2
+                                self.screen.blit(grass_img, (blit_x, blit_y))
                 elif tile == constants.TILE_LOTUS_FRAME: pygame.draw.rect(self.screen, (40, 40, 80), dr)
                 else: pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
         
