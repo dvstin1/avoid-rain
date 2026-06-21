@@ -1,6 +1,10 @@
 # Changelog
 
 ## [Recently Completed]
+### Pygame-Based Wall Texture Desaturation
+- **Wall Saturation Removal:** Implemented custom color saturation removal on startup using Pygame. The `brown_wall.png` asset is programmatically converted to grayscale (using the standard luminosity method: 0.299R + 0.587G + 0.114B) while keeping the original alpha channel.
+- **Grayscale Unit Testing:** Wrote a test suite in `tests/test_wall_desaturation.py` verifying that color surfaces are correctly converted to grayscale while preserving alpha channels.
+
 ### High-Density Thicket & Overgrown Vegetation System
 - **Pre-loaded and Cached Grass Sizes:** Added startup loading, scaling, and caching of `grass_medium.png` (32x32) and `grass_tall.png` (40x40) alongside `grass_small.png` (16x16).
 - **RAM Variants Pool:** Generated horizontal flip and yellow-tinted RAM variants for all grass sizes at initialization.

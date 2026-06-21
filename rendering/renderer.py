@@ -74,6 +74,17 @@ class Renderer:
                 except Exception as e:
                     print(f"[RENDER] Error loading {name}: {e}")
 
+    def _desaturate_surface(self, surf):
+        """Converts a surface to grayscale (removes saturation)."""
+        width, height = surf.get_size()
+        gray_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+        for y in range(height):
+            for x in range(width):
+                color = surf.get_at((x, y))
+                gray = int(0.299 * color.r + 0.587 * color.g + 0.114 * color.b)
+                gray_surf.set_at((x, y), (gray, gray, gray, color.a))
+        return gray_surf
+
     def _load_tile_assets(self):
         """Pre-load tile assets like walls and floors."""
         import os
@@ -88,7 +99,12 @@ class Renderer:
                 img = pygame.image.load(path)
                 if display_init:
                     img = img.convert_alpha()
-                self.image_cache[name] = pygame.transform.scale(img, (constants.TILE_SIZE, constants.TILE_SIZE))
+                scaled_img = pygame.transform.scale(img, (constants.TILE_SIZE, constants.TILE_SIZE))
+                try:
+                    scaled_img = self._desaturate_surface(scaled_img)
+                except Exception as de_err:
+                    print(f"[RENDER] Grayscale conversion fallback: {de_err}")
+                self.image_cache[name] = scaled_img
             except Exception as e:
                 print(f"[RENDER] Error loading {name}: {e}")
 
