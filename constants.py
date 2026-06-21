@@ -217,12 +217,14 @@ TILE_LIGHT = 9
 TILE_STRUCTURE = 10
 TILE_PATROL = 11
 TILE_GRASS = 12
+TILE_THICKET = 13
 
 TILE_KEY = {
     '#': TILE_WALL,
     ' ': TILE_EMPTY, # Explicitly open floor
     '.': TILE_EMPTY,
     'g': TILE_GRASS,
+    'G': TILE_THICKET,
     'W': TILE_WARP,
     'R': TILE_RESPITE,
     'T': TILE_STRUCTURE, # Protective Structure

@@ -110,40 +110,47 @@ class Renderer:
         base_path = os.path.join("assets", "graphics")
         display_init = pygame.display.get_init()
         
-        name = "grass_small.png"
-        path = os.path.join(base_path, name)
-        
         self.grass_pools = {
-            "small": []
+            "small": [],
+            "medium": [],
+            "tall": []
         }
         
-        if os.path.exists(path):
-            try:
-                img = pygame.image.load(path)
-                if display_init:
-                    img = img.convert_alpha()
-                base_img = pygame.transform.scale(img, (16, 16))
-                
-                # Variant 0: Pristine original
-                v0 = base_img.copy()
-                
-                # Variant 1: Horizontally flipped
-                v1 = pygame.transform.flip(base_img, True, False)
-                
-                # Variant 2: Slightly yellow-tinted copy
-                v2 = base_img.copy()
+        configs = [
+            ("grass_small.png", "small", (16, 16)),
+            ("grass_medium.png", "medium", (32, 32)),
+            ("grass_tall.png", "tall", (40, 40)),
+        ]
+        
+        for name, key, size in configs:
+            path = os.path.join(base_path, name)
+            if os.path.exists(path):
                 try:
-                    tint_surf = pygame.Surface((16, 16), pygame.SRCALPHA)
-                    tint_surf.fill((255, 230, 150, 255))
-                    v2.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-                except Exception as tint_err:
-                    print(f"[RENDER] Grass tinting fallback: {tint_err}")
+                    img = pygame.image.load(path)
+                    if display_init:
+                        img = img.convert_alpha()
+                    base_img = pygame.transform.scale(img, size)
+                    
+                    # Variant 0: Pristine original
+                    v0 = base_img.copy()
+                    
+                    # Variant 1: Horizontally flipped
+                    v1 = pygame.transform.flip(base_img, True, False)
+                    
+                    # Variant 2: Slightly yellow-tinted copy
                     v2 = base_img.copy()
-                
-                self.grass_pools["small"] = [v0, v1, v2]
-                print("[RENDER] Successfully generated 3 grass variants for grass_small")
-            except Exception as e:
-                print(f"[RENDER] Error loading grass assets: {e}")
+                    try:
+                        tint_surf = pygame.Surface(size, pygame.SRCALPHA)
+                        tint_surf.fill((255, 230, 150, 255))
+                        v2.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+                    except Exception as tint_err:
+                        print(f"[RENDER] Grass tinting fallback for {name}: {tint_err}")
+                        v2 = base_img.copy()
+                    
+                    self.grass_pools[key] = [v0, v1, v2]
+                    print(f"[RENDER] Successfully generated 3 grass variants for {name}")
+                except Exception as e:
+                    print(f"[RENDER] Error loading grass assets for {name}: {e}")
 
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
@@ -373,7 +380,7 @@ class Renderer:
                         self.screen.blit(img, (dr[0], dr[1]))
                     else:
                         pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
-                elif tile == constants.TILE_GRASS:
+                elif tile in (constants.TILE_GRASS, constants.TILE_THICKET):
                     img = self.image_cache.get("tile_floor.png")
                     if img:
                         self.screen.blit(img, (dr[0], dr[1]))

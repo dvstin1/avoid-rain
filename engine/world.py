@@ -538,6 +538,9 @@ class LevelLoader:
                 elif char == 'g':
                     from constants import TILE_GRASS
                     grid[y][x] = TILE_GRASS
+                elif char == 'G':
+                    from constants import TILE_THICKET
+                    grid[y][x] = TILE_THICKET
                 else:
                     # Every other symbol defaults to empty floor for collision/base grid purposes
                     grid[y][x] = TILE_EMPTY
@@ -795,22 +798,46 @@ class World:
         self.generate_grass_decorations()
 
     def generate_grass_decorations(self):
-        """Scan the grid for TILE_GRASS and generate random grass instances."""
-        from constants import TILE_GRASS
+        """Scan the grid for TILE_GRASS/TILE_THICKET and generate random grass instances."""
+        from constants import TILE_GRASS, TILE_THICKET
         self.grass_decorations = {}
         h = len(self.grid)
         w = len(self.grid[0]) if h > 0 else 0
         
         for y in range(h):
             for x in range(w):
-                if self.grid[y][x] == TILE_GRASS:
+                tile = self.grid[y][x]
+                if tile == TILE_GRASS:
                     num_instances = random.randint(2, 6)
                     instances = []
                     for _ in range(num_instances):
                         variant = random.randint(0, 2)
                         dx = random.randint(-12, 12)
                         dy = random.randint(-12, 12)
-                        instances.append(("small", variant, dx, dy))
+                        # 95% small, 5% rare medium/tall overgrowth
+                        roll = random.random()
+                        if roll < 0.95:
+                            pool_key = "small"
+                        else:
+                            pool_key = random.choice(["medium", "tall"])
+                        instances.append((pool_key, variant, dx, dy))
+                    self.grass_decorations[(x, y)] = instances
+                elif tile == TILE_THICKET:
+                    num_instances = random.randint(5, 10)
+                    instances = []
+                    for _ in range(num_instances):
+                        variant = random.randint(0, 2)
+                        dx = random.randint(-12, 12)
+                        dy = random.randint(-12, 12)
+                        # 10% small, 45% medium, 45% tall
+                        roll = random.random()
+                        if roll < 0.10:
+                            pool_key = "small"
+                        elif roll < 0.55:
+                            pool_key = "medium"
+                        else:
+                            pool_key = "tall"
+                        instances.append((pool_key, variant, dx, dy))
                     self.grass_decorations[(x, y)] = instances
 
     def get_nearby_walls(self, player_rect):

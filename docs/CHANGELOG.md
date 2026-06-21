@@ -1,6 +1,15 @@
 # Changelog
 
 ## [Recently Completed]
+### High-Density Thicket & Overgrown Vegetation System
+- **Pre-loaded and Cached Grass Sizes:** Added startup loading, scaling, and caching of `grass_medium.png` (32x32) and `grass_tall.png` (40x40) alongside `grass_small.png` (16x16).
+- **RAM Variants Pool:** Generated horizontal flip and yellow-tinted RAM variants for all grass sizes at initialization.
+- **Topography Support for Thickets:** Registered `TILE_THICKET` in engine topo configurations mapped to the uppercase character `G`.
+- **Meadow Overgrowth Chance:** Introduced a rare 5% chance per instance on Meadow Tiles (`g`) to select a medium or tall grass variant.
+- **High-Density Thicket Clustering:** Implemented the Overgrown Thicket Tile (`G`) which spawns a heavy cluster of 5 to 10 grass instances, heavily weighted (10% small, 45% medium, 45% tall) to prioritize larger variants, rendering on top of the base grass floor tile background.
+- **Map and Tool Sync:** Integrated `tile_thicket` into `MASTER_TOOL_REGISTRY` in the map editor, and registered `G` in map legends for `sanctuary.json` and `smallcave.json`.
+- **Validation Suite:** Created unit tests verifying parsing, density distributions, scaling, variant pools, and rendering.
+
 ### Layered Visuals & Input Refinement: "The Ghost Indicator System"
 - **Layered Visual Architecture:** Implemented a decoupled animation system in `Actor` and `Player` that generates 'Visual Packets' containing base actions, physical postures, and status overlays.
 - **Renderer "Ghost Indicators":** Overhauled character rendering to draw abstract visual cues:

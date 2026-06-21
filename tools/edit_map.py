@@ -45,6 +45,14 @@ MASTER_TOOL_REGISTRY = [
         "desc": "Passable grass floor tile with decorative grass patches."
     },
     {
+        "id": "tile_thicket",
+        "char": "G",
+        "name": "Overgrown Thicket",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Passable overgrown thicket tile with high-density tall vegetation."
+    },
+    {
         "id": "tile_barrel",
         "char": "B",
         "name": "Barrel",
