@@ -406,6 +406,11 @@ class MapEditor:
         self.selected_socket_idx = -1
         self.help_page = 0
 
+        # UI interaction areas in sidebar
+        self.sidebar_size_rect = None
+        self.sidebar_hotbar_rects = []
+        self.sidebar_help_rect = None
+
     def select_hotbar_slot(self, idx):
         """Selects a tool slot and updates editor state."""
         self.selected_slot = idx
@@ -604,6 +609,7 @@ class MapEditor:
 
     def draw_sidebar(self, sidebar_x):
         """Draws the UI sidebar."""
+        self.sidebar_hotbar_rects = []
         pygame.draw.rect(self.screen, (20, 20, 20), (sidebar_x, 0, self.sidebar_width, SCREEN_HEIGHT))
         pygame.draw.line(self.screen, COLOR_GREY, (sidebar_x, 0), (sidebar_x, SCREEN_HEIGHT), 2)
 
@@ -626,6 +632,7 @@ class MapEditor:
 
         # Interactive Size Button
         size_rect = pygame.Rect(sidebar_x + 10, y_off, self.sidebar_width - 20, 30)
+        self.sidebar_size_rect = size_rect
         pygame.draw.rect(self.screen, (40, 40, 40), size_rect)
         pygame.draw.rect(self.screen, COLOR_GREY, size_rect, 1)
         size_text = f"Size: {self.map_w}x{self.map_h} (Click to Resize)"
@@ -690,6 +697,7 @@ class MapEditor:
             # Left 80% for selection, Right 20% for remapping
             left_part = pygame.Rect(slot_rect.x, slot_rect.y, slot_rect.width - 40, slot_rect.height)
             right_part = pygame.Rect(slot_rect.x + slot_rect.width - 35, slot_rect.y, 35, slot_rect.height)
+            self.sidebar_hotbar_rects.append((i, slot_rect, left_part, right_part))
 
             # Draw Slot Background
             bg_color = (40, 40, 60) if is_selected else (30, 30, 30)
@@ -731,6 +739,7 @@ class MapEditor:
 
         # Help Button at Bottom
         help_rect = pygame.Rect(sidebar_x + 10, SCREEN_HEIGHT - 50, self.sidebar_width - 20, 40)
+        self.sidebar_help_rect = help_rect
         pygame.draw.rect(self.screen, (60, 60, 80), help_rect)
         pygame.draw.rect(self.screen, COLOR_WHITE, help_rect, 1)
         h_surf = self.font.render("HELP (H)", True, COLOR_WHITE)
@@ -1177,32 +1186,27 @@ class MapEditor:
 
             if mx >= SCREEN_WIDTH:
                 # Check for Size Button
-                size_rect = pygame.Rect(SCREEN_WIDTH + 10, 65, self.sidebar_width - 20, 30)
-                if size_rect.collidepoint(mx, my):
+                if self.sidebar_size_rect and self.sidebar_size_rect.collidepoint(mx, my):
                     self.input_mode = 'RESIZE_W'
                     self.input_buffer = str(self.map_w)
                     return
 
                 # Hotbar Clicks
-                y_start = 205
-                slot_idx = (my - y_start) // 40
-                if 0 <= slot_idx < 10:
-                    slot_rect = pygame.Rect(SCREEN_WIDTH + 10, y_start + slot_idx * 40, self.sidebar_width - 20, 35)
-                    right_part = pygame.Rect(slot_rect.x + slot_rect.width - 35, slot_rect.y, 35, slot_rect.height)
-
-                    if right_part.collidepoint(mx, my):
-                        # Enter Remapping
-                        self.input_mode = 'TOOL_PICKER'
-                        self.remapping_slot = slot_idx
-                        self.tool_picker_idx = 0
-                        self.scroll_offset = 0
-                    else:
-                        # Select Slot
-                        self.select_hotbar_slot(slot_idx)
+                for slot_idx, slot_rect, _, right_part in self.sidebar_hotbar_rects:
+                    if slot_rect.collidepoint(mx, my):
+                        if right_part.collidepoint(mx, my):
+                            # Enter Remapping
+                            self.input_mode = 'TOOL_PICKER'
+                            self.remapping_slot = slot_idx
+                            self.tool_picker_idx = 0
+                            self.scroll_offset = 0
+                        else:
+                            # Select Slot
+                            self.select_hotbar_slot(slot_idx)
+                        break
 
                 # Check for Help Button
-                help_rect = pygame.Rect(SCREEN_WIDTH + 10, SCREEN_HEIGHT - 50, self.sidebar_width - 20, 40)
-                if help_rect.collidepoint(mx, my):
+                if self.sidebar_help_rect and self.sidebar_help_rect.collidepoint(mx, my):
                     self.input_mode = 'HELP'
                     self.help_page = 0
                     return
