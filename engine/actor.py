@@ -243,7 +243,19 @@ class Actor:
 
                 # Auditory Trigger (Telegraph)
                 if hasattr(game_state, 'audio_manager') and game_state.audio_manager:
-                    game_state.audio_manager.play_sfx("enemy_telegraph.ogg")
+                    sfx_name = None
+                    if self.name == "Slug":
+                        sfx_name = "slug_attack.ogg"
+                    elif self.name == "Bat":
+                        sfx_name = "bat_attack.ogg"
+                    
+                    if sfx_name:
+                        d = math.sqrt(best_dist_sq)
+                        calculate_vol = getattr(game_state.audio_manager, 'calculate_spatial_volume', lambda dist: 1.0)
+                        vol = calculate_vol(d)
+                        game_state.audio_manager.play_sfx(sfx_name, volume=vol)
+                    else:
+                        game_state.audio_manager.play_sfx("enemy_telegraph.ogg")
             else:
                 self.state = ActorState.CHASE
             return

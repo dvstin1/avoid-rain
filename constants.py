@@ -336,3 +336,9 @@ DIALOGUE_MANIFEST = {
         }
         }
 
+# Sound attenuation constants
+SFX_FULL_VOLUME_DIST = 120.0  # 3 units (3 * TILE_SIZE)
+SFX_MIN_VOLUME_DIST = 1280.0  # Across the screen
+SFX_MIN_VOLUME = 0.05
+
+

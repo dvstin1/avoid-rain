@@ -485,6 +485,9 @@ class GameState:
         # 4. SHARED SYSTEMS (Visuals, Movement, UI)
         self._update_shared_world(dt)
         
+        if audio_manager and hasattr(audio_manager, 'update_enemy_sounds'):
+            audio_manager.update_enemy_sounds(self)
+        
         # Rule: Movement is suppressed if a menu or dialogue is active
         if not self.active_dialogue and not getattr(self, 'active_choice', None):
             self._update_player_lifecycle(dt, actions, attack_pressed, audio_manager)

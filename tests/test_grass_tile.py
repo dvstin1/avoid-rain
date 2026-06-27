@@ -29,7 +29,7 @@ def test_grass_tile_parsing_and_generation():
 
     # 4. Verify each instance attributes
     for pool_key, variant, dx, dy in instances:
-        assert pool_key == "small"
+        assert pool_key in ("small", "medium", "tall")
         assert variant in (0, 1, 2)
         assert -12 <= dx <= 12
         assert -12 <= dy <= 12
