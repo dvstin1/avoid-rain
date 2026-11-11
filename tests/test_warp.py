@@ -20,8 +20,13 @@ def test_warp_interaction_required():
     gs.update(0.016, {'move': (0, 0), 'attack': False})
     assert gs.world.name == "sanctuary"
 
-    # Call update WITH attack: should warp
+    # Call update WITH attack: should initiate cinematic warp and transition to generated_world
     gs.update(0.016, {'move': (0, 0), 'attack': True})
+    assert gs.warp_controller.is_active()
+
+    # Step through transit stages to arrival
+    while gs.warp_controller.is_active():
+        gs.update(0.016, {'move': (0, 0), 'attack': False})
     assert gs.world.name == "generated_world"
 
 def test_warp_persistence():

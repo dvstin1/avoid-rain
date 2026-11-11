@@ -68,8 +68,8 @@ class WarpPortal(GameObject):
         self.is_interactive = True
         self.is_solid = False # Usually can stand on warp tiles
 
-    def execute_interaction(self, game_state):
-        """Perform the map transition."""
+    def apply_transfer(self, game_state):
+        """Perform the physical map transition and player/camera repositioning."""
         try:
             from engine.maps import create_world
             print(f"[DEBUG] WarpPortal targeting: {self.target_name}")
@@ -141,6 +141,13 @@ class WarpPortal(GameObject):
             print(f"[ERROR] Warp failed: {e}")
             import traceback
             traceback.print_exc()
+
+    def execute_interaction(self, game_state, instant=True):
+        """Perform the map transition, delegating to cinematic warp if available."""
+        if not instant and hasattr(game_state, 'start_warp'):
+            game_state.start_warp(self)
+            return
+        self.apply_transfer(game_state)
 
 class PatrolPoint(GameObject):
     """Marker symbol for the Stanza system."""

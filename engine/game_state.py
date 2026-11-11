@@ -43,6 +43,10 @@ class GameState:
         self.respite_upgrades = {1: 0, 2: 0}
         from engine.particles import GlyphSplatterManager
         self.glyph_particles = GlyphSplatterManager()
+        from engine.warp_controller import InkWarpController
+        self.warp_controller = InkWarpController()
+        if self.player:
+            self.player.alpha = 255
 
         # 2. Statistics tracker: prefer injected tracker; otherwise optionally auto-load
         self.stats = stats
@@ -423,6 +427,20 @@ class GameState:
         if self.player is None: return
         
         self.audio_manager = audio_manager
+
+        # 0. Advance Cinematic Warp Controller (if present)
+        if hasattr(self, 'warp_controller') and self.warp_controller:
+            self.warp_controller.update(dt, self)
+            if self.warp_controller.blocks_input():
+                actions = {
+                    'move': (0, 0),
+                    'attack': False,
+                    'dash': False,
+                    'block': False,
+                    'flask': False,
+                    'swap': False,
+                }
+
         attack_pressed = actions.get('attack', False)
         ratchet_reset = actions.get('ratchet_reset', False)
         self.inspect_active = actions.get('inspect', False)
@@ -462,15 +480,27 @@ class GameState:
 
         # 2. INTERACTION PHASE
         target = self.player.current_interactable
-        if attack_pressed and target and getattr(target, 'is_interactive', False) and not self.active_dialogue and not self.active_choice:
-            target.execute_interaction(self)
+        warp_blocked = hasattr(self, 'warp_controller') and self.warp_controller.blocks_input()
+        if (
+            attack_pressed
+            and target
+            and getattr(target, 'is_interactive', False)
+            and not self.active_dialogue
+            and not self.active_choice
+            and not warp_blocked
+        ):
+            from engine.world import WarpPortal
+            if isinstance(target, WarpPortal):
+                self.start_warp(target)
+            else:
+                target.execute_interaction(self)
             attack_pressed = False # Consume input
         
         # HUD Click Interactions
         self._handle_hud_interactions(actions)
 
         # 3. AI & COMBAT
-        if not is_client:
+        if not is_client and not (hasattr(self, 'warp_controller') and self.warp_controller.blocks_enemy_updates()):
             for enemy in self.enemies: enemy.update(dt, self)
             
             # --- Phase 1 & 4: Host World Events ---
@@ -499,11 +529,12 @@ class GameState:
         if audio_manager and hasattr(audio_manager, 'update_enemy_sounds'):
             audio_manager.update_enemy_sounds(self)
         
-        # Rule: Movement is suppressed if a menu or dialogue is active
-        if not self.active_dialogue and not getattr(self, 'active_choice', None):
+        # Rule: Movement is suppressed if a menu, dialogue, or warp sequence is active
+        warp_blocks = hasattr(self, 'warp_controller') and self.warp_controller.blocks_input()
+        if not self.active_dialogue and not getattr(self, 'active_choice', None) and not warp_blocks:
             self._update_player_lifecycle(dt, actions, attack_pressed, audio_manager)
         else:
-            # Freeze momentum while in menus
+            # Freeze momentum while in menus or warping
             self.player.vx = 0
             self.player.vy = 0
             self._update_audio_track(dt)
@@ -831,8 +862,13 @@ class GameState:
         pkr = HUD_PICKUP_BTN_RECT
         if hx + pkr[0] <= mx <= hx + pkr[0] + pkr[2] and hy + pkr[1] <= my <= hy + pkr[1] + pkr[3]:
              target = self.player.current_interactable
-             if target and getattr(target, 'is_interactive', False):
-                 target.execute_interaction(self)
+             warp_blocked = hasattr(self, 'warp_controller') and self.warp_controller.blocks_input()
+             if target and getattr(target, 'is_interactive', False) and not warp_blocked:
+                 from engine.world import WarpPortal
+                 if isinstance(target, WarpPortal):
+                     self.start_warp(target)
+                 else:
+                     target.execute_interaction(self)
              return
 
     def _update_ui_and_menus(self, dt, actions, attack_pressed, audio_manager):
@@ -996,13 +1032,20 @@ class GameState:
                 self.trigger_bloom("CHAPTER COMPLETE", priority=2)
         if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY":
             if (self.bleed_state in ("DILUTION", "APPENDIX")) and self.weather_manager.timer <= 0:
-                from engine.world import WarpPortal
-                WarpPortal("sanctuary", 0, 0, (0, 0, 0, 0)).execute_interaction(self)
+                if not (hasattr(self, 'warp_controller') and self.warp_controller.is_active()):
+                    self.start_warp("sanctuary")
+
+    def start_warp(self, target, callback=None):
+        """Initiate the three-stage Ink & Fog transit sequence."""
+        if hasattr(self, 'warp_controller') and self.warp_controller and self.player:
+            return self.warp_controller.start_warp(self.player, target, callback=callback)
+        return False
 
     def on_enter_sanctuary(self):
         """Rule: Absolute state purification upon entering the Sanctuary hub."""
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, SWORD_DAMAGE
         self.player.is_exposed = False
+        self.player.alpha = 255
         
         # Reset stats/level to starting levels
         self.player.stats = {

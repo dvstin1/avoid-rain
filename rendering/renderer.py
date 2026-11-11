@@ -41,6 +41,9 @@ class Renderer:
         self._minimap_walls_surf = None
         self._minimap_world_key = None
         self._title_composite_surf = None
+        self.warp_veil_surface = None
+        self._puff_cache = {}
+        self._actor_scratch_surf = None
         self._load_barrel_assets()
         self._load_tile_assets()
         self._load_slug_assets()
@@ -1389,10 +1392,42 @@ class Renderer:
         # Glyph Splatter Particles
         self.draw_glyph_splatter(state, ox, oy)
 
-        pygame.display.flip()
+        # The Ink & Fog Warp Transition
+        self.draw_warp_sequence(state, ox, oy)
+
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            pygame.display.flip()
 
     def draw_actor_ghost(self, actor, ox, oy, state):
         """Draws sprites or abstract indicators for an actor based on its visual packet."""
+        actor_alpha = getattr(actor, 'alpha', 255)
+        if actor_alpha <= 0:
+            return
+
+        if actor_alpha < 255:
+            rect = pygame.Rect(actor.x - ox, actor.y - oy, actor.width, actor.height)
+            margin = 32
+            scratch_w = rect.width + margin * 2
+            scratch_h = rect.height + margin * 2
+            if self._actor_scratch_surf is None or self._actor_scratch_surf.get_size() != (scratch_w, scratch_h):
+                self._actor_scratch_surf = pygame.Surface((scratch_w, scratch_h), pygame.SRCALPHA)
+            else:
+                self._actor_scratch_surf.fill((0, 0, 0, 0))
+
+            orig_screen = self.screen
+            self.screen = self._actor_scratch_surf
+            try:
+                self._draw_actor_ghost_content(actor, actor.x - margin, actor.y - margin, state)
+            finally:
+                self.screen = orig_screen
+            self._actor_scratch_surf.set_alpha(actor_alpha)
+            self.screen.blit(self._actor_scratch_surf, (rect.x - margin, rect.y - margin))
+            return
+
+        self._draw_actor_ghost_content(actor, ox, oy, state)
+
+    def _draw_actor_ghost_content(self, actor, ox, oy, state):
+        """Internal routine rendering actor graphics directly to the active screen target."""
         packet = actor.get_visual_packet()
         rect = pygame.Rect(actor.x - ox, actor.y - oy, actor.width, actor.height)
         
@@ -1988,6 +2023,83 @@ class Renderer:
                     self.screen.blit(text_surf, (sx - text_surf.get_width() // 2, sy - text_surf.get_height() // 2))
                 except Exception:
                     pass
+
+    def draw_warp_sequence(self, state, ox, oy):
+        """Render cinematic Ink & Fog transition overlays (fog puffs, runes, and veil)."""
+        warp = getattr(state, 'warp_controller', None)
+        if not warp or not warp.is_active():
+            return
+
+        sw = self.screen.get_width()
+        sh = self.screen.get_height()
+
+        # 1. Render Translucent Fog Puffs
+        for puff in warp.fog_puffs:
+            alpha = puff.alpha
+            if alpha <= 0 or puff.radius <= 1.0:
+                continue
+
+            sx = int(puff.x - ox)
+            sy = int(puff.y - oy)
+            r = int(puff.radius)
+
+            # Viewport culling
+            if sx + r < 0 or sx - r > sw or sy + r < 0 or sy - r > sh:
+                continue
+
+            # Quantize radius and alpha to reuse pre-rendered soft circle surfaces
+            q_r = max(4, int(round(r / 2.0) * 2))
+            q_a = max(0, min(255, int(round(alpha / 8.0) * 8)))
+            cache_key = (q_r, puff.color, q_a)
+
+            surf = self._puff_cache.get(cache_key)
+            if surf is None:
+                d = q_r * 2
+                surf = pygame.Surface((d, d), pygame.SRCALPHA)
+                cr, cg, cb = puff.color
+                for step in range(3):
+                    frac = (3 - step) / 3.0
+                    step_r = max(2, int(q_r * frac))
+                    step_a = int(q_a * ((step + 1) / 3.0) * 0.7)
+                    pygame.draw.circle(surf, (cr, cg, cb, step_a), (q_r, q_r), step_r)
+                if len(self._puff_cache) > 256:
+                    self._puff_cache.clear()
+                self._puff_cache[cache_key] = surf
+
+            self.screen.blit(surf, (sx - q_r, sy - q_r))
+
+        # 2. Render Swirling Manuscript Glyphs
+        for glyph in warp.glyph_particles:
+            alpha = glyph.alpha
+            if alpha <= 0:
+                continue
+
+            sx = int(glyph.x - ox)
+            sy = int(glyph.y - oy)
+
+            if -24 <= sx <= sw + 24 and -24 <= sy <= sh + 24:
+                try:
+                    if hasattr(self, 'glyph_font') and self.glyph_font:
+                        text_surf = self.glyph_font.render(glyph.glyph, True, glyph.color)
+                    else:
+                        text_surf = self.small_font.render(glyph.glyph, True, glyph.color)
+                    if alpha < 255:
+                        text_surf.set_alpha(alpha)
+                    self.screen.blit(
+                        text_surf,
+                        (sx - text_surf.get_width() // 2, sy - text_surf.get_height() // 2),
+                    )
+                except Exception:
+                    pass
+
+        # 3. Full-Screen Veil (Black Overlay)
+        veil_alpha = getattr(warp, 'veil_alpha', 0)
+        if veil_alpha > 0:
+            if self.warp_veil_surface is None or self.warp_veil_surface.get_size() != (sw, sh):
+                self.warp_veil_surface = pygame.Surface((sw, sh))
+                self.warp_veil_surface.fill((0, 0, 0))
+            self.warp_veil_surface.set_alpha(min(255, max(0, veil_alpha)))
+            self.screen.blit(self.warp_veil_surface, (0, 0))
 
     def draw_bloom_overlay(self, state):
         """Draw alpha-blended typographic zone discovery overlay."""
