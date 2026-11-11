@@ -29,16 +29,29 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None, destroyed_ids
 
     world = World(name=name)
 
-    # Check for external JSON map first
+    # Check for external JSON or TXT map
     # Special Rule: 'generated_world' loads from the temporary path
     if name == "generated_world":
         json_path = get_generated_world_path()
     elif name == "generated_world_client":
         json_path = get_generated_world_path().replace(".json", "_client.json")
     else:
-        json_path = os.path.join("maps", f"{name}.json")
-        
+        candidates = [
+            os.path.join("maps", name),
+            name,
+            os.path.join("maps", f"{name}.txt"),
+            os.path.join("maps", f"{name}.json"),
+        ]
+        json_path = None
+        for cand in candidates:
+            if os.path.exists(cand):
+                json_path = cand
+                break
+        if not json_path:
+            json_path = os.path.join("maps", f"{name}.json")
+
     if os.path.exists(json_path):
+        world.map_filename = os.path.basename(json_path)
         (
             world.grid, world.interactables, world.warp_tiles, world.player_start,
             world.enemies, world.boss_coords_list, world.module_sockets

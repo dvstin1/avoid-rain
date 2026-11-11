@@ -691,4 +691,44 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
   - Added test coverage verifying legacy procedural rendering preservation in non-Sanctuary biomes, Sanctuary isolation of PNG assets, 100% opacity of floor variants, and zero white bleed on the screen buffer.
   - Verified 100% green pass across all 210 tests in `pytest`; confirmed `pylint` score >= 9.5/10 and 120-character line length compliance.
 
+## [ARCHIVED] Biome Attunement Altar and Expanded Sanctuary Maps - November 2026
+- **Procedural Altar Asset (`generate_assets.py`):**
+  - Added `generate_attunement_altar()` generating a 40x40 transparent sprite (`assets/graphics/attunement_altar.png`).
+  - Features a dark stone stepped pedestal with top-down bevel highlights, ambient bottom drop-shadow, and a glowing
+    cyan runic core/dial.
+  - Integrated into `generate_all_assets()` and verified with automated test coverage in
+    `tests/test_generate_assets.py`.
+- **Expanded Sanctuary Variant Maps (`maps/`):**
+  - Created four expanded 36x26 Sanctuary map files (`sanctuary_paved.txt`, `sanctuary_geometric.txt`,
+    `sanctuary_swamp.txt`, and `sanctuary_ruins.txt`) with 2 tiles of padding buffer around the perimeter.
+  - Placed the Attunement Altar entity (`'a'`) at consistent coordinates `(17, 7)` in all four variants, with Player
+    Start at `(20, 9)` and other entities cleanly preserved and shifted.
+  - Added `'a'` at `(15, 5)` in base `maps/sanctuary.json`.
+- **Interactive Altar & Warp Transition (`engine/world.py`, `engine/maps.py`):**
+  - Implemented `AttunementAltar(GameObject)` interactable entity that triggers the three-stage cinematic
+    `InkWarpController` transit on interaction.
+  - Sequentially cycles between the four Sanctuary variants (`sanctuary_paved.txt` -> `sanctuary_geometric.txt` ->
+    `sanctuary_swamp.txt` -> `sanctuary_ruins.txt` -> wrap-around).
+  - Handles clean world loading, coordinate snapping to player start, camera instant centering, actor route linking,
+    and `on_enter_sanctuary()` state purification without state duplication.
+- **Biome Tile & Floor Resolution (`rendering/renderer.py`):**
+  - Updated `_resolve_tile_biome` so Sanctuary variants dynamically resolve to their matching biome configurations:
+    - `sanctuary_geometric` -> `"windy_ridge"` (restores 70ed514 geometric floor rings and patterns)
+    - `sanctuary_swamp` -> `"swamp_mire"` (restores organic peat cliffs and bog terrain)
+    - `sanctuary_ruins` -> `"tech_tower"` (restores titanium bulkheads and gantry floor plates)
+    - `sanctuary_paved` / `sanctuary` -> `"sanctuary"` (PNG tile assets, variants, and autotiling)
+  - Loaded `attunement_altar.png` into prop cache and added rendering in `Renderer.render()`.
+- **Debug HUD & Room Banner Display (`rendering/renderer.py`):**
+  - Rendered `Map: {map_filename}` subtitle directly beneath the Typographic Bloom discovery banner during room entry.
+  - Rendered `Map: {map_filename}` indicator on the HUD panel when `debug_text_enabled` is active.
+- **Map Editor Synchronization (Palette Divergence Law):**
+  - Registered `tile_altar` (`'a'`) in `MASTER_TOOL_REGISTRY` in `tools/edit_map.py` and `TILE_ALTAR = 14` in
+    `constants.py`.
+- **Comprehensive Testing Suite (`tests/test_attunement_altar.py`):**
+  - Added unit tests verifying altar presence in base sanctuary map, expanded dimensions and altar coords in all four
+    variants, sequential cycling logic and wrap-around, warp interaction and player transfer, biome resolution, and
+    HUD map filename rendering.
+  - Maintained 100% green test pass across all 217 tests in `pytest`.
+
+
 

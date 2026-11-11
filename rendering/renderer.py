@@ -288,8 +288,18 @@ class Renderer:
     def _resolve_tile_biome(self, state, tx, ty):
         """Determine the biome key for tile coordinates (tx, ty)."""
         w_name = getattr(state.world, "name", "sanctuary").lower()
-        if w_name == "sanctuary":
+        map_file = getattr(state.world, "map_filename", "").lower()
+
+        # Biome Attunement Altar Sanctuary Variants:
+        if "sanctuary_geometric" in w_name or "sanctuary_geometric" in map_file:
+            return "windy_ridge"
+        if "sanctuary_swamp" in w_name or "sanctuary_swamp" in map_file:
+            return "swamp_mire"
+        if "sanctuary_ruins" in w_name or "sanctuary_ruins" in map_file:
+            return "tech_tower"
+        if "sanctuary_paved" in w_name or "sanctuary_paved" in map_file or w_name == "sanctuary":
             return "sanctuary"
+
         for key in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower"):
             if key in w_name:
                 return key
@@ -427,6 +437,25 @@ class Renderer:
         pygame.draw.circle(glow, (255, 190, 40, 60), (glow_r, glow_r), glow_r)
         self.prop_cache["CandelabraGlow"] = glow.convert_alpha() if display_init else glow
 
+        # 7. Biome Attunement Altar (40x40 PNG Asset with procedural fallback)
+        altar_name = "attunement_altar.png"
+        altar_path = os.path.join(base_path, altar_name)
+        if os.path.exists(altar_path):
+            try:
+                a_img = pygame.image.load(altar_path)
+                if display_init:
+                    a_img = a_img.convert_alpha()
+                self.prop_cache["Attunement Altar"] = pygame.transform.scale(a_img, (ts, ts))
+                self.image_cache[altar_name] = self.prop_cache["Attunement Altar"]
+            except Exception as e:
+                print(f"[RENDER] Error loading {altar_name}: {e}")
+        if "Attunement Altar" not in self.prop_cache:
+            altar = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.rect(altar, (34, 38, 46), (6, 22, 28, 14), border_radius=2)
+            pygame.draw.rect(altar, (42, 48, 58), (8, 12, 24, 11), border_radius=2)
+            pygame.draw.circle(altar, constants.COLOR_CYAN, (20, 15), 5)
+            self.prop_cache["Attunement Altar"] = altar.convert_alpha() if display_init else altar
+
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
         wx, wy, ww, wh = warp.rect
@@ -450,6 +479,7 @@ class Renderer:
         target = player.current_interactable
         if target.name == "The Chronicler": prompt_text = f"Speak to {target.name}"
         elif "Chronicle" in target.name or "Return" in target.name: prompt_text = f"Read {target.name}"
+        elif target.name == "Attunement Altar": prompt_text = f"Attune at {target.name}"
         elif hasattr(target, 'weapon_data'):
             prompt_text = "[Click [PICK UP] on HUD to claim weapon]"
         else: prompt_text = f"Interact with {target.name}" if hasattr(target, 'name') else "Interact"
@@ -1504,6 +1534,14 @@ class Renderer:
             elif obj.name == "Bench":
                 pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, obj.width, obj.height))
                 pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, obj.width, 2))
+            elif obj.name == "Attunement Altar":
+                altar_surf = prop_cache.get("Attunement Altar")
+                if altar_surf is not None:
+                    self.screen.blit(altar_surf, (int(sx_o), int(sy_o)))
+                else:
+                    ax, ay, aw, ah = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                    pygame.draw.rect(self.screen, (25, 27, 32), (ax + 2, ay + 6, aw - 4, ah - 8), border_radius=4)
+                    pygame.draw.circle(self.screen, (80, 220, 240), (ax + aw // 2, ay + ah // 2 - 2), 6)
             elif obj.name == "Rock":
                 rock_surf = prop_cache.get("Rock")
                 if rock_surf is not None:
@@ -2363,7 +2401,18 @@ class Renderer:
         text_col = (*constants.COLOR_BLOOM_TEXT, alpha)
         text_surf = self.bloom_font.render(text, True, text_col)
         bloom_surf.blit(text_surf, text_surf.get_rect(center=(sw // 2, sh // 3)))
-        
+
+        # Subtitle: Current loaded map filename
+        map_filename = getattr(getattr(state, 'world', None), 'map_filename', None)
+        if map_filename:
+            map_sub = f"Map: {map_filename}"
+            sub_col = (180, 200, 220, alpha)
+            sub_shadow_col = (10, 10, 20, alpha // 2)
+            sub_shadow = self.font.render(map_sub, True, sub_shadow_col)
+            sub_surf = self.font.render(map_sub, True, sub_col)
+            bloom_surf.blit(sub_shadow, sub_shadow.get_rect(center=(sw // 2 + 2, sh // 3 + 37)))
+            bloom_surf.blit(sub_surf, sub_surf.get_rect(center=(sw // 2, sh // 3 + 35)))
+
         self.screen.blit(bloom_surf, (0, 0))
 
     def draw_hud(self, state):
@@ -2413,6 +2462,10 @@ class Renderer:
                 mode_label,
                 (hud_surf.get_width() - mode_label.get_width() - 10, hud_surf.get_height() - 25),
             )
+            map_name = getattr(getattr(state, "world", None), "map_filename", None)
+            if map_name:
+                map_lbl = self.hud_font.render(f"Map: {map_name}", True, constants.COLOR_CYAN)
+                hud_surf.blit(map_lbl, (hud_surf.get_width() - map_lbl.get_width() - 10, 10))
 
         for i in range(2):
             sx, sy = 10 + i * (constants.HUD_SLOT_W + 100), 45

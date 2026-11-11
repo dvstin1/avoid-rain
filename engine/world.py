@@ -228,6 +228,80 @@ class Wellspring(GameObject):
             game_state.trigger_bloom("HYDRATION FULL", priority=1)
             print("[WELLSPRING] Flasks already full.")
 
+class AttunementAltar(GameObject):
+    """Biome Attunement Altar that cycles between Sanctuary biome variants."""
+    VARIANTS = [
+        "sanctuary_paved.txt",
+        "sanctuary_geometric.txt",
+        "sanctuary_swamp.txt",
+        "sanctuary_ruins.txt",
+    ]
+
+    def __init__(self, position, dimensions, current_map="sanctuary_paved.txt"):
+        super().__init__(position, dimensions)
+        self.name = "Attunement Altar"
+        self.is_interactive = True
+        self.is_solid = True
+        self.current_map = current_map
+
+    def get_next_variant(self) -> str:
+        """Return the next sanctuary variant map in sequential order."""
+        import os
+        cur = os.path.basename(self.current_map)
+        cur_base = cur.replace(".txt", "").replace(".json", "")
+        for idx, var in enumerate(self.VARIANTS):
+            var_base = var.replace(".txt", "").replace(".json", "")
+            if cur_base == var_base:
+                return self.VARIANTS[(idx + 1) % len(self.VARIANTS)]
+        return self.VARIANTS[0]
+
+    def execute_interaction(self, game_state):
+        """Initiate warp sequence to the next sanctuary variant."""
+        next_map = self.get_next_variant()
+        print(f"[ALTAR] Attuning to {next_map}...")
+        game_state.start_warp(self)
+
+    def apply_transfer(self, game_state):
+        """Perform the physical map transition and player/camera repositioning."""
+        try:
+            import os
+            from engine.maps import create_world
+            next_map = self.get_next_variant()
+            print(f"[ALTAR] Transferring to {next_map}...")
+            game_state.world_debris = []
+            game_state.world = create_world(next_map)
+            game_state.world.map_filename = os.path.basename(next_map)
+            game_state.on_enter_sanctuary()
+
+            if getattr(game_state.world, "player_start", None):
+                target_x, target_y = game_state.world.player_start
+            else:
+                target_x, target_y = self.x, self.y + TILE_SIZE
+
+            game_state.player.is_exposed = False
+            game_state.player.x = float(target_x)
+            game_state.player.y = float(target_y)
+
+            if hasattr(game_state, 'camera'):
+                game_state.camera.world_w = len(game_state.world.grid[0]) * TILE_SIZE
+                game_state.camera.world_h = len(game_state.world.grid) * TILE_SIZE
+                game_state.camera.instant_center(game_state.player.get_center())
+
+            if hasattr(game_state.world, 'enemies'):
+                game_state.enemies = getattr(game_state.world, 'enemies', [])
+            else:
+                game_state.enemies = []
+
+            LevelLoader.link_actors_to_routes(game_state)
+            game_state.save_stats(wait=True)
+            theme_title = next_map.replace("sanctuary_", "").replace(".txt", "").replace(".json", "").upper()
+            game_state.trigger_bloom(f"ATTUNED: {theme_title}", priority=2)
+            print(f"[ALTAR] Warp to {next_map} complete.")
+        except Exception as e:
+            print(f"[ERROR] Altar transfer failed: {e}")
+            import traceback
+            traceback.print_exc()
+
 class LoreFragment(GameObject):
     """Collectable piece of text that reveals world history."""
     def __init__(self, position, dimensions, fragment_id, name="Lost Page"):
@@ -239,7 +313,9 @@ class LoreFragment(GameObject):
 
     def execute_interaction(self, game_state):
         from constants import DIALOGUE_MANIFEST
-        lore_text = DIALOGUE_MANIFEST.get("lore_fragments", {}).get(self.fragment_id, "The text has faded into illegibility.")
+        lore_text = DIALOGUE_MANIFEST.get("lore_fragments", {}).get(
+            self.fragment_id, "The text has faded into illegibility."
+        )
         
         game_state.active_dialogue = {
             "speaker": self.name,
@@ -296,7 +372,10 @@ class Respite(GameObject):
         if hasattr(game_state, 'weather_manager') and not game_state.weather_manager.is_pos_safe(rx, ry):
             game_state.active_dialogue = {
                 "speaker": "Respite Anchor",
-                "text": "The glyphs are smothered under a thick layer of liquid ink. The sanctuary's power is drowned until the rain clears."
+                "text": (
+                    "The glyphs are smothered under a thick layer of liquid ink. "
+                    "The sanctuary's power is drowned until the rain clears."
+                )
             }
             game_state.active_respite = None
             return
@@ -414,12 +493,24 @@ class LevelLoader:
     def load_json_map(file_path, saved_enemies=None, defeated_ids=None, destroyed_ids=None):
         """Loads a JSON map file and parses it, supporting modular stitching."""
         import os
-        map_name = os.path.basename(file_path).replace(".json", "")
+        map_filename = os.path.basename(file_path)
+        map_name = map_filename.replace(".json", "").replace(".txt", "")
         if "generated_world" in map_name:
             map_name = "avoid_rain_generated_world"
 
         with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            content = f.read().strip()
+            if content.startswith("{"):
+                data = json.loads(content)
+            else:
+                lines = [line.rstrip("\r\n") for line in content.splitlines() if line.strip()]
+                data = {
+                    "map_id": map_name,
+                    "dimensions": {"width": len(lines[0]) if lines else 0, "height": len(lines)},
+                    "grid": lines,
+                    "entities": {},
+                    "module_sockets": [],
+                }
 
         grid = [list(row) for row in data["grid"]]
         raw_entities = data.get("entities", {})
@@ -470,7 +561,8 @@ class LevelLoader:
             saved_enemies=saved_enemies,
             map_name=map_name,
             defeated_ids=defeated_ids,
-            destroyed_ids=destroyed_ids
+            destroyed_ids=destroyed_ids,
+            map_filename=map_filename
         )
 
         # Apply procedural spawn override if present
@@ -486,11 +578,21 @@ class LevelLoader:
         return grid, interactables, warp_tiles, player_start, enemies, boss_coords_list, module_sockets
 
     @staticmethod
-    def parse_map(prototype_array, entity_data=None, saved_enemies=None, map_name="unknown", defeated_ids=None, destroyed_ids=None):
+    def parse_map(
+        prototype_array,
+        entity_data=None,
+        saved_enemies=None,
+        map_name="unknown",
+        defeated_ids=None,
+        destroyed_ids=None,
+        map_filename=None,
+    ):
         """
         Parses a string array and returns (grid, interactables, warp_tiles, player_start, enemies).
         If saved_enemies is provided, default spawner symbols for enemies are bypassed.
         """
+        if map_filename is None:
+            map_filename = map_name
         from engine.enemy import SYMBOL_REGISTRY
         
         h = len(prototype_array)
@@ -601,6 +703,11 @@ class LevelLoader:
                     tree.is_solid = True
                     tree.name = "Structure"
                     interactables.append(tree)
+
+                elif char == 'a':
+                    # Biome Attunement Altar
+                    altar = AttunementAltar(pos, dim, current_map=map_filename)
+                    interactables.append(altar)
 
                 elif char == 'C':
                     # The Chronicler NPC
@@ -786,7 +893,10 @@ class World:
     Supports loading from string-based prototypes for rapid level design.
     """
     def __init__(self, name='sanctuary'):
-        self.name = name
+        self.name = name.replace(".json", "").replace(".txt", "") if isinstance(name, str) else name
+        self.map_filename = (
+            os.path.basename(name) if (isinstance(name, str) and ("." in name)) else f"{self.name}.txt"
+        )
         self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.warp_tiles = {}  # Legacy mapping (x,y) -> (target_name, spawn_x_px, spawn_y_px)
         self.interactables = []
@@ -976,7 +1086,11 @@ class World:
         if len(self.interactables) <= 64:
             nearby = []
             for obj in self.interactables:
-                if obj.is_interactive and getattr(obj, 'is_active', True) and check_aabb_collision(expanded_rect, obj.rect):
+                if (
+                    obj.is_interactive
+                    and getattr(obj, 'is_active', True)
+                    and check_aabb_collision(expanded_rect, obj.rect)
+                ):
                     nearby.append(obj)
             return nearby
 
@@ -994,6 +1108,10 @@ class World:
                     if oid in seen:
                         continue
                     seen.add(oid)
-                    if obj.is_interactive and getattr(obj, 'is_active', True) and check_aabb_collision(expanded_rect, obj.rect):
+                    if (
+                        obj.is_interactive
+                        and getattr(obj, 'is_active', True)
+                        and check_aabb_collision(expanded_rect, obj.rect)
+                    ):
                         nearby.append(obj)
         return nearby

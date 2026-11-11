@@ -2,7 +2,6 @@
 Central registry for all game configuration and 'magic numbers'.
 """
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -269,11 +268,13 @@ TILE_STRUCTURE = 10
 TILE_PATROL = 11
 TILE_GRASS = 12
 TILE_THICKET = 13
+TILE_ALTAR = 14
 
 TILE_KEY = {
     '#': TILE_WALL,
     ' ': TILE_EMPTY, # Explicitly open floor
     '.': TILE_EMPTY,
+    'a': TILE_ALTAR,
     'g': TILE_GRASS,
     'G': TILE_THICKET,
     'W': TILE_WARP,
@@ -529,5 +530,4 @@ DIALOGUE_MANIFEST = {
 SFX_FULL_VOLUME_DIST = 120.0  # 3 units (3 * TILE_SIZE)
 SFX_MIN_VOLUME_DIST = 1280.0  # Across the screen
 SFX_MIN_VOLUME = 0.05
-
 

@@ -53,6 +53,14 @@ MASTER_TOOL_REGISTRY = [
         "desc": "Passable overgrown thicket tile with high-density tall vegetation."
     },
     {
+        "id": "tile_altar",
+        "char": "a",
+        "name": "Attunement Altar",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Biome attunement altar. Warps between sanctuary biome variants."
+    },
+    {
         "id": "tile_barrel",
         "char": "B",
         "name": "Barrel",
