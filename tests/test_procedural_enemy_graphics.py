@@ -153,7 +153,7 @@ def test_biome_tile_generation_and_new_maps(monkeypatch):
     recorded = []
     renderer = _create_headless_renderer(monkeypatch, recorded)
 
-    for biome in ("windy_ridge", "swamp_mire", "frozen_peaks", "tech_tower", "sanctuary"):
+    for biome in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower", "sanctuary"):
         assert biome in renderer.biome_tiles
         pack = renderer.biome_tiles[biome]
         assert len(pack["floors"]) == 4
@@ -167,7 +167,7 @@ def test_biome_tile_generation_and_new_maps(monkeypatch):
         assert pack["wall_front"].get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
         assert s1_col == constants.BIOME_PALETTES[biome]["floor_base"]
 
-    for map_name in ("windy_ridge", "swamp_mire", "frozen_peaks", "tech_tower"):
+    for map_name in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower"):
         world = create_world(map_name)
         assert len(world.grid) == 120
         assert len(world.grid[0]) == 120

@@ -588,6 +588,15 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Animated Biome Floor Micro-Effects (`_draw_biome_floor_fx`):** Added live procedural environmental tells to each biome floor: swaying wind-swept grass ribbons on `windy_ridge`, expanding bioluminescent bubble rings in `swamp_mire`, twinkling crystalline frost crosshairs in `frozen_peaks`, and traveling high-voltage reactor pulses in `tech_tower`.
 - **Techno-Sentry Enemy (`SentryEnemy`, Symbol `'Y'`):** Implemented a new Anchor/Artillery defense droid (`engine/enemy.py`, `constants.py`, `tools/edit_map.py`, `engine/game_state.py`) that maintains optimal firing spacing, strafes targets, and fires a parryable long-range directional plasma beam (`get_attack_hitbox`, `draw_procedural_enemy`, `draw_boss_weapon`), stationed across tactical choke points and hazard basins in the biome maps.
 
+## [ARCHIVED] Pastoral Valley Biome ("The Scarred Meadow") & Reference 2 Visual Enhancements - November 2026
+- **New `pastoral_valley` Biome & 120x120 Map (`maps/pastoral_valley.json`, `BIOME_PALETTES["pastoral_valley"]`):** Preserved `windy_ridge` and added a fifth major biome room (`"THE SCARRED MEADOW"`) to `POOL_MONTHLY_REPORT` inspired by `Reference 2` in `docs/reference.md`.
+- **Seamless Lime/Mint Meadow, Warm Tan Pathways & Rounded Contours:** Eliminated square mortar grid borders on `pastoral_valley` floor tiles in favor of solid 2–3 tone horizontal streaks, grouped rounded grass tufts, warm tan earthy pathways, and rounded corner contours that mask tile boundaries without noisy 1px dithering.
+- **Stepped Sedimentary Shale Cliffs, Deciduous Tree Crowns & Recessed Tar Swamps:**
+  - **Stepped Ridgelines (`wall_front`):** Multi-tiered cliff facades combining flat warm-brown plateau caps, horizontal step ledges, angular slate-gray and brown shale layers, and diagonal sedimentary striations.
+  - **Stylized Deciduous Trees (`Structure` / `'T'`):** Short, thick dark-brown trunks with dark outlines, ground cast shadows, overlapping deciduous canopies with bottom-half shadow crescents, and bright lime/mint sunlit crowns.
+  - **Recessed Tar / Poison Swamp (`Inkwell Puddle` / `'v'` & `pastoral_valley` Stratum 0):** Visibly recessed near-black inset borders, ragged bruised-purple shorelines, and deep plum toxic pools contrasting against the sunny meadow.
+
+
 
 
 

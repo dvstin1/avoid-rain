@@ -843,6 +843,7 @@ class GameState:
                         if s_id == current_room_id:
                             plug = s.get('active_plug', '').lower()
                             if 'windy_ridge' in plug: zone_name = "THE ZEPHYR RIDGE"
+                            elif 'pastoral_valley' in plug: zone_name = "THE SCARRED MEADOW"
                             elif 'swamp_mire' in plug: zone_name = "THE VENOMOUS MIRE"
                             elif 'frozen_peaks' in plug: zone_name = "THE RIMECREST PASS"
                             elif 'tech_tower' in plug: zone_name = "THE SKY CITADEL"

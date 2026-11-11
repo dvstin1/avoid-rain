@@ -148,8 +148,9 @@ class Renderer:
                     oy1 = (v * 11 + s_idx * 7) % 16
                     fl.fill(s_alt, (2 + ox1, 2 + oy1, 18, 14))
                     fl.fill(s_alt, (18 - ox1 // 2, 20, 18, 16))
-                    fl.fill(pal["wall_mortar"], (0, 0, ts, 1))
-                    fl.fill(pal["wall_mortar"], (0, 0, 1, ts))
+                    if biome != "pastoral_valley":
+                        fl.fill(pal["wall_mortar"], (0, 0, ts, 1))
+                        fl.fill(pal["wall_mortar"], (0, 0, 1, ts))
                     self._decorate_biome_stratum_tile(fl, (biome, pal), (s_idx, v))
                     tier_variants.append(fl)
                 strata_floors.append(tier_variants)
@@ -167,15 +168,30 @@ class Renderer:
             # 2. Wall Front (2.5D South-facing cliff / bulkhead face for verticality)
             w_front = pygame.Surface((ts, ts))
             w_front.fill(pal["wall_mortar"])
-            w_front.fill(pal["wall_top"], (2, 2, ts - 4, 15))
-            w_front.fill(pal["wall_hi"], (2, 2, ts - 4, 3))
-            w_front.fill(pal["wall_hi"], (4, 15, ts - 8, 2))
-            w_front.fill(pal["wall_face"], (2, 19, ts - 4, 19))
-            for bx in (8, 19, 30):
-                w_front.fill(pal["wall_mortar"], (bx, 19, 2, 19))
-                w_front.fill(pal["wall_top"], (bx + 2, 20, 4, 16))
-            w_front.fill(pal["wall_glow"], (ts // 2 - 5, 25, 10, 3))
-            w_front.fill(pal["wall_mortar"], (0, ts - 3, ts, 3))
+            if biome == "pastoral_valley":
+                # Stepped multi-tier cliff: flat plateau cap + slate-gray & brown shale with diagonal striations
+                w_front.fill(pal["wall_top"], (2, 2, ts - 4, 11))
+                w_front.fill(pal["wall_hi"], (2, 2, ts - 4, 2))
+                w_front.fill(pal["wall_hi"], (2, 12, ts - 4, 2))
+                w_front.fill(pal["wall_face"], (2, 14, ts - 4, 11))
+                w_front.fill(pal["wall_hi"], (2, 25, ts - 4, 2))
+                w_front.fill(pal["wall_glow"], (2, 27, ts - 4, 10))
+                for sx_step in range(4, ts - 8, 9):
+                    w_front.fill(pal["wall_mortar"], (sx_step, 15, 2, 4))
+                    w_front.fill(pal["wall_mortar"], (sx_step + 3, 19, 2, 5))
+                    w_front.fill(pal["wall_face"], (sx_step + 2, 28, 3, 4))
+                    w_front.fill(pal["wall_mortar"], (sx_step + 5, 32, 2, 5))
+                w_front.fill(pal["wall_mortar"], (0, ts - 3, ts, 3))
+            else:
+                w_front.fill(pal["wall_top"], (2, 2, ts - 4, 15))
+                w_front.fill(pal["wall_hi"], (2, 2, ts - 4, 3))
+                w_front.fill(pal["wall_hi"], (4, 15, ts - 8, 2))
+                w_front.fill(pal["wall_face"], (2, 19, ts - 4, 19))
+                for bx in (8, 19, 30):
+                    w_front.fill(pal["wall_mortar"], (bx, 19, 2, 19))
+                    w_front.fill(pal["wall_top"], (bx + 2, 20, 4, 16))
+                w_front.fill(pal["wall_glow"], (ts // 2 - 5, 25, 10, 3))
+                w_front.fill(pal["wall_mortar"], (0, ts - 3, ts, 3))
 
             self.biome_tiles[biome] = {
                 "floors": strata_floors[1],
@@ -239,6 +255,25 @@ class Renderer:
                 fl.fill(pal["floor_accent"], (4 + v * 5, 10 + v * 4, 8, 5))
                 fl.fill(pal["floor_accent"], (22 - v * 3, 26, 10, 4))
                 fl.fill(pal["floor_speck"], (14 + v * 4, 8 + v * 5, 3, 3))
+        elif biome == "pastoral_valley":
+            if s_idx == 0:
+                # Recessed Tar / Poison Swamp: near-black inset rim, ragged bruised-purple shore, deep plum core
+                fl.fill((16, 8, 24), (2, 2, ts - 4, ts - 4))
+                fl.fill((58, 26, 82), (4 + (v % 2) * 2, 5, ts - 10, ts - 10))
+                fl.fill((28, 12, 42), (7, 8 + (v % 2) * 2, ts - 14, ts - 16))
+                fl.fill((148, 56, 182), (10 + v * 4, 14 + v * 3, 10, 3))
+            elif s_idx == 2:
+                # Warm Tan & Soft Earthy Pathway: clean horizontal bands, no noisy single-pixel speckles
+                fl.fill((164, 124, 74), (0, 6 + v * 3, ts, 4))
+                fl.fill((224, 192, 134), (4 + v * 3, 16, ts - 8, 6))
+                fl.fill(pal["floor_accent"], (4 + v * 6, 30, 8, 4))
+            else:
+                # Bright Lime/Mint Meadow: subtle horizontal streaks and grouped rounded grass tufts
+                fl.fill(pal["floor_alt"], (0, 8 + v * 4, ts, 5))
+                fl.fill(pal["floor_alt"], (4, 24 + (v % 2) * 4, ts - 8, 5))
+                tx1, ty1 = 6 + v * 6, 10 + (v % 2) * 8
+                fl.fill(pal["floor_accent"], (tx1, ty1, 10, 5))
+                fl.fill((138, 242, 146), (tx1 + 2, ty1 - 2, 6, 3))
         else:
             if s_idx == 0:
                 # Sunken mossy clover basin
@@ -261,7 +296,7 @@ class Renderer:
         w_name = getattr(state.world, "name", "sanctuary").lower()
         if w_name == "sanctuary":
             return "sanctuary"
-        for key in ("windy_ridge", "swamp_mire", "frozen_peaks", "tech_tower"):
+        for key in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower"):
             if key in w_name:
                 return key
         if any(k in w_name for k in ("ruins", "final_boss", "boss")):
@@ -273,7 +308,9 @@ class Renderer:
             bx, by, bw, bh = b.get("x", 0), b.get("y", 0), b.get("width", 0), b.get("height", 0)
             if bx <= tx < bx + bw and by <= ty < by + bh:
                 plug = sock.get("active_plug", "").lower()
-                if "swamp" in plug or "mire" in plug:
+                if "pastoral" in plug or "valley" in plug or "meadow" in plug:
+                    resolved = "pastoral_valley"
+                elif "swamp" in plug or "mire" in plug:
                     resolved = "swamp_mire"
                 elif "frozen" in plug or "peak" in plug:
                     resolved = "frozen_peaks"
@@ -285,8 +322,8 @@ class Renderer:
 
         if resolved:
             return resolved
-        sector = ((tx // 40) + (ty // 40)) % 4
-        return ("windy_ridge", "swamp_mire", "frozen_peaks", "tech_tower")[sector]
+        sector = ((tx // 40) + (ty // 40)) % 5
+        return ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")[sector]
 
     def _load_grass_assets(self):
         """Pre-load grass assets and generate 3 variants on startup."""
@@ -561,6 +598,16 @@ class Renderer:
             sway = int(math.sin(now * 3.8 + x * 0.45 + y * 0.25) * 6)
             pygame.draw.line(self.screen, pal["floor_accent"], (sx + 10, sy + 26), (sx + 14 + sway, sy + 14), 2)
             pygame.draw.line(self.screen, pal["floor_speck"], (sx + 22, sy + 28), (sx + 26 + sway, sy + 17), 1)
+        elif biome == "pastoral_valley":
+            if s_idx == 0:
+                # Sticky bruised-purple / violet tar bubbles in recessed poison swamp
+                rad = 2 + int(((math.sin(now * 2.6 + x * 0.8 + y * 0.6) + 1.0) * 0.5) * 5)
+                pygame.draw.circle(self.screen, (165, 68, 198), (sx + 20, sy + 20), rad, 1)
+            else:
+                # Rounded grass tuft sway and horizontal wind-breeze streak
+                sway = int(math.sin(now * 3.4 + x * 0.4 + y * 0.2) * 5)
+                pygame.draw.circle(self.screen, pal["floor_accent"], (sx + 18 + sway // 2, sy + 22), 5)
+                pygame.draw.line(self.screen, (148, 246, 154), (sx + 10, sy + 18), (sx + 24 + sway, sy + 18), 2)
         elif biome == "swamp_mire":
             # Bioluminescent mire bubble rings and rising spore motes
             rad = 3 + int(((math.sin(now * 3.2 + x * 0.7 + y * 0.5) + 1.0) * 0.5) * 6)
@@ -604,8 +651,16 @@ class Renderer:
             v_idx = (x * 7 + y * 13) % len(tier_floors)
             self.screen.blit(tier_floors[v_idx], (dr[0], dr[1]))
 
-            # Draw beveled elevation step rims where adjacent floor strata transition
+            # Draw beveled elevation step rims or rounded/diagonal contour transitions
             sx, sy, tw, th = int(dr[0]), int(dr[1]), int(dr[2]), int(dr[3])
+            if biome == "pastoral_valley":
+                # Mask 16x16/40x40 tile seams with rounded corner contours & recessed tar-swamp banks
+                if s_idx == 0:
+                    pygame.draw.circle(self.screen, (58, 26, 82), (sx + 6, sy + 6), 5)
+                    pygame.draw.circle(self.screen, (58, 26, 82), (sx + tw - 6, sy + th - 6), 5)
+                elif s_idx == 2:
+                    pygame.draw.circle(self.screen, (214, 178, 118), (sx + 5, sy + 5), 5)
+                    pygame.draw.circle(self.screen, (214, 178, 118), (sx + tw - 5, sy + th - 5), 5)
             if y > 0 and state.world.grid[y - 1][x] != constants.TILE_WALL:
                 n_stratum = self._get_tile_stratum(state, x, y - 1)
                 if s_idx > n_stratum:
@@ -697,11 +752,16 @@ class Renderer:
                     pygame.draw.rect(self.screen, (100, 80, 40), (obj.x - ox, obj.y - oy, obj.width, obj.height))
                     pygame.draw.rect(self.screen, (60, 40, 20), (obj.x - ox, obj.y - oy, obj.width, obj.height), 2)
             elif obj.name == "Structure":
+                # Stylized deciduous tree: short thick dark-brown trunk, dark border, shadow crescent, lime crown
                 sx, sy, sw_o, sh_o = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
-                pygame.draw.rect(self.screen, (42, 58, 84), (sx + 4, sy + 6, sw_o - 8, sh_o - 6), border_radius=6)
-                pygame.draw.circle(self.screen, (28, 125, 78), (sx + sw_o // 2, sy + sh_o // 2 - 2), sw_o // 2 - 2)
-                pygame.draw.circle(self.screen, (85, 220, 130), (sx + sw_o // 2 - 3, sy + sh_o // 2 - 5), sw_o // 3)
-                pygame.draw.circle(self.screen, constants.COLOR_CYAN, (sx + sw_o // 2, sy + sh_o // 2), 4)
+                cx_t, cy_t = sx + sw_o // 2, sy + sh_o // 2 - 4
+                pygame.draw.circle(self.screen, (22, 44, 28), (cx_t + 2, sy + sh_o - 6), sw_o // 3)
+                pygame.draw.rect(self.screen, (28, 16, 8), (cx_t - 7, sy + sh_o - 16, 14, 14), border_radius=2)
+                pygame.draw.rect(self.screen, (92, 54, 28), (cx_t - 5, sy + sh_o - 15, 10, 12), border_radius=2)
+                pygame.draw.circle(self.screen, (18, 44, 24), (cx_t, cy_t), sw_o // 2 - 1)
+                pygame.draw.circle(self.screen, (38, 126, 62), (cx_t, cy_t + 2), sw_o // 2 - 3)
+                pygame.draw.circle(self.screen, (92, 218, 110), (cx_t - 1, cy_t - 2), sw_o // 2 - 5)
+                pygame.draw.circle(self.screen, (162, 246, 148), (cx_t - 4, cy_t - 6), sw_o // 4)
             elif obj.name == "The Chronicler":
                 pygame.draw.rect(self.screen, (220, 220, 220), (obj.x - ox, obj.y - oy, obj.width, obj.height))
                 pygame.draw.rect(self.screen, (255, 200, 150), (obj.x + 5 - ox, obj.y + 5 - oy, obj.width - 10, 10))
@@ -722,12 +782,15 @@ class Renderer:
                 pygame.draw.rect(self.screen, (190, 165, 105), (ux + 8, uy + 4, uw - 16, 6), border_radius=2)
                 pygame.draw.circle(self.screen, (0, 240, 255), (ux + uw // 2, uy + 7), 3)
             elif obj.name == "Inkwell Puddle":
+                # Recessed Tar / Poison Swamp pool: dark inset border, ragged bruised-purple shore, deep plum core
                 px, py, pw, ph = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
                 pcx, pcy = px + pw // 2, py + ph // 2
-                pygame.draw.circle(self.screen, (36, 18, 58), (pcx, pcy), pw // 2 - 2)
-                pygame.draw.circle(self.screen, (52, 145, 92), (pcx, pcy), pw // 3)
-                ripple = int(((math.sin(time.time() * 5.0 + obj.x) + 1.0) * 0.5) * (pw // 3 - 2)) + 3
-                pygame.draw.circle(self.screen, (195, 75, 215), (pcx, pcy), ripple, 1)
+                pygame.draw.circle(self.screen, (16, 8, 24), (pcx, pcy), pw // 2 - 1)
+                pygame.draw.circle(self.screen, (58, 26, 82), (pcx - 4, pcy - 2), pw // 3 + 2)
+                pygame.draw.circle(self.screen, (58, 26, 82), (pcx + 5, pcy + 3), pw // 3 + 1)
+                pygame.draw.circle(self.screen, (28, 12, 42), (pcx, pcy), pw // 3)
+                ripple = int(((math.sin(time.time() * 4.5 + obj.x) + 1.0) * 0.5) * (pw // 3 - 3)) + 3
+                pygame.draw.circle(self.screen, (165, 68, 198), (pcx, pcy), ripple, 1)
             elif obj.name == "Candelabra":
                 stand = (obj.x + obj.width//2 - 3 - ox, obj.y + 10 - oy, 6, obj.height - 10)
                 pygame.draw.rect(self.screen, constants.COLOR_DARK_GREY, stand)

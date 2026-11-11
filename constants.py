@@ -200,6 +200,7 @@ MINIMAP_VIEWPORT_FRAC = 2.5
 # Map Module Pools
 POOL_MONTHLY_REPORT = [
     "maps/windy_ridge.json",
+    "maps/pastoral_valley.json",
     "maps/swamp_mire.json",
     "maps/frozen_peaks.json",
     "maps/tech_tower.json"
@@ -344,6 +345,22 @@ BIOME_PALETTES = {
         "wall_face": (46, 64, 92),
         "wall_mortar": (22, 32, 50),
         "wall_glow": (90, 235, 180)
+    },
+    "pastoral_valley": {
+        "floor_base": (74, 198, 98),
+        "floor_alt": (96, 220, 118),
+        "floor_accent": (50, 158, 74),
+        "floor_speck": (214, 178, 118),
+        "strata": [
+            ((28, 12, 42), (48, 22, 68)),     # Stratum 0: Recessed Deep-Plum Tar / Poison Swamp
+            ((74, 198, 98), (96, 220, 118)),  # Stratum 1: Bright Lime/Mint Meadow Canvas
+            ((188, 148, 92), (214, 178, 118)) # Stratum 2: Warm Tan & Soft Earthy Pathway
+        ],
+        "wall_top": (154, 114, 74),
+        "wall_hi": (216, 178, 128),
+        "wall_face": (94, 108, 126),
+        "wall_mortar": (26, 22, 30),
+        "wall_glow": (126, 88, 54)
     },
     "swamp_mire": {
         "floor_base": (44, 24, 68),
