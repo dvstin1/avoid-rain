@@ -1,0 +1,561 @@
+#!/usr/bin/env python3
+"""Standalone offline procedural pixel art PNG asset generator for Avoid Rain.
+
+Generates grit-textured, dark-fantasy game tiles using noise, jitter, and low-contrast
+palettes to simulate natural, worn materials:
+1. Dirt/Floor Tile (floor_tile.png) - 40x40 desaturated slate-brown/charcoal with sand grit and scuffs.
+2. Wall Tile Segment (wall_tile.png) - 40x40 staggered slate-blue masonry with crumbled joints.
+3. Moss/Overgrowth Patch (grass_natural.png) - 40x40 transparent alpha organic foliage patch.
+"""
+# pylint: disable=no-member,too-many-locals
+
+import os
+import random
+from typing import Dict, List, Set, Tuple
+import pygame
+
+# ==============================================================================
+# CONFIGURABLE PARAMETERS & PALETTES
+# ==============================================================================
+
+# Output File Paths (created automatically if missing)
+DEFAULT_FLOOR_PATH = os.path.join("assets", "graphics", "floor_tile.png")
+DEFAULT_WALL_PATH = os.path.join("assets", "graphics", "wall_tile.png")
+DEFAULT_GRASS_PATH = os.path.join("assets", "graphics", "grass_natural.png")
+
+# Canonical Dimensions
+TILE_WIDTH = 40
+TILE_HEIGHT = 40
+
+# --- 1. Dirt / Floor Tile Parameters ---
+# Dark, desaturated slate-brown/charcoal base tone (R:45-55, G:40-48, B:35-42)
+FLOOR_BASE_R_RANGE = (45, 55)
+FLOOR_BASE_G_RANGE = (40, 48)
+FLOOR_BASE_B_RANGE = (35, 42)
+FLOOR_NOISE_SHIFT_RANGE = (-8, 8)       # Grit/sand per-pixel channel shifting
+FLOOR_SCUFF_COUNT_RANGE = (18, 28)      # Number of irregular dark pit marks/smudges
+FLOOR_SCUFF_STEPS_RANGE = (4, 9)        # Size/extent of scuff walker (2-5px irregular)
+FLOOR_SCUFF_ALPHA_RANGE = (80, 120)     # Alpha for dark scuffs
+FLOOR_SCUFF_DARKEN_DELTA = (14, 24)     # Amount subtracted from base color for scuffs
+FLOOR_HIGHLIGHT_COUNT_RANGE = (12, 20)  # Sporadic tiny bright quartz/sand specks
+FLOOR_HIGHLIGHT_BOOST_RANGE = (16, 28)  # Brightness boost for tiny highlights
+FLOOR_VIGNETTE_LAYERS = [               # Distance from edge -> darkening percentage
+    (0, 0.18),  # Outermost perimeter pixel (18% darker)
+    (1, 0.10),  # 1px inward (10% darker)
+    (2, 0.04),  # 2px inward (4% darker)
+]
+
+# --- 2. Wall Tile Segment Parameters ---
+# Heavy, desaturated dark slate-blue/grey base tone (R:35-42, G:38-45, B:45-55)
+WALL_BASE_R_RANGE = (35, 42)
+WALL_BASE_G_RANGE = (38, 45)
+WALL_BASE_B_RANGE = (45, 55)
+WALL_COURSES = 4                         # 4 horizontal masonry courses
+WALL_COURSE_HEIGHT = 10                  # 10px per course for 40px height
+WALL_JOINT_COLOR = (16, 18, 24)          # Deep black-blue joint groove color
+WALL_JOINT_NOISE_PROBABILITY = 0.35      # Probability of crumbled mortar jitter
+WALL_BRICK_VARIATION_RANGE = (-4, 4)     # Individual block tint variation
+WALL_FACET_NOISE_RANGE = (-6, 6)         # Micro-speckled stone facet noise
+WALL_HIGHLIGHT_COLOR = (66, 72, 82)      # Top & left edge 1px warm grey highlight
+WALL_SHADOW_COLOR = (20, 22, 28)         # Bottom & right edge 1px mortar shadow
+WALL_SCUFF_COUNT_PER_BRICK = (1, 3)      # Small weathering pits per brick
+
+# --- 3. Moss / Overgrowth Vegetation Patch Parameters ---
+# Natural dark forest/olive green base tone (R:30-48, G:50-70, B:25-45)
+MOSS_SHADOW_COLOR = (24, 38, 20)         # Layer 1: Dark shadow base
+MOSS_MIDTONE_COLOR = (42, 68, 34)        # Layer 2: Medium foliage midtone (R:30-48, G:50-70, B:25-45)
+MOSS_HIGHLIGHT_COLOR = (74, 112, 56)     # Layer 3: Rare light olive/sage green flecks
+MOSS_WALKER_COUNT = 7                    # Number of organic drifting walker seeds
+MOSS_WALKER_STEPS = 90                   # Steps per drifting walker seed
+MOSS_SCUFF_CLUSTER_COUNT = (40, 65)      # Foliage scuff clusters inside silhouette
+MOSS_HIGHLIGHT_SPECK_COUNT = (24, 40)    # Rare sunlit leafy speckles
+MOSS_EDGE_TRANSLUCENCY_RANGE = (90, 160) # Alpha for feathered perimeter edge pixels
+
+
+def _clamp(val: float, low: int = 0, high: int = 255) -> int:
+    """Clamp a numerical value within [low, high] as an integer."""
+    return max(low, min(high, int(val)))
+
+
+def _ensure_directory(file_path: str) -> None:
+    """Create parent directories for a file path if they do not exist."""
+    directory = os.path.dirname(file_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+
+
+# ==============================================================================
+# GENERATIVE PIPELINE 1: DIRT / FLOOR TILE
+# ==============================================================================
+
+def _apply_floor_grit_noise(
+    surface: pygame.Surface,
+    base_rgb: Tuple[int, int, int],
+    rng: random.Random,
+) -> None:
+    """Apply dense low-contrast grit/sand channel jitter to each pixel."""
+    width, height = surface.get_size()
+    base_r, base_g, base_b = base_rgb
+    for y in range(height):
+        for x in range(width):
+            shift = rng.randint(*FLOOR_NOISE_SHIFT_RANGE)
+            r = _clamp(base_r + shift + rng.randint(-2, 2))
+            g = _clamp(base_g + shift + rng.randint(-2, 2))
+            b = _clamp(base_b + shift + rng.randint(-2, 2))
+            surface.set_at((x, y), (r, g, b))
+
+
+def _apply_floor_scuffs(
+    surface: pygame.Surface,
+    base_rgb: Tuple[int, int, int],
+    rng: random.Random,
+) -> None:
+    """Stamp irregular dark pit marks and scuffs using 2-5px random walks."""
+    width, height = surface.get_size()
+    base_r, base_g, base_b = base_rgb
+    scuff_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    num_scuffs = rng.randint(*FLOOR_SCUFF_COUNT_RANGE)
+
+    for _ in range(num_scuffs):
+        cx = rng.randint(2, width - 3)
+        cy = rng.randint(2, height - 3)
+        darken = rng.randint(*FLOOR_SCUFF_DARKEN_DELTA)
+        color = (
+            _clamp(base_r - darken),
+            _clamp(base_g - darken),
+            _clamp(base_b - darken),
+            rng.randint(*FLOOR_SCUFF_ALPHA_RANGE),
+        )
+        px, py = cx, cy
+        steps = rng.randint(*FLOOR_SCUFF_STEPS_RANGE)
+        for _ in range(steps):
+            if 0 <= px < width and 0 <= py < height:
+                scuff_surf.set_at((px, py), color)
+            px += rng.choice([-1, 0, 1])
+            py += rng.choice([-1, 0, 1])
+
+    surface.blit(scuff_surf, (0, 0))
+
+
+def _apply_floor_highlights(surface: pygame.Surface, rng: random.Random) -> None:
+    """Scatter tiny sporadic bright quartz and mineral flecks."""
+    width, height = surface.get_size()
+    num_highlights = rng.randint(*FLOOR_HIGHLIGHT_COUNT_RANGE)
+    for _ in range(num_highlights):
+        hx = rng.randint(1, width - 2)
+        hy = rng.randint(1, height - 2)
+        boost = rng.randint(*FLOOR_HIGHLIGHT_BOOST_RANGE)
+        cur_r, cur_g, cur_b = surface.get_at((hx, hy))[:3]
+        hl_color = (_clamp(cur_r + boost), _clamp(cur_g + boost), _clamp(cur_b + boost - 2))
+        surface.set_at((hx, hy), hl_color)
+        if rng.random() < 0.35:
+            nx = _clamp(hx + rng.choice([-1, 1]), 0, width - 1)
+            ny = _clamp(hy + rng.choice([-1, 1]), 0, height - 1)
+            surface.set_at((nx, ny), hl_color)
+
+
+def _apply_floor_vignette(surface: pygame.Surface) -> None:
+    """Darken outermost 2-3 pixel perimeter for seamless tiling without seams."""
+    width, height = surface.get_size()
+    vignette_dict = dict(FLOOR_VIGNETTE_LAYERS)
+    for y in range(height):
+        for x in range(width):
+            dist = min(x, y, width - 1 - x, height - 1 - y)
+            if dist in vignette_dict:
+                factor = 1.0 - vignette_dict[dist]
+                cr, cg, cb = surface.get_at((x, y))[:3]
+                surface.set_at((x, y), (_clamp(cr * factor), _clamp(cg * factor), _clamp(cb * factor)))
+
+
+def generate_floor_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a grit-textured dark fantasy floor tile.
+
+    Pipeline:
+    1. Solid flat base surface with desaturated slate-brown/charcoal tone.
+    2. Dense low-contrast per-pixel noise (+/-3 to +/-8) for grit/sand grain.
+    3. Stamped irregular dark scuffs (2-5px) and sporadic tiny bright flecks.
+    4. Edge vignette darkening outer 2-3 pixels for seamless tiling.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    base_rgb = (
+        rng.randint(*FLOOR_BASE_R_RANGE),
+        rng.randint(*FLOOR_BASE_G_RANGE),
+        rng.randint(*FLOOR_BASE_B_RANGE),
+    )
+    surface.fill(base_rgb)
+
+    _apply_floor_grit_noise(surface, base_rgb, rng)
+    _apply_floor_scuffs(surface, base_rgb, rng)
+    _apply_floor_highlights(surface, rng)
+    _apply_floor_vignette(surface)
+
+    return surface
+
+
+# ==============================================================================
+# GENERATIVE PIPELINE 2: WALL TILE SEGMENT
+# ==============================================================================
+
+def _build_masonry_layout(width: int, height: int) -> List[Tuple[int, int, List[Tuple[int, int, int, int]]]]:
+    """Partition surface into 4 courses with staggered vertical brick joints."""
+    courses = []
+    course_h = height // WALL_COURSES
+    for c_idx in range(WALL_COURSES):
+        y0 = c_idx * course_h
+        y1 = height if c_idx == WALL_COURSES - 1 else (c_idx + 1) * course_h
+        if c_idx % 2 == 0:
+            bricks = [(0, y0, width // 2, y1), (width // 2, y0, width, y1)]
+        else:
+            bricks = [
+                (0, y0, width // 4, y1),
+                (width // 4, y0, (width * 3) // 4, y1),
+                ((width * 3) // 4, y0, width, y1),
+            ]
+        courses.append((y0, y1, bricks))
+    return courses
+
+
+def _render_brick_facets(
+    surface: pygame.Surface,
+    courses: List[Tuple[int, int, List[Tuple[int, int, int, int]]]],
+    base_rgb: Tuple[int, int, int],
+    rng: random.Random,
+) -> None:
+    """Render per-brick tint variation, facet stone noise, and pit marks."""
+    base_r, base_g, base_b = base_rgb
+    width, height = surface.get_size()
+
+    for _y0, _y1, bricks in courses:
+        for bx0, by0, bx1, by1 in bricks:
+            var_r = rng.randint(*WALL_BRICK_VARIATION_RANGE)
+            var_g = rng.randint(*WALL_BRICK_VARIATION_RANGE)
+            var_b = rng.randint(*WALL_BRICK_VARIATION_RANGE)
+            b_r = _clamp(base_r + var_r)
+            b_g = _clamp(base_g + var_g)
+            b_b = _clamp(base_b + var_b)
+
+            for py in range(by0, by1):
+                for px in range(bx0, bx1):
+                    noise = rng.randint(*WALL_FACET_NOISE_RANGE)
+                    surface.set_at((px, py), (
+                        _clamp(b_r + noise + rng.randint(-1, 1)),
+                        _clamp(b_g + noise + rng.randint(-1, 1)),
+                        _clamp(b_b + noise + rng.randint(-1, 1)),
+                    ))
+
+            num_pits = rng.randint(*WALL_SCUFF_COUNT_PER_BRICK)
+            for _ in range(num_pits):
+                pit_x = rng.randint(bx0 + 1, max(bx0 + 1, bx1 - 2))
+                pit_y = rng.randint(by0 + 1, max(by0 + 1, by1 - 2))
+                p_dark = rng.randint(12, 22)
+                for _ in range(rng.randint(2, 4)):
+                    if 0 <= pit_x < width and 0 <= pit_y < height:
+                        cr, cg, cb = surface.get_at((pit_x, pit_y))[:3]
+                        surface.set_at((pit_x, pit_y), (_clamp(cr - p_dark), _clamp(cg - p_dark), _clamp(cb - p_dark)))
+                    pit_x += rng.choice([-1, 0, 1])
+                    pit_y += rng.choice([-1, 0, 1])
+
+
+def _render_brick_edge_lighting(
+    surface: pygame.Surface,
+    courses: List[Tuple[int, int, List[Tuple[int, int, int, int]]]],
+    rng: random.Random,
+) -> None:
+    """Draw top/left warm highlights and bottom/right recess shadows per brick."""
+    for _y0, _y1, bricks in courses:
+        for bx0, by0, bx1, by1 in bricks:
+            # Top edge highlight (1px)
+            for px in range(bx0 + 1, bx1 - 1):
+                if rng.random() > 0.15:
+                    surface.set_at((px, by0 + 1), WALL_HIGHLIGHT_COLOR)
+
+            # Left edge highlight (1px)
+            for py in range(by0 + 1, by1 - 1):
+                if rng.random() > 0.20:
+                    surface.set_at((bx0 + 1, py), WALL_HIGHLIGHT_COLOR)
+
+            # Bottom edge groove shadow (1px)
+            for px in range(bx0, bx1):
+                surface.set_at((px, by1 - 2), WALL_SHADOW_COLOR)
+
+            # Right edge groove shadow (1px)
+            for py in range(by0, by1):
+                surface.set_at((bx1 - 2, py), WALL_SHADOW_COLOR)
+
+
+def _render_crumbled_joints(
+    surface: pygame.Surface,
+    courses: List[Tuple[int, int, List[Tuple[int, int, int, int]]]],
+    rng: random.Random,
+) -> None:
+    """Render horizontal and vertical masonry joint grooves with crumbled noise."""
+    width, height = surface.get_size()
+    course_h = height // WALL_COURSES
+    joint_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # Horizontal course joints
+    for c_idx in range(1, WALL_COURSES):
+        jy = c_idx * course_h
+        for x in range(width):
+            jitter = rng.choice([-1, 0, 1]) if rng.random() < WALL_JOINT_NOISE_PROBABILITY else 0
+            curr_y = _clamp(jy + jitter, 0, height - 1)
+            joint_surf.set_at((x, curr_y), (*WALL_JOINT_COLOR, 255))
+            if rng.random() < 0.4:
+                prev_y = _clamp(curr_y - 1, 0, height - 1)
+                joint_surf.set_at((x, prev_y), (*WALL_JOINT_COLOR, 220))
+
+    # Vertical column joints
+    for _y0, _y1, bricks in courses:
+        for bx0, by0, _bx1, by1 in bricks:
+            if bx0 > 0:
+                for y in range(by0, by1):
+                    jitter = rng.choice([-1, 0, 1]) if rng.random() < WALL_JOINT_NOISE_PROBABILITY else 0
+                    curr_x = _clamp(bx0 + jitter, 0, width - 1)
+                    joint_surf.set_at((curr_x, y), (*WALL_JOINT_COLOR, 255))
+                    if rng.random() < 0.4:
+                        sub_x = _clamp(curr_x - 1, 0, width - 1)
+                        joint_surf.set_at((sub_x, y), (*WALL_JOINT_COLOR, 220))
+
+    surface.blit(joint_surf, (0, 0))
+
+
+def generate_wall_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a heavy slate-blue staggered brick wall segment.
+
+    Pipeline:
+    1. Divide 40x40 area into 4 horizontal courses with staggered masonry columns.
+    2. Apply per-brick tint variation and micro-speckled stone facet noise.
+    3. Top & left edge 1px highlights (top-down light) and bottom/right edge shadows.
+    4. Draw crumbled 1-2px dark joints with jittered borders.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    base_rgb = (
+        rng.randint(*WALL_BASE_R_RANGE),
+        rng.randint(*WALL_BASE_G_RANGE),
+        rng.randint(*WALL_BASE_B_RANGE),
+    )
+    surface.fill(base_rgb)
+
+    courses = _build_masonry_layout(width, height)
+    _render_brick_facets(surface, courses, base_rgb, rng)
+    _render_brick_edge_lighting(surface, courses, rng)
+    _render_crumbled_joints(surface, courses, rng)
+
+    return surface
+
+
+# ==============================================================================
+# GENERATIVE PIPELINE 3: MOSS / OVERGROWTH VEGETATION PATCH
+# ==============================================================================
+
+def _generate_irregular_patch_silhouette(
+    width: int,
+    height: int,
+    rng: random.Random,
+) -> Set[Tuple[int, int]]:
+    """Generate an uneven, non-circular patch silhouette using drifting random walkers."""
+    seeds = [
+        (width // 2 + rng.randint(-8, 8), height // 2 + rng.randint(-8, 8))
+        for _ in range(MOSS_WALKER_COUNT)
+    ]
+    footprint: Set[Tuple[int, int]] = set()
+
+    cluster_offsets = [(dx, dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)]
+    for sx, sy in seeds:
+        wx, wy = sx, sy
+        for _ in range(MOSS_WALKER_STEPS):
+            for dx, dy in cluster_offsets:
+                tx, ty = wx + dx, wy + dy
+                if rng.random() < 0.8 and 2 <= tx < width - 2 and 2 <= ty < height - 2:
+                    footprint.add((tx, ty))
+            wx = _clamp(wx + rng.choice([-1, 0, 1]), 3, width - 4)
+            wy = _clamp(wy + rng.choice([-1, 0, 1]), 3, height - 4)
+
+    return footprint
+
+
+def _render_foliage_layers(
+    surface: pygame.Surface,
+    footprint: Set[Tuple[int, int]],
+    rng: random.Random,
+) -> None:
+    """Render 3-layer green hierarchy: shadow base, foliage midtone, and light specks."""
+    width, height = surface.get_size()
+
+    # Layer 1: Dark shadow base
+    for px, py in footprint:
+        jit = rng.randint(-3, 3)
+        surface.set_at((px, py), (
+            _clamp(MOSS_SHADOW_COLOR[0] + jit),
+            _clamp(MOSS_SHADOW_COLOR[1] + jit),
+            _clamp(MOSS_SHADOW_COLOR[2] + jit),
+            255,
+        ))
+
+    footprint_list = list(footprint)
+    if not footprint_list:
+        return
+
+    # Layer 2: Medium foliage midtone scuff clusters
+    num_clusters = rng.randint(*MOSS_SCUFF_CLUSTER_COUNT)
+    for _ in range(num_clusters):
+        cx, cy = rng.choice(footprint_list)
+        cluster_steps = rng.randint(4, 9)
+        kx, ky = cx, cy
+        for _ in range(cluster_steps):
+            if (kx, ky) in footprint:
+                jit = rng.randint(-4, 4)
+                surface.set_at((kx, ky), (
+                    _clamp(MOSS_MIDTONE_COLOR[0] + jit),
+                    _clamp(MOSS_MIDTONE_COLOR[1] + jit),
+                    _clamp(MOSS_MIDTONE_COLOR[2] + jit),
+                    255,
+                ))
+            kx = _clamp(kx + rng.choice([-1, 0, 1]), 2, width - 3)
+            ky = _clamp(ky + rng.choice([-1, 0, 1]), 2, height - 3)
+
+    # Layer 3: Rare tiny light olive/sage green sunlit speckles
+    num_highlights = rng.randint(*MOSS_HIGHLIGHT_SPECK_COUNT)
+    for _ in range(num_highlights):
+        hx, hy = rng.choice(footprint_list)
+        jit = rng.randint(-5, 5)
+        color = (
+            _clamp(MOSS_HIGHLIGHT_COLOR[0] + jit),
+            _clamp(MOSS_HIGHLIGHT_COLOR[1] + jit),
+            _clamp(MOSS_HIGHLIGHT_COLOR[2] + jit),
+            255,
+        )
+        surface.set_at((hx, hy), color)
+        if rng.random() < 0.4:
+            nx = _clamp(hx + rng.choice([-1, 1]), 0, width - 1)
+            ny = _clamp(hy + rng.choice([-1, 1]), 0, height - 1)
+            if (nx, ny) in footprint:
+                surface.set_at((nx, ny), color)
+
+
+def _apply_leafy_grain_and_translucency(
+    surface: pygame.Surface,
+    footprint: Set[Tuple[int, int]],
+    rng: random.Random,
+) -> None:
+    """Feather perimeter edges with translucency and subtle 1px leafy fronds."""
+    width, height = surface.get_size()
+    perimeter = []
+
+    for px, py in footprint:
+        is_edge = any((px + dx, py + dy) not in footprint for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)])
+        if is_edge:
+            perimeter.append((px, py))
+
+    for ex, ey in perimeter:
+        edge_alpha = rng.randint(*MOSS_EDGE_TRANSLUCENCY_RANGE)
+        cr, cg, cb = surface.get_at((ex, ey))[:3]
+        surface.set_at((ex, ey), (cr, cg, cb, edge_alpha))
+
+        if rng.random() < 0.25:
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                fx, fy = ex + dx, ey + dy
+                if 0 <= fx < width and 0 <= fy < height and surface.get_at((fx, fy))[3] == 0:
+                    surface.set_at((fx, fy), (cr, cg, cb, rng.randint(70, 130)))
+                    break
+
+
+def generate_grass_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate an organic moss/overgrowth patch with alpha transparency.
+
+    Pipeline:
+    1. Fully transparent (SRCALPHA) background surface.
+    2. Multi-seed drifting random-walk brush generating an irregular, non-circular blob silhouette.
+    3. Dense foliage scuffs and wobbly clusters inside jagged boundaries.
+    4. 3-layer green hierarchy: dark shadow base, foliage midtone, light olive/sage specks.
+    5. Naturally translucent, rough pixelated outer edges for seamless overlapping.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    footprint = _generate_irregular_patch_silhouette(width, height, rng)
+    _render_foliage_layers(surface, footprint, rng)
+    _apply_leafy_grain_and_translucency(surface, footprint, rng)
+
+    return surface
+
+
+# ==============================================================================
+# BATCH GENERATION & CLI ENTRY POINT
+# ==============================================================================
+
+def generate_all_assets(
+    floor_path: str = DEFAULT_FLOOR_PATH,
+    wall_path: str = DEFAULT_WALL_PATH,
+    grass_path: str = DEFAULT_GRASS_PATH,
+    seed: int = None,
+) -> Dict[str, str]:
+    """Generate all three procedural assets and save them to disk.
+
+    Returns a dictionary mapping asset names to their written file paths.
+    """
+    rng = random.Random(seed) if seed is not None else random.Random()
+    results = {}
+
+    # 1. Dirt / Floor Tile
+    _ensure_directory(floor_path)
+    floor_surf = generate_floor_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(floor_surf, floor_path)
+    results["floor_tile"] = floor_path
+
+    # 2. Wall Tile Segment
+    _ensure_directory(wall_path)
+    wall_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(wall_surf, wall_path)
+    results["wall_tile"] = wall_path
+
+    # 3. Moss / Overgrowth Patch
+    _ensure_directory(grass_path)
+    grass_surf = generate_grass_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(grass_surf, grass_path)
+    results["grass_natural"] = grass_path
+
+    return results
+
+
+def main() -> None:
+    """CLI entry point for procedural asset generation."""
+    if "SDL_VIDEODRIVER" not in os.environ and not pygame.display.get_init():
+        os.environ["SDL_VIDEODRIVER"] = "dummy"
+
+    pygame.init()
+
+    print("==================================================")
+    print(" Avoid Rain - Procedural PNG Asset Generator")
+    print("==================================================")
+    print("Generating dark-fantasy grit pixel art assets...")
+
+    written = generate_all_assets()
+    for name, path in written.items():
+        size_kb = os.path.getsize(path) / 1024.0 if os.path.exists(path) else 0.0
+        print(f"  [+] {name:<15} -> {path} ({size_kb:.1f} KB, {TILE_WIDTH}x{TILE_HEIGHT})")
+
+    print("All assets successfully generated.")
+
+
+if __name__ == "__main__":
+    main()
