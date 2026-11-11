@@ -6,9 +6,11 @@ palettes to simulate natural, worn materials:
 1. Dirt/Floor Tile (floor_tile.png) - 40x40 desaturated slate-brown/charcoal with sand grit and scuffs.
 2. Wall Tile Segment (wall_tile.png) - 40x40 staggered slate-blue masonry with crumbled joints.
 3. Moss/Overgrowth Patch (grass_natural.png) - 40x40 transparent alpha organic foliage patch.
+4. Rock Cluster (rock_cluster.png) - 40x40 irregular rounded stones with drop shadows and highlight bevels.
 """
 # pylint: disable=no-member,too-many-locals
 
+import math
 import os
 import random
 from typing import Dict, List, Set, Tuple
@@ -22,6 +24,7 @@ import pygame
 DEFAULT_FLOOR_PATH = os.path.join("assets", "graphics", "floor_tile.png")
 DEFAULT_WALL_PATH = os.path.join("assets", "graphics", "wall_tile.png")
 DEFAULT_GRASS_PATH = os.path.join("assets", "graphics", "grass_natural.png")
+DEFAULT_ROCK_PATH = os.path.join("assets", "graphics", "rock_cluster.png")
 
 # Canonical Dimensions
 TILE_WIDTH = 40
@@ -70,6 +73,19 @@ MOSS_WALKER_STEPS = 90                   # Steps per drifting walker seed
 MOSS_SCUFF_CLUSTER_COUNT = (40, 65)      # Foliage scuff clusters inside silhouette
 MOSS_HIGHLIGHT_SPECK_COUNT = (24, 40)    # Rare sunlit leafy speckles
 MOSS_EDGE_TRANSLUCENCY_RANGE = (90, 160) # Alpha for feathered perimeter edge pixels
+
+# --- 4. Rock Cluster Parameters ---
+# Irregular, rounded grey stone blobs with drop shadows and highlight bevels
+ROCK_COUNT_RANGE = (3, 5)                # 3 to 5 stones in cluster
+ROCK_BASE_R_RANGE = (64, 82)             # Desaturated stone grey base
+ROCK_BASE_G_RANGE = (66, 84)
+ROCK_BASE_B_RANGE = (70, 88)
+ROCK_RADIUS_MAIN = (7, 10)               # Primary central stone radius
+ROCK_RADIUS_SATELLITE = (3, 6)           # Satellite stone radius
+ROCK_GRIT_NOISE_RANGE = (-5, 5)          # Surface grit jitter
+ROCK_HIGHLIGHT_COLOR = (128, 134, 142)   # 1px top-left highlight bevel
+ROCK_SHADOW_COLOR = (14, 16, 20)         # Dark bottom-edge drop shadow
+ROCK_SHADOW_ALPHA = 140                  # Drop shadow opacity
 
 
 def _clamp(val: float, low: int = 0, high: int = 255) -> int:
@@ -500,6 +516,151 @@ def generate_grass_tile(
 
 
 # ==============================================================================
+# GENERATIVE PIPELINE 4: ROCK CLUSTER
+# ==============================================================================
+
+def _generate_rock_shapes(
+    width: int,
+    height: int,
+    rng: random.Random,
+) -> List[Dict]:
+    """Generate 3-5 irregular rounded rock definitions with randomized placement offsets."""
+    num_rocks = rng.randint(*ROCK_COUNT_RANGE)
+    main_cx = rng.randint(width // 2 - 3, width // 2 + 3)
+    main_cy = rng.randint(height // 2 - 3, height // 2 + 3)
+    main_rx = rng.randint(*ROCK_RADIUS_MAIN)
+    main_ry = rng.randint(max(4, main_rx - 2), main_rx + 1)
+
+    raw_rocks = [{
+        "cx": main_cx,
+        "cy": main_cy,
+        "rx": main_rx,
+        "ry": main_ry,
+        "p1": rng.uniform(0.0, 6.28),
+        "p2": rng.uniform(0.0, 6.28),
+    }]
+
+    for _ in range(num_rocks - 1):
+        angle = rng.uniform(0.0, 6.28)
+        dist = rng.randint(8, 14)
+        sat_cx = _clamp(main_cx + int(dist * math.cos(angle)), 6, width - 7)
+        sat_cy = _clamp(main_cy + int(dist * math.sin(angle)), 6, height - 7)
+        sat_rx = rng.randint(*ROCK_RADIUS_SATELLITE)
+        sat_ry = rng.randint(max(2, sat_rx - 1), sat_rx + 1)
+        raw_rocks.append({
+            "cx": sat_cx,
+            "cy": sat_cy,
+            "rx": sat_rx,
+            "ry": sat_ry,
+            "p1": rng.uniform(0.0, 6.28),
+            "p2": rng.uniform(0.0, 6.28),
+        })
+
+    rocks = []
+    for r_def in raw_rocks:
+        cx, cy = r_def["cx"], r_def["cy"]
+        rx, ry = r_def["rx"], r_def["ry"]
+        p1, p2 = r_def["p1"], r_def["p2"]
+        pixels = set()
+        for py in range(max(0, cy - ry - 2), min(height, cy + ry + 3)):
+            for px in range(max(0, cx - rx - 2), min(width, cx + rx + 3)):
+                dx, dy = px - cx, py - cy
+                norm_d = math.sqrt((dx / max(1, rx)) ** 2 + (dy / max(1, ry)) ** 2)
+                theta = math.atan2(dy, dx)
+                deform = 1.0 + 0.16 * math.sin(2 * theta + p1) + 0.12 * math.cos(3 * theta + p2)
+                if norm_d <= deform:
+                    pixels.add((px, py))
+        if pixels:
+            rocks.append({"cx": cx, "cy": cy, "pixels": pixels})
+
+    rocks.sort(key=lambda r: r["cy"])
+    return rocks
+
+
+def _render_rock_drop_shadows(
+    surface: pygame.Surface,
+    rocks: List[Dict],
+    width: int,
+    height: int,
+) -> None:
+    """Render dark bottom-edge ground drop shadows beneath each rock."""
+    shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    for r_def in rocks:
+        for px, py in r_def["pixels"]:
+            for sy_offset in (1, 2):
+                sy = py + sy_offset
+                if 0 <= px < width and 0 <= sy < height:
+                    shadow_surf.set_at((px, sy), (*ROCK_SHADOW_COLOR, ROCK_SHADOW_ALPHA))
+    surface.blit(shadow_surf, (0, 0))
+
+
+def _render_rock_bodies(
+    surface: pygame.Surface,
+    rocks: List[Dict],
+    rng: random.Random,
+) -> None:
+    """Render irregular rounded rock bodies with surface grit, form shadows, and highlight bevels."""
+    _width, height = surface.get_size()
+    for r_def in rocks:
+        cx, cy = r_def["cx"], r_def["cy"]
+        pixels = r_def["pixels"]
+        base_r = rng.randint(*ROCK_BASE_R_RANGE)
+        base_g = rng.randint(*ROCK_BASE_G_RANGE)
+        base_b = rng.randint(*ROCK_BASE_B_RANGE)
+
+        for px, py in pixels:
+            grit = rng.randint(*ROCK_GRIT_NOISE_RANGE)
+            r = _clamp(base_r + grit + rng.randint(-1, 1))
+            g = _clamp(base_g + grit + rng.randint(-1, 1))
+            b = _clamp(base_b + grit + rng.randint(-1, 1))
+            if py > cy and (py + 1 >= height or (px, py + 1) not in pixels):
+                r = _clamp(r * 0.72)
+                g = _clamp(g * 0.72)
+                b = _clamp(b * 0.72)
+            surface.set_at((px, py), (r, g, b, 255))
+
+        for px, py in pixels:
+            is_top_left_edge = (
+                (px - 1 < 0 or (px - 1, py) not in pixels) or
+                (py - 1 < 0 or (px, py - 1) not in pixels)
+            )
+            if is_top_left_edge and (px <= cx + 1 or py <= cy + 1):
+                hl_jit = rng.randint(-3, 3)
+                hl_color = (
+                    _clamp(ROCK_HIGHLIGHT_COLOR[0] + hl_jit),
+                    _clamp(ROCK_HIGHLIGHT_COLOR[1] + hl_jit),
+                    _clamp(ROCK_HIGHLIGHT_COLOR[2] + hl_jit),
+                    255,
+                )
+                surface.set_at((px, py), hl_color)
+
+
+def generate_rock_cluster(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 40x40 rock cluster on a transparent background.
+
+    Pipeline:
+    1. Fully transparent (SRCALPHA) background surface.
+    2. Generate 3-5 irregular rounded stone blobs with randomized placement offsets.
+    3. Render dark bottom-edge drop shadows beneath each stone.
+    4. Render stone bodies with subtle surface grit noise and bottom form shadows.
+    5. Apply 1px top-left highlight bevels for directional illumination.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    rocks = _generate_rock_shapes(width, height, rng)
+    _render_rock_drop_shadows(surface, rocks, width, height)
+    _render_rock_bodies(surface, rocks, rng)
+
+    return surface
+
+
+# ==============================================================================
 # BATCH GENERATION & CLI ENTRY POINT
 # ==============================================================================
 
@@ -507,9 +668,10 @@ def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
     grass_path: str = DEFAULT_GRASS_PATH,
+    rock_path: str = DEFAULT_ROCK_PATH,
     seed: int = None,
 ) -> Dict[str, str]:
-    """Generate all three procedural assets and save them to disk.
+    """Generate all four procedural assets and save them to disk.
 
     Returns a dictionary mapping asset names to their written file paths.
     """
@@ -533,6 +695,12 @@ def generate_all_assets(
     grass_surf = generate_grass_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(grass_surf, grass_path)
     results["grass_natural"] = grass_path
+
+    # 4. Rock Cluster
+    _ensure_directory(rock_path)
+    rock_surf = generate_rock_cluster(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(rock_surf, rock_path)
+    results["rock_cluster"] = rock_path
 
     return results
 

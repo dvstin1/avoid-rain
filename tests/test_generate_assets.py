@@ -106,25 +106,58 @@ def test_generate_grass_tile_alpha_and_organic_foliage():
     assert green_dominant / len(active_foliage) > 0.85
 
 
+def test_generate_rock_cluster_properties():
+    """Verify rock cluster has transparent background, grey stone bodies, shadows, and highlights."""
+    rng = random.Random(101)
+    surf = generate_assets.generate_rock_cluster(40, 40, rng=rng)
+
+    assert surf.get_size() == (40, 40)
+    assert surf.get_flags() & pygame.SRCALPHA != 0
+
+    alphas = [surf.get_at((x, y))[3] for x in range(40) for y in range(40)]
+    transparent_count = alphas.count(0)
+    shadow_count = sum(1 for a in alphas if 0 < a < 255)
+    opaque_count = alphas.count(255)
+
+    assert transparent_count > 500
+    assert shadow_count > 10
+    assert opaque_count > 100
+
+    # Verify stones have desaturated grey tones (R, G, B are close in value)
+    opaque_pixels = [surf.get_at((x, y))[:3] for x in range(40) for y in range(40) if surf.get_at((x, y))[3] == 255]
+    desaturated_count = sum(1 for r, g, b in opaque_pixels if abs(r - g) <= 12 and abs(g - b) <= 12)
+    assert desaturated_count / len(opaque_pixels) > 0.85
+
+    # Verify highlights exist along top/left stone bevels
+    highlights_found = any(
+        110 <= r <= 150 and 115 <= g <= 155 and 120 <= b <= 160
+        for r, g, b in opaque_pixels
+    )
+    assert highlights_found
+
+
 def test_generate_all_assets_creates_files_and_directories():
     """Verify generate_all_assets creates missing directories and valid PNG files."""
     with tempfile.TemporaryDirectory() as tmpdir:
         floor_dest = os.path.join(tmpdir, "nested", "sub", "test_floor.png")
         wall_dest = os.path.join(tmpdir, "nested", "sub", "test_wall.png")
         grass_dest = os.path.join(tmpdir, "nested", "sub", "test_grass.png")
+        rock_dest = os.path.join(tmpdir, "nested", "sub", "test_rock.png")
 
         results = generate_assets.generate_all_assets(
             floor_path=floor_dest,
             wall_path=wall_dest,
             grass_path=grass_dest,
+            rock_path=rock_dest,
             seed=123,
         )
 
         assert results["floor_tile"] == floor_dest
         assert results["wall_tile"] == wall_dest
         assert results["grass_natural"] == grass_dest
+        assert results["rock_cluster"] == rock_dest
 
-        for path in [floor_dest, wall_dest, grass_dest]:
+        for path in [floor_dest, wall_dest, grass_dest, rock_dest]:
             assert os.path.exists(path)
             assert os.path.getsize(path) > 200
             loaded = pygame.image.load(path)
@@ -139,3 +172,8 @@ def test_procedural_generation_seed_reproducibility():
     bytes1 = pygame.image.tobytes(surf1, "RGBA")
     bytes2 = pygame.image.tobytes(surf2, "RGBA")
     assert bytes1 == bytes2
+
+    rock1 = generate_assets.generate_rock_cluster(40, 40, rng=random.Random(9876))
+    rock2 = generate_assets.generate_rock_cluster(40, 40, rng=random.Random(9876))
+
+    assert pygame.image.tobytes(rock1, "RGBA") == pygame.image.tobytes(rock2, "RGBA")
