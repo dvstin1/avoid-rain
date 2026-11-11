@@ -1,5 +1,5 @@
 """Unit tests for the Grass Floor Tile data-driven decoration logic."""
-# pylint: disable=no-member
+# pylint: disable=no-member,protected-access
 import pygame
 from engine.world import World
 from engine.game_state import GameState
@@ -85,3 +85,41 @@ def test_grass_tile_rendering(monkeypatch):
 
     # Run rendering step - should complete without crash
     renderer.render(state)
+
+
+def test_connected_floor_blending_and_multi_tile_patterns(monkeypatch):
+    """Verify connected floor tiles blend without 1x1 borders and form varied multi-tile patterns."""
+    state = GameState(auto_load=False)
+    prototype = ["." * 16 for _ in range(16)]
+    state.world.name = "pastoral_valley"
+    state.world.load_from_prototype(prototype)
+
+    monkeypatch.setattr(pygame.font, 'SysFont', lambda *a, **k: None)
+    screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+    chunk_surf, _ = renderer._get_world_chunk(state, 0, 0, 16, 16)
+
+    # 1. Verify different 1x1 tiles inside the same stratum do NOT repeat an identical 40x40 image
+    stratum_buckets = {0: set(), 1: set(), 2: set()}
+    for ty in range(0, 16):
+        for tx in range(0, 16):
+            s_val = renderer._get_tile_stratum(state, tx, ty)
+            sub = chunk_surf.subsurface((tx * 40, ty * 40, 40, 40))
+            stratum_buckets[s_val].add(pygame.image.tostring(sub, "RGB"))
+    assert max(len(v) for v in stratum_buckets.values()) >= 8
+
+    # 2. Verify an interior tile completely surrounded by the same stratum has no mortar border at (0, 20)
+    found_interior = False
+    for ty in range(2, 14):
+        for tx in range(2, 14):
+            s_here = renderer._get_tile_stratum(state, tx, ty)
+            if all(
+                renderer._get_tile_stratum(state, tx + dx, ty + dy) == s_here
+                for dx in (-1, 0, 1)
+                for dy in (-1, 0, 1)
+            ):
+                found_interior = True
+                edge_col = chunk_surf.get_at((tx * 40, ty * 40 + 20))[:3]
+                assert edge_col not in ((16, 8, 24), (156, 118, 68))
+    assert found_interior
+    state.shutdown_save_worker(timeout=1.0)
