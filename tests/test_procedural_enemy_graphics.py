@@ -3,7 +3,7 @@
 import pygame
 import constants
 from rendering.renderer import Renderer
-from engine.enemy import BatEnemy, FlutterEnemy, BindlingEnemy, SmearEnemy, Miniboss
+from engine.enemy import BatEnemy, FlutterEnemy, BindlingEnemy, SmearEnemy, Miniboss, SentryEnemy
 from engine.actor import Actor, ActorState
 from engine.player import Player, PlayerStateEnum
 from engine.maps import create_world
@@ -157,16 +157,50 @@ def test_biome_tile_generation_and_new_maps(monkeypatch):
         assert biome in renderer.biome_tiles
         pack = renderer.biome_tiles[biome]
         assert len(pack["floors"]) == 4
+        assert len(pack["strata_floors"]) == 3
+        # Verify the 3 strata have distinct base colors so floors are non-uniform
+        s0_col = pack["strata_floors"][0][0].get_at((1, 1))[:3]
+        s1_col = pack["strata_floors"][1][0].get_at((1, 1))[:3]
+        s2_col = pack["strata_floors"][2][0].get_at((1, 1))[:3]
+        assert len({s0_col, s1_col, s2_col}) == 3
         assert pack["wall_cap"].get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
         assert pack["wall_front"].get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
-        # Verify high-contrast base color is present at pixel (1, 1)
-        assert pack["floors"][0].get_at((1, 1))[:3] == constants.BIOME_PALETTES[biome]["floor_base"]
+        assert s1_col == constants.BIOME_PALETTES[biome]["floor_base"]
 
     for map_name in ("windy_ridge", "swamp_mire", "frozen_peaks", "tech_tower"):
         world = create_world(map_name)
         assert len(world.grid) == 120
         assert len(world.grid[0]) == 120
-        assert len(world.enemies) >= 8
+        assert len(world.enemies) >= 12
+        assert any(isinstance(e, SentryEnemy) for e in world.enemies)
         respites = [obj for obj in world.interactables if "Respite" in obj.name]
         assert len(respites) == 1 and respites[0].gated_by_miniboss_id is not None
+
+
+def test_sentry_enemy_behavior_and_graphics(monkeypatch):
+    """Verify SentryEnemy artillery spacing, beam hitbox, and procedural rendering."""
+    recorded = []
+    renderer = _create_headless_renderer(monkeypatch, recorded)
+
+    sentry = SentryEnemy(200, 200)
+    sentry.facing = (1.0, 0.0)
+    hb = sentry.get_attack_hitbox()
+    assert hb[2] == constants.SENTRY_BEAM_RANGE
+    assert hb[3] == constants.SENTRY_BEAM_WIDTH
+
+    draw_rect = pygame.Rect(200, 200, sentry.width, sentry.height)
+    packet = sentry.get_visual_packet()
+    assert renderer.draw_procedural_enemy(sentry, draw_rect, packet, (48, 62, 88)) is True
+    colors = [call[1] for call in recorded]
+    assert constants.COLOR_SENTRY_CHASSIS in colors
+    assert constants.COLOR_SENTRY_RING in colors
+    assert constants.COLOR_SENTRY_EYE in colors
+
+    recorded.clear()
+    sentry.state = ActorState.STRIKE
+    sentry.combat_timer = 0.1
+    renderer.draw_boss_weapon(sentry, 0, 0)
+    beam_colors = [call[1] for call in recorded]
+    assert constants.COLOR_SENTRY_BEAM in beam_colors
+    assert constants.COLOR_WHITE in beam_colors
 

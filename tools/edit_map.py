@@ -279,6 +279,14 @@ MASTER_TOOL_REGISTRY = [
         "desc": "Tiny, skittish ink moth. Runs away on sight."
     },
     {
+        "id": "enemy_sentry",
+        "char": "Y",
+        "name": "Techno-Sentry",
+        "type": "enemy",
+        "size": "36x36 px (~0.9 tile)",
+        "desc": "Hovering artillery droid. Maintains spacing and fires a directional plasma beam."
+    },
+    {
         "id": "enemy_bindling",
         "char": "b",
         "name": "Bindling",

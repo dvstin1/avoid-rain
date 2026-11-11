@@ -290,10 +290,13 @@ class GameState:
         for net_id, e_data in remote_enemies.items():
             if net_id not in local_net_ids:
                 # We need to map Name back to Class.
-                from engine.enemy import SlugEnemy, BatEnemy, NightBoss, MinibossM2, MinibossM3
+                from engine.enemy import (
+                    SlugEnemy, BatEnemy, NightBoss, MinibossM2, MinibossM3, SentryEnemy
+                )
                 mapping = {
                     "Slug": SlugEnemy, "Bat": BatEnemy, "Night Boss": NightBoss,
-                    "Ink-Stained": MinibossM2, "Forgotten Binder": MinibossM3
+                    "Ink-Stained": MinibossM2, "Forgotten Binder": MinibossM3,
+                    "Techno-Sentry": SentryEnemy
                 }
                 cls = mapping.get(e_data.get("name"), SlugEnemy)
                 new_e = cls(e_data["x"], e_data["y"], hp=e_data["hp"])

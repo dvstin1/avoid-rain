@@ -132,6 +132,15 @@ SMEAR_DAMAGE = 10
 SMEAR_DAMAGE_COOLDOWN = 1.2
 SMEAR_PUDDLE_CHANCE = 0.5 # Chance per second to drop a puddle
 
+# Techno-Sentry Anchor/Artillery enemy configuration
+SENTRY_MAX_HP = 45
+SENTRY_SPEED = 70.0
+SENTRY_DETECT_METERS = 9
+SENTRY_DAMAGE = 12
+SENTRY_DAMAGE_COOLDOWN = 1.4
+SENTRY_BEAM_RANGE = 160.0
+SENTRY_BEAM_WIDTH = 24.0
+
 # Edification Leveling Constants
 EDIFICATION_BASE_COST = 10
 EDIFICATION_COST_SCALE = 5
@@ -256,6 +265,7 @@ TILE_KEY = {
     'l': TILE_LIGHT, # Iron Candelabra
     'N': 107, # NightBoss Spawn
     '!': 108, # FinalAuthor Spawn
+    'Y': 109, # SentryEnemy Spawn
     '1': TILE_PATROL, # Patrol Marker 1
     '2': TILE_PATROL, # Patrol Marker 2
     '3': TILE_PATROL, # Patrol Marker 3
@@ -296,6 +306,11 @@ COLOR_BOSS_ARMOR = (75, 63, 53)
 COLOR_BOSS_PAULDRON = (60, 47, 37)
 COLOR_BOSS_VISOR = (44, 33, 32)
 COLOR_BOSS_EYE = (255, 100, 100)
+COLOR_SENTRY_CHASSIS = (48, 62, 88)
+COLOR_SENTRY_FIN = (135, 170, 210)
+COLOR_SENTRY_RING = (255, 65, 190)
+COLOR_SENTRY_EYE = (0, 245, 255)
+COLOR_SENTRY_BEAM = (0, 235, 255)
 
 # Procedural Player (Scholar) & Weapon Colors
 COLOR_PLAYER_CLOAK = (30, 50, 95)
@@ -319,6 +334,11 @@ BIOME_PALETTES = {
         "floor_alt": (34, 122, 74),
         "floor_accent": (110, 215, 130),
         "floor_speck": (235, 210, 110),
+        "strata": [
+            ((18, 76, 52), (28, 98, 66)),    # Stratum 0: Deep Viridian Clover Basin
+            ((26, 98, 60), (42, 132, 78)),   # Stratum 1: Sunlit Emerald Meadow
+            ((148, 122, 76), (175, 148, 96)) # Stratum 2: Ancient Limestone Cobble Trail
+        ],
         "wall_top": (75, 105, 138),
         "wall_hi": (150, 215, 240),
         "wall_face": (46, 64, 92),
@@ -330,6 +350,11 @@ BIOME_PALETTES = {
         "floor_alt": (58, 32, 88),
         "floor_accent": (55, 185, 105),
         "floor_speck": (225, 70, 190),
+        "strata": [
+            ((24, 36, 78), (38, 68, 118)),   # Stratum 0: Bioluminescent Bog Shallows
+            ((44, 24, 68), (64, 36, 96)),    # Stratum 1: Murky Violet Spore-Peat
+            ((86, 62, 46), (112, 82, 58))    # Stratum 2: Raised Cypress Causeway Planks
+        ],
         "wall_top": (82, 46, 112),
         "wall_hi": (195, 95, 225),
         "wall_face": (52, 28, 76),
@@ -341,6 +366,11 @@ BIOME_PALETTES = {
         "floor_alt": (88, 152, 208),
         "floor_accent": (180, 238, 255),
         "floor_speck": (240, 250, 255),
+        "strata": [
+            ((38, 86, 148), (58, 116, 182)), # Stratum 0: Deep Mirror-Glacier Ice
+            ((68, 128, 182), (96, 162, 216)),# Stratum 1: Rime-Frosted Mountain Slate
+            ((185, 225, 248), (220, 242, 255))# Stratum 2: Fresh Powder Snowdrifts
+        ],
         "wall_top": (125, 188, 235),
         "wall_hi": (235, 250, 255),
         "wall_face": (68, 115, 168),
@@ -352,6 +382,11 @@ BIOME_PALETTES = {
         "floor_alt": (40, 54, 82),
         "floor_accent": (0, 230, 255),
         "floor_speck": (255, 65, 185),
+        "strata": [
+            ((14, 20, 36), (0, 145, 185)),   # Stratum 0: Recessed Reactor Trench Grating
+            ((30, 40, 62), (46, 62, 92)),    # Stratum 1: Brushed Titanium Deck Plating
+            ((58, 70, 102), (82, 98, 138))   # Stratum 2: Illuminated Data-Bus Walkway
+        ],
         "wall_top": (64, 82, 112),
         "wall_hi": (160, 195, 230),
         "wall_face": (42, 54, 78),
@@ -363,6 +398,11 @@ BIOME_PALETTES = {
         "floor_alt": (60, 45, 32),
         "floor_accent": (135, 105, 68),
         "floor_speck": (215, 175, 95),
+        "strata": [
+            ((38, 28, 20), (52, 38, 28)),
+            ((48, 36, 26), (64, 48, 34)),
+            ((72, 54, 38), (96, 72, 50))
+        ],
         "wall_top": (78, 64, 52),
         "wall_hi": (145, 120, 92),
         "wall_face": (52, 42, 34),

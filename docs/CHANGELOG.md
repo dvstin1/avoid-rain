@@ -583,6 +583,12 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **2.5D Cliff Verticality & Ambient Occlusion (`docs/level_design_concept.md`):** Added autotiled south-facing cliff/bulkhead wall facades (`wall_front`) vs. rooftop caps (`wall_cap`), paired with north/west ambient occlusion drop-shadows cast onto adjacent floor tiles, animated Lotus-Frame energy conduits (`M`), animated bubbling poison/ink bog pools (`v`), and upgraded environmental props (`Structure`, `Rock`, `Heavy Bookcase`, `Ink Urn`).
 - **Four New 120x120 Biome Maps & Two New 40x40 Corridors:** Replaced the `forest`/`ruins` prototype pool in `POOL_MONTHLY_REPORT` and `WorldGenerator` with four macro-shape biome rooms (`maps/windy_ridge.json`, `maps/swamp_mire.json`, `maps/frozen_peaks.json`, `maps/tech_tower.json`) and two new corridors (`maps/gantry_bridge.json`, `maps/mire_causeway.json`), featuring Figure-8 loops, Hourglass choke nodes, Perimeter-and-Core sanctums, safe entrance thresholds, and Typographic Bloom chapter titles.
 
+## [ARCHIVED] Multi-Strata Biome Floors, Environmental Floor Tells & Techno-Sentry Artillery Enemy - November 2026
+- **Multi-Strata Non-Uniform Floor Generation (`_generate_biome_tile_cache`, `_decorate_biome_stratum_tile`, `_get_tile_stratum`):** Replaced uniform floor grids with a 3-strata elevation/terrain system per biome (Lowland/Basin/Reactor Trench Grating, Mid-Ground Turf/Deck, and Raised Cobble Path/Timber Boardwalk/Snowdrift/Data-Bus Walkway) driven by a coherent 2D spatial wave field and tile types (`g`/`G`), complete with 2px beveled elevation rims where strata transition.
+- **Animated Biome Floor Micro-Effects (`_draw_biome_floor_fx`):** Added live procedural environmental tells to each biome floor: swaying wind-swept grass ribbons on `windy_ridge`, expanding bioluminescent bubble rings in `swamp_mire`, twinkling crystalline frost crosshairs in `frozen_peaks`, and traveling high-voltage reactor pulses in `tech_tower`.
+- **Techno-Sentry Enemy (`SentryEnemy`, Symbol `'Y'`):** Implemented a new Anchor/Artillery defense droid (`engine/enemy.py`, `constants.py`, `tools/edit_map.py`, `engine/game_state.py`) that maintains optimal firing spacing, strafes targets, and fires a parryable long-range directional plasma beam (`get_attack_hitbox`, `draw_procedural_enemy`, `draw_boss_weapon`), stationed across tactical choke points and hazard basins in the biome maps.
+
+
 
 
 

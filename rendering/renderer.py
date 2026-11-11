@@ -124,7 +124,7 @@ class Renderer:
         self._generate_biome_tile_cache()
 
     def _generate_biome_tile_cache(self):
-        """Procedurally generate high-contrast 8-bit/16-bit style wall and floor tiles per biome."""
+        """Procedurally generate multi-strata 8-bit/16-bit style wall and floor tiles per biome."""
         ts = constants.TILE_SIZE
         shadow_n = pygame.Surface((ts, 8), pygame.SRCALPHA)
         shadow_n.fill((0, 0, 0, 95), (0, 0, ts, 4))
@@ -134,39 +134,25 @@ class Renderer:
         shadow_w.fill((0, 0, 0, 35), (3, 0, 3, ts))
 
         for biome, pal in constants.BIOME_PALETTES.items():
-            floors = []
-            for v in range(4):
-                fl = pygame.Surface((ts, ts))
-                fl.fill(pal["floor_base"])
-                # Sub-tile beveled flagstones / deck plates / turf patches
-                ox1 = (v * 9) % 16
-                oy1 = (v * 11) % 16
-                fl.fill(pal["floor_alt"], (2 + ox1, 2 + oy1, 18, 14))
-                fl.fill(pal["floor_alt"], (18 - ox1 // 2, 20, 18, 16))
-                fl.fill(pal["wall_mortar"], (0, 0, ts, 1))
-                fl.fill(pal["wall_mortar"], (0, 0, 1, ts))
-                # Biome-specific procedural micro-details
-                if biome == "tech_tower":
-                    fl.fill(pal["wall_face"], (4, 4, ts - 8, 2))
-                    fl.fill(pal["wall_face"], (4, ts - 6, ts - 8, 2))
-                    fl.fill(pal["floor_accent"], (6 + v * 6, 6, 4, 2))
-                    if v % 2 == 0:
-                        fl.fill(pal["floor_speck"], (ts - 10, ts - 10, 3, 3))
-                elif biome == "frozen_peaks":
-                    fl.fill(pal["floor_accent"], (6 + v * 5, 8 + v * 3, 10, 2))
-                    fl.fill(pal["floor_accent"], (8 + v * 5, 6 + v * 3, 2, 8))
-                    fl.fill(pal["floor_speck"], (26 - v * 4, 28, 6, 3))
-                elif biome == "swamp_mire":
-                    fl.fill(pal["floor_accent"], (4 + v * 5, 10 + v * 4, 8, 5))
-                    fl.fill(pal["floor_accent"], (22 - v * 3, 26, 10, 4))
-                    fl.fill(pal["floor_speck"], (14 + v * 4, 8 + v * 5, 3, 3))
-                else:
-                    # Windy ridge & Sanctuary: crisp grass blades / inlaid mosaic specks
-                    fl.fill(pal["floor_accent"], (6 + v * 6, 8 + v * 3, 2, 5))
-                    fl.fill(pal["floor_accent"], (9 + v * 6, 6 + v * 3, 2, 6))
-                    fl.fill(pal["floor_accent"], (24 - v * 4, 24 + v * 2, 2, 5))
-                    fl.fill(pal["floor_speck"], (16 + v * 4, 18 - v * 2, 3, 3))
-                floors.append(fl)
+            strata_defs = pal.get(
+                "strata",
+                [(pal["floor_base"], pal["floor_alt"])] * 3
+            )
+            strata_floors = []
+            for s_idx, (s_base, s_alt) in enumerate(strata_defs):
+                tier_variants = []
+                for v in range(4):
+                    fl = pygame.Surface((ts, ts))
+                    fl.fill(s_base)
+                    ox1 = (v * 9 + s_idx * 5) % 16
+                    oy1 = (v * 11 + s_idx * 7) % 16
+                    fl.fill(s_alt, (2 + ox1, 2 + oy1, 18, 14))
+                    fl.fill(s_alt, (18 - ox1 // 2, 20, 18, 16))
+                    fl.fill(pal["wall_mortar"], (0, 0, ts, 1))
+                    fl.fill(pal["wall_mortar"], (0, 0, 1, ts))
+                    self._decorate_biome_stratum_tile(fl, (biome, pal), (s_idx, v))
+                    tier_variants.append(fl)
+                strata_floors.append(tier_variants)
 
             # 1. Wall Cap (Interior / North-connected wall rooftop)
             w_cap = pygame.Surface((ts, ts))
@@ -181,11 +167,9 @@ class Renderer:
             # 2. Wall Front (2.5D South-facing cliff / bulkhead face for verticality)
             w_front = pygame.Surface((ts, ts))
             w_front.fill(pal["wall_mortar"])
-            # Upper roof lip (0..18)
             w_front.fill(pal["wall_top"], (2, 2, ts - 4, 15))
             w_front.fill(pal["wall_hi"], (2, 2, ts - 4, 3))
             w_front.fill(pal["wall_hi"], (4, 15, ts - 8, 2))
-            # Lower vertical cliff / bulkhead facade (18..40)
             w_front.fill(pal["wall_face"], (2, 19, ts - 4, 19))
             for bx in (8, 19, 30):
                 w_front.fill(pal["wall_mortar"], (bx, 19, 2, 19))
@@ -194,7 +178,8 @@ class Renderer:
             w_front.fill(pal["wall_mortar"], (0, ts - 3, ts, 3))
 
             self.biome_tiles[biome] = {
-                "floors": floors,
+                "floors": strata_floors[1],
+                "strata_floors": strata_floors,
                 "wall_cap": w_cap,
                 "wall_front": w_front,
                 "shadow_n": shadow_n,
@@ -204,6 +189,72 @@ class Renderer:
         # Populate default cache keys with windy_ridge procedural surfaces
         self.image_cache["brown_wall.png"] = self.biome_tiles["windy_ridge"]["wall_front"]
         self.image_cache["tile_floor.png"] = self.biome_tiles["windy_ridge"]["floors"][0]
+
+    def _decorate_biome_stratum_tile(self, fl, biome_info, variant_info):
+        """Stamp biome- and elevation-specific procedural details onto a cached floor surface."""
+        biome, pal = biome_info
+        s_idx, v = variant_info
+        ts = constants.TILE_SIZE
+        if biome == "tech_tower":
+            if s_idx == 0:
+                # Sub-floor reactor trench grating with glowing cyan/magenta conduit bars
+                for gy in range(6, ts - 4, 7):
+                    fl.fill(pal["wall_mortar"], (4, gy, ts - 8, 4))
+                fl.fill(pal["wall_glow"], (8 + v * 5, 7, 6, ts - 14))
+            elif s_idx == 2:
+                # Raised high-voltage data-bus walkway with gold/magenta traces
+                fl.fill(pal["wall_hi"], (0, 2, ts, 2))
+                fl.fill(pal["floor_accent"], (4, ts // 2 - 1, ts - 8, 2))
+                fl.fill(pal["floor_speck"], (8 + v * 6, ts // 2 - 2, 4, 4))
+            else:
+                fl.fill(pal["wall_face"], (4, 4, ts - 8, 2))
+                fl.fill(pal["wall_face"], (4, ts - 6, ts - 8, 2))
+                fl.fill(pal["floor_accent"], (6 + v * 6, 6, 4, 2))
+        elif biome == "frozen_peaks":
+            if s_idx == 0:
+                # Deep mirror-ice basin with dark fracture crevices
+                fl.fill(pal["wall_mortar"], (6 + v * 3, 10, 22, 2))
+                fl.fill(pal["wall_mortar"], (14, 10, 2, 18))
+                fl.fill(pal["floor_speck"], (8 + v * 4, 8, 8, 3))
+            elif s_idx == 2:
+                # Wind-sculpted snowdrift ridge
+                fl.fill(pal["floor_speck"], (4, 6 + v * 3, ts - 8, 6))
+                fl.fill(pal["wall_hi"], (8, 16 + v * 2, ts - 16, 4))
+            else:
+                fl.fill(pal["floor_accent"], (6 + v * 5, 8 + v * 3, 10, 2))
+                fl.fill(pal["floor_accent"], (8 + v * 5, 6 + v * 3, 2, 8))
+                fl.fill(pal["floor_speck"], (26 - v * 4, 28, 6, 3))
+        elif biome == "swamp_mire":
+            if s_idx == 0:
+                # Sunken mire pool with bioluminescent water rings
+                fl.fill(pal["wall_mortar"], (4, 6, ts - 8, ts - 12))
+                fl.fill(pal["floor_accent"], (8 + v * 2, 10 + v * 2, ts - 18, 2))
+                fl.fill(pal["floor_speck"], (14 + v * 4, 18, 4, 4))
+            elif s_idx == 2:
+                # Raised timber boardwalk / peat causeway planks
+                for py in (5, 15, 25):
+                    fl.fill(pal["wall_top"], (3, py, ts - 6, 7))
+                    fl.fill(pal["wall_hi"], (3, py, ts - 6, 2))
+            else:
+                fl.fill(pal["floor_accent"], (4 + v * 5, 10 + v * 4, 8, 5))
+                fl.fill(pal["floor_accent"], (22 - v * 3, 26, 10, 4))
+                fl.fill(pal["floor_speck"], (14 + v * 4, 8 + v * 5, 3, 3))
+        else:
+            if s_idx == 0:
+                # Sunken mossy clover basin
+                fl.fill(pal["floor_accent"], (6 + v * 4, 8, 8, 8))
+                fl.fill(pal["floor_accent"], (20 - v * 3, 22, 10, 8))
+                fl.fill(pal["floor_speck"], (10 + v * 5, 12, 3, 3))
+            elif s_idx == 2:
+                # Raised sunlit cobble ridge trail
+                fl.fill(pal["wall_top"], (5 + v * 2, 5, 13, 11))
+                fl.fill(pal["wall_top"], (21 - v * 2, 20, 14, 12))
+                fl.fill(pal["wall_hi"], (6 + v * 2, 6, 11, 2))
+            else:
+                fl.fill(pal["floor_accent"], (6 + v * 6, 8 + v * 3, 2, 5))
+                fl.fill(pal["floor_accent"], (9 + v * 6, 6 + v * 3, 2, 6))
+                fl.fill(pal["floor_accent"], (24 - v * 4, 24 + v * 2, 2, 5))
+                fl.fill(pal["floor_speck"], (16 + v * 4, 18 - v * 2, 3, 3))
 
     def _resolve_tile_biome(self, state, tx, ty):
         """Determine the biome key for tile coordinates (tx, ty)."""
@@ -478,12 +529,62 @@ class Renderer:
 
         self.screen.blit(overlay, (0, 0))
 
+    def _get_tile_stratum(self, state, x, y):
+        """Compute coherent multi-tile terrain stratum (0=Lowland/Sub-floor, 1=Mid, 2=Highland/Path)."""
+        tile = state.world.grid[y][x]
+        if tile == constants.TILE_THICKET:
+            return 0
+        if tile == constants.TILE_GRASS:
+            return 2
+        wave = (
+            math.sin(x * 0.29 + y * 0.21)
+            + math.cos(x * 0.17 - y * 0.33)
+            + 0.5 * math.sin((x + y) * 0.11)
+        )
+        if wave < -0.65:
+            return 0
+        if wave > 0.65:
+            return 2
+        return 1
+
+    def _draw_biome_floor_fx(self, biome_info, coords, dr, s_idx):
+        """Render animated environmental floor tells and atmospheric micro-effects per biome."""
+        biome, pal = biome_info
+        x, y, _, _ = coords
+        if (x * 19 + y * 31) % 6 != 0:
+            return
+        sx, sy = int(dr[0]), int(dr[1])
+        now = time.time()
+
+        if biome == "windy_ridge":
+            # Swaying wind-swept grass ribbons & gust trails across the ridge
+            sway = int(math.sin(now * 3.8 + x * 0.45 + y * 0.25) * 6)
+            pygame.draw.line(self.screen, pal["floor_accent"], (sx + 10, sy + 26), (sx + 14 + sway, sy + 14), 2)
+            pygame.draw.line(self.screen, pal["floor_speck"], (sx + 22, sy + 28), (sx + 26 + sway, sy + 17), 1)
+        elif biome == "swamp_mire":
+            # Bioluminescent mire bubble rings and rising spore motes
+            rad = 3 + int(((math.sin(now * 3.2 + x * 0.7 + y * 0.5) + 1.0) * 0.5) * 6)
+            col = pal["floor_speck"] if s_idx == 0 else pal["floor_accent"]
+            pygame.draw.circle(self.screen, col, (sx + 20, sy + 20), rad, 1)
+        elif biome == "frozen_peaks":
+            # Sparkling crystalline frost glints across ice and snowdrifts
+            glint = int((math.sin(now * 4.5 + x * 1.1 + y * 0.9) + 1.0) * 2.5) + 2
+            cx, cy = sx + 18, sy + 18
+            pygame.draw.line(self.screen, pal["floor_speck"], (cx - glint, cy), (cx + glint, cy), 1)
+            pygame.draw.line(self.screen, pal["floor_speck"], (cx, cy - glint), (cx, cy + glint), 1)
+        elif biome == "tech_tower":
+            # Traveling high-voltage data/reactor pulses along sub-floor grates and bus lines
+            pulse_x = sx + 6 + int(((now * 28.0 + x * 7 + y * 5) % 24))
+            col = pal["wall_glow"] if s_idx == 0 else pal["floor_speck"]
+            pygame.draw.line(self.screen, col, (pulse_x, sy + 20), (pulse_x + 5, sy + 20), 2)
+
     def _draw_world_tile(self, state, coords, dr):
-        """Render a single world tile with biome procedural textures and 2.5D verticality."""
+        """Render a single world tile with multi-strata biome textures, elevation rims, and live tells."""
         x, y, w, h = coords
         tile = state.world.grid[y][x]
         biome = self._resolve_tile_biome(state, x, y)
         b_pack = getattr(self, "biome_tiles", {}).get(biome) or getattr(self, "biome_tiles", {}).get("windy_ridge")
+        pal = constants.BIOME_PALETTES.get(biome, constants.BIOME_PALETTES["windy_ridge"])
 
         if tile == constants.TILE_WALL:
             if b_pack:
@@ -495,15 +596,36 @@ class Renderer:
                 pygame.draw.rect(self.screen, constants.COLOR_WALL, dr)
             return
 
-        # Floor base (deterministic spatial variant)
+        # Coherent multi-strata floor selection to break up grid uniformity
+        s_idx = self._get_tile_stratum(state, x, y)
         if b_pack:
-            v_idx = (x * 7 + y * 13) % len(b_pack["floors"])
-            self.screen.blit(b_pack["floors"][v_idx], (dr[0], dr[1]))
+            strata_list = b_pack.get("strata_floors")
+            tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
+            v_idx = (x * 7 + y * 13) % len(tier_floors)
+            self.screen.blit(tier_floors[v_idx], (dr[0], dr[1]))
+
+            # Draw beveled elevation step rims where adjacent floor strata transition
+            sx, sy, tw, th = int(dr[0]), int(dr[1]), int(dr[2]), int(dr[3])
+            if y > 0 and state.world.grid[y - 1][x] != constants.TILE_WALL:
+                n_stratum = self._get_tile_stratum(state, x, y - 1)
+                if s_idx > n_stratum:
+                    pygame.draw.line(self.screen, pal["wall_hi"], (sx, sy + 1), (sx + tw - 1, sy + 1), 2)
+                elif s_idx < n_stratum:
+                    pygame.draw.line(self.screen, pal["wall_mortar"], (sx, sy + 1), (sx + tw - 1, sy + 1), 2)
+            if x > 0 and state.world.grid[y][x - 1] != constants.TILE_WALL:
+                w_stratum = self._get_tile_stratum(state, x - 1, y)
+                if s_idx > w_stratum:
+                    pygame.draw.line(self.screen, pal["wall_hi"], (sx + 1, sy), (sx + 1, sy + th - 1), 2)
+                elif s_idx < w_stratum:
+                    pygame.draw.line(self.screen, pal["wall_mortar"], (sx + 1, sy), (sx + 1, sy + th - 1), 2)
+
             # Cast ambient occlusion drop-shadows from adjacent north/west walls
             if y > 0 and state.world.grid[y - 1][x] == constants.TILE_WALL:
                 self.screen.blit(b_pack["shadow_n"], (dr[0], dr[1]))
             if x > 0 and state.world.grid[y][x - 1] == constants.TILE_WALL:
                 self.screen.blit(b_pack["shadow_w"], (dr[0], dr[1]))
+
+            self._draw_biome_floor_fx((biome, pal), coords, dr, s_idx)
         else:
             pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
 
@@ -944,6 +1066,26 @@ class Renderer:
             pygame.draw.circle(self.screen, constants.COLOR_SMEAR_CORE, (eye_x, eye_y), max(2, w // 8))
             return True
 
+        if "sentry" in actor_tag:
+            chassis_col = state_color if is_telegraph else constants.COLOR_SENTRY_CHASSIS
+            fin_col = state_color if is_telegraph else constants.COLOR_SENTRY_FIN
+            # Rotating diagonal stabilizer fins around hovering droid core
+            for i in range(4):
+                ang = anim_t * 3.0 + i * (math.pi / 2.0) + (math.pi / 4.0)
+                fx_end = cx + int(math.cos(ang) * (w * 0.48))
+                fy_end = cy + int(math.sin(ang) * (h * 0.48))
+                pygame.draw.line(self.screen, fin_col, (cx, cy), (fx_end, fy_end), 3)
+                pygame.draw.circle(self.screen, fin_col, (fx_end, fy_end), 3)
+            # Armored octagonal/beveled core and pulsing magenta energy ring
+            core_rect = pygame.Rect(draw_rect.x + 4, draw_rect.y + 4, max(8, w - 8), max(8, h - 8))
+            pygame.draw.rect(self.screen, chassis_col, core_rect, border_radius=8)
+            pygame.draw.circle(self.screen, constants.COLOR_SENTRY_RING, (cx, cy), max(5, w // 3), 2)
+            # Directional cyan plasma emitter lens
+            eye_x = cx + int(fx * (w * 0.18))
+            eye_y = cy + int(fy * (h * 0.18))
+            pygame.draw.circle(self.screen, constants.COLOR_SENTRY_EYE, (eye_x, eye_y), 4)
+            return True
+
         if any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
             armor_col = state_color if is_telegraph else constants.COLOR_BOSS_ARMOR
             pauldron_col = state_color if is_telegraph else constants.COLOR_BOSS_PAULDRON
@@ -1136,6 +1278,26 @@ class Renderer:
 
         attack_type = getattr(actor, 'attack_type', 'THRUST')
         base_angle = math.atan2(fy, fx)
+
+        if attack_type == "BEAM" or "sentry" in actor.name.lower():
+            beam_len = getattr(actor, "beam_range", 160.0)
+            sx, sy = int(cx + fx * 14.0), int(cy + fy * 14.0)
+            ex, ey = int(cx + fx * (14.0 + beam_len)), int(cy + fy * (14.0 + beam_len))
+            if actor.state == ActorState.WIND_UP:
+                # Target-lock laser sightline and charging aperture orb
+                pygame.draw.line(self.screen, constants.COLOR_SENTRY_RING, (sx, sy), (ex, ey), 1)
+                charge_r = int(2 + t * 5)
+                pygame.draw.circle(self.screen, constants.COLOR_SENTRY_EYE, (sx, sy), charge_r)
+            elif actor.state == ActorState.STRIKE:
+                # High-contrast plasma beam with white core and discharge nodes
+                pygame.draw.line(self.screen, constants.COLOR_SENTRY_BEAM, (sx, sy), (ex, ey), 8)
+                pygame.draw.line(self.screen, constants.COLOR_WHITE, (sx, sy), (ex, ey), 3)
+                pygame.draw.circle(self.screen, constants.COLOR_WHITE, (sx, sy), 6)
+                pygame.draw.circle(self.screen, constants.COLOR_SENTRY_BEAM, (ex, ey), 7)
+            else:
+                # Cooling plasma vent glow
+                pygame.draw.circle(self.screen, constants.COLOR_SENTRY_RING, (sx, sy), max(2, int((1.0 - t) * 4)))
+            return
 
         if attack_type == "THRUST":
             if actor.state == ActorState.WIND_UP:

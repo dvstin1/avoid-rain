@@ -473,6 +473,92 @@ class SmearEnemy(Enemy):
             state.enemies.append(s1)
             state.enemies.append(s2)
 
+class SentryEnemy(Enemy):
+    """Anchor/Artillery defense droid that maintains spacing and fires a directional plasma beam."""
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import (
+            SENTRY_MAX_HP, SENTRY_SPEED, SENTRY_DETECT_METERS,
+            SENTRY_DAMAGE, SENTRY_DAMAGE_COOLDOWN, SENTRY_BEAM_RANGE, SENTRY_BEAM_WIDTH
+        )
+        initial_hp = hp if hp is not None else SENTRY_MAX_HP
+        super().__init__(x, y, 36, 36, initial_hp, id=id, name="Techno-Sentry")
+        self.speed = SENTRY_SPEED
+        self.detect_radius = SENTRY_DETECT_METERS * TILE_SIZE
+        self.damage = SENTRY_DAMAGE
+        self.attack_cooldown = SENTRY_DAMAGE_COOLDOWN
+        self.beam_range = SENTRY_BEAM_RANGE
+        self.beam_width = SENTRY_BEAM_WIDTH
+        self.attack_type = "BEAM"
+        self.is_parryable = True
+
+        self.wind_up_duration = 0.65
+        self.strike_duration = 0.25
+        self.recovery_duration = 0.6
+        self._orbit_dir = 1.0 if (int(x + y) % 2 == 0) else -1.0
+
+    def get_visual_packet(self):
+        packet = super().get_visual_packet()
+        packet["color_hint"] = (48, 62, 88)
+        return packet
+
+    def get_attack_hitbox(self):
+        """Calculate long-range directional plasma beam hitbox."""
+        cx = self.x + self.width / 2
+        cy = self.y + self.height / 2
+        fx, fy = self.facing
+        base_offset = max(self.width, self.height) / 2 + 4.0
+
+        if abs(fx) >= abs(fy):
+            w, h = self.beam_range, self.beam_width
+            x = cx + base_offset if fx >= 0 else cx - base_offset - w
+            y = cy - h / 2
+        else:
+            w, h = self.beam_width, self.beam_range
+            x = cx - w / 2
+            y = cy + base_offset if fy >= 0 else cy - base_offset - h
+        return (x, y, w, h)
+
+    def _update_chase(self, dt, state):
+        """Maintain artillery spacing, orbit target, and fire beam when within range."""
+        if not self.active_target:
+            self.state = ActorState.IDLE
+            return
+
+        target_cx, target_cy = self.active_target
+        cx, cy = self.get_center()
+        dx, dy = target_cx - cx, target_cy - cy
+        dist = math.sqrt(dx * dx + dy * dy)
+
+        if dist <= self.beam_range and self.cooldown_timer <= 0:
+            self.state = ActorState.WIND_UP
+            self.combat_timer = self.wind_up_duration
+            self.vx, self.vy = 0.0, 0.0
+            self.has_hit_this_attack = False
+            if dist > 0.1:
+                self.facing = (dx / dist, dy / dist)
+            if hasattr(state, "audio_manager") and state.audio_manager:
+                state.audio_manager.play_sfx("enemy_telegraph.ogg")
+            return
+
+        if dist > 0.1:
+            ux, uy = dx / dist, dy / dist
+            px, py = -uy * self._orbit_dir, ux * self._orbit_dir
+            if dist < 110.0:
+                self.vx = (-ux * 0.75 + px * 0.65) * self.speed
+                self.vy = (-uy * 0.75 + py * 0.65) * self.speed
+            elif dist > self.beam_range * 0.9:
+                self.vx = (ux * 0.8 + px * 0.4) * self.speed
+                self.vy = (uy * 0.8 + py * 0.4) * self.speed
+            else:
+                self.vx = px * self.speed * 0.8
+                self.vy = py * self.speed * 0.8
+
+            self.x += self.vx * dt
+            self.y += self.vy * dt
+            walls = state.world.get_nearby_walls(self.get_rect())
+            self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+            self.facing = (ux, uy)
+
 class NightBoss(Miniboss):
     """Dual-encounter boss."""
     def __init__(self, x, y, hp=None, id=None):
@@ -501,11 +587,12 @@ class FinalAuthor(Boss):
 ENEMY_REGISTRY = {
     "SlugEnemy": SlugEnemy, "BatEnemy": BatEnemy, "FlutterEnemy": FlutterEnemy,
     "BindlingEnemy": BindlingEnemy, "Miniboss": Miniboss, "MinibossM2": MinibossM2,
-    "MinibossM3": MinibossM3, "SmearEnemy": SmearEnemy, "NightBoss": NightBoss,
-    "FinalAuthor": FinalAuthor
+    "MinibossM3": MinibossM3, "SmearEnemy": SmearEnemy, "SentryEnemy": SentryEnemy,
+    "NightBoss": NightBoss, "FinalAuthor": FinalAuthor
 }
 
 SYMBOL_REGISTRY = {
     'Z': SlugEnemy, 'A': BatEnemy, 'f': FlutterEnemy, 'b': BindlingEnemy,
-    'E': Miniboss, '2': MinibossM2, '3': MinibossM3, 's': SmearEnemy, '!': FinalAuthor
+    'E': Miniboss, '2': MinibossM2, '3': MinibossM3, 's': SmearEnemy,
+    'Y': SentryEnemy, '!': FinalAuthor
 }
