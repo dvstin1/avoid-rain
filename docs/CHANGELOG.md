@@ -607,11 +607,9 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Title Menu & Hydration Enforcement (`main.py`, `engine/game_state.py`, `rendering/renderer.py`):** Updated `TitleMenu` initialization and `New Draft` confirmation in `main.py` to check `StatisticsTracker.has_compatible_save()`, hiding `Continue` (leaving `New Draft` as the starting option) when an older save revision is present, guarding `GameState.hydrate_from_disk()`, displaying the engine revision on the title screen, and stamping `ENGINE_REVISION` once a new draft is started.
 - **Unit Test Coverage (`tests/test_engine_revision.py`):** Added unit tests covering fresh tracker revision stamping, legacy/outdated save detection, `TitleMenu` option filtering, and `GameState` revision promotion on starting a new game.
 
-
-
-
-
-
-
-
+## [ARCHIVED] Chunk-Cached Tilemap Rendering, Spatial Hash Collisions & Pause Menu Debug Text Toggle - November 2026
+- **Chunk-Cached World Tilemap & Smooth Panning (`Renderer._get_world_chunk`, `Renderer._draw_static_tile_to_surface` in `rendering/renderer.py`):** Replaced per-frame 627-tile loops (`1,881` trig stratum evaluations and per-tile bevel draws) with lazy `16x16`-tile (`640x640`px) static world chunk surfaces, integer-snapped camera offsets, and smooth wave-based floor strata across `g`/`G` tiles so grass/thicket areas pan with zero 1x1 bevel shimmer and ~6 chunk blits per frame.
+- **Viewport Culling, Prop Surface Caching & Weather/Minimap Surface Reuse (`rendering/renderer.py`):** Added camera viewport culling for all `2,046` world interactables, `281` enemies, loot, and debris; pre-baked static `pygame.Surface` sprites (`self.prop_cache`) for trees (`Structure`), tar pools (`Inkwell Puddle`), rocks, bookcases, ink urns, and candelabra glow; cached the static minimap wall layer (`_minimap_walls_surf`); and reused HUD/weather overlay surfaces while skipping full-screen weather blits when no rain particles or barrier arcs intersect the viewport.
+- **Spatial Hash Indexing & Idle Network Serialization Guard (`engine/world.py`, `engine/game_state.py`, `engine/network_manager.py`):** Added `160x160`px spatial hash buckets to `World` for O(1) wall, interactable, and hazard puddle queries (eliminating ~570,000 `interactables` iterations per frame during enemy movement) and skipped 20Hz UDP state serialization in `NetworkManager` when no peers are connected.
+- **Pause Menu Debug Text Toggle & Save Persistence (`engine/pause_menu.py`, `engine/stats.py`, `engine/game_state.py`, `main.py`, `rendering/renderer.py`, `tests/test_pause_menu.py`):** Added a `Debug Text: OFF/ON` toggle to the Pause Menu (off by default and persisted via `debug_text_enabled` in `save_data.json`), gating in-game and title-screen audio debug announcements (`[ AUDIO_OSD ]`, `SFX:`, `[DEBUG_AUDIO: ...]`), HUD input mode tags (`[ Input: ... ]`), and engine revision debug labels unless enabled.
 

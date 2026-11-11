@@ -25,14 +25,32 @@ class PauseMenu(MenuBase):
     paused while the menu is open.
     """
 
-    def __init__(self, pause_handler: Optional[PauseHandler] = None, on_open: Optional[Callable[[], None]] = None) -> None:
-        MenuBase.__init__(self, ["Resume", "Controls", "Quit"])
+    def __init__(
+        self,
+        pause_handler: Optional[PauseHandler] = None,
+        on_open: Optional[Callable[[], None]] = None,
+        debug_text_enabled: bool = False,
+        on_toggle_debug: Optional[Callable[[bool], None]] = None,
+    ) -> None:
+        self.debug_text_enabled = bool(debug_text_enabled)
+        self.on_toggle_debug = on_toggle_debug
+        MenuBase.__init__(self, self._build_options())
         self.pause_handler = pause_handler or PauseHandler()
         self._open = False
         self._quit_requested = False
         self.state = PauseMenuState.MAIN
         # Optional callback invoked when the pause menu is opened (e.g., to auto-save)
         self.on_open = on_open
+
+    def _build_options(self) -> list[str]:
+        """Return pause menu options reflecting current debug text state."""
+        dbg_label = f"Debug Text: {'ON' if self.debug_text_enabled else 'OFF'}"
+        return ["Resume", "Controls", dbg_label, "Quit"]
+
+    def set_debug_text_enabled(self, enabled: bool) -> None:
+        """Synchronize the pause menu's debug text state and option label."""
+        self.debug_text_enabled = bool(enabled)
+        self._options = self._build_options()
 
     def open(self) -> None:
         """Open the pause menu and pause the game."""
@@ -84,12 +102,17 @@ class PauseMenu(MenuBase):
         """Confirm the currently selected option.
 
         If 'Quit' is selected, mark quit requested. If 'Resume', close the menu.
+        If 'Debug Text: ...' is selected, toggle debug text and invoke callback.
         """
         selected = self._options[self._selected]
         if selected == "Quit":
             self.request_quit()
         elif selected == "Resume":
             self.close()
-        else:
-            # Unknown option: ignore
-            pass
+        elif selected.startswith("Debug Text:"):
+            self.set_debug_text_enabled(not self.debug_text_enabled)
+            if self.on_toggle_debug is not None:
+                try:
+                    self.on_toggle_debug(self.debug_text_enabled)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass

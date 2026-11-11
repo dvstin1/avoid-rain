@@ -788,6 +788,53 @@ class World:
         self.module_sockets = []
         self.boss_coords_list = []
         self.grass_decorations = {}
+        self._spatial_sig = None
+        self._solid_buckets = {}
+        self._interactive_buckets = {}
+        self._puddle_buckets = {}
+        self._gated_respites = []
+
+    def _ensure_spatial_index(self):
+        """Build or refresh spatial hash buckets when self.interactables changes."""
+        items = self.interactables
+        sig = (
+            id(items),
+            len(items),
+            id(items[0]) if items else 0,
+            id(items[-1]) if items else 0,
+        )
+        if self._spatial_sig == sig:
+            return
+        self._spatial_sig = sig
+        cell_size = TILE_SIZE * 4  # 160x160 pixel buckets
+        solid_b = {}
+        inter_b = {}
+        puddle_b = {}
+        respites = []
+        for obj in items:
+            if type(obj).__name__ == "Respite" and getattr(obj, "gated_by_miniboss_id", None):
+                respites.append(obj)
+            ox, oy, ow, oh = obj.rect
+            cx0, cy0 = int(ox // cell_size), int(oy // cell_size)
+            cx1, cy1 = int((ox + ow) // cell_size), int((oy + oh) // cell_size)
+            is_solid = getattr(obj, "is_solid", False)
+            is_inter = getattr(obj, "is_interactive", False)
+            is_puddle = getattr(obj, "name", "") == "Inkwell Puddle"
+            if not (is_solid or is_inter or is_puddle):
+                continue
+            for cy in range(cy0, cy1 + 1):
+                for cx in range(cx0, cx1 + 1):
+                    key = (cx, cy)
+                    if is_solid:
+                        solid_b.setdefault(key, []).append(obj)
+                    if is_inter:
+                        inter_b.setdefault(key, []).append(obj)
+                    if is_puddle:
+                        puddle_b.setdefault(key, []).append(obj)
+        self._solid_buckets = solid_b
+        self._interactive_buckets = inter_b
+        self._puddle_buckets = puddle_b
+        self._gated_respites = respites
 
     def load_from_prototype(self, prototype_array, entity_data=None, saved_enemies=None):
         """
@@ -840,6 +887,36 @@ class World:
                         instances.append((pool_key, variant, dx, dy))
                     self.grass_decorations[(x, y)] = instances
 
+    def get_gated_respites(self):
+        """Return Respite objects that are gated by a miniboss ID."""
+        if len(self.interactables) <= 64:
+            return [
+                obj for obj in self.interactables
+                if type(obj).__name__ == "Respite" and getattr(obj, "gated_by_miniboss_id", None)
+            ]
+        self._ensure_spatial_index()
+        return self._gated_respites
+
+    def has_puddle_collision(self, player_rect):
+        """Return True if player_rect overlaps any Inkwell Puddle."""
+        from engine.physics import check_aabb_collision
+        if len(self.interactables) <= 64:
+            for obj in self.interactables:
+                if obj.name == "Inkwell Puddle" and check_aabb_collision(player_rect, obj.rect):
+                    return True
+            return False
+        self._ensure_spatial_index()
+        px, py, pw, ph = player_rect
+        cell_size = TILE_SIZE * 4
+        cx0, cy0 = int(px // cell_size), int(py // cell_size)
+        cx1, cy1 = int((px + pw) // cell_size), int((py + ph) // cell_size)
+        for cy in range(cy0, cy1 + 1):
+            for cx in range(cx0, cx1 + 1):
+                for obj in self._puddle_buckets.get((cx, cy), ()):
+                    if check_aabb_collision(player_rect, obj.rect):
+                        return True
+        return False
+
     def get_nearby_walls(self, player_rect):
         """Returns wall rectangles (grid or solid GameObjects) near the player."""
         px, py, pw, ph = player_rect
@@ -859,9 +936,26 @@ class World:
 
         # Solid GameObjects
         from engine.physics import check_aabb_collision
-        for obj in self.interactables:
-            if obj.is_solid and getattr(obj, 'is_active', True) and check_aabb_collision(player_rect, obj.rect):
-                walls.append((obj.rect[0], obj.rect[1], obj.rect[2], obj.rect[3]))
+        if len(self.interactables) <= 64:
+            for obj in self.interactables:
+                if obj.is_solid and getattr(obj, 'is_active', True) and check_aabb_collision(player_rect, obj.rect):
+                    walls.append((obj.rect[0], obj.rect[1], obj.rect[2], obj.rect[3]))
+            return walls
+
+        self._ensure_spatial_index()
+        cell_size = TILE_SIZE * 4
+        cx0, cy0 = int(px // cell_size), int(py // cell_size)
+        cx1, cy1 = int((px + pw) // cell_size), int((py + ph) // cell_size)
+        seen = set()
+        for cy in range(cy0, cy1 + 1):
+            for cx in range(cx0, cx1 + 1):
+                for obj in self._solid_buckets.get((cx, cy), ()):
+                    oid = id(obj)
+                    if oid in seen:
+                        continue
+                    seen.add(oid)
+                    if obj.is_solid and getattr(obj, 'is_active', True) and check_aabb_collision(player_rect, obj.rect):
+                        walls.append((obj.rect[0], obj.rect[1], obj.rect[2], obj.rect[3]))
 
         return walls
 
@@ -872,8 +966,27 @@ class World:
         expanded_rect = (px - margin, py - margin, pw + margin * 2, ph + margin * 2)
 
         from engine.physics import check_aabb_collision
+        if len(self.interactables) <= 64:
+            nearby = []
+            for obj in self.interactables:
+                if obj.is_interactive and getattr(obj, 'is_active', True) and check_aabb_collision(expanded_rect, obj.rect):
+                    nearby.append(obj)
+            return nearby
+
+        self._ensure_spatial_index()
+        cell_size = TILE_SIZE * 4
+        ex, ey, ew, eh = expanded_rect
+        cx0, cy0 = int(ex // cell_size), int(ey // cell_size)
+        cx1, cy1 = int((ex + ew) // cell_size), int((ey + eh) // cell_size)
         nearby = []
-        for obj in self.interactables:
-            if obj.is_interactive and getattr(obj, 'is_active', True) and check_aabb_collision(expanded_rect, obj.rect):
-                nearby.append(obj)
+        seen = set()
+        for cy in range(cy0, cy1 + 1):
+            for cx in range(cx0, cx1 + 1):
+                for obj in self._interactive_buckets.get((cx, cy), ()):
+                    oid = id(obj)
+                    if oid in seen:
+                        continue
+                    seen.add(oid)
+                    if obj.is_interactive and getattr(obj, 'is_active', True) and check_aabb_collision(expanded_rect, obj.rect):
+                        nearby.append(obj)
         return nearby

@@ -90,6 +90,9 @@ class GameState:
         self.death_timer = 0.0
         self.last_save_elapsed = 9999.0 # Start large to trigger early if needed
         self.inspect_active = False
+        self.debug_text_enabled = (
+            bool(self.stats.data.get("debug_text_enabled", False)) if self.stats else False
+        )
         self.parry_effects = [] # Transient VFX sparks
 
         # 4. Input and Navigation State
@@ -437,11 +440,18 @@ class GameState:
 
         # Dynamically update the is_active status of any gated respites in the world
         if self.world:
-            for obj in self.world.interactables:
-                if type(obj).__name__ == "Respite" and getattr(obj, 'gated_by_miniboss_id', None):
-                    is_defeated = (obj.gated_by_miniboss_id in self.defeated_miniboss_ids)
-                    if obj.is_active != is_defeated:
-                        obj.is_active = is_defeated
+            respites = (
+                self.world.get_gated_respites()
+                if hasattr(self.world, "get_gated_respites")
+                else [
+                    obj for obj in self.world.interactables
+                    if type(obj).__name__ == "Respite" and getattr(obj, "gated_by_miniboss_id", None)
+                ]
+            )
+            for obj in respites:
+                is_defeated = (obj.gated_by_miniboss_id in self.defeated_miniboss_ids)
+                if obj.is_active != is_defeated:
+                    obj.is_active = is_defeated
 
         # 1. PRE-SYNC: Detection and State Management
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
@@ -768,11 +778,15 @@ class GameState:
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         walls = self.world.get_nearby_walls(player_rect)
         speed_multiplier = 1.0
-        for obj in self.world.interactables:
-            if obj.name == "Inkwell Puddle":
-                if check_aabb_collision(player_rect, obj.rect):
-                    speed_multiplier = 0.5
-                    break
+        if hasattr(self.world, "has_puddle_collision"):
+            if self.world.has_puddle_collision(player_rect):
+                speed_multiplier = 0.5
+        else:
+            for obj in self.world.interactables:
+                if obj.name == "Inkwell Puddle":
+                    if check_aabb_collision(player_rect, obj.rect):
+                        speed_multiplier = 0.5
+                        break
         
         healed = self.player.update(dt, move_dir, walls, actions, attack_pressed, flask_pressed, dash_pressed, block_pressed, speed_multiplier)
         if healed and self.network_manager.network_mode == "CLIENT":
@@ -1063,9 +1077,11 @@ class GameState:
             self.reset_to_new_game()
             return
         
-        # Update Network Identity from loaded stats
-        if self.stats and hasattr(self, 'network_manager'):
-            self.network_manager.identity = self.stats.data.get("player_name", self.network_manager.identity)
+        # Update Network Identity and Debug Text Preference from loaded stats
+        if self.stats:
+            self.debug_text_enabled = bool(self.stats.data.get("debug_text_enabled", False))
+            if hasattr(self, 'network_manager'):
+                self.network_manager.identity = self.stats.data.get("player_name", self.network_manager.identity)
 
         run_data = self.stats.data.get("run_state")
         if run_data:
@@ -1116,6 +1132,8 @@ class GameState:
         if self.stats:
             self.stats.data["engine_revision"] = ENGINE_REVISION
             self.stats.is_revision_compatible = True
+            self.stats.data.setdefault("debug_text_enabled", bool(getattr(self, "debug_text_enabled", False)))
+            self.debug_text_enabled = bool(self.stats.data.get("debug_text_enabled", False))
             self.stats.data["lifetime_stats"]["pages_collected"] = 0
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
@@ -1160,6 +1178,14 @@ class GameState:
             "weather": self.weather_manager.to_dict() if hasattr(self, 'weather_manager') else None
         }
 
+    def set_debug_text_enabled(self, enabled: bool, save: bool = True) -> None:
+        """Update the debug text toggle and persist it in the save file."""
+        self.debug_text_enabled = bool(enabled)
+        if self.stats is not None:
+            self.stats.data["debug_text_enabled"] = self.debug_text_enabled
+            if save:
+                self.save_stats(wait=True)
+
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
         if self.stats is None or not getattr(self, '_save_worker_running', False): return
         if self.player is None or self.world is None: return # Guard against deallocated state
@@ -1168,6 +1194,7 @@ class GameState:
         from constants import ENGINE_REVISION
         self.stats.data["engine_revision"] = ENGINE_REVISION
         self.stats.is_revision_compatible = True
+        self.stats.data["debug_text_enabled"] = bool(getattr(self, "debug_text_enabled", False))
         
         # --- Persistence: Sanctuary is the hub; runs are completed/redacted here ---
         world_name = getattr(self.world, 'name', 'sanctuary')

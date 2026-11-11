@@ -29,11 +29,21 @@ class Renderer:
         
         # Image Cache
         self.image_cache = {}
+        self.prop_cache = {}
+        self._chunk_cache = {}
+        self._chunk_world_key = None
+        self._weather_overlay = None
+        self._weather_overlay_dirty = False
+        self._hud_surf = None
+        self._minimap_surf = None
+        self._minimap_walls_surf = None
+        self._minimap_world_key = None
         self._load_barrel_assets()
         self._load_tile_assets()
         self._load_slug_assets()
         self.grass_pools = {}
         self._load_grass_assets()
+        self._generate_prop_cache()
 
     def _load_barrel_assets(self):
         """Pre-load barrel animation frames."""
@@ -344,6 +354,7 @@ class Renderer:
     def _load_grass_assets(self):
         """Generate lightweight procedural grass tuft surfaces in RAM (no PNG pixmap loading)."""
         self.grass_pools = {"small": [], "medium": [], "tall": []}
+        display_init = pygame.display.get_init()
         configs = [("small", (12, 8)), ("medium", (18, 12)), ("tall", (24, 16))]
         colors = [
             ((50, 158, 74), (110, 225, 130)),
@@ -355,7 +366,67 @@ class Renderer:
                 surf = pygame.Surface((w, h))
                 surf.fill(base_c)
                 surf.fill(hi_c, (2, 1, max(2, w - 4), max(2, h // 2)))
+                if display_init:
+                    surf = surf.convert()
                 self.grass_pools[key].append(surf)
+
+    def _generate_prop_cache(self):
+        """Pre-render static procedural prop surfaces once at startup to eliminate per-frame shape drawing."""
+        ts = constants.TILE_SIZE
+        display_init = pygame.display.get_init()
+
+        # 1. Structure (Stylized Deciduous Tree)
+        tree = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        cx_t, cy_t = ts // 2, ts // 2 - 4
+        pygame.draw.circle(tree, (22, 44, 28), (cx_t + 2, ts - 6), ts // 3)
+        pygame.draw.rect(tree, (28, 16, 8), (cx_t - 7, ts - 16, 14, 14), border_radius=2)
+        pygame.draw.rect(tree, (92, 54, 28), (cx_t - 5, ts - 15, 10, 12), border_radius=2)
+        pygame.draw.circle(tree, (18, 44, 24), (cx_t, cy_t), ts // 2 - 1)
+        pygame.draw.circle(tree, (38, 126, 62), (cx_t, cy_t + 2), ts // 2 - 3)
+        pygame.draw.circle(tree, (92, 218, 110), (cx_t - 1, cy_t - 2), ts // 2 - 5)
+        pygame.draw.circle(tree, (162, 246, 148), (cx_t - 4, cy_t - 6), ts // 4)
+        self.prop_cache["Structure"] = tree.convert_alpha() if display_init else tree
+
+        # 2. Inkwell Puddle (Recessed Tar / Poison Swamp Pool)
+        puddle = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        pcx, pcy = ts // 2, ts // 2
+        pygame.draw.circle(puddle, (16, 8, 24), (pcx, pcy), ts // 2 - 1)
+        pygame.draw.circle(puddle, (58, 26, 82), (pcx - 4, pcy - 2), ts // 3 + 2)
+        pygame.draw.circle(puddle, (58, 26, 82), (pcx + 5, pcy + 3), ts // 3 + 1)
+        pygame.draw.circle(puddle, (28, 12, 42), (pcx, pcy), ts // 3)
+        self.prop_cache["Inkwell Puddle"] = puddle.convert_alpha() if display_init else puddle
+
+        # 3. Rock (Faceted Slate/Ice Boulder)
+        rock = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        pygame.draw.circle(rock, (68, 88, 118), (ts // 2, ts // 2 + 2), ts // 2 - 3)
+        pygame.draw.circle(rock, (135, 185, 225), (ts // 2 - 4, ts // 2 - 3), ts // 4)
+        pygame.draw.line(rock, (220, 245, 255), (10, 12), (ts // 2, 8), 2)
+        self.prop_cache["Rock"] = rock.convert_alpha() if display_init else rock
+
+        # 4. Heavy Bookcase (80x40)
+        bw, bh = ts * 2, ts
+        bk = pygame.Surface((bw, bh), pygame.SRCALPHA)
+        pygame.draw.rect(bk, (68, 46, 34), (0, 0, bw, bh), border_radius=3)
+        pygame.draw.rect(bk, (140, 105, 65), (0, 0, bw, 5))
+        pygame.draw.line(bk, (30, 20, 14), (2, bh // 2), (bw - 2, bh // 2), 2)
+        for sx_off in range(6, bw - 6, 8):
+            col = (0, 210, 240) if (sx_off // 8) % 2 == 0 else (225, 75, 175)
+            pygame.draw.rect(bk, col, (sx_off, 8, 5, bh // 2 - 10))
+        self.prop_cache["Heavy Bookcase"] = bk.convert_alpha() if display_init else bk
+
+        # 5. Ink Urn (40x40)
+        urn = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        pygame.draw.circle(urn, (52, 74, 112), (ts // 2, ts // 2 + 3), ts // 2 - 4)
+        pygame.draw.circle(urn, (110, 175, 230), (ts // 2 - 4, ts // 2), 4)
+        pygame.draw.rect(urn, (190, 165, 105), (8, 4, ts - 16, 6), border_radius=2)
+        pygame.draw.circle(urn, (0, 240, 255), (ts // 2, 7), 3)
+        self.prop_cache["Ink Urn"] = urn.convert_alpha() if display_init else urn
+
+        # 6. Candelabra Glow Halo (60x60)
+        glow_r = 30
+        glow = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(glow, (255, 190, 40, 60), (glow_r, glow_r), glow_r)
+        self.prop_cache["CandelabraGlow"] = glow.convert_alpha() if display_init else glow
 
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
@@ -497,9 +568,16 @@ class Renderer:
         if force_global:
             current_boss_coords = None
 
-        # 1. Draw the Safe Circle Boundary
-        overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        
+        # 1. Reuse the weather overlay surface to avoid per-frame full-screen SRCALPHA allocation
+        if self._weather_overlay is None or self._weather_overlay.get_size() != (sw, sh):
+            self._weather_overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            self._weather_overlay_dirty = False
+        overlay = self._weather_overlay
+        if self._weather_overlay_dirty:
+            overlay.fill((0, 0, 0, 0))
+            self._weather_overlay_dirty = False
+        drew_any = False
+
         # 2. Particle System (Performant Vertical Rain)
         if not hasattr(self, 'rain_particles'):
             self.rain_particles = []
@@ -513,7 +591,7 @@ class Renderer:
 
         # Update and Draw particles
         ticks = pygame.time.get_ticks() / 1000.0
-        
+
         # Color Selection Rule
         rain_color = override_color if override_color else constants.COLOR_TOXIC_RAIN
         if not override_color and getattr(state, 'bleed_state', 'CLEAR') == 'DILUTION':
@@ -521,42 +599,53 @@ class Renderer:
 
         wb_x, wb_y = 0, 0
         if current_boss_coords:
-            wb_x, wb_y = current_boss_coords['x'] * constants.TILE_SIZE, current_boss_coords['y'] * constants.TILE_SIZE
-        
+            wb_x = current_boss_coords['x'] * constants.TILE_SIZE
+            wb_y = current_boss_coords['y'] * constants.TILE_SIZE
+
         rad_sq = radius**2
+        is_dilution = getattr(state, 'bleed_state', 'CLEAR') == 'DILUTION'
 
         for p in self.rain_particles:
             ry = (p['y'] + ticks * p['speed']) % sh
             rx = p['x']
-            
+
             # Distance check: Only draw if OUTSIDE the safe circle
             # Dilution/Title Rule: Rain is global
-            is_dilution = getattr(state, 'bleed_state', 'CLEAR') == 'DILUTION'
-            
             if is_dilution or force_global:
                 pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
+                drew_any = True
             elif current_boss_coords:
                 world_rx, world_ry = rx + ox, ry + oy
                 d_sq = (world_rx - wb_x)**2 + (world_ry - wb_y)**2
                 if d_sq > rad_sq:
                     pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
+                    drew_any = True
 
-        # 3. Draw a 'Mysterious Barrier' for the circle boundary
-        if not force_global and getattr(state, 'bleed_state', 'CLEAR') != 'DILUTION' and current_boss_coords:
-            bcx, bcy = current_boss_coords['x'] * constants.TILE_SIZE - ox, current_boss_coords['y'] * constants.TILE_SIZE - oy
+        # 3. Draw a 'Mysterious Barrier' for the circle boundary only if it intersects the screen
+        if not force_global and not is_dilution and current_boss_coords:
+            bcx = current_boss_coords['x'] * constants.TILE_SIZE - ox
+            bcy = current_boss_coords['y'] * constants.TILE_SIZE - oy
             if 0 < radius < 30000:
-                # Black, 5px wide, 100% opaque (255 alpha)
-                pygame.draw.circle(overlay, (0, 0, 0, 255), (int(bcx), int(bcy)), int(radius), 5)
+                max_corner_sq = max(
+                    (0 - bcx) ** 2 + (0 - bcy) ** 2,
+                    (sw - bcx) ** 2 + (0 - bcy) ** 2,
+                    (0 - bcx) ** 2 + (sh - bcy) ** 2,
+                    (sw - bcx) ** 2 + (sh - bcy) ** 2,
+                )
+                near_x = max(0.0, min(float(sw), float(bcx)))
+                near_y = max(0.0, min(float(sh), float(bcy)))
+                min_dist_sq = (near_x - bcx) ** 2 + (near_y - bcy) ** 2
+                inner_r = max(0.0, radius - 8.0)
+                if max_corner_sq >= inner_r ** 2 and min_dist_sq <= (radius + 8.0) ** 2:
+                    pygame.draw.circle(overlay, (0, 0, 0, 255), (int(bcx), int(bcy)), int(radius), 5)
+                    drew_any = True
 
-        self.screen.blit(overlay, (0, 0))
+        if drew_any:
+            self._weather_overlay_dirty = True
+            self.screen.blit(overlay, (0, 0))
 
-    def _get_tile_stratum(self, state, x, y):
+    def _get_tile_stratum(self, _state, x, y):
         """Compute coherent multi-tile terrain stratum (0=Lowland/Sub-floor, 1=Mid, 2=Highland/Path)."""
-        tile = state.world.grid[y][x]
-        if tile == constants.TILE_THICKET:
-            return 0
-        if tile == constants.TILE_GRASS:
-            return 2
         wave = (
             math.sin(x * 0.29 + y * 0.21)
             + math.cos(x * 0.17 - y * 0.33)
@@ -568,14 +657,15 @@ class Renderer:
             return 2
         return 1
 
-    def _draw_biome_floor_fx(self, biome_info, coords, dr, s_idx):
-        """Render animated environmental floor tells and atmospheric micro-effects per biome."""
+    def _draw_biome_floor_fx(self, biome_info, coords, dr, s_idx, now=None):
+        """Render sparse animated environmental floor tells and atmospheric micro-effects per biome."""
         biome, pal = biome_info
         x, y, _, _ = coords
-        if (x * 19 + y * 31) % 6 != 0:
+        if (x * 19 + y * 31) % 29 != 0:
             return
         sx, sy = int(dr[0]), int(dr[1])
-        now = time.time()
+        if now is None:
+            now = time.time()
 
         if biome == "windy_ridge":
             # Swaying wind-swept grass ribbons & gust trails across the ridge
@@ -609,9 +699,9 @@ class Renderer:
             col = pal["wall_glow"] if s_idx == 0 else pal["floor_speck"]
             pygame.draw.line(self.screen, col, (pulse_x, sy + 20), (pulse_x + 5, sy + 20), 2)
 
-    def _draw_world_tile(self, state, coords, dr):
-        """Render a single world tile with multi-strata biome textures, elevation rims, and live tells."""
-        x, y, w, h = coords
+    def _draw_static_tile_to_surface(self, target_surf, state, coords, dr):
+        """Render the static base, bevels, shadows, and grass tufts of a single tile onto target_surf."""
+        x, y, _, h = coords
         tile = state.world.grid[y][x]
         biome = self._resolve_tile_biome(state, x, y)
         b_pack = getattr(self, "biome_tiles", {}).get(biome) or getattr(self, "biome_tiles", {}).get("windy_ridge")
@@ -619,62 +709,123 @@ class Renderer:
 
         if tile == constants.TILE_WALL:
             if b_pack:
-                # Use 2.5D south-facing cliff/bulkhead wall if tile below is not a wall
                 south_is_wall = (y + 1 < h) and (state.world.grid[y + 1][x] == constants.TILE_WALL)
                 wall_surf = b_pack["wall_cap"] if south_is_wall else b_pack["wall_front"]
-                self.screen.blit(wall_surf, (dr[0], dr[1]))
+                target_surf.blit(wall_surf, (dr[0], dr[1]))
             else:
-                pygame.draw.rect(self.screen, constants.COLOR_WALL, dr)
-            return
+                pygame.draw.rect(target_surf, constants.COLOR_WALL, dr)
+            return biome, pal, 0
 
-        # Coherent multi-strata floor selection to break up grid uniformity
         s_idx = self._get_tile_stratum(state, x, y)
         if b_pack:
             strata_list = b_pack.get("strata_floors")
             tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
             v_idx = (x * 7 + y * 13) % len(tier_floors)
-            self.screen.blit(tier_floors[v_idx], (dr[0], dr[1]))
+            target_surf.blit(tier_floors[v_idx], (dr[0], dr[1]))
 
-            # Draw beveled elevation step rims where adjacent floor strata transition
             sx, sy, tw, th = int(dr[0]), int(dr[1]), int(dr[2]), int(dr[3])
             if y > 0 and state.world.grid[y - 1][x] != constants.TILE_WALL:
                 n_stratum = self._get_tile_stratum(state, x, y - 1)
                 if s_idx > n_stratum:
-                    pygame.draw.line(self.screen, pal["wall_hi"], (sx, sy + 1), (sx + tw - 1, sy + 1), 2)
+                    pygame.draw.line(target_surf, pal["wall_hi"], (sx, sy + 1), (sx + tw - 1, sy + 1), 2)
                 elif s_idx < n_stratum:
-                    pygame.draw.line(self.screen, pal["wall_mortar"], (sx, sy + 1), (sx + tw - 1, sy + 1), 2)
+                    pygame.draw.line(target_surf, pal["wall_mortar"], (sx, sy + 1), (sx + tw - 1, sy + 1), 2)
             if x > 0 and state.world.grid[y][x - 1] != constants.TILE_WALL:
                 w_stratum = self._get_tile_stratum(state, x - 1, y)
                 if s_idx > w_stratum:
-                    pygame.draw.line(self.screen, pal["wall_hi"], (sx + 1, sy), (sx + 1, sy + th - 1), 2)
+                    pygame.draw.line(target_surf, pal["wall_hi"], (sx + 1, sy), (sx + 1, sy + th - 1), 2)
                 elif s_idx < w_stratum:
-                    pygame.draw.line(self.screen, pal["wall_mortar"], (sx + 1, sy), (sx + 1, sy + th - 1), 2)
+                    pygame.draw.line(target_surf, pal["wall_mortar"], (sx + 1, sy), (sx + 1, sy + th - 1), 2)
 
-            # Cast ambient occlusion drop-shadows from adjacent north/west walls
             if y > 0 and state.world.grid[y - 1][x] == constants.TILE_WALL:
-                self.screen.blit(b_pack["shadow_n"], (dr[0], dr[1]))
+                target_surf.blit(b_pack["shadow_n"], (dr[0], dr[1]))
             if x > 0 and state.world.grid[y][x - 1] == constants.TILE_WALL:
-                self.screen.blit(b_pack["shadow_w"], (dr[0], dr[1]))
+                target_surf.blit(b_pack["shadow_w"], (dr[0], dr[1]))
 
-            self._draw_biome_floor_fx((biome, pal), coords, dr, s_idx)
+            # Stamp procedural grass/thicket tufts directly onto the static tile surface
+            if tile in (constants.TILE_GRASS, constants.TILE_THICKET) and getattr(self, "grass_pools", None):
+                clusters = getattr(state.world, "grass_decorations", {}).get((x, y), ())
+                for pool_key, variant, dx, dy in clusters:
+                    pool = self.grass_pools.get(pool_key)
+                    if pool:
+                        tuft = pool[variant % len(pool)]
+                        target_surf.blit(tuft, (sx + 8 + dx, sy + 8 + dy))
         else:
-            pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
+            pygame.draw.rect(target_surf, constants.COLOR_FLOOR, dr, 1)
 
+        return biome, pal, s_idx
+
+    def _draw_world_tile(self, state, coords, dr):
+        """Render a single world tile (used as direct fallback for mock test screens)."""
+        x, y, _, _ = coords
+        tile = state.world.grid[y][x]
+        biome, pal, s_idx = self._draw_static_tile_to_surface(self.screen, state, coords, dr)
+        if tile == constants.TILE_WALL:
+            return
+        self._draw_biome_floor_fx((biome, pal), coords, dr, s_idx)
         if tile == constants.TILE_LOTUS_FRAME:
-            # Animated techno-magic energy conduit frame
             pygame.draw.rect(self.screen, (36, 48, 86), dr, border_radius=4)
             pulse_col = (0, 240, 255) if int(time.time() * 4 + x + y) % 2 == 0 else (235, 70, 195)
             pygame.draw.rect(self.screen, pulse_col, (dr[0] + 4, dr[1] + 4, dr[2] - 8, dr[3] - 8), 2, border_radius=3)
 
+    def _get_world_chunk(self, state, cx, cy, w, h):
+        """Return or lazily bake a 16x16 tile chunk Surface and its sparse animated tile list."""
+        world_key = (id(state.world), getattr(state.world, "name", ""), id(state.world.grid), w, h)
+        if self._chunk_world_key != world_key:
+            self._chunk_cache.clear()
+            self._chunk_world_key = world_key
+
+        cached = self._chunk_cache.get((cx, cy))
+        if cached is not None:
+            return cached
+
+        chunk_tiles = 16
+        ts = constants.TILE_SIZE
+        tx0, ty0 = cx * chunk_tiles, cy * chunk_tiles
+        tx1, ty1 = min(w, tx0 + chunk_tiles), min(h, ty0 + chunk_tiles)
+        cw, ch = max(1, (tx1 - tx0) * ts), max(1, (ty1 - ty0) * ts)
+        chunk_surf = pygame.Surface((cw, ch))
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            chunk_surf = chunk_surf.convert()
+
+        bg = (
+            constants.COLOR_SEPIA_AMBER
+            if getattr(state.world, "name", "sanctuary") == "sanctuary"
+            else constants.COLOR_CHARCOAL
+        )
+        chunk_surf.fill(bg)
+        anim_tiles = []
+
+        for ty in range(ty0, ty1):
+            for tx in range(tx0, tx1):
+                local_dr = ((tx - tx0) * ts, (ty - ty0) * ts, ts, ts)
+                biome, pal, s_idx = self._draw_static_tile_to_surface(
+                    chunk_surf, state, (tx, ty, w, h), local_dr
+                )
+                tile = state.world.grid[ty][tx]
+                if tile == constants.TILE_LOTUS_FRAME or (
+                    tile != constants.TILE_WALL and (tx * 19 + ty * 31) % 29 == 0
+                ):
+                    anim_tiles.append((tx, ty, tile, biome, pal, s_idx))
+
+        result = (chunk_surf, anim_tiles)
+        self._chunk_cache[(cx, cy)] = result
+        return result
+
     def render(self, state, audio_manager=None):
         """Draw the game state using a camera."""
-        bg = constants.COLOR_SEPIA_AMBER if getattr(state.world, 'name', 'sanctuary') == "sanctuary" else constants.COLOR_CHARCOAL
+        bg = (
+            constants.COLOR_SEPIA_AMBER
+            if getattr(state.world, 'name', 'sanctuary') == "sanctuary"
+            else constants.COLOR_CHARCOAL
+        )
         self.screen.fill(bg)
         sw, sh = self.screen.get_width(), self.screen.get_height()
         h, w = len(state.world.grid), len(state.world.grid[0]) if len(state.world.grid) > 0 else 0
         ww, wh = w * constants.TILE_SIZE, h * constants.TILE_SIZE
         if hasattr(state, 'camera'):
-            if state.camera.screen_w != sw or state.camera.screen_h != sh: state.camera.screen_w, state.camera.screen_h = sw, sh
+            if state.camera.screen_w != sw or state.camera.screen_h != sh:
+                state.camera.screen_w, state.camera.screen_h = sw, sh
             state.camera.world_w, state.camera.world_h = ww, wh
             ox, oy = state.camera.get_offset()
         else:
@@ -683,105 +834,161 @@ class Renderer:
         if getattr(state, 'shake_timer', 0) > 0:
             ox += random.uniform(-constants.SCREEN_SHAKE_INTENSITY, constants.SCREEN_SHAKE_INTENSITY)
             oy += random.uniform(-constants.SCREEN_SHAKE_INTENSITY, constants.SCREEN_SHAKE_INTENSITY)
-        sx, sy = int(max(0, ox // constants.TILE_SIZE)), int(max(0, oy // constants.TILE_SIZE))
-        ex, ey = int(min(w, (ox + sw) // constants.TILE_SIZE + 1)), int(min(h, (oy + sh) // constants.TILE_SIZE + 1))
-        for y in range(sy, ey):
-            for x in range(sx, ex):
-                dr = (x * constants.TILE_SIZE - ox, y * constants.TILE_SIZE - oy, constants.TILE_SIZE, constants.TILE_SIZE)
-                self._draw_world_tile(state, (x, y, w, h), dr)
-        
-        # World Debris (Persistent visual remnants)
+
+        is_real_surface = isinstance(self.screen, pygame.Surface)
+        ts = constants.TILE_SIZE
+        now = time.time()
+
+        if is_real_surface and w > 0 and h > 0:
+            iox, ioy = int(round(ox)), int(round(oy))
+            chunk_tiles = 16
+            chunk_px = chunk_tiles * ts
+            max_cx = (w - 1) // chunk_tiles
+            max_cy = (h - 1) // chunk_tiles
+            scx = max(0, iox // chunk_px)
+            scy = max(0, ioy // chunk_px)
+            ecx = min(max_cx, (iox + sw) // chunk_px)
+            ecy = min(max_cy, (ioy + sh) // chunk_px)
+
+            visible_anim = []
+            for cy in range(scy, ecy + 1):
+                for cx in range(scx, ecx + 1):
+                    chunk_surf, anim_tiles = self._get_world_chunk(state, cx, cy, w, h)
+                    self.screen.blit(chunk_surf, (cx * chunk_px - iox, cy * chunk_px - ioy))
+                    if anim_tiles:
+                        visible_anim.extend(anim_tiles)
+
+            for tx, ty, tile, biome, pal, s_idx in visible_anim:
+                sx_t = tx * ts - iox
+                sy_t = ty * ts - ioy
+                if sx_t + ts < 0 or sx_t > sw or sy_t + ts < 0 or sy_t > sh:
+                    continue
+                dr = (sx_t, sy_t, ts, ts)
+                if tile != constants.TILE_WALL and (tx * 19 + ty * 31) % 29 == 0:
+                    self._draw_biome_floor_fx((biome, pal), (tx, ty, w, h), dr, s_idx, now=now)
+                if tile == constants.TILE_LOTUS_FRAME:
+                    pygame.draw.rect(self.screen, (36, 48, 86), dr, border_radius=4)
+                    pulse_col = (0, 240, 255) if int(now * 4 + tx + ty) % 2 == 0 else (235, 70, 195)
+                    pygame.draw.rect(
+                        self.screen, pulse_col, (dr[0] + 4, dr[1] + 4, dr[2] - 8, dr[3] - 8), 2, border_radius=3
+                    )
+        else:
+            sx, sy = int(max(0, ox // ts)), int(max(0, oy // ts))
+            ex, ey = int(min(w, (ox + sw) // ts + 1)), int(min(h, (oy + sh) // ts + 1))
+            for y in range(sy, ey):
+                for x in range(sx, ex):
+                    dr = (x * ts - ox, y * ts - oy, ts, ts)
+                    self._draw_world_tile(state, (x, y, w, h), dr)
+
+        # World Debris (Persistent visual remnants, culled to viewport)
         for debris in getattr(state, 'world_debris', []):
             if debris['name'] == 'BarrelRubble':
-                img = self.image_cache.get("barrel_3.png")
-                if img:
-                    self.screen.blit(img, (debris['pos'][0] - ox, debris['pos'][1] - oy))
+                dx_s, dy_s = debris['pos'][0] - ox, debris['pos'][1] - oy
+                if -64 <= dx_s <= sw + 64 and -64 <= dy_s <= sh + 64:
+                    img = self.image_cache.get("barrel_3.png")
+                    if img:
+                        self.screen.blit(img, (dx_s, dy_s))
 
+        prop_cache = getattr(self, "prop_cache", {}) if is_real_surface else {}
         for obj in getattr(state.world, 'interactables', []):
-            if hasattr(obj, 'target_name'): self.draw_warp(obj, ox, oy)
+            sx_o, sy_o = obj.x - ox, obj.y - oy
+            if sx_o + obj.width < -64 or sx_o > sw + 64 or sy_o + obj.height < -64 or sy_o > sh + 64:
+                continue
+            if hasattr(obj, 'target_name'):
+                self.draw_warp(obj, ox, oy)
             elif "Respite" in obj.name:
                 if not getattr(obj, 'is_active', True):
                     continue
-                # Draw Respite Anchor as a large pulsing sigil
-                dr = pygame.Rect(obj.x - ox, obj.y - oy, obj.width, obj.height)
-                pygame.draw.rect(self.screen, (20, 40, 60), dr) # Dark base
+                dr = pygame.Rect(sx_o, sy_o, obj.width, obj.height)
+                pygame.draw.rect(self.screen, (20, 40, 60), dr)
                 pygame.draw.rect(self.screen, constants.COLOR_CYAN, dr, 2)
-                pulse = (math.sin(time.time() * 5) + 1) / 2
+                pulse = (math.sin(now * 5) + 1) / 2
                 inner_r = int(5 + pulse * 10)
                 pygame.draw.circle(self.screen, constants.COLOR_CYAN, (int(dr.centerx), int(dr.centery)), inner_r, 1)
             elif obj.name == "Barrel":
                 img = self.image_cache.get("barrel_0.png")
                 if img:
-                    self.screen.blit(img, (obj.x - ox, obj.y - oy))
+                    self.screen.blit(img, (sx_o, sy_o))
                 else:
-                    pygame.draw.rect(self.screen, (100, 80, 40), (obj.x - ox, obj.y - oy, obj.width, obj.height))
-                    pygame.draw.rect(self.screen, (60, 40, 20), (obj.x - ox, obj.y - oy, obj.width, obj.height), 2)
+                    pygame.draw.rect(self.screen, (100, 80, 40), (sx_o, sy_o, obj.width, obj.height))
+                    pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o, obj.width, obj.height), 2)
             elif obj.name == "Structure":
-                # Stylized deciduous tree: short thick dark-brown trunk, dark border, shadow crescent, lime crown
-                sx, sy, sw_o, sh_o = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
-                cx_t, cy_t = sx + sw_o // 2, sy + sh_o // 2 - 4
-                pygame.draw.circle(self.screen, (22, 44, 28), (cx_t + 2, sy + sh_o - 6), sw_o // 3)
-                pygame.draw.rect(self.screen, (28, 16, 8), (cx_t - 7, sy + sh_o - 16, 14, 14), border_radius=2)
-                pygame.draw.rect(self.screen, (92, 54, 28), (cx_t - 5, sy + sh_o - 15, 10, 12), border_radius=2)
-                pygame.draw.circle(self.screen, (18, 44, 24), (cx_t, cy_t), sw_o // 2 - 1)
-                pygame.draw.circle(self.screen, (38, 126, 62), (cx_t, cy_t + 2), sw_o // 2 - 3)
-                pygame.draw.circle(self.screen, (92, 218, 110), (cx_t - 1, cy_t - 2), sw_o // 2 - 5)
-                pygame.draw.circle(self.screen, (162, 246, 148), (cx_t - 4, cy_t - 6), sw_o // 4)
+                tree_surf = prop_cache.get("Structure")
+                if tree_surf is not None:
+                    self.screen.blit(tree_surf, (int(sx_o), int(sy_o)))
+                else:
+                    sx_i, sy_i, sw_o, sh_o = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                    cx_t, cy_t = sx_i + sw_o // 2, sy_i + sh_o // 2 - 4
+                    pygame.draw.circle(self.screen, (22, 44, 28), (cx_t + 2, sy_i + sh_o - 6), sw_o // 3)
+                    pygame.draw.rect(self.screen, (28, 16, 8), (cx_t - 7, sy_i + sh_o - 16, 14, 14), border_radius=2)
+                    pygame.draw.rect(self.screen, (92, 54, 28), (cx_t - 5, sy_i + sh_o - 15, 10, 12), border_radius=2)
+                    pygame.draw.circle(self.screen, (18, 44, 24), (cx_t, cy_t), sw_o // 2 - 1)
+                    pygame.draw.circle(self.screen, (38, 126, 62), (cx_t, cy_t + 2), sw_o // 2 - 3)
+                    pygame.draw.circle(self.screen, (92, 218, 110), (cx_t - 1, cy_t - 2), sw_o // 2 - 5)
+                    pygame.draw.circle(self.screen, (162, 246, 148), (cx_t - 4, cy_t - 6), sw_o // 4)
             elif obj.name == "The Chronicler":
-                pygame.draw.rect(self.screen, (220, 220, 220), (obj.x - ox, obj.y - oy, obj.width, obj.height))
-                pygame.draw.rect(self.screen, (255, 200, 150), (obj.x + 5 - ox, obj.y + 5 - oy, obj.width - 10, 10))
-                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (obj.x - ox, obj.y - oy, obj.width, obj.height), 1)
-            elif obj.name == "The Wellspring": self.draw_wellspring(obj, ox, oy)
+                pygame.draw.rect(self.screen, (220, 220, 220), (sx_o, sy_o, obj.width, obj.height))
+                pygame.draw.rect(self.screen, (255, 200, 150), (sx_o + 5, sy_o + 5, obj.width - 10, 10))
+                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (sx_o, sy_o, obj.width, obj.height), 1)
+            elif obj.name == "The Wellspring":
+                self.draw_wellspring(obj, ox, oy)
             elif obj.name == "Heavy Bookcase":
-                bx, by, bw, bh = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
-                pygame.draw.rect(self.screen, (68, 46, 34), (bx, by, bw, bh), border_radius=3)
-                pygame.draw.rect(self.screen, (140, 105, 65), (bx, by, bw, 5))
-                pygame.draw.line(self.screen, (30, 20, 14), (bx + 2, by + bh // 2), (bx + bw - 2, by + bh // 2), 2)
-                for sx_off in range(6, int(bw) - 6, 8):
-                    col = (0, 210, 240) if (sx_off // 8) % 2 == 0 else (225, 75, 175)
-                    pygame.draw.rect(self.screen, col, (bx + sx_off, by + 8, 5, bh // 2 - 10))
+                bc_surf = prop_cache.get("Heavy Bookcase")
+                if bc_surf is not None:
+                    self.screen.blit(bc_surf, (int(sx_o), int(sy_o)))
+                else:
+                    bx, by, bw, bh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                    pygame.draw.rect(self.screen, (68, 46, 34), (bx, by, bw, bh), border_radius=3)
+                    pygame.draw.rect(self.screen, (140, 105, 65), (bx, by, bw, 5))
+                    pygame.draw.line(self.screen, (30, 20, 14), (bx + 2, by + bh // 2), (bx + bw - 2, by + bh // 2), 2)
             elif obj.name == "Ink Urn":
-                ux, uy, uw, uh = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
-                pygame.draw.circle(self.screen, (52, 74, 112), (ux + uw // 2, uy + uh // 2 + 3), uw // 2 - 4)
-                pygame.draw.circle(self.screen, (110, 175, 230), (ux + uw // 2 - 4, uy + uh // 2), 4)
-                pygame.draw.rect(self.screen, (190, 165, 105), (ux + 8, uy + 4, uw - 16, 6), border_radius=2)
-                pygame.draw.circle(self.screen, (0, 240, 255), (ux + uw // 2, uy + 7), 3)
+                urn_surf = prop_cache.get("Ink Urn")
+                if urn_surf is not None:
+                    self.screen.blit(urn_surf, (int(sx_o), int(sy_o)))
+                else:
+                    ux, uy, uw, uh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                    pygame.draw.circle(self.screen, (52, 74, 112), (ux + uw // 2, uy + uh // 2 + 3), uw // 2 - 4)
             elif obj.name == "Inkwell Puddle":
-                # Recessed Tar / Poison Swamp pool: dark inset border, ragged bruised-purple shore, deep plum core
-                px, py, pw, ph = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
+                px, py, pw, ph = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
                 pcx, pcy = px + pw // 2, py + ph // 2
-                pygame.draw.circle(self.screen, (16, 8, 24), (pcx, pcy), pw // 2 - 1)
-                pygame.draw.circle(self.screen, (58, 26, 82), (pcx - 4, pcy - 2), pw // 3 + 2)
-                pygame.draw.circle(self.screen, (58, 26, 82), (pcx + 5, pcy + 3), pw // 3 + 1)
-                pygame.draw.circle(self.screen, (28, 12, 42), (pcx, pcy), pw // 3)
-                ripple = int(((math.sin(time.time() * 4.5 + obj.x) + 1.0) * 0.5) * (pw // 3 - 3)) + 3
+                pud_surf = prop_cache.get("Inkwell Puddle")
+                if pud_surf is not None:
+                    self.screen.blit(pud_surf, (px, py))
+                else:
+                    pygame.draw.circle(self.screen, (16, 8, 24), (pcx, pcy), pw // 2 - 1)
+                    pygame.draw.circle(self.screen, (58, 26, 82), (pcx - 4, pcy - 2), pw // 3 + 2)
+                    pygame.draw.circle(self.screen, (58, 26, 82), (pcx + 5, pcy + 3), pw // 3 + 1)
+                    pygame.draw.circle(self.screen, (28, 12, 42), (pcx, pcy), pw // 3)
+                ripple = int(((math.sin(now * 4.5 + obj.x) + 1.0) * 0.5) * (pw // 3 - 3)) + 3
                 pygame.draw.circle(self.screen, (165, 68, 198), (pcx, pcy), ripple, 1)
             elif obj.name == "Candelabra":
-                stand = (obj.x + obj.width//2 - 3 - ox, obj.y + 10 - oy, 6, obj.height - 10)
+                stand = (sx_o + obj.width // 2 - 3, sy_o + 10, 6, obj.height - 10)
                 pygame.draw.rect(self.screen, constants.COLOR_DARK_GREY, stand)
                 pygame.draw.rect(self.screen, constants.COLOR_BLACK, stand, 1)
-                rad = int(30 * (math.sin(time.time() * 10) * 0.1 + 1.0))
-                g = pygame.Surface((rad * 2, rad * 2), pygame.SRCALPHA)
-                pygame.draw.circle(g, (255, 190, 40, 60), (rad, rad), rad)
-                self.screen.blit(g, (obj.x + obj.width//2 - rad - ox, obj.y + 5 - rad - oy))
-                pygame.draw.rect(self.screen, constants.COLOR_CANDLE_AMBER, (obj.x + obj.width//2 - 2 - ox, obj.y + 4 - oy, 4, 6))
-            elif obj.name == "Bench":
-                pygame.draw.rect(self.screen, (101, 67, 33), (obj.x - ox, obj.y - oy, obj.width, obj.height))
-                pygame.draw.rect(self.screen, (60, 40, 20), (obj.x - ox, obj.y + 5 - oy, obj.width, 2))
-            elif obj.name == "Rock":
-                rx, ry, rw, rh = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
-                pygame.draw.circle(self.screen, (68, 88, 118), (rx + rw // 2, ry + rh // 2 + 2), rw // 2 - 3)
-                pygame.draw.circle(self.screen, (135, 185, 225), (rx + rw // 2 - 4, ry + rh // 2 - 3), rw // 4)
-                pygame.draw.line(
-                    self.screen, (220, 245, 255), (rx + 10, ry + 12), (rx + rw // 2, ry + 8), 2
+                glow_surf = prop_cache.get("CandelabraGlow")
+                if glow_surf is not None:
+                    self.screen.blit(glow_surf, (int(sx_o + obj.width // 2 - 32), int(sy_o + 5 - 32)))
+                pygame.draw.rect(
+                    self.screen, constants.COLOR_CANDLE_AMBER, (sx_o + obj.width // 2 - 2, sy_o + 4, 4, 6)
                 )
+            elif obj.name == "Bench":
+                pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, obj.width, obj.height))
+                pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, obj.width, 2))
+            elif obj.name == "Rock":
+                rock_surf = prop_cache.get("Rock")
+                if rock_surf is not None:
+                    self.screen.blit(rock_surf, (int(sx_o), int(sy_o)))
+                else:
+                    rx, ry, rw, rh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                    pygame.draw.circle(self.screen, (68, 88, 118), (rx + rw // 2, ry + rh // 2 + 2), rw // 2 - 3)
             elif hasattr(obj, 'weapon_data'):
                 col = constants.COLOR_PURPLE if "modifiers" in obj.weapon_data else constants.COLOR_WHITE
-                pygame.draw.rect(self.screen, col, (obj.x - ox, obj.y - oy, obj.width, obj.height))
-                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (obj.x - ox, obj.y - oy, obj.width, obj.height), 1)
-                glow = (math.sin(time.time() * 5) + 1) / 2
-                pygame.draw.rect(self.screen, col, (obj.x - 2 - ox, obj.y - 2 - oy, obj.width + 4, obj.height + 4), 1)
-        for item in getattr(state, 'loot', []): self.draw_loot(item, ox, oy)
+                pygame.draw.rect(self.screen, col, (sx_o, sy_o, obj.width, obj.height))
+                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (sx_o, sy_o, obj.width, obj.height), 1)
+                pygame.draw.rect(self.screen, col, (sx_o - 2, sy_o - 2, obj.width + 4, obj.height + 4), 1)
+        for item in getattr(state, 'loot', []):
+            if -64 <= item.x - ox <= sw + 64 and -64 <= item.y - oy <= sh + 64:
+                self.draw_loot(item, ox, oy)
         for fading in getattr(state, 'fading_entities', []):
             obj = fading['obj']
             ox, oy = state.camera.get_offset() if hasattr(state, 'camera') else (0, 0)
@@ -809,6 +1016,13 @@ class Renderer:
 
         try:
             for enemy in getattr(state, 'enemies', []):
+                if (
+                    enemy.x + enemy.width < ox - 96
+                    or enemy.x > ox + sw + 96
+                    or enemy.y + enemy.height < oy - 96
+                    or enemy.y > oy + sh + 96
+                ):
+                    continue
                 self.draw_actor_ghost(enemy, ox, oy, state)
         except Exception as e:
             print(f"[RENDER ERROR] Enemy Loop: {e}")
@@ -819,20 +1033,29 @@ class Renderer:
         if state.player.state == PlayerStateEnum.ATTACKING:
             self.draw_player_weapon_attack(state.player, ox, oy)
         for num in state.damage_numbers:
-            self.screen.blit(self.font.render(str(num['val']), True, num['color']), (num['pos'][0] - ox, num['pos'][1] - oy))
-        if getattr(state.player, 'current_interactable', None): self.draw_interaction_prompt(state.player, ox, oy)
+            self.screen.blit(
+                self.font.render(str(num['val']), True, num['color']),
+                (num['pos'][0] - ox, num['pos'][1] - oy),
+            )
+        if getattr(state.player, 'current_interactable', None):
+            self.draw_interaction_prompt(state.player, ox, oy)
         try:
             if getattr(state, 'last_save_elapsed', 1e6) <= constants.AUTOSAVE_INDICATOR_DURATION:
                 ind = self.font.render("Saved", True, (200, 200, 200))
                 self.screen.blit(ind, (sw - ind.get_width() - 8, 8))
-        except Exception: pass
-        try: self.draw_minimap(state)
-        except Exception: pass
-        try: self.draw_hud(state)
-        except Exception: pass
+        except Exception:
+            pass
+        try:
+            self.draw_minimap(state)
+        except Exception:
+            pass
+        try:
+            self.draw_hud(state)
+        except Exception:
+            pass
 
-        # Audio Debug OSD
-        if audio_manager:
+        # Audio Debug OSD (gated behind debug_text_enabled)
+        if audio_manager and getattr(state, "debug_text_enabled", False):
             self.draw_audio_debug(audio_manager)
 
         if getattr(state, 'active_respite', None):
@@ -1475,7 +1698,9 @@ class Renderer:
         player = state.player
         panel_w = constants.HUD_PANEL_W
         panel_h = constants.HUD_PANEL_H
-        hud_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        if self._hud_surf is None or self._hud_surf.get_size() != (panel_w, panel_h):
+            self._hud_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        hud_surf = self._hud_surf
         hud_surf.fill((20, 20, 25, constants.UI_ALPHA))
         pygame.draw.rect(hud_surf, (100, 100, 100), (0, 0, panel_w, panel_h), 2)
         
@@ -1502,11 +1727,19 @@ class Renderer:
         scholar_text = f"Scholars: {scholar_count}"
         hud_surf.blit(self.hud_font.render(scholar_text, True, constants.COLOR_WHITE), (440, 10))
 
-        # [Input Mode Indicator]
-        mode = getattr(state, 'input_mode', constants.INPUT_MODE_KEYBOARD)
-        mode_col = constants.COLOR_MODE_GAMEPAD if mode == constants.INPUT_MODE_GAMEPAD else constants.COLOR_MODE_KEYBOARD
-        mode_label = self.hud_font.render(f"[ Input: {mode.capitalize()} ]", True, mode_col)
-        hud_surf.blit(mode_label, (hud_surf.get_width() - mode_label.get_width() - 10, hud_surf.get_height() - 25))
+        # [Input Mode Indicator] (gated behind debug_text_enabled)
+        if getattr(state, "debug_text_enabled", False):
+            mode = getattr(state, 'input_mode', constants.INPUT_MODE_KEYBOARD)
+            mode_col = (
+                constants.COLOR_MODE_GAMEPAD
+                if mode == constants.INPUT_MODE_GAMEPAD
+                else constants.COLOR_MODE_KEYBOARD
+            )
+            mode_label = self.hud_font.render(f"[ Input: {mode.capitalize()} ]", True, mode_col)
+            hud_surf.blit(
+                mode_label,
+                (hud_surf.get_width() - mode_label.get_width() - 10, hud_surf.get_height() - 25),
+            )
 
         for i in range(2):
             sx, sy = 10 + i * (constants.HUD_SLOT_W + 100), 45
@@ -1792,13 +2025,15 @@ class Renderer:
         if w == 0 or h == 0:
             return
 
-        # Initialize Minimap Surface (Create once or reuse if size is fixed)
+        # Initialize or reuse Minimap Surface
         mw, mh = constants.MINIMAP_WIDTH, constants.MINIMAP_HEIGHT
-        minimap_surface = pygame.Surface((mw, mh), pygame.SRCALPHA)
-        
+        if getattr(self, "_minimap_surf", None) is None or self._minimap_surf.get_size() != (mw, mh):
+            self._minimap_surf = pygame.Surface((mw, mh), pygame.SRCALPHA)
+        minimap_surface = self._minimap_surf
+
         # 2. CLEAR SURFACE AT START
         minimap_surface.fill((10, 10, 10, constants.UI_ALPHA))
-        
+
         ww, wh = w * constants.TILE_SIZE, h * constants.TILE_SIZE
 
         # 2. Increased Zoom Scale Factor (defined by constants.MINIMAP_VIEWPORT_FRAC)
@@ -1811,25 +2046,50 @@ class Renderer:
         vpy = int(max(0, min(pyc - vph // 2, wh - vph)))
 
         # UNIFORM SCALE: Use a single scale factor to prevent squashing and circle drift
-        # Calculate scale based on the width/height to ensure uniform mapping
         scale = min(mw / float(vpw), mh / float(vph))
         sx = sy = scale
 
-        # 4. Minimap Tile Rendering (Walls)
-        tx1, ty1 = int(max(0, vpx // constants.TILE_SIZE)), int(max(0, vpy // constants.TILE_SIZE))
-        tx2, ty2 = int(min(w, (vpx + vpw) // constants.TILE_SIZE + 1)), int(min(h, (vpy + vph) // constants.TILE_SIZE + 1))
-        
-        for y in range(ty1, ty2):
-            for x in range(tx1, tx2):
-                if state.world.grid[y][x] == constants.TILE_WALL:
-                    wx, wy = x * constants.TILE_SIZE, y * constants.TILE_SIZE
-                    # Draw onto minimap_surface
-                    pygame.draw.rect(minimap_surface, constants.MINIMAP_WALL_COLOR, (
-                        int((wx - vpx) * sx),
-                        int((wy - vpy) * sy),
-                        int(max(1, constants.TILE_SIZE * sx)),
-                        int(max(1, constants.TILE_SIZE * sy))
-                    ))
+        # 4. Minimap Tile Rendering (Walls) - use cached static wall layer on real display surfaces
+        if isinstance(self.screen, pygame.Surface):
+            mm_key = (id(state.world), getattr(state.world, "name", ""), id(state.world.grid), w, h, sx)
+            if getattr(self, "_minimap_world_key", None) != mm_key:
+                full_mw = max(mw, int(ww * sx) + 4)
+                full_mh = max(mh, int(wh * sy) + 4)
+                wall_layer = pygame.Surface((full_mw, full_mh), pygame.SRCALPHA)
+                tw_mm = int(max(1, constants.TILE_SIZE * sx))
+                th_mm = int(max(1, constants.TILE_SIZE * sy))
+                for y in range(h):
+                    row = state.world.grid[y]
+                    wy_s = int(y * constants.TILE_SIZE * sy)
+                    for x in range(w):
+                        if row[x] == constants.TILE_WALL:
+                            pygame.draw.rect(
+                                wall_layer,
+                                constants.MINIMAP_WALL_COLOR,
+                                (int(x * constants.TILE_SIZE * sx), wy_s, tw_mm, th_mm),
+                            )
+                self._minimap_walls_surf = wall_layer
+                self._minimap_world_key = mm_key
+            minimap_surface.blit(
+                self._minimap_walls_surf,
+                (0, 0),
+                area=pygame.Rect(int(vpx * sx), int(vpy * sy), mw, mh),
+            )
+        else:
+            tx1 = int(max(0, vpx // constants.TILE_SIZE))
+            ty1 = int(max(0, vpy // constants.TILE_SIZE))
+            tx2 = int(min(w, (vpx + vpw) // constants.TILE_SIZE + 1))
+            ty2 = int(min(h, (vpy + vph) // constants.TILE_SIZE + 1))
+            for y in range(ty1, ty2):
+                for x in range(tx1, tx2):
+                    if state.world.grid[y][x] == constants.TILE_WALL:
+                        wx, wy = x * constants.TILE_SIZE, y * constants.TILE_SIZE
+                        pygame.draw.rect(minimap_surface, constants.MINIMAP_WALL_COLOR, (
+                            int((wx - vpx) * sx),
+                            int((wy - vpy) * sy),
+                            int(max(1, constants.TILE_SIZE * sx)),
+                            int(max(1, constants.TILE_SIZE * sy))
+                        ))
 
         # 5. Safe Circle Boundary Visualization
         boss_coords = getattr(state, 'current_boss_coords', None)
@@ -1946,9 +2206,11 @@ class Renderer:
         elif getattr(menu_state, 'name', '') == 'CONTROLS':
             self.draw_controls_overlay(True)
         # Engine Revision & Outdated Save Indicator on Title Screen
+        debug_on = bool(state and getattr(state, "debug_text_enabled", False))
         try:
-            rev_surf = self.small_font.render(f"Engine Rev {constants.ENGINE_REVISION}", True, (140, 140, 150))
-            self.screen.blit(rev_surf, (12, sh - 24))
+            if debug_on:
+                rev_surf = self.small_font.render(f"Engine Rev {constants.ENGINE_REVISION}", True, (140, 140, 150))
+                self.screen.blit(rev_surf, (12, sh - 24))
             if state and getattr(state, "stats", None) and not getattr(state.stats, "is_revision_compatible", True):
                 out_msg = "Incompatible older save detected — start a New Draft"
                 out_surf = self.small_font.render(out_msg, True, constants.COLOR_RED)
@@ -1956,11 +2218,12 @@ class Renderer:
         except Exception:
             pass
 
-        # Audio Debug OSD (Title Screen)
-        debug_font = pygame.font.SysFont("Arial", 14, bold=True)
-        debug_text = "[DEBUG_AUDIO: Playing title_theme.ogg]"
-        debug_surf = debug_font.render(debug_text, True, constants.COLOR_WHITE)
-        self.screen.blit(debug_surf, (sw // 2 - debug_surf.get_width() // 2, 5))
+        # Audio Debug OSD (Title Screen - gated behind debug_text_enabled)
+        if debug_on:
+            debug_font = pygame.font.SysFont("Arial", 14, bold=True)
+            debug_text = "[DEBUG_AUDIO: Playing title_theme.ogg]"
+            debug_surf = debug_font.render(debug_text, True, constants.COLOR_WHITE)
+            self.screen.blit(debug_surf, (sw // 2 - debug_surf.get_width() // 2, 5))
 
         pygame.display.flip()
 

@@ -50,6 +50,7 @@ class StatisticsTracker:
             self.data: Dict[str, Any] = {
                 "engine_revision": ENGINE_REVISION,
                 "player_name": "Scholar",
+                "debug_text_enabled": False,
                 "active_session_in_progress": False,
                 "run_state": None,
                 "last_run_result": "INIT",
@@ -78,6 +79,8 @@ class StatisticsTracker:
                     self.data["active_session_in_progress"] = False
             if "last_run_result" not in self.data:
                 self.data["last_run_result"] = "INIT"
+            if "debug_text_enabled" not in self.data:
+                self.data["debug_text_enabled"] = False
 
     @classmethod
     def has_compatible_save(cls, path: Path | str | None = None) -> bool:

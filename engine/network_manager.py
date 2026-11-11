@@ -427,6 +427,10 @@ class NetworkManager:
         sock.settimeout(0.5)
         
         while not stop_signal.is_set():
+            if self.network_mode == "HOST" and not self.connected_peers:
+                time.sleep(1.0 / 20.0)
+                continue
+
             payload_data = {"type": "HEARTBEAT", "identity": self.identity, "time": time.time()}
             if self.local_state_provider:
                 try: 

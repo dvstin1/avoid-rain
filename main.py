@@ -211,11 +211,14 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
             if event.key == pygame.K_TAB: inspect = True
             if event.key == pygame.K_LSHIFT: dash = True
             if pause_menu is not None and pause_menu.is_open():
-                if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                     if pause_menu.get_selected() == "Controls":
                         from engine.pause_menu import PauseMenuState
                         pause_menu.state = PauseMenuState.CONTROLS
-                    else: pause_menu.confirm()
+                    else:
+                        pause_menu.confirm()
+                        if audio_manager:
+                            audio_manager.play_sfx("menu_confirm.ogg")
 
     # --- Unified Navigation Polling (Game/Pause) ---
     move_dir = get_movement_actions(state)
@@ -336,7 +339,10 @@ def main():
         finally:
             pygame.quit()
 
-    pause_menu = PauseMenu()
+    pause_menu = PauseMenu(
+        debug_text_enabled=getattr(state, "debug_text_enabled", False),
+        on_toggle_debug=lambda val: state.set_debug_text_enabled(val, save=True),
+    )
     
     # [Initialization] Detect existing compatible save file to enable 'Continue'
     from engine.stats import StatisticsTracker
@@ -390,6 +396,7 @@ def main():
                         renderer.fade_to_black()
                         try: state.hydrate_from_disk()
                         except Exception: state.reset_to_new_game()
+                        pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
                         in_title = False
                         continue
                     if selected == 'New Draft':
@@ -397,6 +404,7 @@ def main():
                             audio.play_sfx("warp_trigger.ogg")
                             try: state.reset_to_new_game(); state.save_stats(wait=True)
                             except Exception: pass
+                            pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
                             renderer.fade_to_black()
                             title_menu.state = TitleMenuState.MAIN
                             in_title = False
@@ -405,6 +413,7 @@ def main():
                         else:
                             try: state.reset_to_new_game(); state.save_stats(wait=True)
                             except Exception: pass
+                            pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
                             renderer.fade_to_black()
                             in_title = False
                             continue
