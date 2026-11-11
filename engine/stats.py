@@ -12,6 +12,7 @@ import os
 import time
 import tempfile
 from typing import Dict, Any
+from constants import ENGINE_REVISION
 
 def get_save_dir() -> Path:
     """Resolve the dedicated configuration dotfile directory for save data."""
@@ -45,7 +46,9 @@ class StatisticsTracker:
 
     def __init__(self, data: Dict[str, Any] | None = None) -> None:
         if data is None:
+            self.is_revision_compatible = True
             self.data: Dict[str, Any] = {
+                "engine_revision": ENGINE_REVISION,
                 "player_name": "Scholar",
                 "active_session_in_progress": False,
                 "run_state": None,
@@ -59,18 +62,34 @@ class StatisticsTracker:
                     "pages_collected": 0,
                 },
                 "discovered_bestiary": {},
-                "run_state": None,
-                "last_run_result": "INIT",
-                "active_session_in_progress": False,
             }
         else:
             self.data = data
-            if "run_state" not in self.data:
+            saved_rev = self.data.get("engine_revision")
+            self.is_revision_compatible = saved_rev == ENGINE_REVISION
+            if not self.is_revision_compatible:
+                # Invalidate suspended run state from older engine revisions
                 self.data["run_state"] = None
+                self.data["active_session_in_progress"] = False
+            else:
+                if "run_state" not in self.data:
+                    self.data["run_state"] = None
+                if "active_session_in_progress" not in self.data:
+                    self.data["active_session_in_progress"] = False
             if "last_run_result" not in self.data:
                 self.data["last_run_result"] = "INIT"
-            if "active_session_in_progress" not in self.data:
-                self.data["active_session_in_progress"] = False
+
+    @classmethod
+    def has_compatible_save(cls, path: Path | str | None = None) -> bool:
+        """Return True only if a save file exists and matches the current ENGINE_REVISION."""
+        target = Path(path) if path is not None else DEFAULT_PATH
+        if not target.exists():
+            return False
+        try:
+            raw = json.loads(target.read_text(encoding="utf-8"))
+            return raw.get("engine_revision") == ENGINE_REVISION
+        except Exception:  # pylint: disable=broad-exception-caught
+            return False
 
     def increment(self, key: str, amount: int = 1) -> None:
         """Increment a lifetime stat. Raises KeyError if the stat key is unknown."""

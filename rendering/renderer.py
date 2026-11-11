@@ -1945,6 +1945,17 @@ class Renderer:
             draw_lobby_menu(self.screen, self.font, state)
         elif getattr(menu_state, 'name', '') == 'CONTROLS':
             self.draw_controls_overlay(True)
+        # Engine Revision & Outdated Save Indicator on Title Screen
+        try:
+            rev_surf = self.small_font.render(f"Engine Rev {constants.ENGINE_REVISION}", True, (140, 140, 150))
+            self.screen.blit(rev_surf, (12, sh - 24))
+            if state and getattr(state, "stats", None) and not getattr(state.stats, "is_revision_compatible", True):
+                out_msg = "Incompatible older save detected — start a New Draft"
+                out_surf = self.small_font.render(out_msg, True, constants.COLOR_RED)
+                self.screen.blit(out_surf, (sw // 2 - out_surf.get_width() // 2, 305))
+        except Exception:
+            pass
+
         # Audio Debug OSD (Title Screen)
         debug_font = pygame.font.SysFont("Arial", 14, bold=True)
         debug_text = "[DEBUG_AUDIO: Playing title_theme.ogg]"

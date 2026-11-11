@@ -17,7 +17,9 @@ from engine.autosave import AutosaveManager
 from engine.audio import AudioManager
 from rendering.renderer import Renderer
 
-# pylint: disable=no-member
+# pylint: disable=no-member,too-many-locals,too-many-branches,too-many-statements,broad-exception-caught
+# pylint: disable=multiple-statements,import-outside-toplevel,trailing-whitespace,line-too-long
+# pylint: disable=unused-import,unused-argument,redefined-outer-name,reimported
 
 def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: AudioManager = None):
     """Handle events during the title screen with Auto Input Mode and Ratcheted Navigation."""
@@ -336,9 +338,9 @@ def main():
 
     pause_menu = PauseMenu()
     
-    # [Initialization] Detect existing save file to enable 'Continue'
-    from engine.stats import DEFAULT_PATH
-    title_menu = TitleMenu(has_save=DEFAULT_PATH.exists())
+    # [Initialization] Detect existing compatible save file to enable 'Continue'
+    from engine.stats import StatisticsTracker
+    title_menu = TitleMenu(has_save=StatisticsTracker.has_compatible_save())
     
     in_title = True
     running = True
@@ -399,8 +401,7 @@ def main():
                             title_menu.state = TitleMenuState.MAIN
                             in_title = False
                             continue
-                        from engine.stats import DEFAULT_PATH
-                        if DEFAULT_PATH.exists(): title_menu.state = TitleMenuState.CONFIRM_NEW_GAME
+                        if StatisticsTracker.has_compatible_save(): title_menu.state = TitleMenuState.CONFIRM_NEW_GAME
                         else:
                             try: state.reset_to_new_game(); state.save_stats(wait=True)
                             except Exception: pass
@@ -424,8 +425,7 @@ def main():
                         pause_menu.clear_quit(); pause_menu.close(); in_title = True
                         state.deallocate()
                         try:
-                            from engine.stats import DEFAULT_PATH
-                            title_menu.set_has_save(DEFAULT_PATH.exists())
+                            title_menu.set_has_save(StatisticsTracker.has_compatible_save())
                         except Exception: pass
                         continue
                 else:

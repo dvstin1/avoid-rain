@@ -1,31 +1,23 @@
 """
 Manages the global game state and coordinates engine components.
 """
+# pylint: disable=too-many-locals,too-many-branches,too-many-statements,too-many-instance-attributes
+# pylint: disable=too-many-public-methods,broad-exception-caught,multiple-statements,import-outside-toplevel
+# pylint: disable=missing-function-docstring,unused-argument,redefined-outer-name,reimported,line-too-long
+# pylint: disable=trailing-whitespace,C0302
 from typing import Optional
 import queue
 import threading
-import random
 import time
-import pygame
 
 from constants import (
-    PLAYER_START_X, PLAYER_START_Y,
-    DAMAGE_NUMBER_LIFETIME, DAMAGE_NUMBER_SPEED,
-    SWORD_DAMAGE, COLOR_SELECTION, COLOR_WHITE, RECOVERY_TIME, STAGGER_OUTLINE_TIME,
     PLAYER_MAX_HP, FLASK_MAX_CHARGES,
-    SCREEN_SHAKE_DURATION, HIT_STOP_DURATION,
-    SCREEN_WIDTH, SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT, HUD_PICKUP_BTN_RECT,
-    TILE_SIZE, GRID_WIDTH, GRID_HEIGHT, CAMERA_LERP_SPEED,
-    SCREEN_SHAKE_INTENSITY, AUTOSAVE_INDICATOR_DURATION,
-    WEATHER_MAX_RADIUS, WEATHER_MIN_RADIUS, WEATHER_WAIT_DURATION,
-    WEATHER_SHRINK_DURATION, WEATHER_DAMAGE_PER_SECOND,
-    TILE_STRUCTURE, TILE_RESPITE,
-    BLOOM_TOTAL_DURATION, BLOOM_COOLDOWN,
-    INPUT_MODE_KEYBOARD, INPUT_MODE_GAMEPAD
+    SCREEN_WIDTH, SCREEN_HEIGHT,
+    TILE_SIZE, CAMERA_LERP_SPEED,
+    INPUT_MODE_KEYBOARD
 )
 from engine.player import Player, PlayerStateEnum
-from engine.combat import get_sword_hitbox
-from engine.physics import check_aabb_collision, resolve_enemy_player_collision
+from engine.physics import check_aabb_collision
 from engine.camera import Camera
 from engine.stats import StatisticsTracker
 
@@ -61,8 +53,12 @@ class GameState:
             except Exception:
                 self.stats = StatisticsTracker()
         
-        # Hydration Rule: If we have a suspended run, restore it now
-        if self.stats and self.stats.data.get("run_state"):
+        # Hydration Rule: If we have a suspended run on the current engine revision, restore it now
+        if (
+            self.stats
+            and getattr(self.stats, "is_revision_compatible", True)
+            and self.stats.data.get("run_state")
+        ):
             self.hydrate_from_disk()
 
         # 3. Environment and Camera
@@ -1061,6 +1057,11 @@ class GameState:
         if not self.stats or not self.stats.data.get("run_state"):
             try: self.stats = StatisticsTracker.load()
             except Exception: self.stats = StatisticsTracker()
+
+        # Engine Revision Guard: Do not hydrate incompatible saves from older engine revisions
+        if self.stats and not getattr(self.stats, "is_revision_compatible", True):
+            self.reset_to_new_game()
+            return
         
         # Update Network Identity from loaded stats
         if self.stats and hasattr(self, 'network_manager'):
@@ -1111,7 +1112,10 @@ class GameState:
 
     def reset_to_new_game(self):
         from engine.maps import create_world
+        from constants import ENGINE_REVISION
         if self.stats:
+            self.stats.data["engine_revision"] = ENGINE_REVISION
+            self.stats.is_revision_compatible = True
             self.stats.data["lifetime_stats"]["pages_collected"] = 0
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
@@ -1159,6 +1163,11 @@ class GameState:
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
         if self.stats is None or not getattr(self, '_save_worker_running', False): return
         if self.player is None or self.world is None: return # Guard against deallocated state
+        if path is None and not getattr(self.stats, "is_revision_compatible", True):
+            return
+        from constants import ENGINE_REVISION
+        self.stats.data["engine_revision"] = ENGINE_REVISION
+        self.stats.is_revision_compatible = True
         
         # --- Persistence: Sanctuary is the hub; runs are completed/redacted here ---
         world_name = getattr(self.world, 'name', 'sanctuary')

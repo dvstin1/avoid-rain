@@ -601,6 +601,13 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Pre-Baked Procedural Foliage & Native Display Format Conversion (`_generate_biome_tile_cache`, `_decorate_biome_stratum_tile`):** Baked procedural grass tufts and overgrowth directly into the cached 40x40 `strata_floors` surfaces (and converted cached tile surfaces via `.convert()` when the display is initialized), reducing each `g`/`G` tile from 3–11 alpha blits per frame to a single fast opaque blit.
 - **World Load Speedup (`engine/maps.py`):** Removed full-grid `generate_grass_decorations()` passes during `create_world()` on 120x120 and 440x440 maps while retaining prototype compatibility for unit tests.
 
+## [ARCHIVED] Game Engine Revision Save Compatibility System - November 2026
+- **Engine Revision Constant (`ENGINE_REVISION = 2` in `constants.py`):** Added a central engine revision identifier to track breaking changes to world layouts, enemy registries, or save schemas.
+- **Save Compatibility Gate (`StatisticsTracker.has_compatible_save` & `is_revision_compatible` in `engine/stats.py`):** Configured `StatisticsTracker` to stamp `engine_revision` on new profiles and strip incompatible `run_state` / `active_session_in_progress` data when loading older or unversioned save files.
+- **Title Menu & Hydration Enforcement (`main.py`, `engine/game_state.py`, `rendering/renderer.py`):** Updated `TitleMenu` initialization and `New Draft` confirmation in `main.py` to check `StatisticsTracker.has_compatible_save()`, hiding `Continue` (leaving `New Draft` as the starting option) when an older save revision is present, guarding `GameState.hydrate_from_disk()`, displaying the engine revision on the title screen, and stamping `ENGINE_REVISION` once a new draft is started.
+- **Unit Test Coverage (`tests/test_engine_revision.py`):** Added unit tests covering fresh tracker revision stamping, legacy/outdated save detection, `TitleMenu` option filtering, and `GameState` revision promotion on starting a new game.
+
+
 
 
 

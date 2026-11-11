@@ -11,7 +11,8 @@ def get_generated_world_path() -> str:
     temp_dir = Path(tempfile.gettempdir())
     return str(temp_dir / "avoid_rain_generated_world.json")
 
-# Window Configuration
+# Window & Engine Configuration
+ENGINE_REVISION = 2  # Increment when changes break compatibility with older save_data.json files
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 FPS = 60
