@@ -675,4 +675,20 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
   - WIP Biome Fallback: Ensured robust, visually coherent neutral stone fallbacks for undocumented or work-in-progress biomes.
 - **Unit Testing Coverage (`tests/test_generate_assets.py`, `tests/test_wired_png_assets.py`, `tests/test_respite_sync.py`):** Added tests verifying wall feature variants, 100% opaque swamp surfaces, swamp wall vs. brick differentiation, and swamp floor pass selection; achieved 100% green pass across all 208 unit tests with 10.00/10 pylint on generator/tests and 9.66/10 on renderer.
 
+## [ARCHIVED] Legacy Biome Floors Restoration & Sanctuary PNG Asset Isolation - November 2026
+- **Legacy Procedural Geometric Rendering Restoration (`rendering/renderer.py`):**
+  - Restored full legacy procedural geometric floor rendering across all existing biomes (`windy_ridge`, `pastoral_valley`, `tech_tower`, `swamp_mire`, `frozen_peaks`) matching commit `70ed514`.
+  - Re-enabled 4x4 macro-zone underlay contours (160x160px continuous contour bands) and 2x2 connected block motifs across matching surfaces for each biome (e.g., pastoral recessed tar/swamp currents and tan sandstone pathways, tech tower reactor trench gratings and data-bus walkways, swamp mire bog shallows and boardwalk planks, frozen peaks mirror-ice fracture networks and snowdrift dunes).
+  - Restored 70ed514 legacy connected wall plateaus and 2.5D cliff facades across non-Sanctuary biomes.
+- **Sanctuary Biome Asset Isolation (`rendering/renderer.py`, `tests/test_wired_png_assets.py`):**
+  - Quarantined newly generated PNG tile assets (`floor_tile.png`, pre-baked variants, `wall_tile.png`, feature variants standard/cracked/mossy/webbed, and autotiling) exclusively to the `sanctuary` biome, serving as the dedicated sandbox/testing grounds.
+  - Preserved decorative PNG layering (`grass_natural.png`, `rock_cluster.png`) with positional jitter within Sanctuary.
+- **White Background Bleed Elimination:**
+  - Diagnosed and resolved the root cause of the white background bleed in Sanctuary: fixed `_prebake_floor_variants` by replacing erroneous `BLEND_RGBA_ADD` of `(255, 255, 255)` with calibrated `BLEND_RGB_ADD` using calculated shift offsets (`add_val = int(255 * brightness_shift)`), ensuring floor variants never clamp to solid white.
+  - Forced floor variants to be baked into 100% opaque 24-bit RGB Surfaces (`COLOR_SEPIA_AMBER` base fill) without alpha channels.
+  - Guaranteed screen buffer clearing to a solid dark tone every frame (`COLOR_SEPIA_AMBER` for Sanctuary, `COLOR_CHARCOAL` for other biomes) across `render()` and chunk creation.
+- **Verification & Testing (`tests/test_wired_png_assets.py`):**
+  - Added test coverage verifying legacy procedural rendering preservation in non-Sanctuary biomes, Sanctuary isolation of PNG assets, 100% opacity of floor variants, and zero white bleed on the screen buffer.
+  - Verified 100% green pass across all 210 tests in `pytest`; confirmed `pylint` score >= 9.5/10 and 120-character line length compliance.
+
 

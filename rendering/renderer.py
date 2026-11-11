@@ -122,20 +122,26 @@ class Renderer:
         for rot, brightness_shift in configs:
             var = scaled_base.copy()
             if brightness_shift > 0:
-                bright_mask = pygame.Surface((ts, ts), pygame.SRCALPHA)
-                bright_mask.fill((255, 255, 255, int(255 * brightness_shift)))
-                var.blit(bright_mask, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+                bright_mask = pygame.Surface((ts, ts))
+                add_val = int(255 * brightness_shift)
+                bright_mask.fill((add_val, add_val, add_val))
+                var.blit(bright_mask, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
             elif brightness_shift < 0:
-                dark_mask = pygame.Surface((ts, ts), pygame.SRCALPHA)
-                dark_mask.fill((0, 0, 0, int(255 * abs(brightness_shift))))
-                var.blit(dark_mask, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+                dark_mask = pygame.Surface((ts, ts))
+                sub_val = int(255 * abs(brightness_shift))
+                dark_mask.fill((sub_val, sub_val, sub_val))
+                var.blit(dark_mask, (0, 0), special_flags=pygame.BLEND_RGB_SUB)
 
             if rot != 0:
                 var = pygame.transform.rotate(var, rot)
 
+            # Ensure 100% opaque surface with no alpha channel holes
+            opaque_var = pygame.Surface((ts, ts))
+            opaque_var.fill(constants.COLOR_SEPIA_AMBER)
+            opaque_var.blit(var, (0, 0))
             if display_init:
-                var = var.convert()
-            variants.append(var)
+                opaque_var = opaque_var.convert()
+            variants.append(opaque_var)
 
         return variants
 
@@ -205,7 +211,7 @@ class Renderer:
             try:
                 img = pygame.image.load(floor_path)
                 if display_init:
-                    img = img.convert_alpha()
+                    img = img.convert()
                 scaled_floor = pygame.transform.scale(img, (constants.TILE_SIZE, constants.TILE_SIZE))
                 self.floor_variants = self._prebake_floor_variants(scaled_floor)
                 self.image_cache["floor_tile.png"] = self.floor_variants[0]
@@ -719,122 +725,329 @@ class Renderer:
             pygame.draw.rect(target_surf, constants.COLOR_WALL, dr)
             return
 
-        # 1. Swamp Mire Biome: Organic Peat Cliff Embankments (Never force stone brick masonry into Swamp)
-        if biome == "swamp_mire":
-            swamp_wall = getattr(self, "swamp_wall_surf", None)
-            if swamp_wall is not None:
-                target_surf.blit(swamp_wall, (sx, sy))
-                if wall_s:
-                    top_mask = pygame.Surface((ts, ts), pygame.SRCALPHA)
-                    top_mask.fill((0, 0, 0, 45))
-                    target_surf.blit(top_mask, (sx, sy))
-                return
-            target_surf.fill(pal["wall_face"], (sx, sy, ts, ts))
-            if wall_s:
-                target_surf.fill(pal["wall_top"], (sx, sy, ts, ts))
-            if not wall_s:
-                target_surf.fill(pal["wall_mortar"], (sx, sy + ts - 2, ts, 2))
-            if not wall_w:
-                target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
-            if not wall_e:
-                target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
-            return
-
-        # 2. Masonry Biomes (windy_ridge, pastoral_valley, sanctuary):
-        # Generator-driven feature variants (standard, cracked, mossy, webbed)
-        wall_vars = getattr(self, "wall_variants", None)
-        default_wall = getattr(self, "wall_tile_surf", None)
-        if default_wall is not None:
-            if x == 0 and y == 0:
-                selected_wall = default_wall
-            elif wall_vars and len(wall_vars) >= 4:
-                # Deterministic feature selection: 50% standard, 20% cracked, 15% mossy, 15% webbed
-                h_val = ((x * 37) ^ (y * 59) ^ (x * y * 13)) % 100
-                if h_val < 50:
-                    selected_wall = wall_vars[0]
-                elif h_val < 70:
-                    selected_wall = wall_vars[1]
-                elif h_val < 85:
-                    selected_wall = wall_vars[2]
+        # 1. Sanctuary Biome: Sandbox testing grounds for PNG tile assets & autotiling
+        if biome == "sanctuary":
+            wall_vars = getattr(self, "wall_variants", None)
+            default_wall = getattr(self, "wall_tile_surf", None)
+            if default_wall is not None:
+                if x == 0 and y == 0:
+                    selected_wall = default_wall
+                elif wall_vars and len(wall_vars) >= 4:
+                    # Deterministic feature selection: 50% standard, 20% cracked, 15% mossy, 15% webbed
+                    h_val = ((x * 37) ^ (y * 59) ^ (x * y * 13)) % 100
+                    if h_val < 50:
+                        selected_wall = wall_vars[0]
+                    elif h_val < 70:
+                        selected_wall = wall_vars[1]
+                    elif h_val < 85:
+                        selected_wall = wall_vars[2]
+                    else:
+                        selected_wall = wall_vars[3]
                 else:
-                    selected_wall = wall_vars[3]
-            else:
-                selected_wall = default_wall
+                    selected_wall = default_wall
 
-            target_surf.blit(selected_wall, (sx, sy))
-            return
+                target_surf.blit(selected_wall, (sx, sy))
+                return
 
-        # 3. Fallback for other biomes (tech_tower, frozen_peaks, WIP biomes)
+        # 2. All other biomes: Restore exact legacy procedural geometric wall rendering (matching 70ed514)
         if wall_s:
+            # Connected Plateau / Wall Rooftop: seamless across adjacent wall tiles
             target_surf.fill(pal["wall_top"], (sx, sy, ts, ts))
+            prev_clip = target_surf.get_clip()
+            target_surf.set_clip(pygame.Rect(sx, sy, ts, ts))
+            ax = sx - (x % 2) * ts
+            ay = sy - (y % 2) * ts
+            pat = ((x // 2) * 31 + (y // 2) * 47) % 3
+            if pat == 0:
+                pygame.draw.rect(target_surf, pal["wall_face"], (ax + 10, ay + 12, 60, 56), border_radius=6)
+                pygame.draw.rect(target_surf, pal["wall_top"], (ax + 16, ay + 18, 48, 44), border_radius=4)
+            elif pat == 1:
+                pygame.draw.rect(target_surf, pal["wall_face"], (ax + 8, ay + 10, 32, 26), border_radius=4)
+                pygame.draw.rect(target_surf, pal["wall_face"], (ax + 38, ay + 42, 34, 28), border_radius=4)
+                pygame.draw.rect(target_surf, pal["wall_glow"], (ax + 34, ay + 34, 12, 6))
+            else:
+                pygame.draw.line(target_surf, pal["wall_face"], (ax + 6, ay + 26), (ax + 74, ay + 26), 3)
+                pygame.draw.line(target_surf, pal["wall_face"], (ax + 14, ay + 54), (ax + 68, ay + 54), 3)
+            target_surf.set_clip(prev_clip)
+
+            # Outer-edge-only borders against floor tiles
             if not wall_n:
                 target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 2))
-                target_surf.fill(pal["wall_hi"], (sx, sy + 2, ts, 2))
+                target_surf.fill(pal["wall_hi"], (sx, sy + 2, ts, 3))
             if not wall_w:
                 target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
+                target_surf.fill(pal["wall_hi"], (sx + 2, sy, 2, ts))
             if not wall_e:
                 target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
         else:
+            # 2.5D South-facing cliff / bulkhead facade: continuous horizontally
             target_surf.fill(pal["wall_face"], (sx, sy, ts, ts))
-            target_surf.fill(pal["wall_top"], (sx, sy, ts, 12))
-            target_surf.fill(pal["wall_hi"], (sx, sy + 11, ts, 2))
-            target_surf.fill(pal["wall_mortar"], (sx, sy + ts - 2, ts, 2))
+            target_surf.fill(pal["wall_top"], (sx, sy, ts, 13))
+            if not wall_n:
+                target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 2))
+                target_surf.fill(pal["wall_hi"], (sx, sy + 2, ts, 2))
+            target_surf.fill(pal["wall_hi"], (sx, sy + 12, ts, 2))
+            if biome == "pastoral_valley":
+                target_surf.fill(pal["wall_hi"], (sx, sy + 25, ts, 2))
+                target_surf.fill(pal["wall_glow"], (sx, sy + 27, ts, 10))
+                off = (x * 7) % 9
+                for sx_step in range(off, ts - 4, 9):
+                    target_surf.fill(pal["wall_mortar"], (sx + sx_step, sy + 15, 2, 5))
+                    target_surf.fill(pal["wall_mortar"], (sx + sx_step + 2, sy + 29, 2, 6))
+            else:
+                if (x + y) % 2 == 0:
+                    target_surf.fill(pal["wall_top"], (sx + 6, sy + 18, ts - 12, 16))
+                    target_surf.fill(pal["wall_glow"], (sx + ts // 2 - 6, sy + 24, 12, 3))
+                else:
+                    target_surf.fill(pal["wall_mortar"], (sx + ts // 2 - 1, sy + 15, 2, 22))
+            target_surf.fill(pal["wall_mortar"], (sx, sy + ts - 3, ts, 3))
             if not wall_w:
                 target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
             if not wall_e:
                 target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
 
     def _draw_connected_floor_patterns(self, target_surf, biome_info, coords, dr):
-        """Draw multi-tile (2x2 80x80px) organic macro variations across same-surface tiles."""
+        """Draw multi-tile connected shapes across same-surface tiles (restoring 70ed514 legacy)."""
         if not isinstance(target_surf, pygame.Surface):
             return
-        biome, pal, s_idx, _ = biome_info
+        biome, pal, s_idx, s_alt = biome_info
         x, y, _, _ = coords
         sx, sy, ts, _ = int(dr[0]), int(dr[1]), int(dr[2]), int(dr[3])
 
         prev_clip = target_surf.get_clip()
         target_surf.set_clip(pygame.Rect(sx, sy, ts, ts))
 
-        # 2x2 Connected Block Motifs: subtle organic grit/shading variations across 4 matching tiles
-        bx, by = x % 2, y % 2
-
-        if biome == "swamp_mire":
-            if s_idx == 0:
-                # Murky swamp water 2x2 organic variation: tiny duckweed flecks and ripple shading
-                if bx == 1 and by == 1:
-                    target_surf.fill((36, 54, 28), (sx + 8, sy + 12, 3, 2))
-                    target_surf.fill((50, 74, 38), (sx + 9, sy + 11, 2, 2))
-                elif bx == 0 and by == 1:
-                    target_surf.fill((20, 26, 36), (sx + 4, sy + 18, 14, 2))
-            elif s_idx == 1:
-                # Muddy trampled turf 2x2 variation: subtle damp silt depression
-                if bx == 1 and by == 0:
-                    target_surf.fill((28, 22, 18), (sx + 10, sy + 14, 8, 4))
-            elif s_idx == 2:
-                # Wet peat bank 2x2 variation: subtle subterranean root thread
-                if by == 1:
-                    target_surf.fill((58, 46, 36), (sx, sy + 16, ts, 1))
-        elif biome == "pastoral_valley":
-            if s_idx == 2:
-                # Sandstone pathway 2x2 subtle worn slab joint
-                if bx == 0 and by == 0:
-                    target_surf.fill((168, 128, 76), (sx, sy, ts, 1))
-                    target_surf.fill((168, 128, 76), (sx, sy, 1, ts))
-        elif biome == "tech_tower":
-            # Brushed titanium deck plating 2x2 seam grooves (NO cyan rails!)
-            if bx == 0:
-                target_surf.fill(pal["wall_mortar"], (sx, sy, 1, ts))
-            if by == 0:
-                target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 1))
-        elif biome == "frozen_peaks":
-            # Glacial ice 2x2 subtle rime hairline frost line
-            if bx == 1 and by == 1:
-                target_surf.fill(pal["floor_speck"], (sx + 6, sy + 8, 12, 1))
-        else:
-            # Sanctuary / Windy Ridge: subtle 2x2 flagstone mortar groove
+        # In sanctuary, use subtle 2x2 flagstone joints for sandbox testing
+        if biome == "sanctuary":
+            bx, by = x % 2, y % 2
             if bx == 0 and by == 0:
                 target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 1))
                 target_surf.fill(pal["wall_mortar"], (sx, sy, 1, ts))
+            target_surf.set_clip(prev_clip)
+            return
+
+        # 1. 4x4 Macro-Zone Underlay (160x160px continuous contour bands across 16 tiles)
+        zx, zy = x // 4, y // 4
+        zpx = sx - (x % 4) * ts
+        zpy = sy - (y % 4) * ts
+        z_style = ((zx * 43 + zy * 71 + s_idx * 19) & 0x7FFFFFFF) % 3
+        if z_style == 0:
+            pygame.draw.rect(target_surf, s_alt, (zpx + 12, zpy + 22, 136, 34), border_radius=16)
+            pygame.draw.rect(target_surf, s_alt, (zpx + 20, zpy + 98, 124, 38), border_radius=18)
+        elif z_style == 1:
+            pygame.draw.ellipse(target_surf, s_alt, (zpx + 18, zpy + 18, 124, 68))
+            pygame.draw.rect(target_surf, s_alt, (zpx + 10, zpy + 108, 140, 30), border_radius=14)
+        else:
+            pygame.draw.polygon(
+                target_surf,
+                s_alt,
+                [(zpx + 8, zpy + 46), (zpx + 110, zpy + 12), (zpx + 152, zpy + 58), (zpx + 48, zpy + 96)],
+            )
+            pygame.draw.ellipse(target_surf, s_alt, (zpx + 36, zpy + 102, 108, 44))
+
+        # 2. 2x2 Connected Block Motifs (80x80px shapes spanning 4 tiles with 4 distinct patterns)
+        bx, by = x // 2, y // 2
+        ax = sx - (x % 2) * ts
+        ay = sy - (y % 2) * ts
+        pat = ((bx * 37 + by * 59 + zx * 13 + zy * 29 + s_idx * 7) & 0x7FFFFFFF) % 4
+
+        if biome == "pastoral_valley":
+            if s_idx == 0:
+                # Recessed Tar / Poison Swamp: large multi-tile currents, vortex rings, and submerged ribs
+                pygame.draw.ellipse(target_surf, (46, 20, 68), (ax + 8, ay + 12, 64, 56))
+                pygame.draw.ellipse(target_surf, (28, 12, 42), (ax + 16, ay + 20, 48, 40))
+                if pat == 0:
+                    pygame.draw.ellipse(target_surf, (148, 56, 182), (ax + 18, ay + 22, 44, 34), 2)
+                    pygame.draw.ellipse(target_surf, (195, 95, 225), (ax + 28, ay + 30, 24, 18), 1)
+                elif pat == 1:
+                    pygame.draw.rect(target_surf, (132, 48, 168), (ax + 12, ay + 34, 56, 10), border_radius=5)
+                    pygame.draw.circle(target_surf, (185, 82, 215), (ax + 26, ay + 24), 6, 1)
+                    pygame.draw.circle(target_surf, (185, 82, 215), (ax + 54, ay + 52), 8, 1)
+                elif pat == 2:
+                    for ry_off in (24, 38, 52):
+                        pygame.draw.arc(
+                            target_surf, (96, 42, 134), (ax + 18, ay + ry_off - 8, 44, 20), 0.3, 2.8, 2
+                        )
+                else:
+                    pygame.draw.rect(target_surf, (78, 34, 112), (ax + 14, ay + 26, 52, 6), border_radius=3)
+                    pygame.draw.rect(target_surf, (78, 34, 112), (ax + 22, ay + 48, 38, 5), border_radius=2)
+            elif s_idx == 2:
+                # Warm Tan Pathway: large multi-tile sandstone slabs, cart tracks, and plaza rings
+                if pat == 0:
+                    pygame.draw.rect(target_surf, (224, 192, 134), (ax + 10, ay + 10, 58, 28), border_radius=8)
+                    pygame.draw.rect(target_surf, (164, 124, 74), (ax + 10, ay + 10, 58, 28), 2, border_radius=8)
+                    pygame.draw.rect(target_surf, (216, 182, 124), (ax + 14, ay + 44, 52, 26), border_radius=8)
+                elif pat == 1:
+                    pygame.draw.rect(target_surf, (168, 128, 76), (ax, ay + 22, 80, 6))
+                    pygame.draw.rect(target_surf, (168, 128, 76), (ax, ay + 52, 80, 6))
+                    pygame.draw.rect(target_surf, (228, 198, 142), (ax, ay + 32, 80, 14))
+                elif pat == 2:
+                    pygame.draw.circle(target_surf, (224, 192, 134), (ax + 40, ay + 40), 26)
+                    pygame.draw.circle(target_surf, (164, 124, 74), (ax + 40, ay + 40), 26, 2)
+                    pygame.draw.circle(target_surf, (198, 162, 106), (ax + 40, ay + 40), 14)
+                else:
+                    pygame.draw.ellipse(target_surf, (224, 192, 134), (ax + 14, ay + 18, 52, 42))
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 26, ay + 32, 26, 14))
+            else:
+                # Bright Lime/Mint Meadow: connected tuft groves, fairy rings, and sweeping turf swells
+                if pat == 0:
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 12, ay + 22, 56, 32))
+                    pygame.draw.ellipse(target_surf, (144, 244, 152), (ax + 18, ay + 18, 44, 22))
+                    pygame.draw.rect(target_surf, (162, 250, 168), (ax + 24, ay + 24, 32, 6), border_radius=3)
+                elif pat == 1:
+                    for ang in range(0, 360, 60):
+                        rad_a = math.radians(ang)
+                        cx_r = int(ax + 40 + math.cos(rad_a) * 22)
+                        cy_r = int(ay + 40 + math.sin(rad_a) * 20)
+                        pygame.draw.circle(target_surf, pal["floor_accent"], (cx_r, cy_r), 9)
+                        pygame.draw.circle(target_surf, (144, 244, 152), (cx_r - 1, cy_r - 2), 6)
+                elif pat == 2:
+                    pygame.draw.rect(target_surf, (64, 178, 78), (ax + 6, ay + 16, 68, 10), border_radius=5)
+                    pygame.draw.rect(target_surf, (144, 244, 152), (ax + 10, ay + 14, 58, 5), border_radius=2)
+                    pygame.draw.rect(target_surf, (64, 178, 78), (ax + 12, ay + 52, 58, 10), border_radius=5)
+                    pygame.draw.rect(target_surf, (144, 244, 152), (ax + 16, ay + 50, 48, 5), border_radius=2)
+                else:
+                    pygame.draw.ellipse(target_surf, (186, 152, 98), (ax + 20, ay + 28, 40, 22))
+                    pygame.draw.ellipse(target_surf, (218, 186, 128), (ax + 26, ay + 31, 28, 14))
+                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 20, ay + 28), 8)
+                    pygame.draw.circle(target_surf, (144, 244, 152), (ax + 20, ay + 26), 5)
+        elif biome == "tech_tower":
+            if s_idx == 0:
+                # Continuous Sub-Floor Reactor Trench Grating across the entire 80x80 block
+                for gy in range(8, 80, 10):
+                    target_surf.fill(pal["wall_mortar"], (ax, ay + gy, 80, 5))
+                if pat in (0, 2):
+                    target_surf.fill(pal["wall_glow"], (ax + 28, ay, 14, 80))
+                    target_surf.fill(pal["floor_speck"], (ax + 32, ay, 6, 80))
+                else:
+                    target_surf.fill(pal["floor_accent"], (ax, ay + 32, 80, 12))
+                    pygame.draw.circle(target_surf, pal["wall_glow"], (ax + 40, ay + 38), 16, 3)
+            elif s_idx == 2:
+                # Continuous High-Voltage Data-Bus Walkway
+                target_surf.fill(pal["floor_accent"], (ax, ay + 36, 80, 8))
+                target_surf.fill(pal["floor_speck"], (ax, ay + 39, 80, 2))
+                if pat == 0:
+                    target_surf.fill(pal["floor_accent"], (ax + 36, ay, 8, 80))
+                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 24, ay + 24, 32, 32), border_radius=4)
+                    pygame.draw.rect(target_surf, pal["wall_glow"], (ax + 30, ay + 30, 20, 20), 2, border_radius=3)
+                elif pat == 1:
+                    for bx_p in (16, 40, 64):
+                        pygame.draw.circle(target_surf, pal["wall_glow"], (ax + bx_p, ay + 40), 5)
+            else:
+                # Giant 2x2 Bulkhead Hull Plates & Circuit Routing
+                if pat == 0:
+                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 4, ay + 4, 72, 72), 2, border_radius=8)
+                    pygame.draw.rect(target_surf, pal["floor_accent"], (ax + 26, ay + 26, 28, 28), 1, border_radius=4)
+                elif pat == 1:
+                    pygame.draw.line(target_surf, pal["floor_accent"], (ax, ay + 24), (ax + 52, ay + 24), 2)
+                    pygame.draw.line(target_surf, pal["floor_accent"], (ax + 52, ay + 24), (ax + 52, ay + 80), 2)
+                    pygame.draw.line(target_surf, pal["wall_glow"], (ax + 24, ay), (ax + 24, ay + 56), 2)
+                    pygame.draw.line(target_surf, pal["wall_glow"], (ax + 24, ay + 56), (ax + 80, ay + 56), 2)
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 52, ay + 24), 4)
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 24, ay + 56), 4)
+                elif pat == 2:
+                    pygame.draw.circle(target_surf, pal["wall_face"], (ax + 40, ay + 40), 28, 3)
+                    pygame.draw.circle(target_surf, pal["wall_glow"], (ax + 40, ay + 40), 18, 1)
+                else:
+                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 6, ay + 6, 68, 30), 2, border_radius=4)
+                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 6, ay + 44, 68, 30), 2, border_radius=4)
+        elif biome == "swamp_mire":
+            if s_idx == 0:
+                if pat == 0:
+                    pygame.draw.ellipse(target_surf, pal["wall_mortar"], (ax + 8, ay + 12, 64, 56))
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 16, ay + 20, 48, 40), 2)
+                    pygame.draw.ellipse(target_surf, pal["floor_speck"], (ax + 28, ay + 30, 24, 20), 1)
+                elif pat == 1:
+                    for r_o in (18, 34, 50):
+                        pygame.draw.arc(
+                            target_surf, pal["floor_accent"], (ax + 14, ay + r_o, 52, 22), 0.2, 2.9, 2
+                        )
+                else:
+                    pygame.draw.ellipse(target_surf, pal["wall_mortar"], (ax + 12, ay + 18, 56, 44))
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 30, ay + 36), 6, 1)
+                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 50, ay + 44), 9, 1)
+            elif s_idx == 2:
+                # Continuous Multi-Tile Timber Boardwalk Planks spanning full 80px width
+                for py in range(6, 76, 14):
+                    target_surf.fill(pal["wall_top"], (ax, ay + py, 80, 10))
+                    target_surf.fill(pal["wall_hi"], (ax, ay + py, 80, 2))
+                    joint_x = (py * 3 + bx * 17) % 60 + 10
+                    target_surf.fill(pal["wall_mortar"], (ax + joint_x, ay + py, 2, 10))
+                if pat == 1:
+                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 16, ay + 16, 48, 48), 3)
+            else:
+                if pat == 0:
+                    pygame.draw.line(target_surf, pal["floor_accent"], (ax + 8, ay + 14), (ax + 72, ay + 66), 3)
+                    pygame.draw.line(target_surf, pal["floor_accent"], (ax + 14, ay + 64), (ax + 68, ay + 18), 2)
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 40, ay + 40), 10)
+                elif pat == 1:
+                    for hx, hy in ((26, 26), (54, 26), (40, 50)):
+                        pygame.draw.circle(target_surf, pal["floor_accent"], (ax + hx, ay + hy), 13, 2)
+                else:
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 14, ay + 22, 52, 36))
+                    pygame.draw.ellipse(target_surf, pal["floor_speck"], (ax + 26, ay + 30, 24, 16))
+        elif biome == "frozen_peaks":
+            if s_idx == 0:
+                # Continuous Mirror-Ice Basin with branching multi-tile fracture networks
+                if pat == 0:
+                    pygame.draw.line(target_surf, pal["wall_mortar"], (ax + 6, ay + 12), (ax + 74, ay + 68), 2)
+                    pygame.draw.line(target_surf, pal["wall_mortar"], (ax + 40, ay + 40), (ax + 68, ay + 16), 2)
+                    pygame.draw.line(target_surf, pal["floor_speck"], (ax + 8, ay + 10), (ax + 74, ay + 66), 1)
+                elif pat == 1:
+                    pts = [(ax + 40, ay + 10), (ax + 68, ay + 40), (ax + 40, ay + 70), (ax + 12, ay + 40)]
+                    pygame.draw.polygon(target_surf, pal["floor_accent"], pts, 2)
+                else:
+                    pygame.draw.line(target_surf, pal["floor_speck"], (ax + 10, ay + 24), (ax + 70, ay + 24), 3)
+                    pygame.draw.line(target_surf, pal["floor_speck"], (ax + 18, ay + 52), (ax + 66, ay + 52), 2)
+            elif s_idx == 2:
+                # Sweeping Multi-Tile Snowdrift Dunes
+                pygame.draw.ellipse(target_surf, pal["floor_speck"], (ax + 8, ay + 14, 64, 26))
+                pygame.draw.ellipse(target_surf, pal["wall_hi"], (ax + 14, ay + 44, 54, 22))
+            else:
+                if pat == 0:
+                    pygame.draw.line(target_surf, pal["floor_accent"], (ax + 8, ay + 58), (ax + 72, ay + 18), 3)
+                    pygame.draw.line(target_surf, pal["floor_speck"], (ax + 10, ay + 55), (ax + 72, ay + 15), 2)
+                elif pat == 1:
+                    pygame.draw.ellipse(target_surf, pal["wall_face"], (ax + 16, ay + 22, 48, 34))
+                    pygame.draw.ellipse(target_surf, pal["floor_speck"], (ax + 20, ay + 20, 38, 16))
+                else:
+                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 40, ay + 40), 22, 2)
+                    pygame.draw.line(target_surf, pal["floor_speck"], (ax + 16, ay + 40), (ax + 64, ay + 40), 2)
+                    pygame.draw.line(target_surf, pal["floor_speck"], (ax + 40, ay + 16), (ax + 40, ay + 64), 2)
+        else:
+            # windy_ridge: connected highland cobbles, ancient stone rings, and scriptorium inlays
+            if s_idx == 0:
+                pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 10, ay + 14, 60, 52))
+                if pat == 0:
+                    pygame.draw.ellipse(target_surf, pal["wall_glow"], (ax + 22, ay + 26, 36, 28))
+                else:
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 30, ay + 34), 8, 1)
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 52, ay + 46), 10, 1)
+            elif s_idx == 2:
+                if pat == 0:
+                    pygame.draw.rect(target_surf, pal["wall_top"], (ax + 8, ay + 10, 64, 28), border_radius=6)
+                    pygame.draw.rect(target_surf, pal["wall_hi"], (ax + 10, ay + 12, 60, 3))
+                    pygame.draw.rect(target_surf, pal["wall_top"], (ax + 12, ay + 44, 56, 26), border_radius=6)
+                elif pat == 1:
+                    pygame.draw.circle(target_surf, pal["wall_top"], (ax + 40, ay + 40), 26)
+                    pygame.draw.circle(target_surf, pal["wall_hi"], (ax + 40, ay + 40), 26, 2)
+                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 40, ay + 40), 12, 2)
+                else:
+                    pygame.draw.rect(target_surf, pal["wall_top"], (ax, ay + 18, 80, 16))
+                    pygame.draw.rect(target_surf, pal["wall_hi"], (ax, ay + 18, 80, 2))
+                    pygame.draw.rect(target_surf, pal["wall_top"], (ax, ay + 48, 80, 16))
+            else:
+                if pat == 0:
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 12, ay + 20, 56, 36))
+                    pygame.draw.ellipse(target_surf, pal["floor_speck"], (ax + 22, ay + 26, 36, 18))
+                elif pat == 1:
+                    pygame.draw.circle(target_surf, pal["wall_top"], (ax + 40, ay + 40), 24, 3)
+                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 40, ay + 40), 16)
+                elif pat == 2:
+                    pygame.draw.rect(target_surf, pal["floor_accent"], (ax + 8, ay + 18, 64, 8), border_radius=4)
+                    pygame.draw.rect(target_surf, pal["floor_accent"], (ax + 14, ay + 50, 54, 8), border_radius=4)
+                else:
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 18, ay + 24, 44, 30))
 
         target_surf.set_clip(prev_clip)
 
@@ -972,7 +1185,7 @@ class Renderer:
             target_surf.fill(rim_lo, (sx + ts - 2, sy + ts - 2, 2, 2))
 
     def _draw_static_tile_to_surface(self, target_surf, state, coords, dr):
-        """Render isolated passes: base ground -> autotiled floors -> structural walls -> decorative layers."""
+        """Render static tile to surface."""
         x, y, _, _ = coords
         tile = state.world.grid[y][x]
         biome = self._resolve_tile_biome(state, x, y)
@@ -986,73 +1199,89 @@ class Renderer:
 
         s_idx = self._get_tile_stratum(state, x, y)
         sx, sy = int(dr[0]), int(dr[1])
+        ts = constants.TILE_SIZE
 
-        # PASS 1: Base ground fill (100% opaque, biome-specific)
-        if biome == "swamp_mire":
-            if s_idx == 0 and getattr(self, "swamp_water_surf", None) is not None:
-                target_surf.blit(self.swamp_water_surf, (sx, sy))
-            elif s_idx == 1 and getattr(self, "mud_turf_surf", None) is not None:
-                target_surf.blit(self.mud_turf_surf, (sx, sy))
-            elif s_idx == 2 and getattr(self, "peat_bank_surf", None) is not None:
-                target_surf.blit(self.peat_bank_surf, (sx, sy))
-            elif getattr(self, "floor_variants", None):
+        # Sanctuary biome: Sandbox testing grounds for PNG assets and autotiling
+        if biome == "sanctuary":
+            # 1. Base ground fill - 100% opaque to eliminate any white background bleed
+            if isinstance(target_surf, pygame.Surface):
+                target_surf.fill(constants.COLOR_SEPIA_AMBER, (sx, sy, ts, ts))
+            if getattr(self, "floor_variants", None):
                 v_idx = ((x * 17) ^ (y * 31) ^ (x * y * 7)) % len(self.floor_variants)
                 target_surf.blit(self.floor_variants[v_idx], (sx, sy))
             elif b_pack:
                 strata_list = b_pack.get("strata_floors")
                 tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
                 target_surf.blit(tier_floors[(x * 7 + y * 13) % len(tier_floors)], (sx, sy))
-        elif getattr(self, "floor_variants", None):
-            v_idx = ((x * 17) ^ (y * 31) ^ (x * y * 7)) % len(self.floor_variants)
-            target_surf.blit(self.floor_variants[v_idx], (sx, sy))
-        elif b_pack:
+
+            # 2. Autotiled floor surfaces & multi-tile sandbox footprints
+            if b_pack:
+                strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+                s_base, s_alt = strata_defs[s_idx]
+                self._draw_connected_floor_patterns(target_surf, (biome, pal, s_idx, s_alt), coords, dr)
+                self._draw_stratum_perimeter_borders(target_surf, state, coords, dr, (biome, pal, s_idx, strata_defs))
+                if y > 0 and state.world.grid[y - 1][x] == constants.TILE_WALL:
+                    target_surf.blit(b_pack["shadow_n"], (sx, sy))
+                if x > 0 and state.world.grid[y][x - 1] == constants.TILE_WALL:
+                    target_surf.blit(b_pack["shadow_w"], (sx, sy))
+
+            # 3. Upper decorative layers (grass, rocks) with positional offsets
+            if tile in (constants.TILE_GRASS, constants.TILE_THICKET):
+                if getattr(self, "grass_natural_surf", None) is not None:
+                    gdx = ((x * 13 + y * 17) % 9) - 4
+                    gdy = ((x * 19 + y * 7) % 9) - 4
+                    target_surf.blit(self.grass_natural_surf, (sx + gdx, sy + gdy))
+                    if tile == constants.TILE_THICKET:
+                        gdx2 = ((x * 7 + y * 23) % 9) - 4
+                        gdy2 = ((x * 29 + y * 11) % 9) - 4
+                        target_surf.blit(self.grass_natural_surf, (sx + gdx2, sy + gdy2))
+                elif getattr(self, "grass_pools", None):
+                    clusters = getattr(state.world, "grass_decorations", {}).get((x, y), ())
+                    for pool_key, variant, dx, dy in clusters:
+                        pool = self.grass_pools.get(pool_key)
+                        if pool:
+                            tuft = pool[variant % len(pool)]
+                            target_surf.blit(tuft, (sx + 8 + dx, sy + 8 + dy))
+            elif tile == constants.TILE_OBSTACLE:
+                rock_surf = getattr(self, "prop_cache", {}).get("Rock")
+                if rock_surf is not None:
+                    rdx = ((x * 11 + y * 23) % 9) - 4
+                    rdy = ((x * 17 + y * 13) % 9) - 4
+                    target_surf.blit(rock_surf, (sx + rdx, sy + rdy))
+
+            return biome, pal, s_idx
+
+        # Non-Sanctuary biomes: Restore exact legacy procedural geometric floor rendering (matching 70ed514)
+        if b_pack:
             strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+            s_base, s_alt = strata_defs[s_idx]
             strata_list = b_pack.get("strata_floors")
             tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
             v_idx = (x * 7 + y * 13) % len(tier_floors)
             target_surf.blit(tier_floors[v_idx], (sx, sy))
-        else:
-            pygame.draw.rect(target_surf, constants.COLOR_FLOOR, dr, 1)
 
-        # PASS 2: Autotiled floor surfaces & multi-tile footprints
-        if b_pack:
-            strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
-            s_base, s_alt = strata_defs[s_idx]
-            # 1. Subtle 2x2 multi-tile connected organic patterns across matching tiles
+            # 1. Multi-tile connected patterns (2x2 80x80px & 4x4 160x160px) across same-surface tiles
             self._draw_connected_floor_patterns(target_surf, (biome, pal, s_idx, s_alt), coords, dr)
 
-            # 2. Outer perimeter borders and rounded corners only on edges against different surfaces
+            # 2. Borders, rims, and rounded corners ONLY on outer perimeter edges against different surfaces
             self._draw_stratum_perimeter_borders(target_surf, state, coords, dr, (biome, pal, s_idx, strata_defs))
 
-            # 3. Cast ambient occlusion drop-shadows from adjacent north/west walls
+            # 3. Ambient occlusion drop-shadows from adjacent north/west walls
             if y > 0 and state.world.grid[y - 1][x] == constants.TILE_WALL:
                 target_surf.blit(b_pack["shadow_n"], (sx, sy))
             if x > 0 and state.world.grid[y][x - 1] == constants.TILE_WALL:
                 target_surf.blit(b_pack["shadow_w"], (sx, sy))
 
-        # PASS 4: Upper decorative layers (grass, rocks, reeds) with positional offsets
-        if tile in (constants.TILE_GRASS, constants.TILE_THICKET):
-            if getattr(self, "grass_natural_surf", None) is not None:
-                gdx = ((x * 13 + y * 17) % 9) - 4
-                gdy = ((x * 19 + y * 7) % 9) - 4
-                target_surf.blit(self.grass_natural_surf, (sx + gdx, sy + gdy))
-                if tile == constants.TILE_THICKET:
-                    gdx2 = ((x * 7 + y * 23) % 9) - 4
-                    gdy2 = ((x * 29 + y * 11) % 9) - 4
-                    target_surf.blit(self.grass_natural_surf, (sx + gdx2, sy + gdy2))
-            elif getattr(self, "grass_pools", None):
+            # 4. Stamp procedural grass/thicket tufts directly onto the static tile surface
+            if tile in (constants.TILE_GRASS, constants.TILE_THICKET) and getattr(self, "grass_pools", None):
                 clusters = getattr(state.world, "grass_decorations", {}).get((x, y), ())
                 for pool_key, variant, dx, dy in clusters:
                     pool = self.grass_pools.get(pool_key)
                     if pool:
                         tuft = pool[variant % len(pool)]
                         target_surf.blit(tuft, (sx + 8 + dx, sy + 8 + dy))
-        elif tile == constants.TILE_OBSTACLE:
-            rock_surf = getattr(self, "prop_cache", {}).get("Rock")
-            if rock_surf is not None:
-                rdx = ((x * 11 + y * 23) % 9) - 4
-                rdy = ((x * 17 + y * 13) % 9) - 4
-                target_surf.blit(rock_surf, (sx + rdx, sy + rdy))
+        else:
+            pygame.draw.rect(target_surf, constants.COLOR_FLOOR, dr, 1)
 
         return biome, pal, s_idx
 

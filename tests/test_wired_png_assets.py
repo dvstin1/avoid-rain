@@ -35,7 +35,7 @@ def test_floor_tile_variants_prebaked_on_startup():
 
 
 def test_wall_tile_asset_loaded_and_blitted():
-    """Verify wall_tile.png is loaded and blitted replacing procedural shapes."""
+    """Verify wall_tile.png is loaded and blitted in Sanctuary, while other biomes use procedural walls."""
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
 
@@ -44,6 +44,7 @@ def test_wall_tile_asset_loaded_and_blitted():
     assert renderer.wall_tile_surf.get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
 
     state = GameState(auto_load=False)
+    state.world.name = "sanctuary"
     state.world.load_from_prototype(["#"])
 
     target_surf = pygame.Surface((constants.TILE_SIZE, constants.TILE_SIZE))
@@ -52,13 +53,25 @@ def test_wall_tile_asset_loaded_and_blitted():
         state,
         (0, 0, 1, 1),
         (0, 0, constants.TILE_SIZE, constants.TILE_SIZE),
-        ("windy_ridge", constants.BIOME_PALETTES["windy_ridge"]),
+        ("sanctuary", constants.BIOME_PALETTES["sanctuary"]),
     )
 
-    # Verify surface has the wall tile pixels blitted
+    # In sanctuary sandbox, verify surface has the wall tile pixels blitted
     wall_bytes = pygame.image.tobytes(renderer.wall_tile_surf, "RGB")
     target_bytes = pygame.image.tobytes(target_surf, "RGB")
     assert wall_bytes == target_bytes
+
+    # In non-sanctuary biomes, legacy procedural wall rendering is preserved
+    non_sanc_surf = pygame.Surface((constants.TILE_SIZE, constants.TILE_SIZE))
+    renderer._draw_connected_wall_tile(
+        non_sanc_surf,
+        state,
+        (0, 0, 1, 1),
+        (0, 0, constants.TILE_SIZE, constants.TILE_SIZE),
+        ("windy_ridge", constants.BIOME_PALETTES["windy_ridge"]),
+    )
+    non_sanc_bytes = pygame.image.tobytes(non_sanc_surf, "RGB")
+    assert non_sanc_bytes != wall_bytes
 
 
 def test_decorative_grass_and_rock_assets_and_offsets():
@@ -76,6 +89,7 @@ def test_decorative_grass_and_rock_assets_and_offsets():
 
     # Test map with grass ('g'), thicket ('G'), and floor ('.')
     state = GameState(auto_load=False)
+    state.world.name = "sanctuary"
     state.world.load_from_prototype(["gG."])
 
     chunk_surf = pygame.Surface((constants.TILE_SIZE * 3, constants.TILE_SIZE))
@@ -122,12 +136,9 @@ def test_legend_walkability_and_wall_collision():
 
 
 def test_swamp_biome_wall_organic_not_brick():
-    """Verify walls in swamp_mire render using swamp_wall rather than brick masonry."""
+    """Verify walls in swamp_mire render using procedural cliff facades rather than brick masonry."""
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
-
-    assert hasattr(renderer, "swamp_wall_surf")
-    assert renderer.swamp_wall_surf is not None
 
     state = GameState(auto_load=False)
     state.world.name = "swamp_mire"
@@ -142,23 +153,17 @@ def test_swamp_biome_wall_organic_not_brick():
         ("swamp_mire", constants.BIOME_PALETTES["swamp_mire"]),
     )
 
-    swamp_wall_bytes = pygame.image.tobytes(renderer.swamp_wall_surf, "RGB")
     brick_wall_bytes = pygame.image.tobytes(renderer.wall_tile_surf, "RGB")
     target_bytes = pygame.image.tobytes(target_surf, "RGB")
 
-    # In swamp, must match swamp wall, NOT brick masonry
-    assert target_bytes == swamp_wall_bytes
+    # In swamp, must match procedural cliff facade, NOT brick masonry
     assert target_bytes != brick_wall_bytes
 
 
 def test_swamp_biome_floors_use_swamp_surfaces():
-    """Verify swamp floor rendering passes use swamp_water, mud_turf, and peat_bank."""
+    """Verify swamp floor rendering passes use legacy procedural swamp strata floors."""
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
-
-    assert hasattr(renderer, "swamp_water_surf")
-    assert hasattr(renderer, "mud_turf_surf")
-    assert hasattr(renderer, "peat_bank_surf")
 
     state = GameState(auto_load=False)
     state.world.name = "swamp_mire"
@@ -179,7 +184,7 @@ def test_swamp_biome_floors_use_swamp_surfaces():
 
 
 def test_wall_feature_variants_available_and_selected():
-    """Verify wall variants (standard, cracked, mossy, webbed) are loaded and selected across grid."""
+    """Verify wall variants (standard, cracked, mossy, webbed) are loaded and selected across Sanctuary grid."""
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
 
@@ -187,7 +192,7 @@ def test_wall_feature_variants_available_and_selected():
     assert len(renderer.wall_variants) >= 4
 
     state = GameState(auto_load=False)
-    state.world.name = "windy_ridge"
+    state.world.name = "sanctuary"
     state.world.load_from_prototype(["#####", "#####"])
 
     rendered_hashes = set()
@@ -199,9 +204,61 @@ def test_wall_feature_variants_available_and_selected():
                 state,
                 (tx, ty, 5, 2),
                 (0, 0, constants.TILE_SIZE, constants.TILE_SIZE),
-                ("windy_ridge", constants.BIOME_PALETTES["windy_ridge"]),
+                ("sanctuary", constants.BIOME_PALETTES["sanctuary"]),
             )
             rendered_hashes.add(pygame.image.tobytes(t_surf, "RGB"))
 
-    # Across a 5x2 wall block, multiple feature variants should be chosen
+    # Across a 5x2 wall block in Sanctuary, multiple feature variants should be chosen
     assert len(rendered_hashes) > 1
+
+
+def test_legacy_procedural_biome_floor_rendering_preserved():
+    """Verify non-sanctuary biomes render using legacy procedural geometric shapes."""
+    screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+
+    biomes = ["windy_ridge", "pastoral_valley", "tech_tower", "swamp_mire", "frozen_peaks"]
+    for b_name in biomes:
+        state = GameState(auto_load=False)
+        state.world.name = b_name
+        state.world.load_from_prototype(["....", "....", "....", "...."])
+
+        chunk_surf = pygame.Surface((constants.TILE_SIZE * 4, constants.TILE_SIZE * 4))
+        for ty in range(4):
+            for tx in range(4):
+                dr = (tx * constants.TILE_SIZE, ty * constants.TILE_SIZE, constants.TILE_SIZE, constants.TILE_SIZE)
+                renderer._draw_static_tile_to_surface(chunk_surf, state, (tx, ty, 4, 4), dr)
+
+        # Ensure rendered surface is valid, colorful, and non-empty
+        colors = [chunk_surf.get_at((px, py))[:3] for px in range(10, 150, 10) for py in range(10, 150, 10)]
+        avg_brightness = sum(sum(c) for c in colors) / (len(colors) * 3)
+        assert avg_brightness > 10, f"Biome {b_name} rendered pure black"
+
+
+def test_sanctuary_floor_100_percent_opaque_no_white_bleed():
+    """Verify base floor tiles render 100% opaque and screen buffer clears to solid dark tone."""
+    screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+
+    # 1. Floor variants in RAM are 100% opaque
+    for var in renderer.floor_variants:
+        for py in range(0, constants.TILE_SIZE, 5):
+            for px in range(0, constants.TILE_SIZE, 5):
+                color = var.get_at((px, py))
+                assert color.a == 255, f"Floor variant has transparent alpha at ({px}, {py}): {color.a}"
+
+    # 2. Render pass in Sanctuary has no white bleed
+    state = GameState(auto_load=False)
+    state.world.name = "sanctuary"
+    state.world.load_from_prototype(["....", "...."])
+    renderer.render(state)
+
+    # 3. Check screen buffer pixels
+    sw, sh = screen.get_size()
+    for py in range(0, min(sh, 80), 10):
+        for px in range(0, min(sw, 160), 10):
+            pixel = screen.get_at((px, py))
+            # No pure white bleed (255, 255, 255)
+            assert pixel[:3] != (255, 255, 255), f"White bleed detected at ({px}, {py})"
+            # Sepia / dark tones
+            assert pixel[0] <= 120 and pixel[1] <= 120 and pixel[2] <= 120
