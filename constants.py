@@ -53,6 +53,18 @@ COLOR_DEEP_SLATE = (45, 55, 70)   # Deep slate blue for Ink Urns
 COLOR_INK_PUDDLE = (10, 10, 25)   # Deep ink blue/black
 COLOR_CANDLE_AMBER = (255, 190, 40) # Warm candle light (Iron Candelabra)
 COLOR_MARGIN_RED = (255, 60, 40)   # High-contrast telegraph color
+COLOR_PARCHMENT_WHITE = (235, 230, 215) # Muted parchment white for player damage glyphs
+COLOR_INK_CHARCOAL = (35, 25, 30)      # Archaic dark ink charcoal for damage glyphs
+
+# Glyph Splatter Particle System
+GLYPH_SPLATTER_POOL = ['†', '‡', '§', '¶', 'ø', '※', '×', '░', '▒']
+GLYPH_MIN_COUNT = 4
+GLYPH_MAX_COUNT = 7
+GLYPH_MIN_LIFESPAN_FRAMES = 18
+GLYPH_MAX_LIFESPAN_FRAMES = 28
+GLYPH_GRAVITY_PER_FRAME = 0.25
+GLYPH_FRICTION_X = 0.94
+GLYPH_FONT_SIZE = 14
 
 # Combat Polish
 STAGGER_DURATION = 0.25      # Seconds entities are locked when hit

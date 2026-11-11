@@ -25,6 +25,7 @@ class Renderer:
         self.large_font = pygame.font.SysFont("Arial", 32)
         self.hud_font = pygame.font.SysFont("Arial", 14, bold=True)
         self.slot_font = pygame.font.SysFont("Arial", 12)
+        self.glyph_font = pygame.font.SysFont("Courier New", constants.GLYPH_FONT_SIZE, bold=True)
         self.bloom_font = pygame.font.SysFont("Times New Roman", 72, bold=True, italic=True)
         
         # Image Cache
@@ -1383,6 +1384,9 @@ class Renderer:
         # Parry Sparks
         self.draw_parry_effects(state, ox, oy)
 
+        # Glyph Splatter Particles
+        self.draw_glyph_splatter(state, ox, oy)
+
         pygame.display.flip()
 
     def draw_actor_ghost(self, actor, ox, oy, state):
@@ -1953,6 +1957,35 @@ class Renderer:
             pygame.draw.circle(surf, (255, 255, 255, alpha), (40, 40), 30, 4)
             pygame.draw.circle(surf, (120, 255, 100, alpha // 2), (40, 40), 40, 2)
             self.screen.blit(surf, (sx - 40, sy - 40))
+
+    def draw_glyph_splatter(self, state, ox, oy):
+        """Render active manuscript glyph splatter particles scattering from combat impacts."""
+        manager = getattr(state, 'glyph_particles', None)
+        if not manager or not manager.particles:
+            return
+
+        sw = self.screen.get_width()
+        sh = self.screen.get_height()
+
+        for p in manager.particles:
+            sx = int(p.x - ox)
+            sy = int(p.y - oy)
+            # Viewport culling
+            if -24 <= sx <= sw + 24 and -24 <= sy <= sh + 24:
+                alpha = p.alpha
+                if alpha <= 0:
+                    continue
+                # Render glyph surface using the manuscript monospace font
+                try:
+                    if hasattr(self, 'glyph_font') and self.glyph_font:
+                        text_surf = self.glyph_font.render(p.glyph, True, p.color)
+                    else:
+                        text_surf = self.small_font.render(p.glyph, True, p.color)
+                    if alpha < 255:
+                        text_surf.set_alpha(alpha)
+                    self.screen.blit(text_surf, (sx - text_surf.get_width() // 2, sy - text_surf.get_height() // 2))
+                except Exception:
+                    pass
 
     def draw_bloom_overlay(self, state):
         """Draw alpha-blended typographic zone discovery overlay."""

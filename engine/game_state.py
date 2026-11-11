@@ -41,6 +41,8 @@ class GameState:
         self.defeated_miniboss_ids = set()
         self.destroyed_prop_ids = set()
         self.respite_upgrades = {1: 0, 2: 0}
+        from engine.particles import GlyphSplatterManager
+        self.glyph_particles = GlyphSplatterManager()
 
         # 2. Statistics tracker: prefer injected tracker; otherwise optionally auto-load
         self.stats = stats
@@ -649,6 +651,12 @@ class GameState:
                         
                         enemy.take_damage(damage, bypass_stagger=is_client)
                         
+                        # Glyph Splatter Particle Burst at impact point
+                        from constants import COLOR_INK_CHARCOAL
+                        impact_x, impact_y = enemy.get_center()
+                        enemy_color = getattr(enemy, 'glyph_splatter_color', COLOR_INK_CHARCOAL)
+                        self.glyph_particles.spawn_burst(impact_x, impact_y, color=enemy_color)
+
                         # Apply anomalous weapon modifiers on hit
                         all_mods = self.player.get_all_modifiers()
                         if "bleed" in all_mods and enemy.hp > 0:
@@ -726,6 +734,8 @@ class GameState:
             self.weather_manager.pending_milestone_text = None
 
         self.update_damage_numbers(dt)
+        if hasattr(self, 'glyph_particles'):
+            self.glyph_particles.update(dt)
         for fading in self.fading_entities[:]:
             fading['time'] -= dt
             if fading['time'] <= 0:
@@ -1159,6 +1169,8 @@ class GameState:
         self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
         self.loot = []
         self.damage_numbers = []
+        if hasattr(self, 'glyph_particles'):
+            self.glyph_particles.clear()
         self.active_dialogue = None
         self.active_choice = None
         self.active_respite = None

@@ -50,7 +50,17 @@ class Enemy(Actor):
                     
                     # Local Damage
                     try:
-                        v_obj.take_damage(self.damage, audio_manager=getattr(state, 'audio_manager', None))
+                        try:
+                            v_obj.take_damage(
+                                self.damage,
+                                audio_manager=getattr(state, 'audio_manager', None),
+                                game_state=state,
+                            )
+                        except TypeError:
+                            v_obj.take_damage(
+                                self.damage,
+                                audio_manager=getattr(state, 'audio_manager', None),
+                            )
                         
                         # Phase 4: Status Effects (BIND)
                         if self.attack_type == "BIND" and hasattr(v_obj, 'bind_timer'):

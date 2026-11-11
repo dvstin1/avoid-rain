@@ -301,7 +301,9 @@ class Player:
             return True
         return False
 
-    def take_damage(self, amount: float, bypass_stagger: bool = False, audio_manager=None) -> None:
+    def take_damage(
+        self, amount: float, bypass_stagger: bool = False, audio_manager=None, game_state=None
+    ) -> None:
         """Apply damage to the player; clamp at zero.
 
         Includes conditional defensive parsing based on Edification level.
@@ -344,6 +346,12 @@ class Player:
             amount *= (1.0 - reduction)
 
         self.hp = max(0.0, self.hp - amount)
+
+        # Spawn Glyph Splatter on player damage
+        if amount > 0 and game_state and hasattr(game_state, 'glyph_particles'):
+            from constants import COLOR_PARCHMENT_WHITE
+            cx, cy = self.get_center()
+            game_state.glyph_particles.spawn_burst(cx, cy, color=COLOR_PARCHMENT_WHITE)
 
         # Check active weapon for damage negation on hit modifier
         all_mods = self.get_all_modifiers()
