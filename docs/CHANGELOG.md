@@ -562,4 +562,16 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Map Editor Synchronization:** Registered tile_grass in MASTER_TOOL_REGISTRY inside tools/edit_map.py to maintain synchronization with engine configurations (Palette Divergence Law).
 - **Unit Test Coverage:** Wrote tests in tests/test_grass_tile.py verifying grid character mapping, decoration cluster bounds, and rendering safety.
 
+## [ARCHIVED] Procedural Enemy Geometric Graphics - November 2026
+- **Procedural Enemy Rendering (`draw_procedural_enemy`):** Replaced placeholder solid rectangles for non-sprite enemies with procedural geometric shapes in `rendering/renderer.py`, matching the Scriptorium Noir enemy design notes.
+- **Distinct Enemy Silhouettes & Animations:**
+  - **Bat (`BatEnemy`):** Animated flapping wing struts and membrane lobes, round dark body, glowing eyes, and white fangs.
+  - **Flutter (`FlutterEnemy`):** Rapidly oscillating cyan paper-wing lobes, parchment scrawl core, and orbiting ink motes.
+  - **Bindling (`BindlingEnemy`):** Rounded parchment torso, folded margin hood, diagonal dark ink stitch lines, and a procedural pilcrow (`¶`) sigil.
+  - **Smear (`SmearEnemy`):** Amorphous ink blot with four organically wobbling outer lobes and a cyan-ink nucleus tracking the enemy's facing vector.
+  - **Bosses & Elites (`Miniboss`, `NightBoss`, `FinalAuthor`):** Hulking armored torso, heavy shoulder pauldrons, dark iron visor plate, and a glowing red eye tracking the facing direction.
+- **Combat Telegraph Preservation:** Maintained clear `WIND_UP`, `STRIKE`, and `RECOVERY` color overrides on procedural enemy silhouettes alongside posture and status overlays.
+- **Unit Test Coverage:** Added headless unit tests in `tests/test_procedural_enemy_graphics.py` verifying procedural shape generation, telegraph color overrides, and fallback behavior.
+
+
 

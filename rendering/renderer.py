@@ -650,8 +650,11 @@ class Renderer:
             # Special coloring for local Player if no hint provided
             if not packet.get("color_hint"):
                 if hasattr(actor, 'weapons'): color = constants.COLOR_BLUE
-                
-            pygame.draw.rect(self.screen, color, draw_rect)
+
+            if not hasattr(actor, 'weapons') and self.draw_procedural_enemy(actor, draw_rect, packet, color):
+                pass
+            else:
+                pygame.draw.rect(self.screen, color, draw_rect)
 
         # 3. Universal Posture Layer (Outlines/Decorations)
         if not sprite: # Ghost-only outlines
@@ -715,6 +718,102 @@ class Renderer:
         # 7. Boss Attack Weapon/Limb Visuals
         if hasattr(actor, 'get_attack_hitbox'):
             self.draw_boss_weapon(actor, ox, oy)
+
+    def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
+        """Draw procedural basic-shape graphics for enemies without image sprites."""
+        actor_tag = actor.name.lower()
+        cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
+        w, h = int(draw_rect.width), int(draw_rect.height)
+        fx, fy = packet.get("facing", (0.0, 1.0))
+        anim_t = float(packet.get("anim_timer", 0.0))
+        is_telegraph = packet.get("base") in ("WIND_UP", "STRIKE", "RECOVERY")
+
+        if "bat" in actor_tag:
+            body_col = state_color if is_telegraph else constants.COLOR_BAT_BODY
+            wing_col = state_color if is_telegraph else constants.COLOR_BAT_WING
+            flap = int(math.sin(anim_t * 18.0) * 6)
+            wing_r = max(4, w // 4)
+            # Flapping wing struts and membrane lobes
+            pygame.draw.line(self.screen, wing_col, (cx, cy), (cx - w // 2 - 4, cy + flap), 3)
+            pygame.draw.line(self.screen, wing_col, (cx, cy), (cx + w // 2 + 4, cy + flap), 3)
+            pygame.draw.circle(self.screen, wing_col, (cx - w // 3, cy + flap // 2), wing_r)
+            pygame.draw.circle(self.screen, wing_col, (cx + w // 3, cy + flap // 2), wing_r)
+            # Central body, eyes, and fangs
+            pygame.draw.circle(self.screen, body_col, (cx, cy), max(5, w // 3))
+            pygame.draw.circle(self.screen, constants.COLOR_BAT_EYE, (cx - 3, cy - 2), 2)
+            pygame.draw.circle(self.screen, constants.COLOR_BAT_EYE, (cx + 3, cy - 2), 2)
+            pygame.draw.line(self.screen, constants.COLOR_WHITE, (cx - 2, cy + 2), (cx - 2, cy + 5), 1)
+            pygame.draw.line(self.screen, constants.COLOR_WHITE, (cx + 2, cy + 2), (cx + 2, cy + 5), 1)
+            return True
+
+        if "flutter" in actor_tag:
+            body_col = state_color if is_telegraph else constants.COLOR_FLUTTER_BODY
+            wing_col = state_color if is_telegraph else constants.COLOR_FLUTTER_WING
+            flutter_off = int(math.sin(anim_t * 24.0) * 4)
+            # Fluttering paper-wing lobes and ink strokes
+            pygame.draw.circle(self.screen, wing_col, (cx - w // 2, cy - flutter_off), max(3, w // 3))
+            pygame.draw.circle(self.screen, wing_col, (cx + w // 2, cy + flutter_off), max(3, w // 3))
+            pygame.draw.line(self.screen, wing_col, (cx - w // 2, cy - flutter_off), (cx + w // 2, cy + flutter_off), 2)
+            # Scrawl core and orbiting ink motes
+            core_rect = pygame.Rect(cx - w // 4, cy - h // 4, max(4, w // 2), max(4, h // 2))
+            pygame.draw.rect(self.screen, body_col, core_rect)
+            pygame.draw.circle(self.screen, constants.COLOR_FLUTTER_MOTE, (cx - w // 3, cy - h // 3), 2)
+            pygame.draw.circle(self.screen, constants.COLOR_FLUTTER_MOTE, (cx + w // 3, cy + h // 3), 2)
+            return True
+
+        if "bindling" in actor_tag:
+            body_col = state_color if is_telegraph else constants.COLOR_BINDLING_PARCHMENT
+            hood_col = state_color if is_telegraph else constants.COLOR_BINDLING_HOOD
+            # Stitched parchment body and folded margin hood
+            pygame.draw.rect(self.screen, body_col, draw_rect, border_radius=6)
+            hood_rect = pygame.Rect(draw_rect.x + 2, draw_rect.y, max(4, w - 4), max(4, h // 3))
+            pygame.draw.rect(self.screen, hood_col, hood_rect, border_radius=4)
+            # Diagonal stitch marks across torso
+            sx1, sy1 = draw_rect.x + 6, draw_rect.y + h // 3
+            sx2, sy2 = draw_rect.right - 6, draw_rect.bottom - 6
+            pygame.draw.line(self.screen, constants.COLOR_BINDLING_STITCH, (sx1, sy1), (sx2, sy2), 2)
+            pygame.draw.line(self.screen, constants.COLOR_BINDLING_STITCH, (sx1 + 4, sy1 + 8), (sx1 + 10, sy1 + 2), 2)
+            pygame.draw.line(self.screen, constants.COLOR_BINDLING_STITCH, (sx2 - 10, sy2 - 2), (sx2 - 4, sy2 - 8), 2)
+            # Procedural pilcrow (paragraph mark) sigil
+            pygame.draw.circle(self.screen, constants.COLOR_BINDLING_STITCH, (cx - 2, cy + 2), 3)
+            pygame.draw.line(self.screen, constants.COLOR_BINDLING_STITCH, (cx, cy - 1), (cx, cy + 9), 2)
+            pygame.draw.line(self.screen, constants.COLOR_BINDLING_STITCH, (cx + 3, cy - 1), (cx + 3, cy + 9), 1)
+            return True
+
+        if "smear" in actor_tag:
+            blob_col = state_color if is_telegraph else constants.COLOR_SMEAR_BLOB
+            base_r = max(4, w // 3)
+            # Amorphous wobbling ink blot lobes
+            pygame.draw.circle(self.screen, blob_col, (cx, cy), base_r)
+            for i in range(4):
+                angle = anim_t * 4.0 + i * (math.pi / 2.0)
+                lx = cx + int(math.cos(angle) * (w * 0.22))
+                ly = cy + int(math.sin(angle) * (h * 0.22))
+                pygame.draw.circle(self.screen, blob_col, (lx, ly), max(3, int(base_r * 0.8)))
+            # Glossy cyan-ink nucleus shifted toward facing direction
+            eye_x = cx + int(fx * (w * 0.15))
+            eye_y = cy + int(fy * (h * 0.15))
+            pygame.draw.circle(self.screen, constants.COLOR_SMEAR_CORE, (eye_x, eye_y), max(2, w // 8))
+            return True
+
+        if any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
+            armor_col = state_color if is_telegraph else constants.COLOR_BOSS_ARMOR
+            pauldron_col = state_color if is_telegraph else constants.COLOR_BOSS_PAULDRON
+            # Shoulder pauldrons and hulking armored torso
+            pauldron_r = max(6, w // 4)
+            pygame.draw.circle(self.screen, pauldron_col, (draw_rect.x + 4, cy - h // 8), pauldron_r)
+            pygame.draw.circle(self.screen, pauldron_col, (draw_rect.right - 4, cy - h // 8), pauldron_r)
+            pygame.draw.rect(self.screen, armor_col, draw_rect, border_radius=8)
+            # Dark helmet visor and glowing eye tracking facing vector
+            visor_w, visor_h = max(8, w // 2), max(6, h // 5)
+            visor_rect = pygame.Rect(cx - visor_w // 2, draw_rect.y + h // 6, visor_w, visor_h)
+            pygame.draw.rect(self.screen, constants.COLOR_BOSS_VISOR, visor_rect, border_radius=3)
+            eye_x = visor_rect.centerx + int(fx * (visor_w * 0.2))
+            eye_y = visor_rect.centery + int(fy * (visor_h * 0.15))
+            pygame.draw.circle(self.screen, constants.COLOR_BOSS_EYE, (eye_x, eye_y), max(3, w // 14))
+            return True
+
+        return False
 
     def draw_boss_weapon(self, actor, ox, oy):
         """Draws a literal weapon held by a limb that swings or thrusts dynamically based on attack state."""
