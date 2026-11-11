@@ -624,3 +624,9 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Combat Resolution Integration (`engine/game_state.py`, `engine/player.py`, `engine/enemy.py`, `rendering/renderer.py`):** Wired splatter triggers into damage resolution for enemy impacts (defaulting to dark ink/charcoal or custom entity tints) and player hits (muted parchment white), rendered with a retro monospace manuscript font in `Renderer.draw_glyph_splatter`.
 - **Unit Testing Coverage (`tests/test_glyph_splatter.py`):** Added unit tests verifying particle physics, gravity/friction application, linear alpha fade, emission bursts on enemy and player damage, and renderer viewport culling.
 
+## [ARCHIVED] Stylized Layered Title Screen Typography & Ambient Motion - November 2026
+- **Layered Composite Typography (`Renderer._get_title_composite` in `rendering/renderer.py`):** Upgraded title screen presentation from flat text to a pre-rendered composite featuring deep drop-shadows (+3/+4 offset doubled blit), 8-direction contrasting edge borders, and two-tone oxidized parchment/gold core lettering.
+- **Cinematic Kerning / Letter Tracking:** Added 14px horizontal tracking between characters across "AVOID RAIN" for a wide, deliberate presentation.
+- **Ambient Floating Bob & Breathing Pulse (`Renderer.draw_title_screen`):** Implemented gentle sine-wave vertical floating bob (±3px) and subtle breathing pulse (±1.5% scale oscillation) with zero per-frame glyph re-rendering overhead.
+- **Unit Testing Coverage (`tests/test_title_rendering.py`):** Added test coverage verifying composite pre-rendering, surface caching, and headless draw loop execution.
+

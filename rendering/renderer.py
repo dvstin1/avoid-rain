@@ -27,6 +27,7 @@ class Renderer:
         self.slot_font = pygame.font.SysFont("Arial", 12)
         self.glyph_font = pygame.font.SysFont("Courier New", constants.GLYPH_FONT_SIZE, bold=True)
         self.bloom_font = pygame.font.SysFont("Times New Roman", 72, bold=True, italic=True)
+        self.title_font = pygame.font.SysFont("Georgia", 54, bold=True)
         
         # Image Cache
         self.image_cache = {}
@@ -39,6 +40,7 @@ class Renderer:
         self._minimap_surf = None
         self._minimap_walls_surf = None
         self._minimap_world_key = None
+        self._title_composite_surf = None
         self._load_barrel_assets()
         self._load_tile_assets()
         self._load_slug_assets()
@@ -226,7 +228,7 @@ class Renderer:
     def _load_grass_assets(self):
         """Generate lightweight procedural grass tuft surfaces in RAM (no PNG pixmap loading)."""
         self.grass_pools = {"small": [], "medium": [], "tall": []}
-        display_init = pygame.display.get_init()
+        display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
         configs = [("small", (12, 8)), ("medium", (18, 12)), ("tall", (24, 16))]
         colors = [
             ((50, 158, 74), (110, 225, 130)),
@@ -245,7 +247,7 @@ class Renderer:
     def _generate_prop_cache(self):
         """Pre-render static procedural prop surfaces once at startup to eliminate per-frame shape drawing."""
         ts = constants.TILE_SIZE
-        display_init = pygame.display.get_init()
+        display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
 
         # 1. Structure (Stylized Deciduous Tree)
         tree = pygame.Surface((ts, ts), pygame.SRCALPHA)
@@ -2494,6 +2496,68 @@ class Renderer:
         # 8. FINALLY BLIT SURFACE TO SCREEN
         self.screen.blit(minimap_surface, (constants.MINIMAP_PADDING, constants.MINIMAP_PADDING))
 
+    def _get_title_composite(self):
+        """Pre-render and cache the layered composite title surface with shadows, borders, and tracking."""
+        if self._title_composite_surf is not None:
+            return self._title_composite_surf
+
+        text = "AVOID RAIN"
+        tracking = 14
+        pad = 20
+        font = getattr(self, "title_font", None) or self.large_font
+
+        # Colors for layered typography
+        shadow_col = (10, 8, 12, 220)
+        outline_col = (25, 20, 28)
+        core_top_col = (250, 242, 215)    # Parchment cream / bone white highlight
+        core_bot_col = (212, 168, 86)     # Muted oxidized gold / amber
+
+        try:
+            glyphs_shadow = [font.render(ch, True, shadow_col) for ch in text]
+            glyphs_outline = [font.render(ch, True, outline_col) for ch in text]
+            glyphs_top = [font.render(ch, True, core_top_col) for ch in text]
+            glyphs_bot = [font.render(ch, True, core_bot_col) for ch in text]
+        except Exception:
+            return None
+
+        total_w = sum(g.get_width() for g in glyphs_outline) + tracking * (len(glyphs_outline) - 1)
+        total_h = max(g.get_height() for g in glyphs_outline)
+
+        surf = pygame.Surface((total_w + pad * 2, total_h + pad * 2), pygame.SRCALPHA)
+
+        # 1. Deep Drop-Shadow (+3, +4 offset with doubled blit for weight)
+        for dx_s, dy_s in ((3, 4), (4, 5)):
+            cx = pad + dx_s
+            for g in glyphs_shadow:
+                surf.blit(g, (cx, pad + dy_s))
+                cx += g.get_width() + tracking
+
+        # 2. Edge Outline in 8 directions (1-2 px shifted) for crisp structural separation
+        for dx_o, dy_o in ((-2, 0), (2, 0), (0, -2), (0, 2), (-1, -1), (1, -1), (-1, 1), (1, 1)):
+            cx = pad + dx_o
+            for g in glyphs_outline:
+                surf.blit(g, (cx, pad + dy_o))
+                cx += g.get_width() + tracking
+
+        # 3. Core Gradient / Warm Oxidized Tone
+        cx = pad
+        for i, ch in enumerate(text):
+            g_top = glyphs_top[i]
+            g_bot = glyphs_bot[i]
+            gw, gh = g_top.get_size()
+            surf.blit(g_bot, (cx, pad))
+            surf.blit(g_top, (cx, pad), area=pygame.Rect(0, 0, gw, gh // 2))
+            cx += gw + tracking
+
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            try:
+                surf = surf.convert_alpha()
+            except Exception:
+                pass
+
+        self._title_composite_surf = surf
+        return surf
+
     def draw_title_screen(self, menu=0, state=None):
         """Draw title screen with atmospheric rain."""
         self.screen.fill(constants.COLOR_BLACK)
@@ -2502,9 +2566,27 @@ class Renderer:
         # Atmospheric Rain on Title Screen (Selection Color: Amber/Gold)
         self.draw_weather(None, override_color=constants.COLOR_SELECTION, force_global=True)
 
-        title = self.large_font.render("AVOID RAIN", True, constants.COLOR_SELECTION)
+        # Layered Composite Title with gentle floating bob and subtle breathing pulse
+        now = time.time()
+        bob_y = int(math.sin(now * 1.8) * 3.0)
+        title_composite = self._get_title_composite()
+
+        if title_composite is not None:
+            # Subtle breathing pulse (±1.5% scale oscillation)
+            pulse_factor = 1.0 + 0.015 * math.sin(now * 1.2)
+            orig_w, orig_h = title_composite.get_size()
+            scaled_w = int(orig_w * pulse_factor)
+            scaled_h = int(orig_h * pulse_factor)
+            if scaled_w != orig_w or scaled_h != orig_h:
+                draw_title = pygame.transform.smoothscale(title_composite, (scaled_w, scaled_h))
+            else:
+                draw_title = title_composite
+            self.screen.blit(draw_title, draw_title.get_rect(center=(sw // 2, 220 + bob_y)))
+        else:
+            title = self.large_font.render("AVOID RAIN", True, constants.COLOR_SELECTION)
+            self.screen.blit(title, title.get_rect(center=(sw // 2, 220 + bob_y)))
+
         instr = self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE)
-        self.screen.blit(title, title.get_rect(center=(sw//2, 220)))
         self.screen.blit(instr, instr.get_rect(center=(sw//2, 280)))
         opts, sel = ["New Draft", "Quit"], 0
         from engine.title_menu import TitleMenuState
@@ -2561,7 +2643,8 @@ class Renderer:
             debug_surf = debug_font.render(debug_text, True, constants.COLOR_WHITE)
             self.screen.blit(debug_surf, (sw // 2 - debug_surf.get_width() // 2, 5))
 
-        pygame.display.flip()
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            pygame.display.flip()
 
     def fade_to_black(self):
         """Fade out."""
