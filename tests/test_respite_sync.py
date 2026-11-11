@@ -38,6 +38,7 @@ def test_client_respite_rest_sync():
     client_state.network_manager.local_udp_port = 65002
     client_state.network_manager.identity = "Client"
     
+    time.sleep(0.05)
     connected = client_state.network_manager.connect_to_host("127.0.0.1")
     assert connected is True
     
@@ -101,6 +102,7 @@ def test_client_respite_upgrade_sync():
     client_state.network_manager.local_udp_port = 65007
     client_state.network_manager.identity = "Client"
     
+    time.sleep(0.05)
     connected = client_state.network_manager.connect_to_host("127.0.0.1")
     assert connected is True
     

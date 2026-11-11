@@ -4,11 +4,20 @@
 Generates grit-textured, dark-fantasy game tiles using noise, jitter, and low-contrast
 palettes to simulate natural, worn materials:
 1. Dirt/Floor Tile (floor_tile.png) - 40x40 desaturated slate-brown/charcoal with sand grit and scuffs.
-2. Wall Tile Segment (wall_tile.png) - 40x40 staggered slate-blue masonry with crumbled joints.
-3. Moss/Overgrowth Patch (grass_natural.png) - 40x40 transparent alpha organic foliage patch.
-4. Rock Cluster (rock_cluster.png) - 40x40 irregular rounded stones with drop shadows and highlight bevels.
+2. Wall Tile Variants:
+   - Standard masonry (wall_tile.png) - 40x40 staggered slate-blue masonry with crumbled joints.
+   - Cracked/weathered stone (wall_tile_cracked.png) - jagged stone fissures and chipped edges.
+   - Moss-creeping mortar (wall_tile_mossy.png) - dark-fantasy foliage climbing masonry joints.
+   - Spiderwebs & pockmarks (wall_tile_webbed.png) - faint web strands and weathered pits.
+3. Swamp / Natural Biome Surfaces:
+   - Murky swamp water (swamp_water.png) - dark water with algae scum film and emergent reeds.
+   - Muddy trampled turf (mud_turf.png) - churned damp silt, trampled puddles, and organic muck.
+   - Wet peat bank (peat_bank.png) - fibrous organic dark soil with exposed root filaments.
+   - Organic swamp wall (swamp_wall.png) - dark peat cliff embankment with sediment layers and root lip.
+4. Moss/Overgrowth Patch (grass_natural.png) - 40x40 transparent alpha organic foliage patch.
+5. Rock Cluster (rock_cluster.png) - 40x40 irregular rounded stones with drop shadows and highlight bevels.
 """
-# pylint: disable=no-member,too-many-locals
+# pylint: disable=no-member,too-many-locals,too-many-arguments,too-many-positional-arguments,too-many-lines
 
 import math
 import os
@@ -23,6 +32,13 @@ import pygame
 # Output File Paths (created automatically if missing)
 DEFAULT_FLOOR_PATH = os.path.join("assets", "graphics", "floor_tile.png")
 DEFAULT_WALL_PATH = os.path.join("assets", "graphics", "wall_tile.png")
+DEFAULT_WALL_CRACKED_PATH = os.path.join("assets", "graphics", "wall_tile_cracked.png")
+DEFAULT_WALL_MOSSY_PATH = os.path.join("assets", "graphics", "wall_tile_mossy.png")
+DEFAULT_WALL_WEBBED_PATH = os.path.join("assets", "graphics", "wall_tile_webbed.png")
+DEFAULT_SWAMP_WATER_PATH = os.path.join("assets", "graphics", "swamp_water.png")
+DEFAULT_MUD_TURF_PATH = os.path.join("assets", "graphics", "mud_turf.png")
+DEFAULT_PEAT_BANK_PATH = os.path.join("assets", "graphics", "peat_bank.png")
+DEFAULT_SWAMP_WALL_PATH = os.path.join("assets", "graphics", "swamp_wall.png")
 DEFAULT_GRASS_PATH = os.path.join("assets", "graphics", "grass_natural.png")
 DEFAULT_ROCK_PATH = os.path.join("assets", "graphics", "rock_cluster.png")
 
@@ -63,10 +79,56 @@ WALL_HIGHLIGHT_COLOR = (66, 72, 82)      # Top & left edge 1px warm grey highlig
 WALL_SHADOW_COLOR = (20, 22, 28)         # Bottom & right edge 1px mortar shadow
 WALL_SCUFF_COUNT_PER_BRICK = (1, 3)      # Small weathering pits per brick
 
-# --- 3. Moss / Overgrowth Vegetation Patch Parameters ---
+# --- 2b. Wall Feature Variant Parameters ---
+WALL_CRACK_COUNT_RANGE = (2, 3)          # Number of jagged fissure paths
+WALL_CRACK_STEPS_RANGE = (8, 14)         # Length of jagged fissure steps
+WALL_CRACK_COLOR = (14, 16, 22)          # Deep dark crack line
+WALL_CRACK_LIP_COLOR = (72, 78, 88)      # 1px edge highlight lip along crack
+WALL_MOSS_CLUSTER_RANGE = (6, 10)        # Mortar moss growth clusters
+WALL_MOSS_COLORS = [                     # 3 dark-fantasy foliage green layers
+    (28, 44, 22), (44, 70, 32), (68, 104, 48)
+]
+WALL_WEB_COLOR = (100, 106, 114)         # Delicate spiderweb strand color
+WALL_WEB_CROSS_COLOR = (82, 88, 96)      # Spiderweb cross-thread color
+WALL_POCKMARK_COUNT_RANGE = (4, 7)       # Weathered cavity pits
+
+# --- 3. Swamp / Natural Biome Surface Parameters ---
+# Murky swamp water
+SWAMP_WATER_R_RANGE = (24, 32)
+SWAMP_WATER_G_RANGE = (30, 42)
+SWAMP_WATER_B_RANGE = (38, 52)
+SWAMP_SCUM_COLORS = [
+    (36, 54, 28), (50, 74, 38), (65, 92, 46)
+]
+SWAMP_REED_COLOR = (70, 84, 46)
+SWAMP_REED_BASE_COLOR = (20, 26, 18)
+
+# Muddy trampled turf
+MUD_TURF_R_RANGE = (42, 52)
+MUD_TURF_G_RANGE = (34, 44)
+MUD_TURF_B_RANGE = (28, 36)
+MUD_PUDDLE_COLOR = (26, 20, 16)
+MUD_SHEEN_COLOR = (64, 52, 42)
+
+# Wet peat bank
+PEAT_BANK_R_RANGE = (36, 46)
+PEAT_BANK_G_RANGE = (28, 36)
+PEAT_BANK_B_RANGE = (24, 32)
+PEAT_ROOT_COLOR = (62, 50, 38)
+PEAT_ROOT_TIP_COLOR = (84, 68, 50)
+
+# Organic swamp wall embankment
+SWAMP_WALL_R_RANGE = (40, 48)
+SWAMP_WALL_G_RANGE = (32, 38)
+SWAMP_WALL_B_RANGE = (28, 36)
+SWAMP_WALL_SEDIMENT_DARK = (24, 18, 16)
+SWAMP_WALL_LIP_COLOR = (58, 46, 38)
+SWAMP_WALL_SHADOW_COLOR = (18, 14, 12)
+
+# --- 4. Moss / Overgrowth Vegetation Patch Parameters ---
 # Natural dark forest/olive green base tone (R:30-48, G:50-70, B:25-45)
 MOSS_SHADOW_COLOR = (24, 38, 20)         # Layer 1: Dark shadow base
-MOSS_MIDTONE_COLOR = (42, 68, 34)        # Layer 2: Medium foliage midtone (R:30-48, G:50-70, B:25-45)
+MOSS_MIDTONE_COLOR = (42, 68, 34)        # Layer 2: Medium foliage midtone
 MOSS_HIGHLIGHT_COLOR = (74, 112, 56)     # Layer 3: Rare light olive/sage green flecks
 MOSS_WALKER_COUNT = 7                    # Number of organic drifting walker seeds
 MOSS_WALKER_STEPS = 90                   # Steps per drifting walker seed
@@ -74,7 +136,7 @@ MOSS_SCUFF_CLUSTER_COUNT = (40, 65)      # Foliage scuff clusters inside silhoue
 MOSS_HIGHLIGHT_SPECK_COUNT = (24, 40)    # Rare sunlit leafy speckles
 MOSS_EDGE_TRANSLUCENCY_RANGE = (90, 160) # Alpha for feathered perimeter edge pixels
 
-# --- 4. Rock Cluster Parameters ---
+# --- 5. Rock Cluster Parameters ---
 # Irregular, rounded grey stone blobs with drop shadows and highlight bevels
 ROCK_COUNT_RANGE = (3, 5)                # 3 to 5 stones in cluster
 ROCK_BASE_R_RANGE = (64, 82)             # Desaturated stone grey base
@@ -188,14 +250,7 @@ def generate_floor_tile(
     height: int = TILE_HEIGHT,
     rng: random.Random = None,
 ) -> pygame.Surface:
-    """Procedurally generate a grit-textured dark fantasy floor tile.
-
-    Pipeline:
-    1. Solid flat base surface with desaturated slate-brown/charcoal tone.
-    2. Dense low-contrast per-pixel noise (+/-3 to +/-8) for grit/sand grain.
-    3. Stamped irregular dark scuffs (2-5px) and sporadic tiny bright flecks.
-    4. Edge vignette darkening outer 2-3 pixels for seamless tiling.
-    """
+    """Procedurally generate a grit-textured 100% opaque dark fantasy floor tile."""
     if rng is None:
         rng = random.Random()
 
@@ -216,7 +271,7 @@ def generate_floor_tile(
 
 
 # ==============================================================================
-# GENERATIVE PIPELINE 2: WALL TILE SEGMENT
+# GENERATIVE PIPELINE 2: WALL TILE SEGMENT & FEATURE VARIANTS
 # ==============================================================================
 
 def _build_masonry_layout(width: int, height: int) -> List[Tuple[int, int, List[Tuple[int, int, int, int]]]]:
@@ -287,21 +342,17 @@ def _render_brick_edge_lighting(
     """Draw top/left warm highlights and bottom/right recess shadows per brick."""
     for _y0, _y1, bricks in courses:
         for bx0, by0, bx1, by1 in bricks:
-            # Top edge highlight (1px)
             for px in range(bx0 + 1, bx1 - 1):
                 if rng.random() > 0.15:
                     surface.set_at((px, by0 + 1), WALL_HIGHLIGHT_COLOR)
 
-            # Left edge highlight (1px)
             for py in range(by0 + 1, by1 - 1):
                 if rng.random() > 0.20:
                     surface.set_at((bx0 + 1, py), WALL_HIGHLIGHT_COLOR)
 
-            # Bottom edge groove shadow (1px)
             for px in range(bx0, bx1):
                 surface.set_at((px, by1 - 2), WALL_SHADOW_COLOR)
 
-            # Right edge groove shadow (1px)
             for py in range(by0, by1):
                 surface.set_at((bx1 - 2, py), WALL_SHADOW_COLOR)
 
@@ -316,7 +367,6 @@ def _render_crumbled_joints(
     course_h = height // WALL_COURSES
     joint_surf = pygame.Surface((width, height), pygame.SRCALPHA)
 
-    # Horizontal course joints
     for c_idx in range(1, WALL_COURSES):
         jy = c_idx * course_h
         for x in range(width):
@@ -327,7 +377,6 @@ def _render_crumbled_joints(
                 prev_y = _clamp(curr_y - 1, 0, height - 1)
                 joint_surf.set_at((x, prev_y), (*WALL_JOINT_COLOR, 220))
 
-    # Vertical column joints
     for _y0, _y1, bricks in courses:
         for bx0, by0, _bx1, by1 in bricks:
             if bx0 > 0:
@@ -342,18 +391,127 @@ def _render_crumbled_joints(
     surface.blit(joint_surf, (0, 0))
 
 
+def _apply_wall_cracks(
+    surface: pygame.Surface,
+    courses: List[Tuple[int, int, List[Tuple[int, int, int, int]]]],
+    rng: random.Random,
+) -> None:
+    """Render generator-driven jagged fissures and chipped edges across bricks."""
+    width, height = surface.get_size()
+    num_cracks = rng.randint(*WALL_CRACK_COUNT_RANGE)
+
+    all_bricks = [b for c in courses for b in c[2]]
+    sampled_bricks = rng.sample(all_bricks, min(num_cracks, len(all_bricks)))
+
+    for bx0, by0, bx1, by1 in sampled_bricks:
+        # Start crack along an edge of the brick
+        cx = rng.randint(bx0 + 2, bx1 - 3)
+        cy = by0 + 1 if rng.random() < 0.5 else by1 - 2
+        steps = rng.randint(*WALL_CRACK_STEPS_RANGE)
+
+        for _ in range(steps):
+            if 0 <= cx < width and 0 <= cy < height:
+                surface.set_at((cx, cy), WALL_CRACK_COLOR)
+                # 1px highlight lip along the top/left edge of the fissure
+                if cy > 0 and surface.get_at((cx, cy - 1))[:3] != WALL_CRACK_COLOR:
+                    surface.set_at((cx, cy - 1), WALL_CRACK_LIP_COLOR)
+            cx += rng.choice([-1, 0, 1])
+            cy += rng.choice([-1, 0, 1])
+
+        # Chipped corner
+        chip_x = bx0 if rng.random() < 0.5 else bx1 - 1
+        chip_y = by0 if rng.random() < 0.5 else by1 - 1
+        if 0 <= chip_x < width and 0 <= chip_y < height:
+            surface.set_at((chip_x, chip_y), WALL_CRACK_COLOR)
+
+
+def _apply_wall_moss(
+    surface: pygame.Surface,
+    courses: List[Tuple[int, int, List[Tuple[int, int, int, int]]]],
+    rng: random.Random,
+) -> None:
+    """Render generator-driven dark-fantasy foliage climbing masonry joints."""
+    width, height = surface.get_size()
+    course_h = height // WALL_COURSES
+    num_clusters = rng.randint(*WALL_MOSS_CLUSTER_RANGE)
+
+    for _ in range(num_clusters):
+        # Anchor cluster on a mortar joint
+        if rng.random() < 0.6:
+            c_idx = rng.randint(1, WALL_COURSES - 1)
+            mx = rng.randint(2, width - 3)
+            my = c_idx * course_h + rng.choice([-1, 0, 1])
+        else:
+            _, _, bricks = rng.choice(courses)
+            chosen_brick = rng.choice(bricks)
+            mx = chosen_brick[0] + rng.choice([-1, 0, 1])
+            my = rng.randint(chosen_brick[1], chosen_brick[3] - 1)
+
+        steps = rng.randint(6, 12)
+        px, py = mx, my
+        for s in range(steps):
+            if 0 <= px < width and 0 <= py < height:
+                col_idx = 0 if s < 3 else (1 if s < 8 else 2)
+                col = WALL_MOSS_COLORS[col_idx]
+                surface.set_at((px, py), col)
+            px += rng.choice([-1, 0, 1])
+            py += rng.choice([-1, 0, 1])
+
+
+def _apply_wall_webs_and_pockets(
+    surface: pygame.Surface,
+    rng: random.Random,
+) -> None:
+    """Render generator-driven spiderweb corner strands and weathered pit pockmarks."""
+    width, height = surface.get_size()
+
+    # 1. Corner Spiderweb Strands
+    corner = rng.choice(["tl", "tr"])
+    origin_x = 0 if corner == "tl" else width - 1
+    dir_x = 1 if corner == "tl" else -1
+
+    web_lines = [
+        ((origin_x + dir_x * 9, 0), (origin_x, 7)),
+        ((origin_x + dir_x * 7, 0), (origin_x, 9)),
+    ]
+    for (p1x, p1y), (p2x, p2y) in web_lines:
+        pygame.draw.line(surface, WALL_WEB_COLOR, (p1x, p1y), (p2x, p2y), 1)
+
+    # Cross threads
+    pygame.draw.line(
+        surface, WALL_WEB_CROSS_COLOR,
+        (origin_x + dir_x * 4, 1), (origin_x + dir_x * 1, 4), 1
+    )
+    pygame.draw.line(
+        surface, WALL_WEB_CROSS_COLOR,
+        (origin_x + dir_x * 7, 2), (origin_x + dir_x * 2, 7), 1
+    )
+
+    # 2. Weathered cavity pits (pockmarks)
+    num_pocks = rng.randint(*WALL_POCKMARK_COUNT_RANGE)
+    for _ in range(num_pocks):
+        px = rng.randint(3, width - 4)
+        py = rng.randint(3, height - 4)
+        surface.set_at((px, py), (18, 20, 26))
+        if px + 1 < width:
+            surface.set_at((px + 1, py), (18, 20, 26))
+        if py + 1 < height:
+            surface.set_at((px, py + 1), (68, 74, 84))
+
+
 def generate_wall_tile(
     width: int = TILE_WIDTH,
     height: int = TILE_HEIGHT,
     rng: random.Random = None,
+    variant: str = "standard",
 ) -> pygame.Surface:
-    """Procedurally generate a heavy slate-blue staggered brick wall segment.
+    """Procedurally generate a heavy slate-blue brick wall segment with feature variants.
 
-    Pipeline:
-    1. Divide 40x40 area into 4 horizontal courses with staggered masonry columns.
-    2. Apply per-brick tint variation and micro-speckled stone facet noise.
-    3. Top & left edge 1px highlights (top-down light) and bottom/right edge shadows.
-    4. Draw crumbled 1-2px dark joints with jittered borders.
+    Supported variants:
+    - 'standard': Clean staggered masonry with crumbled joints.
+    - 'cracked': Weathered masonry with jagged fissures and chipped brick corners.
+    - 'mossy': Dark-fantasy foliage and lichen climbing mortar seams.
+    - 'webbed': Corner gossamer spiderweb strands and weathered pit pockmarks.
     """
     if rng is None:
         rng = random.Random()
@@ -371,11 +529,223 @@ def generate_wall_tile(
     _render_brick_edge_lighting(surface, courses, rng)
     _render_crumbled_joints(surface, courses, rng)
 
+    if variant == "cracked":
+        _apply_wall_cracks(surface, courses, rng)
+    elif variant == "mossy":
+        _apply_wall_moss(surface, courses, rng)
+    elif variant == "webbed":
+        _apply_wall_webs_and_pockets(surface, rng)
+
     return surface
 
 
 # ==============================================================================
-# GENERATIVE PIPELINE 3: MOSS / OVERGROWTH VEGETATION PATCH
+# GENERATIVE PIPELINE 3: SWAMP & NATURAL BIOME SURFACES (100% OPAQUE)
+# ==============================================================================
+
+def generate_swamp_water_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 100% opaque murky swamp water tile with surface scum and reeds."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    base_r = rng.randint(*SWAMP_WATER_R_RANGE)
+    base_g = rng.randint(*SWAMP_WATER_G_RANGE)
+    base_b = rng.randint(*SWAMP_WATER_B_RANGE)
+    surface.fill((base_r, base_g, base_b))
+
+    # 1. Subtle horizontal wave and liquid ripple noise
+    for y in range(height):
+        for x in range(width):
+            ripple = int(2.5 * math.sin(x * 0.35 + y * 0.15))
+            noise = rng.randint(-3, 3)
+            r = _clamp(base_r + ripple + noise)
+            g = _clamp(base_g + ripple + noise)
+            b = _clamp(base_b + ripple * 2 + noise)
+            surface.set_at((x, y), (r, g, b))
+
+    # 2. Organic algae / duckweed scum patches
+    num_scum = rng.randint(2, 4)
+    for _ in range(num_scum):
+        cx = rng.randint(4, width - 5)
+        cy = rng.randint(4, height - 5)
+        radius = rng.randint(3, 6)
+        col = rng.choice(SWAMP_SCUM_COLORS)
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                if dx * dx + dy * dy <= radius * radius + rng.randint(-2, 2):
+                    px, py = cx + dx, cy + dy
+                    if 0 <= px < width and 0 <= py < height:
+                        surface.set_at((px, py), col)
+
+    # 3. Emergent reed stalks (1-2px wide, 4-7px tall)
+    num_reeds = rng.randint(1, 3)
+    for _ in range(num_reeds):
+        rx = rng.randint(3, width - 4)
+        ry = rng.randint(8, height - 3)
+        r_height = rng.randint(4, 7)
+        for h_step in range(r_height):
+            py = ry - h_step
+            if 0 <= py < height:
+                col = SWAMP_REED_BASE_COLOR if h_step < 2 else SWAMP_REED_COLOR
+                surface.set_at((rx, py), col)
+
+    # Subtle perimeter vignette for seamless seaming
+    _apply_floor_vignette(surface)
+    return surface
+
+
+def generate_mud_turf_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 100% opaque muddy trampled turf tile with damp silt texture."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    base_r = rng.randint(*MUD_TURF_R_RANGE)
+    base_g = rng.randint(*MUD_TURF_G_RANGE)
+    base_b = rng.randint(*MUD_TURF_B_RANGE)
+    surface.fill((base_r, base_g, base_b))
+
+    # 1. Micro-silt channel noise
+    for y in range(height):
+        for x in range(width):
+            silt = rng.randint(-6, 6)
+            surface.set_at((x, y), (
+                _clamp(base_r + silt),
+                _clamp(base_g + silt),
+                _clamp(base_b + silt),
+            ))
+
+    # 2. Trampled wet muddy impressions and depressions
+    num_depressions = rng.randint(2, 4)
+    for _ in range(num_depressions):
+        cx = rng.randint(4, width - 5)
+        cy = rng.randint(4, height - 5)
+        steps = rng.randint(5, 10)
+        px, py = cx, cy
+        for _ in range(steps):
+            if 0 <= px < width and 0 <= py < height:
+                surface.set_at((px, py), MUD_PUDDLE_COLOR)
+                if py > 0 and rng.random() < 0.4:
+                    surface.set_at((px, py - 1), MUD_SHEEN_COLOR)
+            px += rng.choice([-1, 0, 1])
+            py += rng.choice([-1, 0, 1])
+
+    # 3. Organic debris specks (decayed twigs / peat particles)
+    for _ in range(rng.randint(8, 16)):
+        dx = rng.randint(2, width - 3)
+        dy = rng.randint(2, height - 3)
+        surface.set_at((dx, dy), (20, 16, 12))
+
+    _apply_floor_vignette(surface)
+    return surface
+
+
+def generate_peat_bank_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 100% opaque fibrous wet peat bank tile with exposed root filaments."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    base_r = rng.randint(*PEAT_BANK_R_RANGE)
+    base_g = rng.randint(*PEAT_BANK_G_RANGE)
+    base_b = rng.randint(*PEAT_BANK_B_RANGE)
+    surface.fill((base_r, base_g, base_b))
+
+    # 1. Fibrous directional striations and grain
+    for y in range(height):
+        for x in range(width):
+            fiber = int(3.0 * math.sin(x * 0.5 + y * 0.8)) + rng.randint(-4, 4)
+            surface.set_at((x, y), (
+                _clamp(base_r + fiber),
+                _clamp(base_g + fiber),
+                _clamp(base_b + fiber),
+            ))
+
+    # 2. Exposed subterranean root filaments
+    num_roots = rng.randint(2, 4)
+    for _ in range(num_roots):
+        rx = rng.randint(2, width - 3)
+        ry = rng.randint(2, height - 3)
+        root_len = rng.randint(8, 15)
+        for _ in range(root_len):
+            if 0 <= rx < width and 0 <= ry < height:
+                surface.set_at((rx, ry), PEAT_ROOT_COLOR)
+                if rng.random() < 0.3:
+                    surface.set_at((rx, max(0, ry - 1)), PEAT_ROOT_TIP_COLOR)
+            rx += rng.choice([0, 1])
+            ry += rng.choice([-1, 0, 1])
+
+    _apply_floor_vignette(surface)
+    return surface
+
+
+def generate_swamp_wall_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 100% opaque organic swamp cliff embankment tile.
+
+    Replaces masonry bricks in swamp biomes with an organic peat cliff face
+    featuring sediment strata, overhanging muddy lip, and root filaments.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    base_r = rng.randint(*SWAMP_WALL_R_RANGE)
+    base_g = rng.randint(*SWAMP_WALL_G_RANGE)
+    base_b = rng.randint(*SWAMP_WALL_B_RANGE)
+    surface.fill((base_r, base_g, base_b))
+
+    # 1. Horizontal sediment layers and organic earthy strata
+    for y in range(height):
+        for x in range(width):
+            strata_val = int(5.0 * math.sin(y * 0.45) + 3.0 * math.cos(x * 0.2))
+            noise = rng.randint(-4, 4)
+            surface.set_at((x, y), (
+                _clamp(base_r + strata_val + noise),
+                _clamp(base_g + strata_val + noise),
+                _clamp(base_b + strata_val + noise),
+            ))
+
+    # 2. Earthen sediment groove lines
+    for gy in (12, 24, 34):
+        for x in range(width):
+            jitter = rng.choice([-1, 0, 1])
+            py = _clamp(gy + jitter, 0, height - 1)
+            surface.set_at((x, py), SWAMP_WALL_SEDIMENT_DARK)
+
+    # 3. Overhanging root-lip at top edge
+    for x in range(width):
+        surface.set_at((x, 0), SWAMP_WALL_LIP_COLOR)
+        surface.set_at((x, 1), SWAMP_WALL_LIP_COLOR)
+        if rng.random() < 0.35 and 2 < height:
+            surface.set_at((x, 2), PEAT_ROOT_COLOR)
+
+    # 4. Dark ground shadow at bottom edge
+    for x in range(width):
+        surface.set_at((x, height - 1), SWAMP_WALL_SHADOW_COLOR)
+        surface.set_at((x, height - 2), SWAMP_WALL_SHADOW_COLOR)
+
+    return surface
+
+
+# ==============================================================================
+# GENERATIVE PIPELINE 4: MOSS / OVERGROWTH VEGETATION PATCH
 # ==============================================================================
 
 def _generate_irregular_patch_silhouette(
@@ -495,15 +865,7 @@ def generate_grass_tile(
     height: int = TILE_HEIGHT,
     rng: random.Random = None,
 ) -> pygame.Surface:
-    """Procedurally generate an organic moss/overgrowth patch with alpha transparency.
-
-    Pipeline:
-    1. Fully transparent (SRCALPHA) background surface.
-    2. Multi-seed drifting random-walk brush generating an irregular, non-circular blob silhouette.
-    3. Dense foliage scuffs and wobbly clusters inside jagged boundaries.
-    4. 3-layer green hierarchy: dark shadow base, foliage midtone, light olive/sage specks.
-    5. Naturally translucent, rough pixelated outer edges for seamless overlapping.
-    """
+    """Procedurally generate an organic moss/overgrowth patch with alpha transparency."""
     if rng is None:
         rng = random.Random()
 
@@ -516,7 +878,7 @@ def generate_grass_tile(
 
 
 # ==============================================================================
-# GENERATIVE PIPELINE 4: ROCK CLUSTER
+# GENERATIVE PIPELINE 5: ROCK CLUSTER
 # ==============================================================================
 
 def _generate_rock_shapes(
@@ -640,15 +1002,7 @@ def generate_rock_cluster(
     height: int = TILE_HEIGHT,
     rng: random.Random = None,
 ) -> pygame.Surface:
-    """Procedurally generate a 40x40 rock cluster on a transparent background.
-
-    Pipeline:
-    1. Fully transparent (SRCALPHA) background surface.
-    2. Generate 3-5 irregular rounded stone blobs with randomized placement offsets.
-    3. Render dark bottom-edge drop shadows beneath each stone.
-    4. Render stone bodies with subtle surface grit noise and bottom form shadows.
-    5. Apply 1px top-left highlight bevels for directional illumination.
-    """
+    """Procedurally generate a 40x40 rock cluster on a transparent background."""
     if rng is None:
         rng = random.Random()
 
@@ -669,34 +1023,85 @@ def generate_all_assets(
     wall_path: str = DEFAULT_WALL_PATH,
     grass_path: str = DEFAULT_GRASS_PATH,
     rock_path: str = DEFAULT_ROCK_PATH,
+    wall_cracked_path: str = DEFAULT_WALL_CRACKED_PATH,
+    wall_mossy_path: str = DEFAULT_WALL_MOSSY_PATH,
+    wall_webbed_path: str = DEFAULT_WALL_WEBBED_PATH,
+    swamp_water_path: str = DEFAULT_SWAMP_WATER_PATH,
+    mud_turf_path: str = DEFAULT_MUD_TURF_PATH,
+    peat_bank_path: str = DEFAULT_PEAT_BANK_PATH,
+    swamp_wall_path: str = DEFAULT_SWAMP_WALL_PATH,
     seed: int = None,
 ) -> Dict[str, str]:
-    """Generate all four procedural assets and save them to disk.
+    """Generate all procedural assets and save them to disk.
 
     Returns a dictionary mapping asset names to their written file paths.
     """
     rng = random.Random(seed) if seed is not None else random.Random()
     results = {}
 
-    # 1. Dirt / Floor Tile
+    # 1. Dirt / Floor Tile (100% opaque)
     _ensure_directory(floor_path)
     floor_surf = generate_floor_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(floor_surf, floor_path)
     results["floor_tile"] = floor_path
 
-    # 2. Wall Tile Segment
+    # 2. Wall Tile Variants
+    # 2a. Standard masonry
     _ensure_directory(wall_path)
-    wall_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(wall_surf, wall_path)
+    wall_std_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng, variant="standard")
+    pygame.image.save(wall_std_surf, wall_path)
     results["wall_tile"] = wall_path
 
-    # 3. Moss / Overgrowth Patch
+    # 2b. Cracked / weathered masonry
+    _ensure_directory(wall_cracked_path)
+    wall_cracked_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng, variant="cracked")
+    pygame.image.save(wall_cracked_surf, wall_cracked_path)
+    results["wall_tile_cracked"] = wall_cracked_path
+
+    # 2c. Moss-creeping mortar
+    _ensure_directory(wall_mossy_path)
+    wall_mossy_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng, variant="mossy")
+    pygame.image.save(wall_mossy_surf, wall_mossy_path)
+    results["wall_tile_mossy"] = wall_mossy_path
+
+    # 2d. Spiderwebs & pockmarks
+    _ensure_directory(wall_webbed_path)
+    wall_webbed_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng, variant="webbed")
+    pygame.image.save(wall_webbed_surf, wall_webbed_path)
+    results["wall_tile_webbed"] = wall_webbed_path
+
+    # 3. Swamp / Natural Biome Surfaces (100% opaque)
+    # 3a. Murky swamp water
+    _ensure_directory(swamp_water_path)
+    swamp_water_surf = generate_swamp_water_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(swamp_water_surf, swamp_water_path)
+    results["swamp_water"] = swamp_water_path
+
+    # 3b. Muddy trampled turf
+    _ensure_directory(mud_turf_path)
+    mud_turf_surf = generate_mud_turf_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(mud_turf_surf, mud_turf_path)
+    results["mud_turf"] = mud_turf_path
+
+    # 3c. Wet peat bank
+    _ensure_directory(peat_bank_path)
+    peat_bank_surf = generate_peat_bank_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(peat_bank_surf, peat_bank_path)
+    results["peat_bank"] = peat_bank_path
+
+    # 3d. Organic swamp wall embankment
+    _ensure_directory(swamp_wall_path)
+    swamp_wall_surf = generate_swamp_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(swamp_wall_surf, swamp_wall_path)
+    results["swamp_wall"] = swamp_wall_path
+
+    # 4. Moss / Overgrowth Patch
     _ensure_directory(grass_path)
     grass_surf = generate_grass_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(grass_surf, grass_path)
     results["grass_natural"] = grass_path
 
-    # 4. Rock Cluster
+    # 5. Rock Cluster
     _ensure_directory(rock_path)
     rock_surf = generate_rock_cluster(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(rock_surf, rock_path)
@@ -720,7 +1125,7 @@ def main() -> None:
     written = generate_all_assets()
     for name, path in written.items():
         size_kb = os.path.getsize(path) / 1024.0 if os.path.exists(path) else 0.0
-        print(f"  [+] {name:<15} -> {path} ({size_kb:.1f} KB, {TILE_WIDTH}x{TILE_HEIGHT})")
+        print(f"  [+] {name:<18} -> {path} ({size_kb:.1f} KB, {TILE_WIDTH}x{TILE_HEIGHT})")
 
     print("All assets successfully generated.")
 

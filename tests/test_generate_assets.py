@@ -177,3 +177,44 @@ def test_procedural_generation_seed_reproducibility():
     rock2 = generate_assets.generate_rock_cluster(40, 40, rng=random.Random(9876))
 
     assert pygame.image.tobytes(rock1, "RGBA") == pygame.image.tobytes(rock2, "RGBA")
+
+
+def test_generate_wall_variants_distinct():
+    """Verify standard, cracked, mossy, and webbed wall variants produce distinct pixel outputs."""
+    seed = 42
+    std = generate_assets.generate_wall_tile(40, 40, rng=random.Random(seed), variant="standard")
+    cracked = generate_assets.generate_wall_tile(40, 40, rng=random.Random(seed), variant="cracked")
+    mossy = generate_assets.generate_wall_tile(40, 40, rng=random.Random(seed), variant="mossy")
+    webbed = generate_assets.generate_wall_tile(40, 40, rng=random.Random(seed), variant="webbed")
+
+    b_std = pygame.image.tobytes(std, "RGB")
+    b_cracked = pygame.image.tobytes(cracked, "RGB")
+    b_mossy = pygame.image.tobytes(mossy, "RGB")
+    b_webbed = pygame.image.tobytes(webbed, "RGB")
+
+    assert b_std != b_cracked
+    assert b_std != b_mossy
+    assert b_std != b_webbed
+    assert b_cracked != b_mossy
+
+
+def test_swamp_biome_surfaces_opaque():
+    """Verify swamp water, mud turf, peat bank, and swamp wall export as 100% opaque surfaces."""
+    rng = random.Random(77)
+    water = generate_assets.generate_swamp_water_tile(40, 40, rng=rng)
+    mud = generate_assets.generate_mud_turf_tile(40, 40, rng=rng)
+    peat = generate_assets.generate_peat_bank_tile(40, 40, rng=rng)
+    swall = generate_assets.generate_swamp_wall_tile(40, 40, rng=rng)
+
+    for name, surf in [
+        ("water", water),
+        ("mud", mud),
+        ("peat", peat),
+        ("swamp_wall", swall),
+    ]:
+        assert surf.get_size() == (40, 40), f"{name} invalid size"
+        # Check all pixels have alpha 255 (100% opaque)
+        for y in range(40):
+            for x in range(40):
+                px = surf.get_at((x, y))
+                assert len(px) < 4 or px[3] == 255, f"{name} has non-opaque pixel at ({x}, {y}): {px}"
