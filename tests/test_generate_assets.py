@@ -246,3 +246,31 @@ def test_generate_attunement_altar():
     assert core_pixel[3] > 200
     assert core_pixel[1] >= 180 and core_pixel[2] >= 200  # Strong cyan/blue-green highlight
 
+
+def test_generate_swamp_props():
+    """Verify procedural generation of swamp fungus, gas vent, and skeletal thorns."""
+    rng = random.Random(404)
+    fungus = generate_assets.generate_swamp_fungus(40, 40, rng=rng)
+    vent = generate_assets.generate_swamp_gas_vent(40, 40, rng=rng)
+    thorns = generate_assets.generate_swamp_thorns(40, 40, rng=rng)
+
+    for prop_name, surf in [("fungus", fungus), ("vent", vent), ("thorns", thorns)]:
+        assert surf.get_size() == (40, 40), f"{prop_name} invalid dimensions"
+        assert surf.get_flags() & pygame.SRCALPHA != 0, f"{prop_name} missing SRCALPHA"
+        # Background corners are transparent
+        assert surf.get_at((0, 0))[3] == 0, f"{prop_name} top-left corner not transparent"
+        assert surf.get_at((39, 0))[3] == 0, f"{prop_name} top-right corner not transparent"
+
+    # Fungus has violet/maroon cap and yellow-green spots
+    alphas = [fungus.get_at((x, y))[3] for x in range(40) for y in range(40)]
+    assert alphas.count(0) > 100
+    assert alphas.count(255) > 100
+
+    # Gas vent has dark pore and pea-green spore glow
+    pore_pixels = [vent.get_at((x, y)) for x in range(12, 28) for y in range(12, 28)]
+    assert any(p[1] > 180 and p[0] > 100 for p in pore_pixels)  # Pea-green spore glow
+
+    # Thorns have calcified pale ash/bone stalks
+    thorn_pixels = [thorns.get_at((x, y)) for x in range(40) for y in range(40) if thorns.get_at((x, y))[3] == 255]
+    avg_bone_r = sum(p[0] for p in thorn_pixels) / len(thorn_pixels)
+    assert avg_bone_r > 100, "Thorn color too dark for calcified briar"

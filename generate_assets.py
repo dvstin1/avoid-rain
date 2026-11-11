@@ -42,6 +42,9 @@ DEFAULT_SWAMP_WALL_PATH = os.path.join("assets", "graphics", "swamp_wall.png")
 DEFAULT_GRASS_PATH = os.path.join("assets", "graphics", "grass_natural.png")
 DEFAULT_ROCK_PATH = os.path.join("assets", "graphics", "rock_cluster.png")
 DEFAULT_ALTAR_PATH = os.path.join("assets", "graphics", "attunement_altar.png")
+DEFAULT_SWAMP_FUNGUS_PATH = os.path.join("assets", "graphics", "swamp_fungus.png")
+DEFAULT_SWAMP_VENT_PATH = os.path.join("assets", "graphics", "swamp_gas_vent.png")
+DEFAULT_SWAMP_THORNS_PATH = os.path.join("assets", "graphics", "swamp_thorns.png")
 
 # Canonical Dimensions
 TILE_WIDTH = 40
@@ -94,15 +97,15 @@ WALL_WEB_CROSS_COLOR = (82, 88, 96)      # Spiderweb cross-thread color
 WALL_POCKMARK_COUNT_RANGE = (4, 7)       # Weathered cavity pits
 
 # --- 3. Swamp / Natural Biome Surface Parameters ---
-# Murky swamp water
-SWAMP_WATER_R_RANGE = (24, 32)
-SWAMP_WATER_G_RANGE = (30, 42)
-SWAMP_WATER_B_RANGE = (38, 52)
+# Murky swamp water (viscous fluid: deep eggplant purple, bruised violet, sickly pea-green scum)
+SWAMP_WATER_R_RANGE = (26, 36)
+SWAMP_WATER_G_RANGE = (14, 22)
+SWAMP_WATER_B_RANGE = (38, 54)
 SWAMP_SCUM_COLORS = [
-    (36, 54, 28), (50, 74, 38), (65, 92, 46)
+    (118, 148, 38), (142, 172, 44), (168, 204, 56)
 ]
-SWAMP_REED_COLOR = (70, 84, 46)
-SWAMP_REED_BASE_COLOR = (20, 26, 18)
+SWAMP_REED_COLOR = (142, 172, 44)
+SWAMP_REED_BASE_COLOR = (26, 14, 30)
 
 # Muddy trampled turf
 MUD_TURF_R_RANGE = (42, 52)
@@ -118,13 +121,31 @@ PEAT_BANK_B_RANGE = (24, 32)
 PEAT_ROOT_COLOR = (62, 50, 38)
 PEAT_ROOT_TIP_COLOR = (84, 68, 50)
 
-# Organic swamp wall embankment
-SWAMP_WALL_R_RANGE = (40, 48)
-SWAMP_WALL_G_RANGE = (32, 38)
-SWAMP_WALL_B_RANGE = (28, 36)
-SWAMP_WALL_SEDIMENT_DARK = (24, 18, 16)
-SWAMP_WALL_LIP_COLOR = (58, 46, 38)
-SWAMP_WALL_SHADOW_COLOR = (18, 14, 12)
+# Organic swamp wall embankment (mounded cellular strata, bruised maroon/purple)
+SWAMP_WALL_R_RANGE = (58, 70)
+SWAMP_WALL_G_RANGE = (28, 36)
+SWAMP_WALL_B_RANGE = (56, 68)
+SWAMP_WALL_SEDIMENT_DARK = (18, 8, 22)
+SWAMP_WALL_LIP_COLOR = (212, 198, 224)
+SWAMP_WALL_SHADOW_COLOR = (14, 6, 18)
+
+# Reference-Driven Swamp Props Parameters
+SWAMP_FUNGUS_CAP_BASE = (92, 42, 80)
+SWAMP_FUNGUS_CAP_HI = (156, 92, 138)
+SWAMP_FUNGUS_CAP_SHADOW = (32, 14, 30)
+SWAMP_FUNGUS_SPOTS = [(218, 204, 228), (142, 172, 44)]
+SWAMP_FUNGUS_STALK = (68, 50, 74)
+SWAMP_FUNGUS_STALK_SHADOW = (34, 20, 38)
+
+SWAMP_VENT_BASE = (58, 28, 54)
+SWAMP_VENT_HI = (182, 162, 194)
+SWAMP_VENT_SHADOW = (18, 8, 22)
+SWAMP_VENT_PUSTULE = (148, 185, 52)
+SWAMP_VENT_PUSTULE_CORE = (192, 240, 78)
+
+SWAMP_THORNS_BARK = (185, 178, 192)
+SWAMP_THORNS_SHADOW = (22, 12, 26)
+SWAMP_THORNS_TIP = (240, 236, 245)
 
 # --- 4. Moss / Overgrowth Vegetation Patch Parameters ---
 # Natural dark forest/olive green base tone (R:30-48, G:50-70, B:25-45)
@@ -560,7 +581,10 @@ def generate_swamp_water_tile(
     height: int = TILE_HEIGHT,
     rng: random.Random = None,
 ) -> pygame.Surface:
-    """Procedurally generate a 100% opaque murky swamp water tile with surface scum and reeds."""
+    """Procedurally generate a 100% opaque murky swamp water tile with surface scum and reeds.
+
+    Features deep eggplant purple fluid, alternating wavy ripple bands, and sickly pea-green scum.
+    """
     if rng is None:
         rng = random.Random()
 
@@ -570,14 +594,15 @@ def generate_swamp_water_tile(
     base_b = rng.randint(*SWAMP_WATER_B_RANGE)
     surface.fill((base_r, base_g, base_b))
 
-    # 1. Subtle horizontal wave and liquid ripple noise
+    # 1. Viscous fluid alternating horizontal bands and wavy ripples
     for y in range(height):
+        wave = int(2.5 * math.sin(y * 0.45) + 1.5 * math.cos(y * 0.2))
+        band = 4 if (y // 4) % 2 == 0 else -3
         for x in range(width):
-            ripple = int(2.5 * math.sin(x * 0.35 + y * 0.15))
             noise = rng.randint(-3, 3)
-            r = _clamp(base_r + ripple + noise)
-            g = _clamp(base_g + ripple + noise)
-            b = _clamp(base_b + ripple * 2 + noise)
+            r = _clamp(base_r + band + noise)
+            g = _clamp(base_g + band // 2 + noise)
+            b = _clamp(base_b + band * 2 + wave + noise)
             surface.set_at((x, y), (r, g, b))
 
     # 2. Organic algae / duckweed scum patches
@@ -711,8 +736,8 @@ def generate_swamp_wall_tile(
 ) -> pygame.Surface:
     """Procedurally generate a 100% opaque organic swamp cliff embankment tile.
 
-    Replaces masonry bricks in swamp biomes with an organic peat cliff face
-    featuring sediment strata, overhanging muddy lip, and root filaments.
+    Features mounded cellular strata, bulbous lumps, horizontal ribbing, pale lilac
+    highlights, and deep maroon/black undercut drop shadows.
     """
     if rng is None:
         rng = random.Random()
@@ -723,32 +748,41 @@ def generate_swamp_wall_tile(
     base_b = rng.randint(*SWAMP_WALL_B_RANGE)
     surface.fill((base_r, base_g, base_b))
 
-    # 1. Horizontal sediment layers and organic earthy strata
+    # 1. Mounded cellular strata and horizontal ribbing
     for y in range(height):
+        course_y = y % 12
+        course_bulb = int(4.0 * math.sin((course_y / 12.0) * math.pi))
         for x in range(width):
-            strata_val = int(5.0 * math.sin(y * 0.45) + 3.0 * math.cos(x * 0.2))
-            noise = rng.randint(-4, 4)
-            surface.set_at((x, y), (
-                _clamp(base_r + strata_val + noise),
-                _clamp(base_g + strata_val + noise),
-                _clamp(base_b + strata_val + noise),
-            ))
+            x_lobe = int(3.0 * math.sin(x * 0.35))
+            noise = rng.randint(-3, 3)
+            r = _clamp(base_r + course_bulb + x_lobe + noise)
+            g = _clamp(base_g + course_bulb // 2 + noise)
+            b = _clamp(base_b + course_bulb + x_lobe + noise)
+            surface.set_at((x, y), (r, g, b))
 
-    # 2. Earthen sediment groove lines
-    for gy in (12, 24, 34):
+    # 2. Deep maroon/black undercut groove lines under each bulge
+    for gy in (12, 24, 36):
         for x in range(width):
             jitter = rng.choice([-1, 0, 1])
             py = _clamp(gy + jitter, 0, height - 1)
             surface.set_at((x, py), SWAMP_WALL_SEDIMENT_DARK)
 
-    # 3. Overhanging root-lip at top edge
-    for x in range(width):
-        surface.set_at((x, 0), SWAMP_WALL_LIP_COLOR)
-        surface.set_at((x, 1), SWAMP_WALL_LIP_COLOR)
-        if rng.random() < 0.35 and 2 < height:
-            surface.set_at((x, 2), PEAT_ROOT_COLOR)
+    # 3. Stepped pale lilac/bone-white highlights on top bulge edges
+    for gy in (1, 13, 25):
+        for x in range(width):
+            if rng.random() < 0.8:
+                py = _clamp(gy, 0, height - 1)
+                surface.set_at((x, py), SWAMP_WALL_LIP_COLOR)
 
-    # 4. Dark ground shadow at bottom edge
+    # 4. Occasional pea-green organic nodules / pustules on wall face
+    for _ in range(rng.randint(2, 4)):
+        nx = rng.randint(4, width - 5)
+        ny = rng.randint(4, height - 5)
+        surface.set_at((nx, ny), (148, 205, 68))
+        if nx + 1 < width:
+            surface.set_at((nx + 1, ny), (185, 235, 75))
+
+    # 5. Dark ground shadow at bottom edge
     for x in range(width):
         surface.set_at((x, height - 1), SWAMP_WALL_SHADOW_COLOR)
         surface.set_at((x, height - 2), SWAMP_WALL_SHADOW_COLOR)
@@ -1114,6 +1148,170 @@ def generate_attunement_altar(
 
 
 # ==============================================================================
+# GENERATIVE PIPELINE 7: REFERENCE-DRIVEN SWAMP PROPS (FUNGI, VENTS, THORNS)
+# ==============================================================================
+
+def generate_swamp_fungus(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 40x40 transparent bulbous fleshy toadstool sprite.
+
+    Features a rounded, spotted purple/maroon mushroom cap with pale lilac and pea-green dots,
+    wrinkled stem with root filaments, and ambient drop-shadow.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # 1. Ambient bottom drop-shadow (translucent)
+    shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(shadow_surf, (14, 6, 18, 130), (6, height - 10, 28, 8))
+    surface.blit(shadow_surf, (0, 0))
+
+    # 2. Wrinkled Stalk / Roots
+    cx = width // 2
+    stalk_w = 10
+    stalk_left = cx - stalk_w // 2
+    for sy in range(16, height - 4):
+        wrinkle = int(math.sin(sy * 1.2) * 1.5)
+        for sx in range(stalk_left + wrinkle, stalk_left + stalk_w + wrinkle):
+            if 0 <= sx < width:
+                jitter = rng.randint(-3, 3)
+                r = _clamp(SWAMP_FUNGUS_STALK[0] + jitter)
+                g = _clamp(SWAMP_FUNGUS_STALK[1] + jitter)
+                b = _clamp(SWAMP_FUNGUS_STALK[2] + jitter)
+                surface.set_at((sx, sy), (r, g, b, 255))
+        if sy % 4 == 0:
+            for sx in range(stalk_left + wrinkle + 1, stalk_left + stalk_w + wrinkle - 1):
+                if 0 <= sx < width:
+                    surface.set_at((sx, sy), (*SWAMP_FUNGUS_STALK_SHADOW, 255))
+
+    # Root filaments branching out at base
+    root_tips = [(stalk_left - 4, height - 5), (stalk_left + stalk_w + 3, height - 5), (cx, height - 3)]
+    for rx, ry in root_tips:
+        if 0 <= rx < width and 0 <= ry < height:
+            surface.set_at((rx, ry), (*SWAMP_FUNGUS_STALK, 255))
+            if ry - 1 >= 0:
+                surface.set_at((rx + 1, ry - 1), (*SWAMP_FUNGUS_STALK_SHADOW, 255))
+
+    # 3. Bulbous Cap
+    cap_rect = pygame.Rect(4, 5, 32, 18)
+    pygame.draw.ellipse(surface, (*SWAMP_FUNGUS_CAP_BASE, 255), cap_rect)
+
+    # Upper stepped highlight
+    hi_rect = pygame.Rect(7, 6, 26, 9)
+    pygame.draw.ellipse(surface, (*SWAMP_FUNGUS_CAP_HI, 255), hi_rect)
+
+    # Lower shadow crescent
+    sh_rect = pygame.Rect(5, 17, 30, 7)
+    pygame.draw.ellipse(surface, (*SWAMP_FUNGUS_CAP_SHADOW, 255), sh_rect)
+
+    # 4. Organic spots (pale lilac and pea-green)
+    spots = [
+        (12, 10, SWAMP_FUNGUS_SPOTS[0], 3),
+        (22, 9, SWAMP_FUNGUS_SPOTS[0], 2),
+        (28, 12, SWAMP_FUNGUS_SPOTS[1], 2),
+        (16, 14, SWAMP_FUNGUS_SPOTS[1], 2),
+        (8, 15, SWAMP_FUNGUS_SPOTS[0], 2),
+        (31, 15, SWAMP_FUNGUS_SPOTS[0], 1),
+    ]
+    for sp_x, sp_y, sp_col, sp_rad in spots:
+        pygame.draw.circle(surface, (*sp_col, 255), (sp_x, sp_y), sp_rad)
+
+    return surface
+
+
+def generate_swamp_gas_vent(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 40x40 transparent organic gas vent / hive mound sprite.
+
+    Features a raised cellular pod mound with crater pores, glowing toxic pustules,
+    and dark base shadow.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # 1. Base drop shadow
+    shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(shadow_surf, (14, 6, 18, 140), (4, height - 14, 32, 12))
+    surface.blit(shadow_surf, (0, 0))
+
+    # 2. Main cellular mound body
+    pygame.draw.ellipse(surface, (*SWAMP_VENT_BASE, 255), (6, 12, 28, 22))
+    pygame.draw.ellipse(surface, (*SWAMP_VENT_BASE, 255), (14, 8, 18, 18))
+
+    # Top-left highlight rim
+    pygame.draw.arc(surface, (*SWAMP_VENT_HI, 255), (7, 10, 26, 16), 1.8, 3.8, 2)
+    pygame.draw.arc(surface, (*SWAMP_VENT_HI, 255), (15, 7, 16, 12), 1.2, 3.2, 1)
+
+    # 3. Crater vent pores (dark sunken cores)
+    pores = [(16, 18, 4), (24, 15, 3)]
+    for px, py, prad in pores:
+        pygame.draw.circle(surface, (*SWAMP_VENT_SHADOW, 255), (px, py), prad)
+        pygame.draw.circle(surface, (*SWAMP_VENT_PUSTULE, 255), (px, py), prad + 1, 1)
+
+    # 4. Swollen pustules with glowing cores
+    pustules = [(11, 23), (27, 24), (20, 10)]
+    for ptx, pty in pustules:
+        pygame.draw.circle(surface, (*SWAMP_VENT_PUSTULE, 255), (ptx, pty), 3)
+        surface.set_at((ptx, pty), (*SWAMP_VENT_PUSTULE_CORE, 255))
+
+    return surface
+
+
+def generate_swamp_thorns(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 40x40 transparent skeletal thorn and briar patch sprite."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # 1. Base subtle shadow
+    shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(shadow_surf, (14, 6, 18, 110), (6, height - 8, 28, 6))
+    surface.blit(shadow_surf, (0, 0))
+
+    # 2. Gnarled briar stems breaching upward
+    branches = [
+        [(10, 34), (12, 26), (16, 18), (14, 10)],
+        [(20, 36), (22, 28), (26, 20), (30, 12)],
+        [(28, 35), (29, 29), (27, 23), (25, 17)],
+    ]
+    for branch in branches:
+        for idx in range(len(branch) - 1):
+            p1, p2 = branch[idx], branch[idx + 1]
+            pygame.draw.line(surface, (*SWAMP_THORNS_BARK, 255), p1, p2, 2)
+            pygame.draw.line(surface, (*SWAMP_THORNS_SHADOW, 255), (p1[0], p1[1] + 1), (p2[0], p2[1] + 1), 1)
+
+    # 3. Sharp 1-pixel calcified thorn tips
+    thorns = [
+        ((14, 10), (12, 7)),
+        ((16, 18), (19, 16)),
+        ((30, 12), (33, 9)),
+        ((26, 20), (29, 19)),
+        ((25, 17), (23, 14)),
+        ((12, 26), (8, 24)),
+    ]
+    for base_pt, tip_pt in thorns:
+        pygame.draw.line(surface, (*SWAMP_THORNS_BARK, 255), base_pt, tip_pt, 1)
+        surface.set_at(tip_pt, (*SWAMP_THORNS_TIP, 255))
+
+    return surface
+
+
+# ==============================================================================
 # BATCH GENERATION & CLI ENTRY POINT
 # ==============================================================================
 
@@ -1130,6 +1328,9 @@ def generate_all_assets(
     mud_turf_path: str = DEFAULT_MUD_TURF_PATH,
     peat_bank_path: str = DEFAULT_PEAT_BANK_PATH,
     swamp_wall_path: str = DEFAULT_SWAMP_WALL_PATH,
+    swamp_fungus_path: str = DEFAULT_SWAMP_FUNGUS_PATH,
+    swamp_vent_path: str = DEFAULT_SWAMP_VENT_PATH,
+    swamp_thorns_path: str = DEFAULT_SWAMP_THORNS_PATH,
     seed: int = None,
 ) -> Dict[str, str]:
     """Generate all procedural assets and save them to disk.
@@ -1212,6 +1413,25 @@ def generate_all_assets(
     altar_surf = generate_attunement_altar(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(altar_surf, altar_path)
     results["attunement_altar"] = altar_path
+
+    # 7. Reference-Driven Swamp Props
+    # 7a. Bulbous fleshy toadstool / giant fungi
+    _ensure_directory(swamp_fungus_path)
+    swamp_fungus_surf = generate_swamp_fungus(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(swamp_fungus_surf, swamp_fungus_path)
+    results["swamp_fungus"] = swamp_fungus_path
+
+    # 7b. Raised organic gas vent / hive mound
+    _ensure_directory(swamp_vent_path)
+    swamp_vent_surf = generate_swamp_gas_vent(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(swamp_vent_surf, swamp_vent_path)
+    results["swamp_gas_vent"] = swamp_vent_path
+
+    # 7c. Skeletal thorns & briars
+    _ensure_directory(swamp_thorns_path)
+    swamp_thorns_surf = generate_swamp_thorns(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(swamp_thorns_surf, swamp_thorns_path)
+    results["swamp_thorns"] = swamp_thorns_path
 
     return results
 

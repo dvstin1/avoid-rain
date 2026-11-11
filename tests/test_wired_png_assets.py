@@ -262,3 +262,70 @@ def test_sanctuary_floor_100_percent_opaque_no_white_bleed():
             assert pixel[:3] != (255, 255, 255), f"White bleed detected at ({px}, {py})"
             # Sepia / dark tones
             assert pixel[0] <= 120 and pixel[1] <= 120 and pixel[2] <= 120
+
+
+def test_swamp_biome_props_cached_and_rendered():
+    """Verify SwampFungus, SwampVent, and SwampThorns are cached and rendered in swamp_mire."""
+    screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+
+    # 1. Props in prop_cache
+    for prop_key in ("SwampFungus", "SwampVent", "SwampThorns"):
+        assert prop_key in renderer.prop_cache, f"{prop_key} missing from prop_cache"
+        surf = renderer.prop_cache[prop_key]
+        assert surf.get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
+        assert surf.get_flags() & pygame.SRCALPHA != 0
+
+    # 2. Render pass in swamp_mire with Structure and Rock interactables
+    state = GameState(auto_load=False)
+    state.world.name = "swamp_mire"
+    state.world.load_from_prototype(["gG."])
+
+    chunk_surf = pygame.Surface((constants.TILE_SIZE * 3, constants.TILE_SIZE))
+    for tx in range(3):
+        dr = (tx * constants.TILE_SIZE, 0, constants.TILE_SIZE, constants.TILE_SIZE)
+        renderer._draw_static_tile_to_surface(chunk_surf, state, (tx, 0, 3, 1), dr)
+
+    # Swamp thorns blitted on grass ('g') and thicket ('G')
+    sub_grass = chunk_surf.subsurface((0, 0, constants.TILE_SIZE, constants.TILE_SIZE))
+    sub_floor = chunk_surf.subsurface((constants.TILE_SIZE * 2, 0, constants.TILE_SIZE, constants.TILE_SIZE))
+    assert pygame.image.tobytes(sub_grass, "RGB") != pygame.image.tobytes(sub_floor, "RGB")
+
+
+def test_swamp_organic_wall_plateau_and_facade():
+    """Verify swamp_mire walls render organic mounded plateaus and 2.5D cliff facades with highlights."""
+    screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+
+    state = GameState(auto_load=False)
+    state.world.name = "swamp_mire"
+    state.world.load_from_prototype(["#", "#"])
+
+    # Top wall (has wall_s == True): Rooftop plateau
+    top_surf = pygame.Surface((constants.TILE_SIZE, constants.TILE_SIZE))
+    renderer._draw_connected_wall_tile(
+        top_surf,
+        state,
+        (0, 0, 1, 2),
+        (0, 0, constants.TILE_SIZE, constants.TILE_SIZE),
+        ("swamp_mire", constants.BIOME_PALETTES["swamp_mire"]),
+    )
+
+    # Bottom wall (has wall_s == False): 2.5D cliff facade
+    bot_surf = pygame.Surface((constants.TILE_SIZE, constants.TILE_SIZE))
+    renderer._draw_connected_wall_tile(
+        bot_surf,
+        state,
+        (0, 1, 1, 2),
+        (0, 0, constants.TILE_SIZE, constants.TILE_SIZE),
+        ("swamp_mire", constants.BIOME_PALETTES["swamp_mire"]),
+    )
+
+    # Both are non-empty and distinct
+    top_bytes = pygame.image.tobytes(top_surf, "RGB")
+    bot_bytes = pygame.image.tobytes(bot_surf, "RGB")
+    assert top_bytes != bot_bytes
+
+    # Bottom facade has deep maroon undercut shadow near the bottom
+    bot_shadow = bot_surf.get_at((20, constants.TILE_SIZE - 2))[:3]
+    assert bot_shadow == constants.BIOME_PALETTES["swamp_mire"]["wall_mortar"]

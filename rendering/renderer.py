@@ -456,6 +456,47 @@ class Renderer:
             pygame.draw.circle(altar, constants.COLOR_CYAN, (20, 15), 5)
             self.prop_cache["Attunement Altar"] = altar.convert_alpha() if display_init else altar
 
+        # 8. Swamp Biome Props: Fungus, Gas Vent, and Skeletal Thorns
+        swamp_prop_defs = [
+            ("swamp_fungus.png", "SwampFungus"),
+            ("swamp_gas_vent.png", "SwampVent"),
+            ("swamp_thorns.png", "SwampThorns"),
+        ]
+        for sp_file, sp_key in swamp_prop_defs:
+            sp_path = os.path.join(base_path, sp_file)
+            if os.path.exists(sp_path):
+                try:
+                    sp_img = pygame.image.load(sp_path)
+                    if display_init:
+                        sp_img = sp_img.convert_alpha()
+                    scaled_sp = pygame.transform.scale(sp_img, (ts, ts))
+                    self.prop_cache[sp_key] = scaled_sp
+                    self.image_cache[sp_file] = scaled_sp
+                except Exception as e:
+                    print(f"[RENDER] Error loading {sp_file}: {e}")
+
+        if "SwampFungus" not in self.prop_cache:
+            fungus = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.rect(fungus, (195, 168, 220), (ts // 2 - 4, ts - 18, 8, 16), border_radius=3)
+            pygame.draw.ellipse(fungus, (66, 30, 62), (ts // 2 - 16, ts // 2 - 8, 32, 22))
+            pygame.draw.circle(fungus, (142, 172, 44), (ts // 2 - 6, ts // 2 - 2), 3)
+            pygame.draw.circle(fungus, (142, 172, 44), (ts // 2 + 7, ts // 2), 2)
+            self.prop_cache["SwampFungus"] = fungus.convert_alpha() if display_init else fungus
+
+        if "SwampVent" not in self.prop_cache:
+            vent = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.ellipse(vent, (66, 30, 62), (4, 8, ts - 8, ts - 12))
+            pygame.draw.circle(vent, (18, 8, 22), (ts // 2, ts // 2), 6)
+            pygame.draw.circle(vent, (148, 215, 68), (ts // 2, ts // 2), 3)
+            self.prop_cache["SwampVent"] = vent.convert_alpha() if display_init else vent
+
+        if "SwampThorns" not in self.prop_cache:
+            thorns = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.line(thorns, (180, 175, 185), (6, 34), (34, 10), 3)
+            pygame.draw.line(thorns, (180, 175, 185), (14, 24), (10, 14), 2)
+            pygame.draw.line(thorns, (180, 175, 185), (24, 18), (30, 26), 2)
+            self.prop_cache["SwampThorns"] = thorns.convert_alpha() if display_init else thorns
+
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
         wx, wy, ww, wh = warp.rect
@@ -728,8 +769,10 @@ class Renderer:
                 pygame.draw.line(self.screen, (148, 246, 154), (sx + 10, sy + 18), (sx + 24 + sway, sy + 18), 2)
         elif biome == "swamp_mire":
             rad = 3 + int(((math.sin(now * 3.2 + x * 0.7 + y * 0.5) + 1.0) * 0.5) * 6)
-            col = pal["floor_speck"] if s_idx == 0 else pal["floor_accent"]
-            pygame.draw.circle(self.screen, col, (sx + 20, sy + 20), rad, 1)
+            # Expanding pea-green scum ring with simmering toxic bubble core
+            pygame.draw.circle(self.screen, pal["floor_accent"], (sx + 20, sy + 20), rad, 1)
+            b_pulse = int(((math.sin(now * 4.5 + x * 1.3 + y * 0.9) + 1.0) * 0.5) * 3) + 1
+            pygame.draw.circle(self.screen, pal["wall_glow"], (sx + 18, sy + 18), b_pulse)
         elif biome == "frozen_peaks":
             glint = int((math.sin(now * 4.5 + x * 1.1 + y * 0.9) + 1.0) * 2.5) + 2
             cx, cy = sx + 18, sy + 18
@@ -779,7 +822,57 @@ class Renderer:
                 target_surf.blit(selected_wall, (sx, sy))
                 return
 
-        # 2. All other biomes: Restore exact legacy procedural geometric wall rendering (matching 70ed514)
+        # 2. Swamp Biome: Organic mounded cliff walls and parasitic hive plateaus
+        if biome == "swamp_mire":
+            if wall_s:
+                target_surf.fill(pal["wall_top"], (sx, sy, ts, ts))
+                prev_clip = target_surf.get_clip()
+                target_surf.set_clip(pygame.Rect(sx, sy, ts, ts))
+                ax = sx - (x % 2) * ts
+                ay = sy - (y % 2) * ts
+                pat = ((x // 2) * 31 + (y // 2) * 47) % 3
+                if pat == 0:
+                    pygame.draw.ellipse(target_surf, pal["wall_face"], (ax + 8, ay + 10, 64, 60))
+                    pygame.draw.ellipse(target_surf, pal["wall_top"], (ax + 16, ay + 18, 48, 44))
+                    pygame.draw.ellipse(target_surf, pal["wall_hi"], (ax + 22, ay + 22, 28, 14), 1)
+                elif pat == 1:
+                    pygame.draw.ellipse(target_surf, pal["wall_face"], (ax + 6, ay + 8, 36, 32))
+                    pygame.draw.ellipse(target_surf, pal["wall_face"], (ax + 36, ay + 38, 38, 34))
+                    pygame.draw.circle(target_surf, pal["wall_glow"], (ax + 34, ay + 34), 3)
+                else:
+                    pygame.draw.ellipse(target_surf, pal["wall_face"], (ax + 8, ay + 20, 64, 40))
+                    pygame.draw.ellipse(target_surf, pal["wall_hi"], (ax + 16, ay + 24, 48, 18), 1)
+                target_surf.set_clip(prev_clip)
+
+                if not wall_n:
+                    target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 2))
+                    target_surf.fill(pal["wall_hi"], (sx, sy + 2, ts, 2))
+                if not wall_w:
+                    target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
+                    target_surf.fill(pal["wall_hi"], (sx + 2, sy, 2, ts))
+                if not wall_e:
+                    target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
+            else:
+                # 2.5D cliff facade with soft rounded tiers and deep undercut drop shadow
+                target_surf.fill(pal["wall_face"], (sx, sy, ts, ts))
+                target_surf.fill(pal["wall_top"], (sx, sy, ts, 12))
+                if not wall_n:
+                    target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 2))
+                    target_surf.fill(pal["wall_hi"], (sx, sy + 2, ts, 2))
+                target_surf.fill(pal["wall_hi"], (sx, sy + 11, ts, 2))
+                pygame.draw.rect(target_surf, pal["wall_top"], (sx + 2, sy + 16, ts - 4, 8), border_radius=4)
+                pygame.draw.rect(target_surf, pal["wall_hi"], (sx + 4, sy + 17, ts - 8, 2), border_radius=1)
+                pygame.draw.rect(target_surf, pal["wall_top"], (sx + 4, sy + 26, ts - 8, 7), border_radius=3)
+                pore_x = sx + 8 + ((x * 11) % (ts - 16))
+                pygame.draw.circle(target_surf, pal["wall_glow"], (pore_x, sy + 28), 2)
+                target_surf.fill(pal["wall_mortar"], (sx, sy + ts - 4, ts, 4))
+                if not wall_w:
+                    target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
+                if not wall_e:
+                    target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
+            return
+
+        # 3. All other biomes: Restore exact legacy procedural geometric wall rendering (matching 70ed514)
         if wall_s:
             # Connected Plateau / Wall Rooftop: seamless across adjacent wall tiles
             target_surf.fill(pal["wall_top"], (sx, sy, ts, ts))
@@ -983,39 +1076,37 @@ class Renderer:
                     pygame.draw.rect(target_surf, pal["wall_face"], (ax + 6, ay + 44, 68, 30), 2, border_radius=4)
         elif biome == "swamp_mire":
             if s_idx == 0:
+                # Deep viscous fluid: horizontal wavy ripple bands and floating pea-green scum
+                for r_o in (16, 32, 48, 64):
+                    pygame.draw.arc(target_surf, pal["floor_alt"], (ax + 4, ay + r_o - 6, 72, 14), 0.1, 3.0, 2)
                 if pat == 0:
-                    pygame.draw.ellipse(target_surf, pal["wall_mortar"], (ax + 8, ay + 12, 64, 56))
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 16, ay + 20, 48, 40), 2)
-                    pygame.draw.ellipse(target_surf, pal["floor_speck"], (ax + 28, ay + 30, 24, 20), 1)
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 16, ay + 20, 48, 18))
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 26, ay + 24), 3)
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 42, ay + 28), 2)
                 elif pat == 1:
-                    for r_o in (18, 34, 50):
-                        pygame.draw.arc(
-                            target_surf, pal["floor_accent"], (ax + 14, ay + r_o, 52, 22), 0.2, 2.9, 2
-                        )
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 24, ay + 42, 36, 14))
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 32, ay + 46), 2)
                 else:
-                    pygame.draw.ellipse(target_surf, pal["wall_mortar"], (ax + 12, ay + 18, 56, 44))
-                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 30, ay + 36), 6, 1)
-                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 50, ay + 44), 9, 1)
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 12, ay + 30, 26, 12))
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 44, ay + 50, 28, 12))
             elif s_idx == 2:
-                # Continuous Multi-Tile Timber Boardwalk Planks spanning full 80px width
-                for py in range(6, 76, 14):
-                    target_surf.fill(pal["wall_top"], (ax, ay + py, 80, 10))
-                    target_surf.fill(pal["wall_hi"], (ax, ay + py, 80, 2))
-                    joint_x = (py * 3 + bx * 17) % 60 + 10
-                    target_surf.fill(pal["wall_mortar"], (ax + joint_x, ay + py, 2, 10))
+                # Raised calcified hive chitin and peat bank
+                pygame.draw.ellipse(target_surf, pal["wall_top"], (ax + 10, ay + 14, 60, 52))
+                pygame.draw.ellipse(target_surf, pal["wall_hi"], (ax + 16, ay + 18, 48, 40), 2)
                 if pat == 1:
-                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 16, ay + 16, 48, 48), 3)
+                    pygame.draw.circle(target_surf, pal["wall_glow"], (ax + 40, ay + 40), 4)
             else:
+                # Stratum 1: Sluggish eggplant fluid with soft horizontal ripples and algae scum flecks
+                for r_o in (20, 40, 60):
+                    pygame.draw.arc(target_surf, pal["floor_alt"], (ax + 8, ay + r_o - 5, 64, 12), 0.1, 3.0, 2)
                 if pat == 0:
-                    pygame.draw.line(target_surf, pal["floor_accent"], (ax + 8, ay + 14), (ax + 72, ay + 66), 3)
-                    pygame.draw.line(target_surf, pal["floor_accent"], (ax + 14, ay + 64), (ax + 68, ay + 18), 2)
-                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 40, ay + 40), 10)
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 20, ay + 28, 38, 16))
+                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 30, ay + 34), 3)
                 elif pat == 1:
-                    for hx, hy in ((26, 26), (54, 26), (40, 50)):
-                        pygame.draw.circle(target_surf, pal["floor_accent"], (ax + hx, ay + hy), 13, 2)
+                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 26, ay + 26), 7)
+                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 54, ay + 46), 6)
                 else:
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 14, ay + 22, 52, 36))
-                    pygame.draw.ellipse(target_surf, pal["floor_speck"], (ax + 26, ay + 30, 24, 16))
+                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 24, ay + 38, 32, 14))
         elif biome == "frozen_peaks":
             if s_idx == 0:
                 # Continuous Mirror-Ice Basin with branching multi-tile fracture networks
@@ -1124,13 +1215,13 @@ class Renderer:
             rim_lo = (156, 118, 68)
             inner_lip = (178, 140, 86)
         elif biome == "swamp_mire" and s_idx == 0:
-            rim_hi = (26, 20, 16)
-            rim_lo = (20, 16, 14)
-            inner_lip = (34, 46, 56)
+            rim_hi = (28, 14, 38)
+            rim_lo = (18, 8, 22)
+            inner_lip = (142, 172, 44)
         elif biome == "swamp_mire" and s_idx == 2:
-            rim_hi = (62, 50, 38)
-            rim_lo = (28, 20, 16)
-            inner_lip = (52, 40, 30)
+            rim_hi = (216, 202, 226)
+            rim_lo = (18, 8, 22)
+            inner_lip = (86, 44, 82)
         elif s_idx == 0:
             rim_hi = pal["wall_mortar"]
             rim_lo = pal["wall_mortar"]
@@ -1302,14 +1393,36 @@ class Renderer:
             if x > 0 and state.world.grid[y][x - 1] == constants.TILE_WALL:
                 target_surf.blit(b_pack["shadow_w"], (sx, sy))
 
-            # 4. Stamp procedural grass/thicket tufts directly onto the static tile surface
-            if tile in (constants.TILE_GRASS, constants.TILE_THICKET) and getattr(self, "grass_pools", None):
-                clusters = getattr(state.world, "grass_decorations", {}).get((x, y), ())
-                for pool_key, variant, dx, dy in clusters:
-                    pool = self.grass_pools.get(pool_key)
-                    if pool:
-                        tuft = pool[variant % len(pool)]
-                        target_surf.blit(tuft, (sx + 8 + dx, sy + 8 + dy))
+            # 4. Stamp procedural grass/thicket tufts or swamp thorns directly onto the static tile surface
+            if tile in (constants.TILE_GRASS, constants.TILE_THICKET):
+                if biome == "swamp_mire" and "SwampThorns" in getattr(self, "prop_cache", {}):
+                    thorns_surf = self.prop_cache["SwampThorns"]
+                    tdx = ((x * 13 + y * 17) % 9) - 4
+                    tdy = ((x * 19 + y * 7) % 9) - 4
+                    target_surf.blit(thorns_surf, (sx + tdx, sy + tdy))
+                    if tile == constants.TILE_THICKET:
+                        tdx2 = ((x * 7 + y * 23) % 9) - 4
+                        tdy2 = ((x * 29 + y * 11) % 9) - 4
+                        target_surf.blit(thorns_surf, (sx + tdx2, sy + tdy2))
+                elif getattr(self, "grass_pools", None):
+                    clusters = getattr(state.world, "grass_decorations", {}).get((x, y), ())
+                    for pool_key, variant, dx, dy in clusters:
+                        pool = self.grass_pools.get(pool_key)
+                        if pool:
+                            tuft = pool[variant % len(pool)]
+                            target_surf.blit(tuft, (sx + 8 + dx, sy + 8 + dy))
+            elif tile == constants.TILE_OBSTACLE:
+                if biome == "swamp_mire" and "SwampVent" in getattr(self, "prop_cache", {}):
+                    vent_surf = self.prop_cache["SwampVent"]
+                    rdx = ((x * 11 + y * 23) % 9) - 4
+                    rdy = ((x * 17 + y * 13) % 9) - 4
+                    target_surf.blit(vent_surf, (sx + rdx, sy + rdy))
+                else:
+                    rock_surf = getattr(self, "prop_cache", {}).get("Rock")
+                    if rock_surf is not None:
+                        rdx = ((x * 11 + y * 23) % 9) - 4
+                        rdy = ((x * 17 + y * 13) % 9) - 4
+                        target_surf.blit(rock_surf, (sx + rdx, sy + rdy))
         else:
             pygame.draw.rect(target_surf, constants.COLOR_FLOOR, dr, 1)
 
@@ -1473,19 +1586,38 @@ class Renderer:
                     pygame.draw.rect(self.screen, (100, 80, 40), (sx_o, sy_o, obj.width, obj.height))
                     pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o, obj.width, obj.height), 2)
             elif obj.name == "Structure":
-                tree_surf = prop_cache.get("Structure")
-                if tree_surf is not None:
-                    self.screen.blit(tree_surf, (int(sx_o), int(sy_o)))
+                obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
+                if obj_biome == "swamp_mire":
+                    fungus_surf = prop_cache.get("SwampFungus")
+                    if fungus_surf is not None:
+                        self.screen.blit(fungus_surf, (int(sx_o), int(sy_o)))
+                    else:
+                        sx_i, sy_i, sw_o, sh_o = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                        cx_t, cy_t = sx_i + sw_o // 2, sy_i + sh_o // 2 - 4
+                        pygame.draw.rect(
+                            self.screen, (195, 168, 220), (cx_t - 4, sy_i + sh_o - 18, 8, 16), border_radius=3
+                        )
+                        pygame.draw.ellipse(self.screen, (66, 30, 62), (cx_t - 16, cy_t - 8, 32, 22))
+                        pygame.draw.circle(self.screen, (142, 172, 44), (cx_t - 6, cy_t - 2), 3)
+                        pygame.draw.circle(self.screen, (142, 172, 44), (cx_t + 7, cy_t), 2)
                 else:
-                    sx_i, sy_i, sw_o, sh_o = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
-                    cx_t, cy_t = sx_i + sw_o // 2, sy_i + sh_o // 2 - 4
-                    pygame.draw.circle(self.screen, (22, 44, 28), (cx_t + 2, sy_i + sh_o - 6), sw_o // 3)
-                    pygame.draw.rect(self.screen, (28, 16, 8), (cx_t - 7, sy_i + sh_o - 16, 14, 14), border_radius=2)
-                    pygame.draw.rect(self.screen, (92, 54, 28), (cx_t - 5, sy_i + sh_o - 15, 10, 12), border_radius=2)
-                    pygame.draw.circle(self.screen, (18, 44, 24), (cx_t, cy_t), sw_o // 2 - 1)
-                    pygame.draw.circle(self.screen, (38, 126, 62), (cx_t, cy_t + 2), sw_o // 2 - 3)
-                    pygame.draw.circle(self.screen, (92, 218, 110), (cx_t - 1, cy_t - 2), sw_o // 2 - 5)
-                    pygame.draw.circle(self.screen, (162, 246, 148), (cx_t - 4, cy_t - 6), sw_o // 4)
+                    tree_surf = prop_cache.get("Structure")
+                    if tree_surf is not None:
+                        self.screen.blit(tree_surf, (int(sx_o), int(sy_o)))
+                    else:
+                        sx_i, sy_i, sw_o, sh_o = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                        cx_t, cy_t = sx_i + sw_o // 2, sy_i + sh_o // 2 - 4
+                        pygame.draw.circle(self.screen, (22, 44, 28), (cx_t + 2, sy_i + sh_o - 6), sw_o // 3)
+                        pygame.draw.rect(
+                            self.screen, (28, 16, 8), (cx_t - 7, sy_i + sh_o - 16, 14, 14), border_radius=2
+                        )
+                        pygame.draw.rect(
+                            self.screen, (92, 54, 28), (cx_t - 5, sy_i + sh_o - 15, 10, 12), border_radius=2
+                        )
+                        pygame.draw.circle(self.screen, (18, 44, 24), (cx_t, cy_t), sw_o // 2 - 1)
+                        pygame.draw.circle(self.screen, (38, 126, 62), (cx_t, cy_t + 2), sw_o // 2 - 3)
+                        pygame.draw.circle(self.screen, (92, 218, 110), (cx_t - 1, cy_t - 2), sw_o // 2 - 5)
+                        pygame.draw.circle(self.screen, (162, 246, 148), (cx_t - 4, cy_t - 6), sw_o // 4)
             elif obj.name == "The Chronicler":
                 pygame.draw.rect(self.screen, (220, 220, 220), (sx_o, sy_o, obj.width, obj.height))
                 pygame.draw.rect(self.screen, (255, 200, 150), (sx_o + 5, sy_o + 5, obj.width - 10, 10))
@@ -1543,14 +1675,24 @@ class Renderer:
                     pygame.draw.rect(self.screen, (25, 27, 32), (ax + 2, ay + 6, aw - 4, ah - 8), border_radius=4)
                     pygame.draw.circle(self.screen, (80, 220, 240), (ax + aw // 2, ay + ah // 2 - 2), 6)
             elif obj.name == "Rock":
-                rock_surf = prop_cache.get("Rock")
-                if rock_surf is not None:
-                    rdx = ((int(obj.x) * 11 + int(obj.y) * 23) % 9) - 4
-                    rdy = ((int(obj.x) * 17 + int(obj.y) * 13) % 9) - 4
-                    self.screen.blit(rock_surf, (int(sx_o) + rdx, int(sy_o) + rdy))
+                obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
+                rdx = ((int(obj.x) * 11 + int(obj.y) * 23) % 9) - 4
+                rdy = ((int(obj.x) * 17 + int(obj.y) * 13) % 9) - 4
+                if obj_biome == "swamp_mire":
+                    vent_surf = prop_cache.get("SwampVent")
+                    if vent_surf is not None:
+                        self.screen.blit(vent_surf, (int(sx_o) + rdx, int(sy_o) + rdy))
+                    else:
+                        rx, ry = int(sx_o) + rdx, int(sy_o) + rdy
+                        pygame.draw.ellipse(self.screen, (66, 30, 62), (rx + 4, ry + 8, ts - 8, ts - 12))
+                        pygame.draw.circle(self.screen, (148, 215, 68), (rx + ts // 2, ry + ts // 2), 4)
                 else:
-                    rx, ry, rw, rh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
-                    pygame.draw.circle(self.screen, (68, 88, 118), (rx + rw // 2, ry + rh // 2 + 2), rw // 2 - 3)
+                    rock_surf = prop_cache.get("Rock")
+                    if rock_surf is not None:
+                        self.screen.blit(rock_surf, (int(sx_o) + rdx, int(sy_o) + rdy))
+                    else:
+                        rx, ry, rw, rh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                        pygame.draw.circle(self.screen, (68, 88, 118), (rx + rw // 2, ry + rh // 2 + 2), rw // 2 - 3)
             elif hasattr(obj, 'weapon_data'):
                 col = constants.COLOR_PURPLE if "modifiers" in obj.weapon_data else constants.COLOR_WHITE
                 pygame.draw.rect(self.screen, col, (sx_o, sy_o, obj.width, obj.height))

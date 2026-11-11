@@ -749,5 +749,45 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
     and that no debug text is rendered when disabled.
   - Maintained 100% green test pass across all 217 tests in `pytest`.
 
+## [ARCHIVED] Reference-Driven Swamp Mire Biome Visuals & Organic Assets - November 2026
+- **Reference Document & Palette Calibration (`docs/reference.md`, `constants.py`):**
+  - Updated `constants.BIOME_PALETTES["swamp_mire"]` based on `docs/reference.md` specifications with deep eggplant
+    purple base (`(34, 18, 48)`), bruised violet mid-tones (`(56, 28, 76)`), sickly mustard/pea-green accents
+    (`(142, 172, 44)`), pale lilac highlights (`(195, 168, 220)`), mounded wall tissue (`(86, 44, 82)`), pale lilac
+    upper highlights (`(216, 202, 226)`), fleshy maroon vertical faces (`(66, 30, 62)`), deep maroon/black undercut
+    drop shadows (`(18, 8, 22)`), and pea-green spore glow (`(148, 215, 68)`).
+  - Synchronized three coherent multi-tile strata floor definitions for sluggish sludge, viscous eggplant fluid, and
+    calcified peat banks.
+- **Procedural Asset Generation (`generate_assets.py`):**
+  - Updated `generate_swamp_water_tile()` and `generate_swamp_wall_tile()` with reference-accurate viscous fluid
+    ripples and fleshy cellular mounded cliff facets.
+  - Added `generate_swamp_fungus()` producing 40x40 transparent spotted toadstool props
+    (`assets/graphics/swamp_fungus.png`).
+  - Added `generate_swamp_gas_vent()` producing 40x40 transparent organic hive mound vents with open bubbling pores
+    (`assets/graphics/swamp_gas_vent.png`).
+  - Added `generate_swamp_thorns()` producing 40x40 transparent calcified bleached ash-grey skeletal thorn briars
+    (`assets/graphics/swamp_thorns.png`).
+  - Generated and exported all 15 procedural PNG assets offline.
+- **Engine Rendering Integration (`rendering/renderer.py`):**
+  - Pre-cached swamp props (`SwampFungus`, `SwampVent`, `SwampThorns`) with procedural fallbacks in
+    `_generate_prop_cache()`.
+  - Wired biome-specific entity rendering in `render()`: `Structure` interactables render as `SwampFungus`
+    toadstools and `Rock` interactables render as `SwampVent` pustules in `swamp_mire`.
+  - Wired `SwampThorns` onto `TILE_GRASS` and `TILE_THICKET` in `_draw_static_tile_to_surface()`.
+  - Implemented organic mounded cliff walls in `_draw_connected_wall_tile()` for `swamp_mire`: soft rounded tiers,
+    horizontal ribbing, pale lilac highlight bevels, and deep maroon undercut drop shadows.
+  - Implemented continuous horizontal wavy ripple bands and floating pea-green scum clusters in
+    `_draw_connected_floor_patterns()`.
+  - Added animated shimmering toxic bubbles and expanding scum rings in `_draw_biome_floor_fx()`.
+  - Updated perimeter borders and rounded transitions in `_draw_stratum_perimeter_borders()` with pea-green scum
+    contours and pale lilac chitin edges.
+- **Comprehensive Unit Testing (`tests/test_generate_assets.py`, `tests/test_wired_png_assets.py`):**
+  - Added generator unit tests verifying dimensions, alpha channels, pore glow, and bone coloring for swamp fungus,
+    gas vent, and thorns.
+  - Added integration unit tests verifying prop caching, thorn placement on grass/thicket, and organic mounded wall
+    rendering.
+  - Maintained 100% green test pass across all 220 tests in `pytest`.
+
+
 
 

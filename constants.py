@@ -396,20 +396,20 @@ BIOME_PALETTES = {
         "wall_glow": (126, 88, 54)
     },
     "swamp_mire": {
-        "floor_base": (44, 24, 68),
-        "floor_alt": (58, 32, 88),
-        "floor_accent": (55, 185, 105),
-        "floor_speck": (225, 70, 190),
+        "floor_base": (34, 18, 48),      # Deep eggplant purple
+        "floor_alt": (56, 28, 76),       # Bruised violet midtone
+        "floor_accent": (142, 172, 44),  # Sickly mustard / pea-green highlight
+        "floor_speck": (195, 168, 220),  # Pale lilac spore flecks
         "strata": [
-            ((24, 36, 78), (38, 68, 118)),   # Stratum 0: Bioluminescent Bog Shallows
-            ((44, 24, 68), (64, 36, 96)),    # Stratum 1: Murky Violet Spore-Peat
-            ((86, 62, 46), (112, 82, 58))    # Stratum 2: Raised Cypress Causeway Planks
+            ((22, 10, 32), (32, 16, 44)),   # Stratum 0: Viscous Fluid & Sunken Sludge
+            ((34, 18, 48), (56, 28, 76)),   # Stratum 1: Deep Eggplant Purple & Bruised Violet
+            ((64, 34, 68), (96, 56, 92))   # Stratum 2: Raised Calcified Hive Chitin & Peat Bank
         ],
-        "wall_top": (82, 46, 112),
-        "wall_hi": (195, 95, 225),
-        "wall_face": (52, 28, 76),
-        "wall_mortar": (24, 12, 38),
-        "wall_glow": (120, 255, 110)
+        "wall_top": (86, 44, 82),        # Mounded cellular hive tissue
+        "wall_hi": (216, 202, 226),      # Pale lilac / bone-white upper bulge highlight
+        "wall_face": (66, 30, 62),       # Fleshy bruised maroon/purple vertical face
+        "wall_mortar": (18, 8, 22),      # Deep maroon/black undercut shadow
+        "wall_glow": (148, 215, 68)      # Sickly pea-green spore glow
     },
     "frozen_peaks": {
         "floor_base": (68, 128, 182),
@@ -530,4 +530,3 @@ DIALOGUE_MANIFEST = {
 SFX_FULL_VOLUME_DIST = 120.0  # 3 units (3 * TILE_SIZE)
 SFX_MIN_VOLUME_DIST = 1280.0  # Across the screen
 SFX_MIN_VOLUME = 0.05
-
