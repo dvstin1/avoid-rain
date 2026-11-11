@@ -120,6 +120,123 @@ class Renderer:
             except Exception as e:
                 print(f"[RENDER] Error loading {name}: {e}")
 
+        self.biome_tiles = {}
+        self._generate_biome_tile_cache()
+
+    def _generate_biome_tile_cache(self):
+        """Procedurally generate high-contrast 8-bit/16-bit style wall and floor tiles per biome."""
+        ts = constants.TILE_SIZE
+        shadow_n = pygame.Surface((ts, 8), pygame.SRCALPHA)
+        shadow_n.fill((0, 0, 0, 95), (0, 0, ts, 4))
+        shadow_n.fill((0, 0, 0, 45), (0, 4, ts, 4))
+        shadow_w = pygame.Surface((6, ts), pygame.SRCALPHA)
+        shadow_w.fill((0, 0, 0, 70), (0, 0, 3, ts))
+        shadow_w.fill((0, 0, 0, 35), (3, 0, 3, ts))
+
+        for biome, pal in constants.BIOME_PALETTES.items():
+            floors = []
+            for v in range(4):
+                fl = pygame.Surface((ts, ts))
+                fl.fill(pal["floor_base"])
+                # Sub-tile beveled flagstones / deck plates / turf patches
+                ox1 = (v * 9) % 16
+                oy1 = (v * 11) % 16
+                fl.fill(pal["floor_alt"], (2 + ox1, 2 + oy1, 18, 14))
+                fl.fill(pal["floor_alt"], (18 - ox1 // 2, 20, 18, 16))
+                fl.fill(pal["wall_mortar"], (0, 0, ts, 1))
+                fl.fill(pal["wall_mortar"], (0, 0, 1, ts))
+                # Biome-specific procedural micro-details
+                if biome == "tech_tower":
+                    fl.fill(pal["wall_face"], (4, 4, ts - 8, 2))
+                    fl.fill(pal["wall_face"], (4, ts - 6, ts - 8, 2))
+                    fl.fill(pal["floor_accent"], (6 + v * 6, 6, 4, 2))
+                    if v % 2 == 0:
+                        fl.fill(pal["floor_speck"], (ts - 10, ts - 10, 3, 3))
+                elif biome == "frozen_peaks":
+                    fl.fill(pal["floor_accent"], (6 + v * 5, 8 + v * 3, 10, 2))
+                    fl.fill(pal["floor_accent"], (8 + v * 5, 6 + v * 3, 2, 8))
+                    fl.fill(pal["floor_speck"], (26 - v * 4, 28, 6, 3))
+                elif biome == "swamp_mire":
+                    fl.fill(pal["floor_accent"], (4 + v * 5, 10 + v * 4, 8, 5))
+                    fl.fill(pal["floor_accent"], (22 - v * 3, 26, 10, 4))
+                    fl.fill(pal["floor_speck"], (14 + v * 4, 8 + v * 5, 3, 3))
+                else:
+                    # Windy ridge & Sanctuary: crisp grass blades / inlaid mosaic specks
+                    fl.fill(pal["floor_accent"], (6 + v * 6, 8 + v * 3, 2, 5))
+                    fl.fill(pal["floor_accent"], (9 + v * 6, 6 + v * 3, 2, 6))
+                    fl.fill(pal["floor_accent"], (24 - v * 4, 24 + v * 2, 2, 5))
+                    fl.fill(pal["floor_speck"], (16 + v * 4, 18 - v * 2, 3, 3))
+                floors.append(fl)
+
+            # 1. Wall Cap (Interior / North-connected wall rooftop)
+            w_cap = pygame.Surface((ts, ts))
+            w_cap.fill(pal["wall_mortar"])
+            w_cap.fill(pal["wall_top"], (2, 2, ts - 4, ts - 4))
+            w_cap.fill(pal["wall_hi"], (2, 2, ts - 4, 3))
+            w_cap.fill(pal["wall_hi"], (2, 2, 3, ts - 4))
+            w_cap.fill(pal["wall_face"], (6, 6, ts - 12, ts - 12))
+            w_cap.fill(pal["wall_top"], (8, 8, ts - 16, ts - 16))
+            w_cap.fill(pal["wall_glow"], (ts // 2 - 4, ts // 2 - 2, 8, 4))
+
+            # 2. Wall Front (2.5D South-facing cliff / bulkhead face for verticality)
+            w_front = pygame.Surface((ts, ts))
+            w_front.fill(pal["wall_mortar"])
+            # Upper roof lip (0..18)
+            w_front.fill(pal["wall_top"], (2, 2, ts - 4, 15))
+            w_front.fill(pal["wall_hi"], (2, 2, ts - 4, 3))
+            w_front.fill(pal["wall_hi"], (4, 15, ts - 8, 2))
+            # Lower vertical cliff / bulkhead facade (18..40)
+            w_front.fill(pal["wall_face"], (2, 19, ts - 4, 19))
+            for bx in (8, 19, 30):
+                w_front.fill(pal["wall_mortar"], (bx, 19, 2, 19))
+                w_front.fill(pal["wall_top"], (bx + 2, 20, 4, 16))
+            w_front.fill(pal["wall_glow"], (ts // 2 - 5, 25, 10, 3))
+            w_front.fill(pal["wall_mortar"], (0, ts - 3, ts, 3))
+
+            self.biome_tiles[biome] = {
+                "floors": floors,
+                "wall_cap": w_cap,
+                "wall_front": w_front,
+                "shadow_n": shadow_n,
+                "shadow_w": shadow_w
+            }
+
+        # Populate default cache keys with windy_ridge procedural surfaces
+        self.image_cache["brown_wall.png"] = self.biome_tiles["windy_ridge"]["wall_front"]
+        self.image_cache["tile_floor.png"] = self.biome_tiles["windy_ridge"]["floors"][0]
+
+    def _resolve_tile_biome(self, state, tx, ty):
+        """Determine the biome key for tile coordinates (tx, ty)."""
+        w_name = getattr(state.world, "name", "sanctuary").lower()
+        if w_name == "sanctuary":
+            return "sanctuary"
+        for key in ("windy_ridge", "swamp_mire", "frozen_peaks", "tech_tower"):
+            if key in w_name:
+                return key
+        if any(k in w_name for k in ("ruins", "final_boss", "boss")):
+            return "tech_tower"
+
+        resolved = None
+        for sock in getattr(state.world, "module_sockets", []):
+            b = sock.get("bounds", {})
+            bx, by, bw, bh = b.get("x", 0), b.get("y", 0), b.get("width", 0), b.get("height", 0)
+            if bx <= tx < bx + bw and by <= ty < by + bh:
+                plug = sock.get("active_plug", "").lower()
+                if "swamp" in plug or "mire" in plug:
+                    resolved = "swamp_mire"
+                elif "frozen" in plug or "peak" in plug:
+                    resolved = "frozen_peaks"
+                elif any(k in plug for k in ("tech", "tower", "gantry", "ruins", "boss")):
+                    resolved = "tech_tower"
+                else:
+                    resolved = "windy_ridge"
+                break
+
+        if resolved:
+            return resolved
+        sector = ((tx // 40) + (ty // 40)) % 4
+        return ("windy_ridge", "swamp_mire", "frozen_peaks", "tech_tower")[sector]
+
     def _load_grass_assets(self):
         """Pre-load grass assets and generate 3 variants on startup."""
         import os
@@ -361,6 +478,52 @@ class Renderer:
 
         self.screen.blit(overlay, (0, 0))
 
+    def _draw_world_tile(self, state, coords, dr):
+        """Render a single world tile with biome procedural textures and 2.5D verticality."""
+        x, y, w, h = coords
+        tile = state.world.grid[y][x]
+        biome = self._resolve_tile_biome(state, x, y)
+        b_pack = getattr(self, "biome_tiles", {}).get(biome) or getattr(self, "biome_tiles", {}).get("windy_ridge")
+
+        if tile == constants.TILE_WALL:
+            if b_pack:
+                # Use 2.5D south-facing cliff/bulkhead wall if tile below is not a wall
+                south_is_wall = (y + 1 < h) and (state.world.grid[y + 1][x] == constants.TILE_WALL)
+                wall_surf = b_pack["wall_cap"] if south_is_wall else b_pack["wall_front"]
+                self.screen.blit(wall_surf, (dr[0], dr[1]))
+            else:
+                pygame.draw.rect(self.screen, constants.COLOR_WALL, dr)
+            return
+
+        # Floor base (deterministic spatial variant)
+        if b_pack:
+            v_idx = (x * 7 + y * 13) % len(b_pack["floors"])
+            self.screen.blit(b_pack["floors"][v_idx], (dr[0], dr[1]))
+            # Cast ambient occlusion drop-shadows from adjacent north/west walls
+            if y > 0 and state.world.grid[y - 1][x] == constants.TILE_WALL:
+                self.screen.blit(b_pack["shadow_n"], (dr[0], dr[1]))
+            if x > 0 and state.world.grid[y][x - 1] == constants.TILE_WALL:
+                self.screen.blit(b_pack["shadow_w"], (dr[0], dr[1]))
+        else:
+            pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
+
+        if tile in (constants.TILE_GRASS, constants.TILE_THICKET):
+            decorations = getattr(state.world, 'grass_decorations', {})
+            if (x, y) in decorations:
+                center_x, center_y = dr[0] + 20, dr[1] + 20
+                for pool_key, variant, dx, dy in decorations[(x, y)]:
+                    pool = getattr(self, 'grass_pools', {}).get(pool_key)
+                    if pool and variant < len(pool):
+                        grass_img = pool[variant]
+                        gx = center_x + dx - grass_img.get_width() // 2
+                        gy = center_y + dy - grass_img.get_height() // 2
+                        self.screen.blit(grass_img, (gx, gy))
+        elif tile == constants.TILE_LOTUS_FRAME:
+            # Animated techno-magic energy conduit frame
+            pygame.draw.rect(self.screen, (36, 48, 86), dr, border_radius=4)
+            pulse_col = (0, 240, 255) if int(time.time() * 4 + x + y) % 2 == 0 else (235, 70, 195)
+            pygame.draw.rect(self.screen, pulse_col, (dr[0] + 4, dr[1] + 4, dr[2] - 8, dr[3] - 8), 2, border_radius=3)
+
     def render(self, state, audio_manager=None):
         """Draw the game state using a camera."""
         bg = constants.COLOR_SEPIA_AMBER if getattr(state.world, 'name', 'sanctuary') == "sanctuary" else constants.COLOR_CHARCOAL
@@ -383,42 +546,7 @@ class Renderer:
         for y in range(sy, ey):
             for x in range(sx, ex):
                 dr = (x * constants.TILE_SIZE - ox, y * constants.TILE_SIZE - oy, constants.TILE_SIZE, constants.TILE_SIZE)
-                tile = state.world.grid[y][x]
-                if tile == constants.TILE_WALL:
-                    img = self.image_cache.get("brown_wall.png")
-                    if img:
-                        self.screen.blit(img, (dr[0], dr[1]))
-                    else:
-                        pygame.draw.rect(self.screen, constants.COLOR_WALL, dr)
-                elif tile == constants.TILE_EMPTY:
-                    img = self.image_cache.get("tile_floor.png")
-                    if img:
-                        self.screen.blit(img, (dr[0], dr[1]))
-                    else:
-                        pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
-                elif tile in (constants.TILE_GRASS, constants.TILE_THICKET):
-                    img = self.image_cache.get("tile_floor.png")
-                    if img:
-                        self.screen.blit(img, (dr[0], dr[1]))
-                    else:
-                        pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
-                    
-                    # Blit the grass instances on top of it
-                    decorations = getattr(state.world, 'grass_decorations', {})
-                    if (x, y) in decorations:
-                        # Center of the 40x40 tile in screen coordinates
-                        center_x = x * constants.TILE_SIZE - ox + 20
-                        center_y = y * constants.TILE_SIZE - oy + 20
-                        
-                        for pool_key, variant, dx, dy in decorations[(x, y)]:
-                            pool = getattr(self, 'grass_pools', {}).get(pool_key)
-                            if pool and variant < len(pool):
-                                grass_img = pool[variant]
-                                blit_x = center_x + dx - grass_img.get_width() // 2
-                                blit_y = center_y + dy - grass_img.get_height() // 2
-                                self.screen.blit(grass_img, (blit_x, blit_y))
-                elif tile == constants.TILE_LOTUS_FRAME: pygame.draw.rect(self.screen, (40, 40, 80), dr)
-                else: pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
+                self._draw_world_tile(state, (x, y, w, h), dr)
         
         # World Debris (Persistent visual remnants)
         for debris in getattr(state, 'world_debris', []):
@@ -446,23 +574,38 @@ class Renderer:
                 else:
                     pygame.draw.rect(self.screen, (100, 80, 40), (obj.x - ox, obj.y - oy, obj.width, obj.height))
                     pygame.draw.rect(self.screen, (60, 40, 20), (obj.x - ox, obj.y - oy, obj.width, obj.height), 2)
-            elif obj.name == "Structure": pygame.draw.rect(self.screen, (80, 70, 60), (obj.x - ox, obj.y - oy, obj.width, obj.height))
+            elif obj.name == "Structure":
+                sx, sy, sw_o, sh_o = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
+                pygame.draw.rect(self.screen, (42, 58, 84), (sx + 4, sy + 6, sw_o - 8, sh_o - 6), border_radius=6)
+                pygame.draw.circle(self.screen, (28, 125, 78), (sx + sw_o // 2, sy + sh_o // 2 - 2), sw_o // 2 - 2)
+                pygame.draw.circle(self.screen, (85, 220, 130), (sx + sw_o // 2 - 3, sy + sh_o // 2 - 5), sw_o // 3)
+                pygame.draw.circle(self.screen, constants.COLOR_CYAN, (sx + sw_o // 2, sy + sh_o // 2), 4)
             elif obj.name == "The Chronicler":
                 pygame.draw.rect(self.screen, (220, 220, 220), (obj.x - ox, obj.y - oy, obj.width, obj.height))
                 pygame.draw.rect(self.screen, (255, 200, 150), (obj.x + 5 - ox, obj.y + 5 - oy, obj.width - 10, 10))
                 pygame.draw.rect(self.screen, constants.COLOR_BLACK, (obj.x - ox, obj.y - oy, obj.width, obj.height), 1)
             elif obj.name == "The Wellspring": self.draw_wellspring(obj, ox, oy)
             elif obj.name == "Heavy Bookcase":
-                pygame.draw.rect(self.screen, constants.COLOR_DARK_GREY, (obj.x - ox, obj.y - oy, obj.width, obj.height))
-                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (obj.x - ox, obj.y - oy, obj.width, obj.height), 2)
-                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (obj.x - ox, obj.y + obj.height // 2 - oy, obj.width, 1))
+                bx, by, bw, bh = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
+                pygame.draw.rect(self.screen, (68, 46, 34), (bx, by, bw, bh), border_radius=3)
+                pygame.draw.rect(self.screen, (140, 105, 65), (bx, by, bw, 5))
+                pygame.draw.line(self.screen, (30, 20, 14), (bx + 2, by + bh // 2), (bx + bw - 2, by + bh // 2), 2)
+                for sx_off in range(6, int(bw) - 6, 8):
+                    col = (0, 210, 240) if (sx_off // 8) % 2 == 0 else (225, 75, 175)
+                    pygame.draw.rect(self.screen, col, (bx + sx_off, by + 8, 5, bh // 2 - 10))
             elif obj.name == "Ink Urn":
-                pygame.draw.rect(self.screen, constants.COLOR_DEEP_SLATE, (obj.x - ox, obj.y - oy, obj.width, obj.height))
-                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (obj.x - ox, obj.y - oy, obj.width, obj.height), 1)
-                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (obj.x + 4 - ox, obj.y + 2 - oy, obj.width - 8, 4))
+                ux, uy, uw, uh = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
+                pygame.draw.circle(self.screen, (52, 74, 112), (ux + uw // 2, uy + uh // 2 + 3), uw // 2 - 4)
+                pygame.draw.circle(self.screen, (110, 175, 230), (ux + uw // 2 - 4, uy + uh // 2), 4)
+                pygame.draw.rect(self.screen, (190, 165, 105), (ux + 8, uy + 4, uw - 16, 6), border_radius=2)
+                pygame.draw.circle(self.screen, (0, 240, 255), (ux + uw // 2, uy + 7), 3)
             elif obj.name == "Inkwell Puddle":
-                pygame.draw.rect(self.screen, constants.COLOR_INK_PUDDLE, (obj.x + 4 - ox, obj.y + 4 - oy, obj.width - 8, obj.height - 8))
-                pygame.draw.rect(self.screen, (30, 30, 50), (obj.x + 6 - ox, obj.y + 6 - oy, 4, 4))
+                px, py, pw, ph = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
+                pcx, pcy = px + pw // 2, py + ph // 2
+                pygame.draw.circle(self.screen, (36, 18, 58), (pcx, pcy), pw // 2 - 2)
+                pygame.draw.circle(self.screen, (52, 145, 92), (pcx, pcy), pw // 3)
+                ripple = int(((math.sin(time.time() * 5.0 + obj.x) + 1.0) * 0.5) * (pw // 3 - 2)) + 3
+                pygame.draw.circle(self.screen, (195, 75, 215), (pcx, pcy), ripple, 1)
             elif obj.name == "Candelabra":
                 stand = (obj.x + obj.width//2 - 3 - ox, obj.y + 10 - oy, 6, obj.height - 10)
                 pygame.draw.rect(self.screen, constants.COLOR_DARK_GREY, stand)
@@ -476,8 +619,12 @@ class Renderer:
                 pygame.draw.rect(self.screen, (101, 67, 33), (obj.x - ox, obj.y - oy, obj.width, obj.height))
                 pygame.draw.rect(self.screen, (60, 40, 20), (obj.x - ox, obj.y + 5 - oy, obj.width, 2))
             elif obj.name == "Rock":
-                pygame.draw.rect(self.screen, (80, 80, 80), (obj.x - ox, obj.y - oy, obj.width, obj.height))
-                pygame.draw.rect(self.screen, (120, 120, 120), (obj.x + 5 - ox, obj.y + 5 - oy, 10, 5))
+                rx, ry, rw, rh = int(obj.x - ox), int(obj.y - oy), int(obj.width), int(obj.height)
+                pygame.draw.circle(self.screen, (68, 88, 118), (rx + rw // 2, ry + rh // 2 + 2), rw // 2 - 3)
+                pygame.draw.circle(self.screen, (135, 185, 225), (rx + rw // 2 - 4, ry + rh // 2 - 3), rw // 4)
+                pygame.draw.line(
+                    self.screen, (220, 245, 255), (rx + 10, ry + 12), (rx + rw // 2, ry + 8), 2
+                )
             elif hasattr(obj, 'weapon_data'):
                 col = constants.COLOR_PURPLE if "modifiers" in obj.weapon_data else constants.COLOR_WHITE
                 pygame.draw.rect(self.screen, col, (obj.x - ox, obj.y - oy, obj.width, obj.height))

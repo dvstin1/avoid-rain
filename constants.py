@@ -189,9 +189,18 @@ MINIMAP_LOOT_COLOR = (220, 200, 50)
 MINIMAP_VIEWPORT_FRAC = 2.5
 
 # Map Module Pools
-POOL_MONTHLY_REPORT = ["maps/forest.json", "maps/ruins.json"]
-POOL_SPECIAL_EDITION = [] # Currently empty, will trigger fallback logic
-POOL_CORRIDOR = ["maps/smallcave.json"]
+POOL_MONTHLY_REPORT = [
+    "maps/windy_ridge.json",
+    "maps/swamp_mire.json",
+    "maps/frozen_peaks.json",
+    "maps/tech_tower.json"
+]
+POOL_SPECIAL_EDITION = ["maps/tech_tower.json"]
+POOL_CORRIDOR = [
+    "maps/smallcave.json",
+    "maps/gantry_bridge.json",
+    "maps/mire_causeway.json"
+]
 
 # Weather System: The Bleed (Shrinking Circle)
 # Measurements in pixels
@@ -302,6 +311,65 @@ COLOR_WEAPON_GUARD = (190, 165, 105)
 COLOR_WEAPON_BLADE = (210, 220, 235)
 COLOR_WEAPON_EDGE = (245, 250, 255)
 COLOR_WEAPON_FULLER = (50, 60, 80)
+
+# High-Contrast 8-Bit Action-RPG Biome Tile Palettes (Ref: docs/reference.md)
+BIOME_PALETTES = {
+    "windy_ridge": {
+        "floor_base": (26, 98, 60),
+        "floor_alt": (34, 122, 74),
+        "floor_accent": (110, 215, 130),
+        "floor_speck": (235, 210, 110),
+        "wall_top": (75, 105, 138),
+        "wall_hi": (150, 215, 240),
+        "wall_face": (46, 64, 92),
+        "wall_mortar": (22, 32, 50),
+        "wall_glow": (90, 235, 180)
+    },
+    "swamp_mire": {
+        "floor_base": (44, 24, 68),
+        "floor_alt": (58, 32, 88),
+        "floor_accent": (55, 185, 105),
+        "floor_speck": (225, 70, 190),
+        "wall_top": (82, 46, 112),
+        "wall_hi": (195, 95, 225),
+        "wall_face": (52, 28, 76),
+        "wall_mortar": (24, 12, 38),
+        "wall_glow": (120, 255, 110)
+    },
+    "frozen_peaks": {
+        "floor_base": (68, 128, 182),
+        "floor_alt": (88, 152, 208),
+        "floor_accent": (180, 238, 255),
+        "floor_speck": (240, 250, 255),
+        "wall_top": (125, 188, 235),
+        "wall_hi": (235, 250, 255),
+        "wall_face": (68, 115, 168),
+        "wall_mortar": (32, 58, 98),
+        "wall_glow": (140, 245, 255)
+    },
+    "tech_tower": {
+        "floor_base": (30, 40, 62),
+        "floor_alt": (40, 54, 82),
+        "floor_accent": (0, 230, 255),
+        "floor_speck": (255, 65, 185),
+        "wall_top": (64, 82, 112),
+        "wall_hi": (160, 195, 230),
+        "wall_face": (42, 54, 78),
+        "wall_mortar": (18, 24, 38),
+        "wall_glow": (0, 245, 255)
+    },
+    "sanctuary": {
+        "floor_base": (48, 36, 26),
+        "floor_alt": (60, 45, 32),
+        "floor_accent": (135, 105, 68),
+        "floor_speck": (215, 175, 95),
+        "wall_top": (78, 64, 52),
+        "wall_hi": (145, 120, 92),
+        "wall_face": (52, 42, 34),
+        "wall_mortar": (26, 20, 16),
+        "wall_glow": (255, 195, 70)
+    }
+}
 
 # Structural Schema enforced for all conversation manifests
 DIALOGUE_MANIFEST = {

@@ -839,7 +839,11 @@ class GameState:
                         s_id = s.get('id') or s.get('name')
                         if s_id == current_room_id:
                             plug = s.get('active_plug', '').lower()
-                            if 'forest' in plug: zone_name = "THE VERDANT SILENCE"
+                            if 'windy_ridge' in plug: zone_name = "THE ZEPHYR RIDGE"
+                            elif 'swamp_mire' in plug: zone_name = "THE VENOMOUS MIRE"
+                            elif 'frozen_peaks' in plug: zone_name = "THE RIMECREST PASS"
+                            elif 'tech_tower' in plug: zone_name = "THE SKY CITADEL"
+                            elif 'forest' in plug: zone_name = "THE VERDANT SILENCE"
                             elif 'ruins' in plug: zone_name = "THE SCORCHED MARGIN"
                             elif 'colophon' in plug: zone_name = "THE COLOPHON"
                             elif 'boss' in plug: zone_name = "THE CROWN RING"

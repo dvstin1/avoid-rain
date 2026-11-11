@@ -11,7 +11,7 @@ import sys
 # Add project root to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from constants import TILE_SIZE, get_generated_world_path
+from constants import get_generated_world_path, POOL_MONTHLY_REPORT, POOL_CORRIDOR, POOL_SPECIAL_EDITION
 
 class WorldGenerator:
     """Handles the data-driven generation of the macro-world layout."""
@@ -22,11 +22,11 @@ class WorldGenerator:
         self.spawn_x = 0
         self.spawn_y = 0
         self.boss_coords_list = []
-        
+
         # Asset pools (Strictly mapped by size)
         self.asset_pools = {
-            "120x120": ["maps/forest.json", "maps/ruins.json"],
-            "40x40": ["maps/smallcave.json"]
+            "120x120": list(POOL_MONTHLY_REPORT),
+            "40x40": list(POOL_CORRIDOR)
         }
 
     def generate_layout(self):
@@ -109,18 +109,23 @@ class WorldGenerator:
             self.boss_coords_list.append({"x": bx, "y": by})
 
         
-        # 5. The Pool Backfill Pass
-        from constants import POOL_SPECIAL_EDITION, POOL_MONTHLY_REPORT
+        # 5. The Pool Backfill Pass (Balanced biome deck ensures full biome variety each run)
+        room_deck = []
         for s in self.sockets:
             if s["active_plug"] is None:
                 is_large = "120x120" in s["tags"]
-                pool = filtered_120 if is_large else filtered_40
-                
-                # 10% Anomaly Roll
-                if is_large and random.random() < 0.1 and POOL_SPECIAL_EDITION:
-                    s["active_plug"] = random.choice(POOL_SPECIAL_EDITION)
+                if is_large:
+                    if not room_deck and filtered_120:
+                        room_deck = list(filtered_120)
+                        random.shuffle(room_deck)
+                    if random.random() < 0.1 and POOL_SPECIAL_EDITION:
+                        s["active_plug"] = random.choice(POOL_SPECIAL_EDITION)
+                    elif room_deck:
+                        s["active_plug"] = room_deck.pop()
+                    else:
+                        s["active_plug"] = "maps/smallcave.json"
                 else:
-                    s["active_plug"] = random.choice(pool) if pool else "maps/smallcave.json"
+                    s["active_plug"] = random.choice(filtered_40) if filtered_40 else "maps/smallcave.json"
 
     def export_world(self, filename=None):
         """Exports the layout as a macro-world JSON file."""

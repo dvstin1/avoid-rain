@@ -6,6 +6,7 @@ from rendering.renderer import Renderer
 from engine.enemy import BatEnemy, FlutterEnemy, BindlingEnemy, SmearEnemy, Miniboss
 from engine.actor import Actor, ActorState
 from engine.player import Player, PlayerStateEnum
+from engine.maps import create_world
 
 
 def _create_headless_renderer(monkeypatch, recorded_draws):
@@ -145,3 +146,27 @@ def test_procedural_player_and_weapons(monkeypatch):
     assert constants.COLOR_WEAPON_BLADE in colors_drawn
     assert constants.COLOR_WEAPON_GUARD in colors_drawn
     assert constants.COLOR_WEAPON_FULLER in colors_drawn
+
+
+def test_biome_tile_generation_and_new_maps(monkeypatch):
+    """Verify procedural biome wall/floor surfaces and new level-design maps."""
+    recorded = []
+    renderer = _create_headless_renderer(monkeypatch, recorded)
+
+    for biome in ("windy_ridge", "swamp_mire", "frozen_peaks", "tech_tower", "sanctuary"):
+        assert biome in renderer.biome_tiles
+        pack = renderer.biome_tiles[biome]
+        assert len(pack["floors"]) == 4
+        assert pack["wall_cap"].get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
+        assert pack["wall_front"].get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
+        # Verify high-contrast base color is present at pixel (1, 1)
+        assert pack["floors"][0].get_at((1, 1))[:3] == constants.BIOME_PALETTES[biome]["floor_base"]
+
+    for map_name in ("windy_ridge", "swamp_mire", "frozen_peaks", "tech_tower"):
+        world = create_world(map_name)
+        assert len(world.grid) == 120
+        assert len(world.grid[0]) == 120
+        assert len(world.enemies) >= 8
+        respites = [obj for obj in world.interactables if "Respite" in obj.name]
+        assert len(respites) == 1 and respites[0].gated_by_miniboss_id is not None
+

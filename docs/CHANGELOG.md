@@ -578,6 +578,12 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Player Sword Attack & Carried Blade (`draw_player_weapon_attack`):** Replaced the 1px green debug attack box with an animated crescent slash trail and a swept tapered sword blade (tinted purple when wielding an Anomalous weapon, or cyan/steel normally), plus a visible sword carried at the Scholar's side when not attacking.
 - **Boss Greatblade Upgrade (`draw_boss_weapon`, `_draw_tapered_blade`):** Replaced the paintbrush-like brown shaft and round tip blob on miniboss/boss weapons with a sharp tapered steel greatblade featuring a dark hilt, perpendicular brass crossguard with pommel caps, converging blade edges, and a central fuller groove.
 
+## [ARCHIVED] High-Contrast Procedural Biome Tiles, 2.5D Verticality & Multi-Biome Level Suite - November 2026
+- **High-Contrast Procedural Wall & Floor Generation (`_generate_biome_tile_cache`, `_draw_world_tile`):** Implemented procedural multi-variant floor and wall surface generation across five distinct palettes (`BIOME_PALETTES` in `constants.py`: `windy_ridge`, `swamp_mire`, `frozen_peaks`, `tech_tower`, and `sanctuary`) inspired by `docs/reference.md`.
+- **2.5D Cliff Verticality & Ambient Occlusion (`docs/level_design_concept.md`):** Added autotiled south-facing cliff/bulkhead wall facades (`wall_front`) vs. rooftop caps (`wall_cap`), paired with north/west ambient occlusion drop-shadows cast onto adjacent floor tiles, animated Lotus-Frame energy conduits (`M`), animated bubbling poison/ink bog pools (`v`), and upgraded environmental props (`Structure`, `Rock`, `Heavy Bookcase`, `Ink Urn`).
+- **Four New 120x120 Biome Maps & Two New 40x40 Corridors:** Replaced the `forest`/`ruins` prototype pool in `POOL_MONTHLY_REPORT` and `WorldGenerator` with four macro-shape biome rooms (`maps/windy_ridge.json`, `maps/swamp_mire.json`, `maps/frozen_peaks.json`, `maps/tech_tower.json`) and two new corridors (`maps/gantry_bridge.json`, `maps/mire_causeway.json`), featuring Figure-8 loops, Hourglass choke nodes, Perimeter-and-Core sanctums, safe entrance thresholds, and Typographic Bloom chapter titles.
+
+
 
 
 
