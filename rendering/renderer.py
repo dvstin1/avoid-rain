@@ -44,6 +44,9 @@ class Renderer:
         self.warp_veil_surface = None
         self._puff_cache = {}
         self._actor_scratch_surf = None
+        self.floor_variants = []
+        self.wall_tile_surf = None
+        self.grass_natural_surf = None
         self._load_barrel_assets()
         self._load_tile_assets()
         self._load_slug_assets()
@@ -101,40 +104,80 @@ class Renderer:
                 gray_surf.set_at((x, y), (gray, gray, gray, color.a))
         return gray_surf
 
+    def _prebake_floor_variants(self, base_floor_surf):
+        """Pre-bake 4 subtle variants of floor_tile.png into RAM with rotations and value shifts."""
+        display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
+        ts = constants.TILE_SIZE
+        scaled_base = pygame.transform.scale(base_floor_surf, (ts, ts))
+        if display_init:
+            scaled_base = scaled_base.convert()
+
+        configs = [
+            (0, 0.0),      # 0 deg, base
+            (90, 0.07),    # 90 deg, +7% brightness
+            (180, -0.06),  # 180 deg, -6% brightness
+            (270, 0.09),   # 270 deg, +9% brightness
+        ]
+        variants = []
+        for rot, brightness_shift in configs:
+            var = scaled_base.copy()
+            if brightness_shift > 0:
+                bright_mask = pygame.Surface((ts, ts), pygame.SRCALPHA)
+                bright_mask.fill((255, 255, 255, int(255 * brightness_shift)))
+                var.blit(bright_mask, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+            elif brightness_shift < 0:
+                dark_mask = pygame.Surface((ts, ts), pygame.SRCALPHA)
+                dark_mask.fill((0, 0, 0, int(255 * abs(brightness_shift))))
+                var.blit(dark_mask, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+
+            if rot != 0:
+                var = pygame.transform.rotate(var, rot)
+
+            if display_init:
+                var = var.convert()
+            variants.append(var)
+
+        return variants
+
     def _load_tile_assets(self):
         """Pre-load tile assets like walls and floors."""
         import os
         base_path = os.path.join("assets", "graphics")
-        display_init = pygame.display.get_init()
-        
-        # 1. Brown Wall
-        name = "brown_wall.png"
-        path = os.path.join(base_path, name)
-        if os.path.exists(path):
+        display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
+
+        # 1. Wall Tile (wall_tile.png)
+        wall_name = "wall_tile.png"
+        wall_path = os.path.join(base_path, wall_name)
+        if not os.path.exists(wall_path):
+            wall_path = os.path.join(base_path, "brown_wall.png")
+        if os.path.exists(wall_path):
             try:
-                img = pygame.image.load(path)
+                img = pygame.image.load(wall_path)
                 if display_init:
                     img = img.convert_alpha()
                 scaled_img = pygame.transform.scale(img, (constants.TILE_SIZE, constants.TILE_SIZE))
-                try:
-                    scaled_img = self._desaturate_surface(scaled_img)
-                except Exception as de_err:
-                    print(f"[RENDER] Grayscale conversion fallback: {de_err}")
-                self.image_cache[name] = scaled_img
+                self.wall_tile_surf = scaled_img
+                self.image_cache[wall_name] = scaled_img
+                self.image_cache["brown_wall.png"] = scaled_img
             except Exception as e:
-                print(f"[RENDER] Error loading {name}: {e}")
+                print(f"[RENDER] Error loading {wall_path}: {e}")
 
-        # 2. Floor Tile
-        name = "tile_floor.png"
-        path = os.path.join(base_path, name)
-        if os.path.exists(path):
+        # 2. Floor Tile & Pre-Baked Variants (floor_tile.png)
+        floor_name = "floor_tile.png"
+        floor_path = os.path.join(base_path, floor_name)
+        if not os.path.exists(floor_path):
+            floor_path = os.path.join(base_path, "tile_floor.png")
+        if os.path.exists(floor_path):
             try:
-                img = pygame.image.load(path)
+                img = pygame.image.load(floor_path)
                 if display_init:
                     img = img.convert_alpha()
-                self.image_cache[name] = pygame.transform.scale(img, (constants.TILE_SIZE, constants.TILE_SIZE))
+                scaled_floor = pygame.transform.scale(img, (constants.TILE_SIZE, constants.TILE_SIZE))
+                self.floor_variants = self._prebake_floor_variants(scaled_floor)
+                self.image_cache["floor_tile.png"] = self.floor_variants[0]
+                self.image_cache["tile_floor.png"] = self.floor_variants[0]
             except Exception as e:
-                print(f"[RENDER] Error loading {name}: {e}")
+                print(f"[RENDER] Error loading {floor_path}: {e}")
 
         self.biome_tiles = {}
         self._generate_biome_tile_cache()
@@ -159,7 +202,6 @@ class Renderer:
             for _s_idx, (s_base, _s_alt) in enumerate(strata_defs):
                 tier_variants = []
                 for _v in range(4):
-                    # Borderless base surface so adjacent tiles of the same stratum blend seamlessly
                     fl = pygame.Surface((ts, ts))
                     fl.fill(s_base)
                     if display_init:
@@ -190,9 +232,18 @@ class Renderer:
                 "shadow_w": shadow_w
             }
 
-        # Populate default cache keys with windy_ridge procedural surfaces
-        self.image_cache["brown_wall.png"] = self.biome_tiles["windy_ridge"]["wall_front"]
-        self.image_cache["tile_floor.png"] = self.biome_tiles["windy_ridge"]["floors"][0]
+        # Populate default cache keys
+        if self.wall_tile_surf is not None:
+            self.image_cache["brown_wall.png"] = self.wall_tile_surf
+            self.image_cache["wall_tile.png"] = self.wall_tile_surf
+        else:
+            self.image_cache["brown_wall.png"] = self.biome_tiles["windy_ridge"]["wall_front"]
+
+        if self.floor_variants:
+            self.image_cache["tile_floor.png"] = self.floor_variants[0]
+            self.image_cache["floor_tile.png"] = self.floor_variants[0]
+        else:
+            self.image_cache["tile_floor.png"] = self.biome_tiles["windy_ridge"]["floors"][0]
 
     def _resolve_tile_biome(self, state, tx, ty):
         """Determine the biome key for tile coordinates (tx, ty)."""
@@ -229,9 +280,26 @@ class Renderer:
         return ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")[sector]
 
     def _load_grass_assets(self):
-        """Generate lightweight procedural grass tuft surfaces in RAM (no PNG pixmap loading)."""
-        self.grass_pools = {"small": [], "medium": [], "tall": []}
+        """Pre-load grass assets and generate lightweight procedural grass tuft surfaces in RAM."""
+        import os
+        base_path = os.path.join("assets", "graphics")
         display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
+
+        grass_name = "grass_natural.png"
+        grass_path = os.path.join(base_path, grass_name)
+        if os.path.exists(grass_path):
+            try:
+                g_img = pygame.image.load(grass_path)
+                if display_init:
+                    g_img = g_img.convert_alpha()
+                self.grass_natural_surf = pygame.transform.scale(
+                    g_img, (constants.TILE_SIZE, constants.TILE_SIZE)
+                )
+                self.image_cache[grass_name] = self.grass_natural_surf
+            except Exception as e:
+                print(f"[RENDER] Error loading {grass_name}: {e}")
+
+        self.grass_pools = {"small": [], "medium": [], "tall": []}
         configs = [("small", (12, 8)), ("medium", (18, 12)), ("tall", (24, 16))]
         colors = [
             ((50, 158, 74), (110, 225, 130)),
@@ -249,6 +317,8 @@ class Renderer:
 
     def _generate_prop_cache(self):
         """Pre-render static procedural prop surfaces once at startup to eliminate per-frame shape drawing."""
+        import os
+        base_path = os.path.join("assets", "graphics")
         ts = constants.TILE_SIZE
         display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
 
@@ -273,12 +343,24 @@ class Renderer:
         pygame.draw.circle(puddle, (28, 12, 42), (pcx, pcy), ts // 3)
         self.prop_cache["Inkwell Puddle"] = puddle.convert_alpha() if display_init else puddle
 
-        # 3. Rock (Faceted Slate/Ice Boulder)
-        rock = pygame.Surface((ts, ts), pygame.SRCALPHA)
-        pygame.draw.circle(rock, (68, 88, 118), (ts // 2, ts // 2 + 2), ts // 2 - 3)
-        pygame.draw.circle(rock, (135, 185, 225), (ts // 2 - 4, ts // 2 - 3), ts // 4)
-        pygame.draw.line(rock, (220, 245, 255), (10, 12), (ts // 2, 8), 2)
-        self.prop_cache["Rock"] = rock.convert_alpha() if display_init else rock
+        # 3. Rock (Rock Cluster PNG Asset with procedural fallback)
+        rock_name = "rock_cluster.png"
+        rock_path = os.path.join(base_path, rock_name)
+        if os.path.exists(rock_path):
+            try:
+                r_img = pygame.image.load(rock_path)
+                if display_init:
+                    r_img = r_img.convert_alpha()
+                self.prop_cache["Rock"] = pygame.transform.scale(r_img, (ts, ts))
+                self.image_cache[rock_name] = self.prop_cache["Rock"]
+            except Exception as e:
+                print(f"[RENDER] Error loading {rock_name}: {e}")
+        if "Rock" not in self.prop_cache:
+            rock = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.circle(rock, (68, 88, 118), (ts // 2, ts // 2 + 2), ts // 2 - 3)
+            pygame.draw.circle(rock, (135, 185, 225), (ts // 2 - 4, ts // 2 - 3), ts // 4)
+            pygame.draw.line(rock, (220, 245, 255), (10, 12), (ts // 2, 8), 2)
+            self.prop_cache["Rock"] = rock.convert_alpha() if display_init else rock
 
         # 4. Heavy Bookcase (80x40)
         bw, bh = ts * 2, ts
@@ -598,6 +680,10 @@ class Renderer:
 
         if not isinstance(target_surf, pygame.Surface):
             pygame.draw.rect(target_surf, constants.COLOR_WALL, dr)
+            return
+
+        if getattr(self, "wall_tile_surf", None) is not None:
+            target_surf.blit(self.wall_tile_surf, (sx, sy))
             return
 
         if wall_s:
@@ -1030,14 +1116,23 @@ class Renderer:
             return biome, pal, 0
 
         s_idx = self._get_tile_stratum(state, x, y)
-        if b_pack:
+        sx, sy = int(dr[0]), int(dr[1])
+
+        if getattr(self, "floor_variants", None):
+            v_idx = ((x * 17) ^ (y * 31) ^ (x * y * 7)) % len(self.floor_variants)
+            target_surf.blit(self.floor_variants[v_idx], (sx, sy))
+        elif b_pack:
             strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
-            s_base, s_alt = strata_defs[s_idx]
             strata_list = b_pack.get("strata_floors")
             tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
             v_idx = (x * 7 + y * 13) % len(tier_floors)
-            target_surf.blit(tier_floors[v_idx], (dr[0], dr[1]))
+            target_surf.blit(tier_floors[v_idx], (sx, sy))
+        else:
+            pygame.draw.rect(target_surf, constants.COLOR_FLOOR, dr, 1)
 
+        if b_pack:
+            strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+            s_base, s_alt = strata_defs[s_idx]
             # 1. Draw multi-tile connected patterns (2x2 80x80px & 4x4 160x160px) across same-surface tiles
             self._draw_connected_floor_patterns(target_surf, (biome, pal, s_idx, s_alt), coords, dr)
 
@@ -1045,22 +1140,34 @@ class Renderer:
             self._draw_stratum_perimeter_borders(target_surf, state, coords, dr, (biome, pal, s_idx, strata_defs))
 
             # 3. Cast ambient occlusion drop-shadows from adjacent north/west walls
-            sx, sy = int(dr[0]), int(dr[1])
             if y > 0 and state.world.grid[y - 1][x] == constants.TILE_WALL:
                 target_surf.blit(b_pack["shadow_n"], (sx, sy))
             if x > 0 and state.world.grid[y][x - 1] == constants.TILE_WALL:
                 target_surf.blit(b_pack["shadow_w"], (sx, sy))
 
-            # 4. Stamp procedural grass/thicket tufts directly onto the static tile surface
-            if tile in (constants.TILE_GRASS, constants.TILE_THICKET) and getattr(self, "grass_pools", None):
+        # 4. Stamp decorative grass & rock assets with slight random positional offsets
+        if tile in (constants.TILE_GRASS, constants.TILE_THICKET):
+            if getattr(self, "grass_natural_surf", None) is not None:
+                gdx = ((x * 13 + y * 17) % 9) - 4
+                gdy = ((x * 19 + y * 7) % 9) - 4
+                target_surf.blit(self.grass_natural_surf, (sx + gdx, sy + gdy))
+                if tile == constants.TILE_THICKET:
+                    gdx2 = ((x * 7 + y * 23) % 9) - 4
+                    gdy2 = ((x * 29 + y * 11) % 9) - 4
+                    target_surf.blit(self.grass_natural_surf, (sx + gdx2, sy + gdy2))
+            elif getattr(self, "grass_pools", None):
                 clusters = getattr(state.world, "grass_decorations", {}).get((x, y), ())
                 for pool_key, variant, dx, dy in clusters:
                     pool = self.grass_pools.get(pool_key)
                     if pool:
                         tuft = pool[variant % len(pool)]
                         target_surf.blit(tuft, (sx + 8 + dx, sy + 8 + dy))
-        else:
-            pygame.draw.rect(target_surf, constants.COLOR_FLOOR, dr, 1)
+        elif tile == constants.TILE_OBSTACLE:
+            rock_surf = getattr(self, "prop_cache", {}).get("Rock")
+            if rock_surf is not None:
+                rdx = ((x * 11 + y * 23) % 9) - 4
+                rdy = ((x * 17 + y * 13) % 9) - 4
+                target_surf.blit(rock_surf, (sx + rdx, sy + rdy))
 
         return biome, pal, s_idx
 
@@ -1286,7 +1393,9 @@ class Renderer:
             elif obj.name == "Rock":
                 rock_surf = prop_cache.get("Rock")
                 if rock_surf is not None:
-                    self.screen.blit(rock_surf, (int(sx_o), int(sy_o)))
+                    rdx = ((int(obj.x) * 11 + int(obj.y) * 23) % 9) - 4
+                    rdy = ((int(obj.x) * 17 + int(obj.y) * 13) % 9) - 4
+                    self.screen.blit(rock_surf, (int(sx_o) + rdx, int(sy_o) + rdy))
                 else:
                     rx, ry, rw, rh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
                     pygame.draw.circle(self.screen, (68, 88, 118), (rx + rw // 2, ry + rh // 2 + 2), rw // 2 - 3)

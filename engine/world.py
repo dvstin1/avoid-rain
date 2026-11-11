@@ -671,9 +671,9 @@ class LevelLoader:
                     interactables.append(bench)
 
                 elif char == 'K':
-                    # Rock
+                    # Rock - decorative element layering on top of floor
                     rock = GameObject(pos, dim)
-                    rock.is_solid = True
+                    rock.is_solid = False
                     rock.name = "Rock"
                     interactables.append(rock)
 
