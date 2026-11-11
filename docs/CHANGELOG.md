@@ -596,6 +596,12 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
   - **Stylized Deciduous Trees (`Structure` / `'T'`):** Short, thick dark-brown trunks with dark outlines, ground cast shadows, overlapping deciduous canopies with bottom-half shadow crescents, and bright lime/mint sunlit crowns.
   - **Recessed Tar / Poison Swamp (`Inkwell Puddle` / `'v'` & `pastoral_valley` Stratum 0):** Visibly recessed near-black inset borders, ragged bruised-purple shorelines, and deep plum toxic pools contrasting against the sunny meadow.
 
+## [ARCHIVED] Procedural Grass Tile Optimization & Pixmap Removal - November 2026
+- **Eliminated Per-Tile Grass Pixmap Blitting (`_draw_world_tile`, `_load_grass_assets`):** Removed disk loading and per-frame multi-sprite alpha blitting of `grass_small.png`, `grass_medium.png`, and `grass_tall.png` across `TILE_GRASS` (`g`) and `TILE_THICKET` (`G`) tiles.
+- **Pre-Baked Procedural Foliage & Native Display Format Conversion (`_generate_biome_tile_cache`, `_decorate_biome_stratum_tile`):** Baked procedural grass tufts and overgrowth directly into the cached 40x40 `strata_floors` surfaces (and converted cached tile surfaces via `.convert()` when the display is initialized), reducing each `g`/`G` tile from 3–11 alpha blits per frame to a single fast opaque blit.
+- **World Load Speedup (`engine/maps.py`):** Removed full-grid `generate_grass_decorations()` passes during `create_world()` on 120x120 and 440x440 maps while retaining prototype compatibility for unit tests.
+
+
 
 
 

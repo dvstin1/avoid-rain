@@ -25,7 +25,6 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None, destroyed_ids
             temp_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids,
             destroyed_ids=destroyed_ids
         )
-        world.generate_grass_decorations()
         return world
 
     world = World(name=name)
@@ -47,7 +46,6 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None, destroyed_ids
             json_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids,
             destroyed_ids=destroyed_ids
         )
-        world.generate_grass_decorations()
         return world
 
     # Fallback to programmatic/hardcoded prototypes

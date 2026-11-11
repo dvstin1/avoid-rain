@@ -126,6 +126,7 @@ class Renderer:
     def _generate_biome_tile_cache(self):
         """Procedurally generate multi-strata 8-bit/16-bit style wall and floor tiles per biome."""
         ts = constants.TILE_SIZE
+        display_init = pygame.display.get_init()
         shadow_n = pygame.Surface((ts, 8), pygame.SRCALPHA)
         shadow_n.fill((0, 0, 0, 95), (0, 0, ts, 4))
         shadow_n.fill((0, 0, 0, 45), (0, 4, ts, 4))
@@ -152,6 +153,8 @@ class Renderer:
                         fl.fill(pal["wall_mortar"], (0, 0, ts, 1))
                         fl.fill(pal["wall_mortar"], (0, 0, 1, ts))
                     self._decorate_biome_stratum_tile(fl, (biome, pal), (s_idx, v))
+                    if display_init:
+                        fl = fl.convert()
                     tier_variants.append(fl)
                 strata_floors.append(tier_variants)
 
@@ -164,6 +167,8 @@ class Renderer:
             w_cap.fill(pal["wall_face"], (6, 6, ts - 12, ts - 12))
             w_cap.fill(pal["wall_top"], (8, 8, ts - 16, ts - 16))
             w_cap.fill(pal["wall_glow"], (ts // 2 - 4, ts // 2 - 2, 8, 4))
+            if display_init:
+                w_cap = w_cap.convert()
 
             # 2. Wall Front (2.5D South-facing cliff / bulkhead face for verticality)
             w_front = pygame.Surface((ts, ts))
@@ -192,6 +197,8 @@ class Renderer:
                     w_front.fill(pal["wall_top"], (bx + 2, 20, 4, 16))
                 w_front.fill(pal["wall_glow"], (ts // 2 - 5, 25, 10, 3))
                 w_front.fill(pal["wall_mortar"], (0, ts - 3, ts, 3))
+            if display_init:
+                w_front = w_front.convert()
 
             self.biome_tiles[biome] = {
                 "floors": strata_floors[1],
@@ -260,13 +267,18 @@ class Renderer:
                 # Recessed Tar / Poison Swamp: near-black inset rim, ragged bruised-purple shore, deep plum core
                 fl.fill((16, 8, 24), (2, 2, ts - 4, ts - 4))
                 fl.fill((58, 26, 82), (4 + (v % 2) * 2, 5, ts - 10, ts - 10))
+                fl.fill((58, 26, 82), (2, 4, 8, 8))
+                fl.fill((58, 26, 82), (ts - 10, ts - 10, 8, 8))
                 fl.fill((28, 12, 42), (7, 8 + (v % 2) * 2, ts - 14, ts - 16))
                 fl.fill((148, 56, 182), (10 + v * 4, 14 + v * 3, 10, 3))
             elif s_idx == 2:
-                # Warm Tan & Soft Earthy Pathway: clean horizontal bands, no noisy single-pixel speckles
+                # Warm Tan & Soft Earthy Pathway with pre-baked rounded grass tuft clusters
                 fl.fill((164, 124, 74), (0, 6 + v * 3, ts, 4))
                 fl.fill((224, 192, 134), (4 + v * 3, 16, ts - 8, 6))
-                fl.fill(pal["floor_accent"], (4 + v * 6, 30, 8, 4))
+                fl.fill((214, 178, 118), (2, 2, 8, 8))
+                fl.fill((214, 178, 118), (ts - 10, ts - 10, 8, 8))
+                fl.fill(pal["floor_accent"], (4 + v * 6, 28, 10, 5))
+                fl.fill((138, 242, 146), (6 + v * 6, 26, 6, 3))
             else:
                 # Bright Lime/Mint Meadow: subtle horizontal streaks and grouped rounded grass tufts
                 fl.fill(pal["floor_alt"], (0, 8 + v * 4, ts, 5))
@@ -274,21 +286,25 @@ class Renderer:
                 tx1, ty1 = 6 + v * 6, 10 + (v % 2) * 8
                 fl.fill(pal["floor_accent"], (tx1, ty1, 10, 5))
                 fl.fill((138, 242, 146), (tx1 + 2, ty1 - 2, 6, 3))
+                fl.fill(pal["floor_accent"], (22 - v * 3, 26, 9, 4))
+                fl.fill((138, 242, 146), (24 - v * 3, 24, 5, 3))
         else:
             if s_idx == 0:
-                # Sunken mossy clover basin
-                fl.fill(pal["floor_accent"], (6 + v * 4, 8, 8, 8))
-                fl.fill(pal["floor_accent"], (20 - v * 3, 22, 10, 8))
-                fl.fill(pal["floor_speck"], (10 + v * 5, 12, 3, 3))
+                # Sunken mossy clover & thicket basin (baked procedural overgrowth)
+                fl.fill(pal["floor_accent"], (5 + v * 3, 6, 12, 8))
+                fl.fill(pal["floor_accent"], (18 - v * 2, 20, 14, 9))
+                fl.fill(pal["wall_glow"], (8 + v * 3, 8, 6, 4))
+                fl.fill(pal["floor_speck"], (12 + v * 4, 14, 4, 4))
             elif s_idx == 2:
-                # Raised sunlit cobble ridge trail
+                # Raised sunlit cobble ridge trail with procedural grass tuft borders
                 fl.fill(pal["wall_top"], (5 + v * 2, 5, 13, 11))
                 fl.fill(pal["wall_top"], (21 - v * 2, 20, 14, 12))
                 fl.fill(pal["wall_hi"], (6 + v * 2, 6, 11, 2))
+                fl.fill(pal["floor_accent"], (4 + v * 5, 28, 8, 5))
             else:
-                fl.fill(pal["floor_accent"], (6 + v * 6, 8 + v * 3, 2, 5))
-                fl.fill(pal["floor_accent"], (9 + v * 6, 6 + v * 3, 2, 6))
-                fl.fill(pal["floor_accent"], (24 - v * 4, 24 + v * 2, 2, 5))
+                fl.fill(pal["floor_accent"], (6 + v * 6, 8 + v * 3, 4, 6))
+                fl.fill(pal["floor_accent"], (10 + v * 6, 6 + v * 3, 4, 7))
+                fl.fill(pal["floor_accent"], (24 - v * 4, 24 + v * 2, 5, 5))
                 fl.fill(pal["floor_speck"], (16 + v * 4, 18 - v * 2, 3, 3))
 
     def _resolve_tile_biome(self, state, tx, ty):
@@ -326,52 +342,20 @@ class Renderer:
         return ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")[sector]
 
     def _load_grass_assets(self):
-        """Pre-load grass assets and generate 3 variants on startup."""
-        import os
-        base_path = os.path.join("assets", "graphics")
-        display_init = pygame.display.get_init()
-        
-        self.grass_pools = {
-            "small": [],
-            "medium": [],
-            "tall": []
-        }
-        
-        configs = [
-            ("grass_small.png", "small", (16, 16)),
-            ("grass_medium.png", "medium", (32, 32)),
-            ("grass_tall.png", "tall", (40, 40)),
+        """Generate lightweight procedural grass tuft surfaces in RAM (no PNG pixmap loading)."""
+        self.grass_pools = {"small": [], "medium": [], "tall": []}
+        configs = [("small", (12, 8)), ("medium", (18, 12)), ("tall", (24, 16))]
+        colors = [
+            ((50, 158, 74), (110, 225, 130)),
+            ((38, 132, 64), (88, 210, 112)),
+            ((64, 175, 82), (148, 242, 146))
         ]
-        
-        for name, key, size in configs:
-            path = os.path.join(base_path, name)
-            if os.path.exists(path):
-                try:
-                    img = pygame.image.load(path)
-                    if display_init:
-                        img = img.convert_alpha()
-                    base_img = pygame.transform.scale(img, size)
-                    
-                    # Variant 0: Pristine original
-                    v0 = base_img.copy()
-                    
-                    # Variant 1: Horizontally flipped
-                    v1 = pygame.transform.flip(base_img, True, False)
-                    
-                    # Variant 2: Slightly yellow-tinted copy
-                    v2 = base_img.copy()
-                    try:
-                        tint_surf = pygame.Surface(size, pygame.SRCALPHA)
-                        tint_surf.fill((255, 230, 150, 255))
-                        v2.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-                    except Exception as tint_err:
-                        print(f"[RENDER] Grass tinting fallback for {name}: {tint_err}")
-                        v2 = base_img.copy()
-                    
-                    self.grass_pools[key] = [v0, v1, v2]
-                    print(f"[RENDER] Successfully generated 3 grass variants for {name}")
-                except Exception as e:
-                    print(f"[RENDER] Error loading grass assets for {name}: {e}")
+        for key, (w, h) in configs:
+            for base_c, hi_c in colors:
+                surf = pygame.Surface((w, h))
+                surf.fill(base_c)
+                surf.fill(hi_c, (2, 1, max(2, w - 4), max(2, h // 2)))
+                self.grass_pools[key].append(surf)
 
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
@@ -651,16 +635,8 @@ class Renderer:
             v_idx = (x * 7 + y * 13) % len(tier_floors)
             self.screen.blit(tier_floors[v_idx], (dr[0], dr[1]))
 
-            # Draw beveled elevation step rims or rounded/diagonal contour transitions
+            # Draw beveled elevation step rims where adjacent floor strata transition
             sx, sy, tw, th = int(dr[0]), int(dr[1]), int(dr[2]), int(dr[3])
-            if biome == "pastoral_valley":
-                # Mask 16x16/40x40 tile seams with rounded corner contours & recessed tar-swamp banks
-                if s_idx == 0:
-                    pygame.draw.circle(self.screen, (58, 26, 82), (sx + 6, sy + 6), 5)
-                    pygame.draw.circle(self.screen, (58, 26, 82), (sx + tw - 6, sy + th - 6), 5)
-                elif s_idx == 2:
-                    pygame.draw.circle(self.screen, (214, 178, 118), (sx + 5, sy + 5), 5)
-                    pygame.draw.circle(self.screen, (214, 178, 118), (sx + tw - 5, sy + th - 5), 5)
             if y > 0 and state.world.grid[y - 1][x] != constants.TILE_WALL:
                 n_stratum = self._get_tile_stratum(state, x, y - 1)
                 if s_idx > n_stratum:
@@ -684,18 +660,7 @@ class Renderer:
         else:
             pygame.draw.rect(self.screen, constants.COLOR_FLOOR, dr, 1)
 
-        if tile in (constants.TILE_GRASS, constants.TILE_THICKET):
-            decorations = getattr(state.world, 'grass_decorations', {})
-            if (x, y) in decorations:
-                center_x, center_y = dr[0] + 20, dr[1] + 20
-                for pool_key, variant, dx, dy in decorations[(x, y)]:
-                    pool = getattr(self, 'grass_pools', {}).get(pool_key)
-                    if pool and variant < len(pool):
-                        grass_img = pool[variant]
-                        gx = center_x + dx - grass_img.get_width() // 2
-                        gy = center_y + dy - grass_img.get_height() // 2
-                        self.screen.blit(grass_img, (gx, gy))
-        elif tile == constants.TILE_LOTUS_FRAME:
+        if tile == constants.TILE_LOTUS_FRAME:
             # Animated techno-magic energy conduit frame
             pygame.draw.rect(self.screen, (36, 48, 86), dr, border_radius=4)
             pulse_col = (0, 240, 255) if int(time.time() * 4 + x + y) % 2 == 0 else (235, 70, 195)
