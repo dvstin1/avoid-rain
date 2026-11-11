@@ -573,5 +573,11 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Combat Telegraph Preservation:** Maintained clear `WIND_UP`, `STRIKE`, and `RECOVERY` color overrides on procedural enemy silhouettes alongside posture and status overlays.
 - **Unit Test Coverage:** Added headless unit tests in `tests/test_procedural_enemy_graphics.py` verifying procedural shape generation, telegraph color overrides, and fallback behavior.
 
+## [ARCHIVED] Procedural Scholar Player Character & Tapered Blade Weapons - November 2026
+- **Scholar Player Character (`draw_procedural_player`):** Replaced the plain blue rectangle player placeholder with a layered procedural **Scriptorium Scholar** featuring a rounded indigo cloak, azure shoulder mantle with gold stole trim, animated boots during movement, a hood and shadowed cowl with glowing directional eyes, dash speed-streaks, and a raised ward-buckler shield when blocking.
+- **Player Sword Attack & Carried Blade (`draw_player_weapon_attack`):** Replaced the 1px green debug attack box with an animated crescent slash trail and a swept tapered sword blade (tinted purple when wielding an Anomalous weapon, or cyan/steel normally), plus a visible sword carried at the Scholar's side when not attacking.
+- **Boss Greatblade Upgrade (`draw_boss_weapon`, `_draw_tapered_blade`):** Replaced the paintbrush-like brown shaft and round tip blob on miniboss/boss weapons with a sharp tapered steel greatblade featuring a dark hilt, perpendicular brass crossguard with pommel caps, converging blade edges, and a central fuller groove.
+
+
 
 

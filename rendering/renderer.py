@@ -518,12 +518,9 @@ class Renderer:
 
         # Local Player Rendering
         self.draw_actor_ghost(state.player, ox, oy, state)
-        
-        # Sword Hitbox Visual (Optional debug-style but kept for feedback)
+
         if state.player.state == PlayerStateEnum.ATTACKING:
-            from engine.combat import get_sword_hitbox
-            hb = get_sword_hitbox(state.player.get_center(), state.player.facing)
-            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, (hb[0] - ox, hb[1] - oy, hb[2], hb[3]), 1)
+            self.draw_player_weapon_attack(state.player, ox, oy)
         for num in state.damage_numbers:
             self.screen.blit(self.font.render(str(num['val']), True, num['color']), (num['pos'][0] - ox, num['pos'][1] - oy))
         if getattr(state.player, 'current_interactable', None): self.draw_interaction_prompt(state.player, ox, oy)
@@ -610,6 +607,7 @@ class Renderer:
                 sprite = self.image_cache.get(f"slug_{suffix}.png")
 
         # --- DRAWING ---
+        used_procedural = False
         if sprite:
             # Center sprite on actor rect
             s_rect = sprite.get_rect(center=rect.center)
@@ -651,8 +649,11 @@ class Renderer:
             if not packet.get("color_hint"):
                 if hasattr(actor, 'weapons'): color = constants.COLOR_BLUE
 
-            if not hasattr(actor, 'weapons') and self.draw_procedural_enemy(actor, draw_rect, packet, color):
-                pass
+            used_procedural = False
+            if hasattr(actor, 'weapons'):
+                used_procedural = self.draw_procedural_player(actor, draw_rect, packet, color)
+            elif self.draw_procedural_enemy(actor, draw_rect, packet, color):
+                used_procedural = True
             else:
                 pygame.draw.rect(self.screen, color, draw_rect)
 
@@ -692,8 +693,8 @@ class Renderer:
                 self.screen.blit(s, overlay_rect.topleft)
                 pygame.draw.rect(self.screen, (255, 215, 0), overlay_rect, 1)
 
-        # 5. Directional Indicator (Only for ghosts)
-        if not sprite:
+        # 5. Directional Indicator (Only for fallback ghosts without procedural visuals)
+        if not sprite and not used_procedural:
             fx, fy = packet["facing"]
             ecx, ecy = draw_rect.center
             pygame.draw.line(self.screen, constants.COLOR_WHITE, (ecx, ecy), (ecx + fx * 15, ecy + fy * 15), 2)
@@ -815,19 +816,168 @@ class Renderer:
 
         return False
 
+    def _draw_tapered_blade(self, start_pos, tip_pos, half_w, edge_col=None):
+        """Draw a sword/greatblade with hilt, crossguard, tapered edges, and fuller groove."""
+        hx, hy = start_pos
+        tx, ty = tip_pos
+        edge_col = edge_col or constants.COLOR_WEAPON_EDGE
+        blade_col = constants.COLOR_WEAPON_BLADE
+        dx, dy = tx - hx, ty - hy
+        dist = math.hypot(dx, dy)
+        if dist < 1.0:
+            return
+        ux, uy = dx / dist, dy / dist
+        nx, ny = -uy, ux
+
+        # 1. Hilt from hand/origin to crossguard
+        gx, gy = hx + ux * (dist * 0.25), hy + uy * (dist * 0.25)
+        pygame.draw.line(self.screen, constants.COLOR_WEAPON_HILT, (int(hx), int(hy)), (int(gx), int(gy)), 4)
+
+        # 2. Tapered steel blade from crossguard to sharp point (tx, ty)
+        bl_x, bl_y = gx + nx * half_w, gy + ny * half_w
+        br_x, br_y = gx - nx * half_w, gy - ny * half_w
+        il_x, il_y = gx + nx * (half_w * 0.5), gy + ny * (half_w * 0.5)
+        ir_x, ir_y = gx - nx * (half_w * 0.5), gy - ny * (half_w * 0.5)
+        pygame.draw.line(self.screen, blade_col, (int(il_x), int(il_y)), (int(tx), int(ty)), 3)
+        pygame.draw.line(self.screen, blade_col, (int(ir_x), int(ir_y)), (int(tx), int(ty)), 3)
+        pygame.draw.line(self.screen, blade_col, (int(bl_x), int(bl_y)), (int(tx), int(ty)), 2)
+        pygame.draw.line(self.screen, blade_col, (int(br_x), int(br_y)), (int(tx), int(ty)), 2)
+        pygame.draw.line(self.screen, blade_col, (int(bl_x), int(bl_y)), (int(br_x), int(br_y)), 2)
+
+        # 3. Central razor ridge and fuller groove
+        fx_end, fy_end = gx + ux * (dist * 0.42), gy + uy * (dist * 0.42)
+        pygame.draw.line(self.screen, edge_col, (int(gx), int(gy)), (int(tx), int(ty)), 2)
+        pygame.draw.line(self.screen, constants.COLOR_WEAPON_FULLER, (int(gx), int(gy)), (int(fx_end), int(fy_end)), 2)
+
+        # 4. Perpendicular brass crossguard bar and pommel caps
+        gw = half_w + 5.0
+        g1x, g1y = int(gx + nx * gw), int(gy + ny * gw)
+        g2x, g2y = int(gx - nx * gw), int(gy - ny * gw)
+        pygame.draw.line(self.screen, constants.COLOR_WEAPON_GUARD, (g1x, g1y), (g2x, g2y), 3)
+        pygame.draw.circle(self.screen, constants.COLOR_WEAPON_GUARD, (g1x, g1y), 2)
+        pygame.draw.circle(self.screen, constants.COLOR_WEAPON_GUARD, (g2x, g2y), 2)
+
+    def draw_procedural_player(self, actor, draw_rect, packet, state_color):
+        """Draw the player character as a hooded Scriptorium Scholar with animated stride and gear."""
+        cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
+        w, h = int(draw_rect.width), int(draw_rect.height)
+        fx, fy = packet.get("facing", (1.0, 0.0))
+        base_state = packet.get("base", "IDLE")
+        now = time.time()
+
+        # 1. Base cloak silhouette (maintains exact draw_rect call for camera offset verification)
+        cloak_col = constants.COLOR_PLAYER_CLOAK
+        if base_state == "DASH":
+            cloak_col = constants.COLOR_CYAN
+        elif base_state == "BLOCK":
+            cloak_col = constants.COLOR_PLAYER_SHIELD
+        pygame.draw.rect(self.screen, cloak_col, draw_rect, border_radius=10)
+
+        # Dash wind-streaks behind the Scholar
+        if base_state == "DASH":
+            for i in (-8, 0, 8):
+                sx, sy = cx - int(fx * 12) - int(fy * i), cy - int(fy * 12) + int(fx * i)
+                ex, ey = sx - int(fx * 16), sy - int(fy * 16)
+                pygame.draw.line(self.screen, constants.COLOR_WHITE, (sx, sy), (ex, ey), 2)
+
+        # 2. Animated boots at bottom of cloak
+        stride = int(math.sin(now * 16.0) * 4) if base_state == "RUN" else 0
+        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_BOOT, (cx - 7, draw_rect.bottom - 3 + stride), 4)
+        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_BOOT, (cx + 7, draw_rect.bottom - 3 - stride), 4)
+
+        # 3. Layered shoulder mantle and gold scholar stole/trim
+        bob = int(math.sin(now * 6.0) * 1) if base_state == "IDLE" else 0
+        mantle_rect = pygame.Rect(draw_rect.x + 3, draw_rect.y + 8 + bob, max(8, w - 6), max(8, h // 2))
+        pygame.draw.rect(self.screen, constants.COLOR_PLAYER_MANTLE, mantle_rect, border_radius=7)
+        pygame.draw.line(
+            self.screen, constants.COLOR_PLAYER_TRIM,
+            (mantle_rect.left + 3, mantle_rect.bottom - 2), (mantle_rect.right - 3, mantle_rect.bottom - 2), 2
+        )
+        pygame.draw.line(
+            self.screen, constants.COLOR_PLAYER_TRIM, (cx, mantle_rect.top + 4), (cx, draw_rect.bottom - 5), 2
+        )
+
+        # 4. Scholar's hood, shadowed cowl, and directional glowing eyes
+        head_y = draw_rect.y + h // 3 + bob
+        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_HOOD, (cx, head_y), max(7, w // 3))
+        cowl_x, cowl_y = cx + int(fx * 3), head_y + int(fy * 2)
+        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_COWL, (cowl_x, cowl_y), max(5, w // 4))
+        perp_x, perp_y = -fy, fx
+        eye1 = (int(cowl_x + fx * 2 + perp_x * 3), int(cowl_y + fy * 2 + perp_y * 3))
+        eye2 = (int(cowl_x + fx * 2 - perp_x * 3), int(cowl_y + fy * 2 - perp_y * 3))
+        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_EYE, eye1, 2)
+        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_EYE, eye2, 2)
+
+        # 5. Off-hand ward shield when blocking, or carried sword at side when not attacking
+        wpn = actor.get_active_weapon() if hasattr(actor, "get_active_weapon") and actor.weapons else {}
+        is_anomalous = "modifiers" in wpn
+        edge_col = constants.COLOR_PURPLE if is_anomalous else constants.COLOR_WEAPON_EDGE
+
+        if base_state == "BLOCK":
+            sh_x, sh_y = cx + int(fx * (w * 0.45)), cy + int(fy * (h * 0.45))
+            pygame.draw.circle(self.screen, constants.COLOR_PLAYER_SHIELD, (sh_x, sh_y), 11)
+            pygame.draw.circle(self.screen, constants.COLOR_PLAYER_TRIM, (sh_x, sh_y), 11, 2)
+            pygame.draw.circle(self.screen, constants.COLOR_CYAN, (sh_x, sh_y), 4)
+        elif base_state != "ATTACK":
+            # Hold sword at right-hand side angled slightly forward
+            hx = cx + int(perp_x * (w * 0.38)) - int(fx * 4)
+            hy = cy + int(perp_y * (h * 0.38)) - int(fy * 4)
+            tx = hx + int(fx * 22) + int(perp_x * 3)
+            ty = hy + int(fy * 22) + int(perp_y * 3)
+            self._draw_tapered_blade((hx, hy), (tx, ty), 3.5, edge_col)
+
+        return True
+
+    def draw_player_weapon_attack(self, player, ox, oy):
+        """Draw an animated sword slash arc and tapered blade during player attacks."""
+        px, py = player.get_center()
+        cx, cy = px - ox, py - oy
+        fx, fy = player.facing
+        base_angle = math.atan2(fy, fx)
+
+        total_dur = max(0.01, constants.SWORD_DURATION)
+        t = 1.0 - max(0.0, min(1.0, getattr(player, "attack_timer", 0.0) / total_dur))
+        arc_start = base_angle - 1.05
+        curr_angle = arc_start + t * 2.10
+        reach = constants.SWORD_OFFSET + constants.SWORD_WIDTH * 0.45
+
+        wpn = player.get_active_weapon() if hasattr(player, "get_active_weapon") and player.weapons else {}
+        is_anomalous = "modifiers" in wpn
+        slash_col = constants.COLOR_PURPLE if is_anomalous else constants.COLOR_CYAN
+        edge_col = constants.COLOR_PURPLE if is_anomalous else constants.COLOR_WEAPON_EDGE
+
+        # 1. Layered crescent slash trail behind the active blade angle
+        steps = 8
+        for i in range(steps):
+            a1 = arc_start + (curr_angle - arc_start) * (i / steps)
+            a2 = arc_start + (curr_angle - arc_start) * ((i + 1) / steps)
+            p1 = (int(cx + math.cos(a1) * reach), int(cy + math.sin(a1) * reach))
+            p2 = (int(cx + math.cos(a2) * reach), int(cy + math.sin(a2) * reach))
+            pygame.draw.line(self.screen, slash_col, p1, p2, 3)
+            in1 = (int(cx + math.cos(a1) * (reach - 8)), int(cy + math.sin(a1) * (reach - 8)))
+            in2 = (int(cx + math.cos(a2) * (reach - 8)), int(cy + math.sin(a2) * (reach - 8)))
+            pygame.draw.line(self.screen, constants.COLOR_WEAPON_EDGE, in1, in2, 2)
+
+        # 2. Active tapered sword along current swing angle
+        hx = cx + math.cos(curr_angle) * 10.0
+        hy = cy + math.sin(curr_angle) * 10.0
+        tx = cx + math.cos(curr_angle) * (reach + 6.0)
+        ty = cy + math.sin(curr_angle) * (reach + 6.0)
+        self._draw_tapered_blade((hx, hy), (tx, ty), 5.0, edge_col)
+
     def draw_boss_weapon(self, actor, ox, oy):
-        """Draws a literal weapon held by a limb that swings or thrusts dynamically based on attack state."""
+        """Draws a sharp tapered greatblade held by a boss that swings or thrusts dynamically."""
         if not hasattr(actor, 'state') or not hasattr(actor, 'combat_timer'):
             return
-            
+
         from engine.actor import ActorState
         if actor.state not in (ActorState.WIND_UP, ActorState.STRIKE, ActorState.RECOVERY):
             return
-            
+
         cx = actor.x + actor.width / 2 - ox
         cy = actor.y + actor.height / 2 - oy
         fx, fy = actor.facing
-        
+
         # Determine animation progress t (0 to 1)
         t = 0.0
         if actor.state == ActorState.WIND_UP and actor.wind_up_duration > 0:
@@ -836,46 +986,29 @@ class Renderer:
             t = max(0.0, min(1.0, 1.0 - (actor.combat_timer / actor.strike_duration)))
         elif actor.state == ActorState.RECOVERY and actor.recovery_duration > 0:
             t = max(0.0, min(1.0, 1.0 - (actor.combat_timer / actor.recovery_duration)))
-            
+
         attack_type = getattr(actor, 'attack_type', 'THRUST')
-        
-        # Visual styling: Bosses carry a giant ink-dripping quill/blade
-        wood_color = (139, 90, 43)   # Dark brown shaft
-        ink_color = (20, 20, 30)      # Deep black/blue ink
-        steel_color = (192, 192, 192) # Silver quill nib
-        
         base_angle = math.atan2(fy, fx)
-        
+
         if attack_type == "THRUST":
-            # Determine weapon length L based on state
             if actor.state == ActorState.WIND_UP:
                 L = 60.0 - t * 25.0
             elif actor.state == ActorState.STRIKE:
                 L = 35.0 + math.sin(t * math.pi) * 95.0
-            else: # RECOVERY
+            else:
                 L = 35.0 + t * 25.0
-                
-            px = cx + fx * L
-            py = cy + fy * L
-            
-            # Draw wood shaft from boss center to tip
-            pygame.draw.line(self.screen, wood_color, (cx, cy), (px, py), 6)
-            # Draw silver steel nib at the end
-            nib_start_x = cx + fx * (L - 15)
-            nib_start_y = cy + fy * (L - 15)
-            pygame.draw.line(self.screen, steel_color, (nib_start_x, nib_start_y), (px, py), 8)
-            # Draw ink drop at the very tip
-            pygame.draw.circle(self.screen, ink_color, (int(px), int(py)), 6)
-            
-        else: # SWING
-            # Determine swing angle based on state
+
+            hx, hy = cx + fx * 12.0, cy + fy * 12.0
+            px, py = cx + fx * L, cy + fy * L
+            self._draw_tapered_blade((hx, hy), (px, py), 7.0)
+        else:
             if actor.state == ActorState.WIND_UP:
                 angle = base_angle - 1.2 * t
                 L = 60.0
             elif actor.state == ActorState.STRIKE:
                 angle = (base_angle - 1.2) + t * 2.4
-                L = 70.0
-                
+                L = 75.0
+
                 # Draw swing trail
                 trail_surf = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
                 trail_angle_start = base_angle - 1.2
@@ -888,21 +1021,13 @@ class Renderer:
                 if len(points) > 2:
                     pygame.draw.polygon(trail_surf, (220, 220, 220, 25), points)
                 self.screen.blit(trail_surf, (0, 0))
-            else: # RECOVERY
+            else:
                 angle = (base_angle + 1.2) - t * 1.2
                 L = 60.0
-                
-            px = cx + math.cos(angle) * L
-            py = cy + math.sin(angle) * L
-            
-            # Draw wood shaft
-            pygame.draw.line(self.screen, wood_color, (cx, cy), (px, py), 6)
-            # Draw silver quill nib/blade
-            blade_start_x = cx + math.cos(angle) * (L - 20)
-            blade_start_y = cy + math.sin(angle) * (L - 20)
-            pygame.draw.line(self.screen, steel_color, (blade_start_x, blade_start_y), (px, py), 8)
-            # Draw ink drop
-            pygame.draw.circle(self.screen, ink_color, (int(px), int(py)), 6)
+
+            hx, hy = cx + math.cos(angle) * 12.0, cy + math.sin(angle) * 12.0
+            px, py = cx + math.cos(angle) * L, cy + math.sin(angle) * L
+            self._draw_tapered_blade((hx, hy), (px, py), 7.0)
 
     def draw_remote_players(self, state, ox, oy):
         """Phase 4: Render ghosts for other players on the network."""
