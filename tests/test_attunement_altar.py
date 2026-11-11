@@ -111,20 +111,51 @@ def test_biome_resolution_for_variants():
         assert biome == expected_biome, f"{map_file} resolved to {biome}, expected {expected_biome}"
 
 
-def test_hud_and_bloom_map_filename_rendering():
-    """Verify debug HUD and room title bloom banner render current map filename."""
+def test_audio_debug_map_filename_rendering():
+    """Verify map filename is rendered under audio OSD when debug is enabled and not in bloom banner."""
     screen = pygame.Surface((800, 600))
     renderer = Renderer(screen)
 
     gs = GameState(auto_load=False)
     gs.world = create_world("sanctuary_geometric.txt")
-    gs.debug_text_enabled = True
     gs.bloom_timer = 2.0
     gs.bloom_text = "THE SANCTUARY"
 
-    # Test HUD rendering with debug enabled
-    renderer.draw_hud(gs)
-    assert renderer._hud_surf is not None
+    rendered_hud_strings = []
+    rendered_bloom_strings = []
 
-    # Test bloom banner rendering
+    class RecordingFont:
+        """Mock font recording rendered text strings."""
+        def __init__(self, record_list):
+            self.record_list = record_list
+
+        def render(self, text, *_args, **_kwargs):
+            """Record rendered string and return mock surface."""
+            self.record_list.append(str(text))
+            return pygame.Surface((max(1, len(str(text)) * 8), 16), pygame.SRCALPHA)
+
+        def size(self, text):
+            """Return mock font size."""
+            return (len(str(text)) * 8, 16)
+
+    renderer.hud_font = RecordingFont(rendered_hud_strings)
+    renderer.bloom_font = RecordingFont(rendered_bloom_strings)
+
+    # 1. Bloom overlay only renders room title, not map filename
     renderer.draw_bloom_overlay(gs)
+    assert any("THE SANCTUARY" in s for s in rendered_bloom_strings)
+    assert not any("sanctuary_geometric" in s for s in rendered_bloom_strings)
+
+    # 2. When debug_text_enabled is False, render() does not draw audio/map OSD
+    gs.debug_text_enabled = False
+    rendered_hud_strings.clear()
+    renderer.render(gs)
+    assert not any("[ AUDIO_OSD ]" in s for s in rendered_hud_strings)
+    assert not any("sanctuary_geometric" in s for s in rendered_hud_strings)
+
+    # 3. When debug_text_enabled is True, render() draws map filename under audio OSD
+    gs.debug_text_enabled = True
+    rendered_hud_strings.clear()
+    renderer.render(gs)
+    assert any("[ AUDIO_OSD ]" in s for s in rendered_hud_strings)
+    assert any("Map: sanctuary_geometric.txt" in s for s in rendered_hud_strings)

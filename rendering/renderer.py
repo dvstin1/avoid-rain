@@ -1624,9 +1624,9 @@ class Renderer:
         except Exception:
             pass
 
-        # Audio Debug OSD (gated behind debug_text_enabled)
-        if audio_manager and getattr(state, "debug_text_enabled", False):
-            self.draw_audio_debug(audio_manager)
+        # Audio & Map Debug OSD (gated behind debug_text_enabled)
+        if getattr(state, "debug_text_enabled", False):
+            self.draw_audio_debug(audio_manager, state=state)
 
         if getattr(state, 'active_respite', None):
             draw_respite_menu(self.screen, self.font, state)
@@ -2220,26 +2220,60 @@ class Renderer:
             id_surf = self.small_font.render(name, True, constants.COLOR_WHITE)
             self.screen.blit(id_surf, (rx + 16 - id_surf.get_width() // 2, ry - 15))
 
-    def draw_audio_debug(self, audio):
-        """Draw OSD for currently playing music and recent SFX triggers."""
+    def draw_audio_debug(self, audio, state=None):
+        """Draw OSD for currently playing music, loaded map filename, and recent SFX triggers."""
         margin = 10
         y_off = margin
         sw = self.screen.get_width()
-        
+
         # 1. Music Info (Top Center)
-        track = audio.current_track if audio.current_track else "None"
+        track = audio.current_track if (audio and getattr(audio, "current_track", None)) else "None"
         m_surf = self.hud_font.render(f"[ AUDIO_OSD ] MUSIC: {track}", True, (120, 255, 100))
-        self.screen.blit(m_surf, (sw // 2 - m_surf.get_width() // 2, y_off))
-        
-        # 2. Recent SFX (Top Left)
-        y_off = margin
-        for sfx in audio.recent_sfx:
-            alpha = int((sfx['time'] / 2.0) * 255)
-            alpha = max(0, min(255, alpha))
-            s_surf = self.small_font.render(f"SFX: {sfx['name']}", True, (220, 220, 220))
-            s_surf.set_alpha(alpha)
-            self.screen.blit(s_surf, (margin, y_off))
-            y_off += 18
+        mw = (
+            m_surf.get_width()
+            if hasattr(m_surf, "get_width")
+            else (m_surf.get_rect().width if hasattr(m_surf, "get_rect") else 0)
+        )
+        mh = (
+            m_surf.get_height()
+            if hasattr(m_surf, "get_height")
+            else (m_surf.get_rect().height if hasattr(m_surf, "get_rect") else 0)
+        )
+        self.screen.blit(m_surf, (sw // 2 - mw // 2, y_off))
+        y_off += mh + 2
+
+        # 2. Map Filename (Top Center, directly underneath music track name)
+        map_filename = getattr(getattr(state, "world", None), "map_filename", None)
+        if map_filename:
+            map_surf = self.hud_font.render(f"Map: {map_filename}", True, (120, 255, 100))
+            map_w = (
+                map_surf.get_width()
+                if hasattr(map_surf, "get_width")
+                else (map_surf.get_rect().width if hasattr(map_surf, "get_rect") else 0)
+            )
+            self.screen.blit(map_surf, (sw // 2 - map_w // 2, y_off))
+
+        # 3. Recent SFX (Top Left)
+        if audio and hasattr(audio, "recent_sfx"):
+            sfx_y = margin
+            for sfx in audio.recent_sfx:
+                alpha = int((sfx["time"] / 2.0) * 255)
+                alpha = max(0, min(255, alpha))
+                s_surf = self.small_font.render(f"SFX: {sfx['name']}", True, (220, 220, 220))
+                s_surf.set_alpha(alpha)
+                self.screen.blit(s_surf, (margin, sfx_y))
+                sfx_y += 18
+
+        # 3. Recent SFX (Top Left)
+        if audio and hasattr(audio, "recent_sfx"):
+            sfx_y = margin
+            for sfx in audio.recent_sfx:
+                alpha = int((sfx["time"] / 2.0) * 255)
+                alpha = max(0, min(255, alpha))
+                s_surf = self.small_font.render(f"SFX: {sfx['name']}", True, (220, 220, 220))
+                s_surf.set_alpha(alpha)
+                self.screen.blit(s_surf, (margin, sfx_y))
+                sfx_y += 18
 
     def draw_parry_effects(self, state, ox, oy):
         """Draw transient high-contrast bursts for successful parries."""
@@ -2402,17 +2436,6 @@ class Renderer:
         text_surf = self.bloom_font.render(text, True, text_col)
         bloom_surf.blit(text_surf, text_surf.get_rect(center=(sw // 2, sh // 3)))
 
-        # Subtitle: Current loaded map filename
-        map_filename = getattr(getattr(state, 'world', None), 'map_filename', None)
-        if map_filename:
-            map_sub = f"Map: {map_filename}"
-            sub_col = (180, 200, 220, alpha)
-            sub_shadow_col = (10, 10, 20, alpha // 2)
-            sub_shadow = self.font.render(map_sub, True, sub_shadow_col)
-            sub_surf = self.font.render(map_sub, True, sub_col)
-            bloom_surf.blit(sub_shadow, sub_shadow.get_rect(center=(sw // 2 + 2, sh // 3 + 37)))
-            bloom_surf.blit(sub_surf, sub_surf.get_rect(center=(sw // 2, sh // 3 + 35)))
-
         self.screen.blit(bloom_surf, (0, 0))
 
     def draw_hud(self, state):
@@ -2462,10 +2485,6 @@ class Renderer:
                 mode_label,
                 (hud_surf.get_width() - mode_label.get_width() - 10, hud_surf.get_height() - 25),
             )
-            map_name = getattr(getattr(state, "world", None), "map_filename", None)
-            if map_name:
-                map_lbl = self.hud_font.render(f"Map: {map_name}", True, constants.COLOR_CYAN)
-                hud_surf.blit(map_lbl, (hud_surf.get_width() - map_lbl.get_width() - 10, 10))
 
         for i in range(2):
             sx, sy = 10 + i * (constants.HUD_SLOT_W + 100), 45

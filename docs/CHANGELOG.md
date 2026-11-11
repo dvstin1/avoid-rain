@@ -730,5 +730,24 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
     HUD map filename rendering.
   - Maintained 100% green test pass across all 217 tests in `pytest`.
 
+## [ARCHIVED] Map Filename Debug Info Relocated to Persistent Audio/Music HUD - November 2026
+- **Room Title Bloom Banner Clean-Up (`rendering/renderer.py`):**
+  - Removed map filename subtitle rendering from `draw_bloom_overlay()`, ensuring the typographic discovery banner
+    only displays the stylized zone/room name and fades out cleanly according to its standard lifecycle.
+- **Persistent Audio / Music HUD Integration (`rendering/renderer.py`):**
+  - Relocated the map filename display into `draw_audio_debug()`, rendering directly underneath the music track name
+    as the next line (`Map: {map_filename}`).
+  - Styled to match the audio OSD font (`hud_font`) and color (`(120, 255, 100)`), centered at the top of the screen.
+  - Bound to persistent debug visibility (`debug_text_enabled`), ensuring it stays on screen alongside the music OSD
+    rather than fading out with temporary room title banners.
+  - Removed previous duplicate map filename rendering from the bottom HUD panel (`draw_hud`).
+  - Added surface dimension fallback handling (`hasattr` for `get_width`/`get_rect`) to ensure headless test mocks
+    render safely.
+- **Testing Verification (`tests/test_attunement_altar.py`):**
+  - Updated unit test coverage verifying that `draw_bloom_overlay()` does not contain map filenames, that
+    `draw_audio_debug()` renders `Map: {map_filename}` beneath the audio OSD when `debug_text_enabled` is active,
+    and that no debug text is rendered when disabled.
+  - Maintained 100% green test pass across all 217 tests in `pytest`.
+
 
 
