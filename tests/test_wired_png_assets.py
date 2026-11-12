@@ -329,3 +329,54 @@ def test_swamp_organic_wall_plateau_and_facade():
     # Bottom facade has deep maroon undercut shadow near the bottom
     bot_shadow = bot_surf.get_at((20, constants.TILE_SIZE - 2))[:3]
     assert bot_shadow == constants.BIOME_PALETTES["swamp_mire"]["wall_mortar"]
+
+
+def test_environmental_clutter_cached_and_wired_to_biomes():
+    """Verify ruins_rubble, swamp_flora, and crypt_clutter are cached and wired to their biomes."""
+    screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+
+    # 1. Clutter surfaces cached in prop_cache
+    for clutter_key in ("RuinsRubble", "SwampFlora", "CryptClutter"):
+        assert clutter_key in renderer.prop_cache, f"{clutter_key} missing from prop_cache"
+        surf = renderer.prop_cache[clutter_key]
+        assert surf.get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
+        assert surf.get_flags() & pygame.SRCALPHA != 0
+
+    # 2. Wire Ruins Rubble to ruins/tech_tower obstacle tiles
+    state_ruins = GameState(auto_load=False)
+    state_ruins.world.name = "sanctuary_ruins"
+    state_ruins.world.load_from_prototype(["K."])
+    surf_ruins = pygame.Surface((constants.TILE_SIZE * 2, constants.TILE_SIZE))
+    renderer._draw_static_tile_to_surface(surf_ruins, state_ruins, (0, 0, 2, 1), (0, 0, 40, 40))
+    renderer._draw_static_tile_to_surface(surf_ruins, state_ruins, (1, 0, 2, 1), (40, 0, 40, 40))
+    # Obstacle with RuinsRubble is visually distinct from bare floor
+    sub_k = surf_ruins.subsurface((0, 0, 40, 40))
+    sub_floor = surf_ruins.subsurface((40, 0, 40, 40))
+    assert pygame.image.tobytes(sub_k, "RGB") != pygame.image.tobytes(sub_floor, "RGB")
+
+    # 3. Wire Swamp Flora & Thorns to swamp_mire grass and thicket tiles
+    state_swamp = GameState(auto_load=False)
+    state_swamp.world.name = "swamp_mire"
+    state_swamp.world.load_from_prototype(["gG."])
+    surf_swamp = pygame.Surface((constants.TILE_SIZE * 3, constants.TILE_SIZE))
+    for tx in range(3):
+        dr = (tx * constants.TILE_SIZE, 0, constants.TILE_SIZE, constants.TILE_SIZE)
+        renderer._draw_static_tile_to_surface(surf_swamp, state_swamp, (tx, 0, 3, 1), dr)
+    sub_g = surf_swamp.subsurface((0, 0, 40, 40))
+    sub_g_thicket = surf_swamp.subsurface((40, 0, 40, 40))
+    sub_swamp_floor = surf_swamp.subsurface((80, 0, 40, 40))
+    assert pygame.image.tobytes(sub_g, "RGB") != pygame.image.tobytes(sub_swamp_floor, "RGB")
+    assert pygame.image.tobytes(sub_g_thicket, "RGB") != pygame.image.tobytes(sub_swamp_floor, "RGB")
+
+    # 4. Wire Crypt Clutter to the_colophon / sanctuary_paved obstacle tiles
+    state_crypt = GameState(auto_load=False)
+    state_crypt.world.name = "the_colophon"
+    state_crypt.world.load_from_prototype(["K."])
+    surf_crypt = pygame.Surface((constants.TILE_SIZE * 2, constants.TILE_SIZE))
+    renderer._draw_static_tile_to_surface(surf_crypt, state_crypt, (0, 0, 2, 1), (0, 0, 40, 40))
+    renderer._draw_static_tile_to_surface(surf_crypt, state_crypt, (1, 0, 2, 1), (40, 0, 40, 40))
+    sub_crypt_k = surf_crypt.subsurface((0, 0, 40, 40))
+    sub_crypt_floor = surf_crypt.subsurface((40, 0, 40, 40))
+    assert pygame.image.tobytes(sub_crypt_k, "RGB") != pygame.image.tobytes(sub_crypt_floor, "RGB")
+

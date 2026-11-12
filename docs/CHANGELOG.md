@@ -801,6 +801,23 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
   - Updated and expanded unit tests in `tests/test_combat.py` covering cardinal and diagonal bounding boxes, sector hit accuracy, and full combat state resolution against diagonal enemies.
   - Verified 100% green test suite across 220 tests in `pytest` and pylint score of 9.64/10.
 
+## [ARCHIVED] Biome Environmental Clutter Sprites & Asset Generation - November 2026
+- **Procedural Clutter Generation (`generate_assets.py`):**
+  - Added `generate_ruins_rubble()` producing 40x40 transparent broken fluted stone pillars, highlight bevels, fracture cracks, and scattered masonry debris (`assets/graphics/ruins_rubble.png`).
+  - Added `generate_swamp_flora()` producing 40x40 transparent bioluminescent marsh reeds, boggy root knots, glowing fungal caps, and ethereal spore glow halos (`assets/graphics/swamp_flora.png`).
+  - Added `generate_crypt_clutter()` producing 40x40 transparent scattered ancient parchment scrolls with faded ink text, ribbon ties, and bleached bone piles/skull fragments (`assets/graphics/crypt_clutter.png`).
+  - Updated `generate_all_assets()` and CLI batch generator to export all three PNGs.
+- **Renderer Wiring & Biome Integration (`rendering/renderer.py`):**
+  - Cached `RuinsRubble`, `SwampFlora`, and `CryptClutter` in `_generate_prop_cache()` with procedural fallbacks.
+  - Wired `RuinsRubble` to `tech_tower`/`ruins`/`sanctuary_ruins` obstacle tiles (`TILE_OBSTACLE`), `Rock` props, and `Structure` entities.
+  - Wired `SwampFlora` to `swamp_mire`/`sanctuary_swamp` vegetation (`TILE_GRASS`, `TILE_THICKET`) intermixed with skeletal thorns.
+  - Wired `CryptClutter` to `the_colophon`, `sanctuary_paved`, and crypt obstacle tiles and props.
+  - Added direct entity rendering for standalone clutter objects (`RuinsRubble`, `SwampFlora`, `CryptClutter`).
+- **Comprehensive Unit Testing (`tests/test_generate_assets.py`, `tests/test_wired_png_assets.py`):**
+  - Added generator unit tests verifying dimensions, alpha channels, highlights, spore glow, and parchment/bone tones.
+  - Added integration unit tests verifying prop caching, tile blitting across biomes, and obstacle rendering.
+  - Maintained 100% green test pass across all 222 tests in `pytest` and 10.00/10 `pylint` on generator.
+
 
 
 

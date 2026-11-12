@@ -143,12 +143,18 @@ def test_generate_all_assets_creates_files_and_directories():
         wall_dest = os.path.join(tmpdir, "nested", "sub", "test_wall.png")
         grass_dest = os.path.join(tmpdir, "nested", "sub", "test_grass.png")
         rock_dest = os.path.join(tmpdir, "nested", "sub", "test_rock.png")
+        rubble_dest = os.path.join(tmpdir, "nested", "sub", "test_rubble.png")
+        flora_dest = os.path.join(tmpdir, "nested", "sub", "test_flora.png")
+        crypt_dest = os.path.join(tmpdir, "nested", "sub", "test_crypt.png")
 
         results = generate_assets.generate_all_assets(
             floor_path=floor_dest,
             wall_path=wall_dest,
             grass_path=grass_dest,
             rock_path=rock_dest,
+            ruins_rubble_path=rubble_dest,
+            swamp_flora_path=flora_dest,
+            crypt_clutter_path=crypt_dest,
             seed=123,
         )
 
@@ -156,8 +162,11 @@ def test_generate_all_assets_creates_files_and_directories():
         assert results["wall_tile"] == wall_dest
         assert results["grass_natural"] == grass_dest
         assert results["rock_cluster"] == rock_dest
+        assert results["ruins_rubble"] == rubble_dest
+        assert results["swamp_flora"] == flora_dest
+        assert results["crypt_clutter"] == crypt_dest
 
-        for path in [floor_dest, wall_dest, grass_dest, rock_dest]:
+        for path in [floor_dest, wall_dest, grass_dest, rock_dest, rubble_dest, flora_dest, crypt_dest]:
             assert os.path.exists(path)
             assert os.path.getsize(path) > 200
             loaded = pygame.image.load(path)
@@ -274,3 +283,48 @@ def test_generate_swamp_props():
     thorn_pixels = [thorns.get_at((x, y)) for x in range(40) for y in range(40) if thorns.get_at((x, y))[3] == 255]
     avg_bone_r = sum(p[0] for p in thorn_pixels) / len(thorn_pixels)
     assert avg_bone_r > 100, "Thorn color too dark for calcified briar"
+
+
+def test_generate_environmental_clutter_sprites():
+    """Verify procedural generation of ruins rubble, swamp flora, and crypt clutter sprites."""
+    rng = random.Random(505)
+    rubble = generate_assets.generate_ruins_rubble(40, 40, rng=rng)
+    flora = generate_assets.generate_swamp_flora(40, 40, rng=rng)
+    crypt = generate_assets.generate_crypt_clutter(40, 40, rng=rng)
+
+    for clutter_name, surf in [("rubble", rubble), ("flora", flora), ("crypt", crypt)]:
+        assert surf.get_size() == (40, 40), f"{clutter_name} invalid dimensions"
+        assert surf.get_flags() & pygame.SRCALPHA != 0, f"{clutter_name} missing SRCALPHA"
+        assert surf.get_at((0, 0))[3] == 0, f"{clutter_name} top-left corner not transparent"
+        assert surf.get_at((39, 0))[3] == 0, f"{clutter_name} top-right corner not transparent"
+
+    # 1. Ruins Rubble: fluted pillar stump, highlights, and chipped masonry
+    rubble_alphas = [rubble.get_at((x, y))[3] for x in range(40) for y in range(40)]
+    assert rubble_alphas.count(0) > 80
+    assert rubble_alphas.count(255) > 80
+    pillar_pixels = [
+        rubble.get_at((x, y)) for x in range(9, 24) for y in range(16, 28) if rubble.get_at((x, y))[3] == 255
+    ]
+    assert len(pillar_pixels) > 50
+    # Has highlights
+    assert any(p[0] > 115 and p[1] > 125 and p[2] > 135 for p in pillar_pixels)
+
+    # 2. Swamp Flora: reeds, spore glow halo, and luminous fungal caps
+    flora_alphas = [flora.get_at((x, y))[3] for x in range(40) for y in range(40)]
+    assert flora_alphas.count(0) > 80
+    # Has translucent spore glow halos
+    assert sum(1 for a in flora_alphas if 0 < a < 255) > 15
+    # Has bright luminous green caps / motes
+    all_flora_pixels = [flora.get_at((x, y)) for x in range(40) for y in range(40)]
+    assert any(p[1] >= 200 and p[0] >= 140 for p in all_flora_pixels)
+
+    # 3. Crypt Clutter: ancient unrolled parchment scroll with script and bone fragments
+    crypt_alphas = [crypt.get_at((x, y))[3] for x in range(40) for y in range(40)]
+    assert crypt_alphas.count(0) > 80
+    assert crypt_alphas.count(255) > 80
+    # Parchment sheet exists with warm sepia tones
+    parchment_pixels = [crypt.get_at((x, y)) for x in range(6, 21) for y in range(20, 31)]
+    assert any(160 <= p[0] <= 210 and 140 <= p[1] <= 190 and 100 <= p[2] <= 150 for p in parchment_pixels)
+    # Ink script marks exist
+    assert any(p[0] <= 70 and p[1] <= 60 and p[2] <= 55 for p in parchment_pixels)
+

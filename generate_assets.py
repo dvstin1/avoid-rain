@@ -16,8 +16,15 @@ palettes to simulate natural, worn materials:
    - Organic swamp wall (swamp_wall.png) - dark peat cliff embankment with sediment layers and root lip.
 4. Moss/Overgrowth Patch (grass_natural.png) - 40x40 transparent alpha organic foliage patch.
 5. Rock Cluster (rock_cluster.png) - 40x40 irregular rounded stones with drop shadows and highlight bevels.
+6. Biome Attunement Altar (attunement_altar.png) - 40x40 stepped stone plinth with glowing runic dial.
+7. Swamp Props (swamp_fungus.png, swamp_gas_vent.png, swamp_thorns.png) - organic swamp vegetation & vents.
+8. Environmental Biome Clutter:
+   - Broken stone pillars / rubble piles (ruins_rubble.png) - 40x40 fluted stone column & chipped debris.
+   - Glowing fungal clusters or reeds (swamp_flora.png) - 40x40 bioluminescent marsh reeds & fungal blooms.
+   - Scattered ancient scrolls / bone piles (crypt_clutter.png) - 40x40 ancient manuscript parchment & skull fragments.
 """
-# pylint: disable=no-member,too-many-locals,too-many-arguments,too-many-positional-arguments,too-many-lines
+# pylint: disable=no-member,too-many-locals,too-many-arguments,too-many-lines
+# pylint: disable=too-many-positional-arguments,too-many-branches,too-many-statements
 
 import math
 import os
@@ -45,6 +52,9 @@ DEFAULT_ALTAR_PATH = os.path.join("assets", "graphics", "attunement_altar.png")
 DEFAULT_SWAMP_FUNGUS_PATH = os.path.join("assets", "graphics", "swamp_fungus.png")
 DEFAULT_SWAMP_VENT_PATH = os.path.join("assets", "graphics", "swamp_gas_vent.png")
 DEFAULT_SWAMP_THORNS_PATH = os.path.join("assets", "graphics", "swamp_thorns.png")
+DEFAULT_RUINS_RUBBLE_PATH = os.path.join("assets", "graphics", "ruins_rubble.png")
+DEFAULT_SWAMP_FLORA_PATH = os.path.join("assets", "graphics", "swamp_flora.png")
+DEFAULT_CRYPT_CLUTTER_PATH = os.path.join("assets", "graphics", "crypt_clutter.png")
 
 # Canonical Dimensions
 TILE_WIDTH = 40
@@ -181,6 +191,38 @@ ALTAR_HIGHLIGHT = (84, 96, 112)          # Top-down bevel highlights
 ALTAR_SHADOW = (18, 20, 26)              # Underside recess shadow
 ALTAR_GLOW_CYAN = (0, 220, 255)          # Cyan runic dial glow
 ALTAR_GLOW_CORE = (210, 255, 255)        # Central bright runic core
+
+# --- 8. Environmental Clutter Parameters ---
+# 8a. Ruins Rubble & Broken Stone Pillars (ruins_rubble.png)
+RUINS_RUBBLE_SHADOW_COLOR = (14, 16, 20)      # Ground drop shadow
+RUINS_RUBBLE_SHADOW_ALPHA = 140               # Drop shadow opacity
+RUINS_RUBBLE_BASE_STONE = (58, 62, 70)        # Cold slate stone base
+RUINS_RUBBLE_MID_STONE = (72, 78, 88)         # Masonry midtone
+RUINS_RUBBLE_HIGHLIGHT = (130, 140, 155)      # Top-left chipped lip bevel highlight
+RUINS_RUBBLE_SHADOW = (22, 24, 30)            # Recessed joint & mortar shadow
+RUINS_RUBBLE_CRACK = (16, 18, 24)             # Deep fracture crack line
+
+# 8b. Glowing Swamp Flora & Reeds (swamp_flora.png)
+SWAMP_FLORA_SHADOW_COLOR = (14, 6, 18)        # Muddy drop shadow
+SWAMP_FLORA_SHADOW_ALPHA = 130                # Drop shadow opacity
+SWAMP_FLORA_ROOT_BASE = (36, 20, 42)          # Boggy root mound base
+SWAMP_FLORA_REED_STEM = (46, 68, 36)          # Swamp reed stalk
+SWAMP_FLORA_REED_HI = (105, 155, 68)          # Reed highlight edge
+SWAMP_FLORA_CAP_BASE = (135, 195, 50)         # Bioluminescent mushroom cap
+SWAMP_FLORA_CAP_CORE = (205, 255, 120)        # Luminous fungal crown & spore motes
+SWAMP_FLORA_CAP_SHADOW = (48, 22, 58)         # Cap underside spore shadow
+SWAMP_FLORA_GLOW_HALO = (140, 220, 60)        # Ethereal spore glow halo
+
+# 8c. Crypt Clutter: Ancient Scrolls & Bone Piles (crypt_clutter.png)
+CRYPT_CLUTTER_SHADOW_COLOR = (16, 14, 18)     # Ambient drop shadow
+CRYPT_CLUTTER_SHADOW_ALPHA = 135              # Drop shadow opacity
+CRYPT_PARCHMENT_BASE = (182, 162, 126)        # Aged sepia parchment sheet
+CRYPT_PARCHMENT_SHADOW = (96, 82, 60)         # Parchment roll underside shadow
+CRYPT_PARCHMENT_HI = (226, 212, 178)          # Curled parchment highlight edge
+CRYPT_PARCHMENT_INK = (50, 42, 38)            # Faded iron-gall ink script
+CRYPT_BONE_BASE = (175, 172, 160)             # Bleached bone cranium & fragments
+CRYPT_BONE_SHADOW = (64, 58, 54)              # Eye cavity & suture shadow
+CRYPT_BONE_HI = (225, 222, 214)               # Bone highlight bevel
 
 
 def _clamp(val: float, low: int = 0, high: int = 255) -> int:
@@ -1312,6 +1354,296 @@ def generate_swamp_thorns(
 
 
 # ==============================================================================
+# GENERATIVE PIPELINE 8: ENVIRONMENTAL BIOME CLUTTER
+# ==============================================================================
+
+def generate_ruins_rubble(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 40x40 transparent broken stone pillar / rubble pile sprite."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # 1. Ambient bottom drop shadow
+    shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(
+        shadow_surf,
+        (*RUINS_RUBBLE_SHADOW_COLOR, RUINS_RUBBLE_SHADOW_ALPHA),
+        (3, height - 12, 34, 10),
+    )
+    surface.blit(shadow_surf, (0, 0))
+
+    # 2. Broken fluted stone pillar stump (approx x: 9..23, y: 13..31)
+    pillar_left, pillar_w = 9, 15
+    pillar_bot = 31
+    for i in range(pillar_w):
+        col_x = pillar_left + i
+        top_offset = rng.randint(0, 3) if i in (0, pillar_w - 1) else rng.randint(0, 4)
+        col_top = 13 + (top_offset if i % 3 != 0 else top_offset + 2)
+        if i in (0, 4, 8, 12):
+            col_color = RUINS_RUBBLE_HIGHLIGHT
+        elif i in (1, 5, 9, 13):
+            col_color = RUINS_RUBBLE_MID_STONE
+        elif i in (2, 6, 10, 14):
+            col_color = RUINS_RUBBLE_BASE_STONE
+        else:
+            col_color = RUINS_RUBBLE_SHADOW
+
+        for cy in range(col_top, pillar_bot):
+            surface.set_at((col_x, cy), (*col_color, 255))
+        surface.set_at((col_x, col_top), (*RUINS_RUBBLE_HIGHLIGHT, 255))
+
+    # Diagonal fracture crack cutting across the pillar
+    crack_pts = [(10, 19), (13, 21), (15, 20), (19, 25), (22, 27)]
+    for idx in range(len(crack_pts) - 1):
+        pygame.draw.line(surface, (*RUINS_RUBBLE_CRACK, 255), crack_pts[idx], crack_pts[idx + 1], 1)
+        surface.set_at((crack_pts[idx][0], crack_pts[idx][1] - 1), (*RUINS_RUBBLE_HIGHLIGHT, 255))
+
+    # 3. Scattered stone rubble blocks & fractured debris chunks
+    chunk_rect = pygame.Rect(26, 21, 9, 8)
+    for cy in range(chunk_rect.top, chunk_rect.bottom):
+        for cx in range(chunk_rect.left, chunk_rect.right):
+            if (cx == chunk_rect.left and cy == chunk_rect.top) or (
+                cx == chunk_rect.right - 1 and cy == chunk_rect.top
+            ):
+                continue
+            surface.set_at((cx, cy), (*RUINS_RUBBLE_BASE_STONE, 255))
+    pygame.draw.line(
+        surface, (*RUINS_RUBBLE_HIGHLIGHT, 255),
+        (chunk_rect.left + 1, chunk_rect.top), (chunk_rect.right - 2, chunk_rect.top), 1
+    )
+    pygame.draw.line(
+        surface, (*RUINS_RUBBLE_HIGHLIGHT, 255),
+        (chunk_rect.left, chunk_rect.top + 1), (chunk_rect.left, chunk_rect.bottom - 2), 1
+    )
+    pygame.draw.line(
+        surface, (*RUINS_RUBBLE_SHADOW, 255),
+        (chunk_rect.left, chunk_rect.bottom - 1), (chunk_rect.right - 1, chunk_rect.bottom - 1), 1
+    )
+    pygame.draw.line(
+        surface, (*RUINS_RUBBLE_SHADOW, 255),
+        (chunk_rect.right - 1, chunk_rect.top + 1), (chunk_rect.right - 1, chunk_rect.bottom - 1), 1
+    )
+
+    debris = [
+        ((5, 26, 5, 4), RUINS_RUBBLE_MID_STONE),
+        ((19, 28, 4, 3), RUINS_RUBBLE_BASE_STONE),
+        ((32, 26, 4, 4), RUINS_RUBBLE_MID_STONE),
+    ]
+    for (dx, dy, dw, dh), dcol in debris:
+        pygame.draw.rect(surface, (*dcol, 255), (dx, dy, dw, dh))
+        surface.set_at((dx, dy), (*RUINS_RUBBLE_HIGHLIGHT, 255))
+        surface.set_at((dx + dw - 1, dy + dh - 1), (*RUINS_RUBBLE_SHADOW, 255))
+
+    # 4. Dense surface grit noise on opaque stone pixels
+    for y in range(height):
+        for x in range(width):
+            px = surface.get_at((x, y))
+            if px[3] == 255:
+                jitter = rng.randint(-4, 4)
+                surface.set_at((x, y), (
+                    _clamp(px[0] + jitter),
+                    _clamp(px[1] + jitter),
+                    _clamp(px[2] + jitter),
+                    255,
+                ))
+
+    return surface
+
+
+def generate_swamp_flora(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 40x40 transparent glowing fungal cluster / reeds sprite."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # 1. Base subtle muddy shadow
+    shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(
+        shadow_surf,
+        (*SWAMP_FLORA_SHADOW_COLOR, SWAMP_FLORA_SHADOW_ALPHA),
+        (5, height - 10, 30, 8),
+    )
+    surface.blit(shadow_surf, (0, 0))
+
+    # 2. Boggy root knot mound at the base
+    pygame.draw.ellipse(surface, (*SWAMP_FLORA_ROOT_BASE, 255), (8, 27, 24, 9))
+    for rx, ry in [(9, 32), (18, 34), (28, 33)]:
+        pygame.draw.circle(surface, (*SWAMP_FLORA_REED_STEM, 255), (rx, ry), 2)
+
+    # 3. Slender arching marsh reeds reaching upward
+    reeds = [
+        [(15, 30), (16, 22), (19, 14), (22, 6)],
+        [(24, 30), (26, 23), (29, 16), (32, 9)],
+        [(18, 29), (16, 21), (13, 15)],
+    ]
+    for stalk in reeds:
+        for idx in range(len(stalk) - 1):
+            p1, p2 = stalk[idx], stalk[idx + 1]
+            pygame.draw.line(surface, (*SWAMP_FLORA_REED_STEM, 255), p1, p2, 2)
+            pygame.draw.line(surface, (*SWAMP_FLORA_REED_HI, 255), (p1[0] - 1, p1[1]), (p2[0] - 1, p2[1]), 1)
+
+    # 4. Spore glow halos for the fungal blooms
+    glow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    caps_info = [
+        ((20, 18), 7, 5),   # Primary cap center, rx, ry
+        ((11, 23), 5, 4),   # Left cap center
+        ((27, 23), 5, 4),   # Right cap center
+    ]
+    for (cx, cy), rx, ry in caps_info:
+        pygame.draw.ellipse(
+            glow_surf,
+            (*SWAMP_FLORA_GLOW_HALO, 60),
+            (cx - rx - 3, cy - ry - 3, (rx + 3) * 2, (ry + 3) * 2),
+        )
+        pygame.draw.ellipse(
+            glow_surf,
+            (*SWAMP_FLORA_GLOW_HALO, 110),
+            (cx - rx - 1, cy - ry - 1, (rx + 1) * 2, (ry + 1) * 2),
+        )
+    surface.blit(glow_surf, (0, 0))
+
+    # 5. Stems and glowing mushroom caps
+    pygame.draw.line(surface, (185, 165, 195, 255), (20, 27), (20, 20), 3)
+    pygame.draw.line(surface, (175, 155, 185, 255), (11, 29), (11, 24), 2)
+    pygame.draw.line(surface, (175, 155, 185, 255), (27, 29), (27, 24), 2)
+
+    for (cx, cy), rx, ry in caps_info:
+        pygame.draw.ellipse(surface, (*SWAMP_FLORA_CAP_SHADOW, 255), (cx - rx, cy - ry + 1, rx * 2, ry * 2))
+        pygame.draw.ellipse(surface, (*SWAMP_FLORA_CAP_BASE, 255), (cx - rx, cy - ry, rx * 2, ry * 2 - 1))
+        pygame.draw.ellipse(surface, (*SWAMP_FLORA_CAP_CORE, 255), (cx - rx // 2, cy - ry + 1, rx, ry - 1))
+
+    # 6. Floating bioluminescent motes / spore specks in the air
+    motes = [(15, 12), (24, 11), (21, 8), (9, 18), (30, 16)]
+    for mx, my in motes:
+        surface.set_at((mx, my), (*SWAMP_FLORA_CAP_CORE, 255))
+        surface.set_at((mx + 1, my), (*SWAMP_FLORA_GLOW_HALO, 140))
+
+    # 7. Surface grit jitter on opaque pixels
+    for y in range(height):
+        for x in range(width):
+            px = surface.get_at((x, y))
+            if px[3] == 255:
+                jitter = rng.randint(-3, 3)
+                surface.set_at((x, y), (
+                    _clamp(px[0] + jitter),
+                    _clamp(px[1] + jitter),
+                    _clamp(px[2] + jitter),
+                    255,
+                ))
+
+    return surface
+
+
+def generate_crypt_clutter(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 40x40 transparent scattered scrolls / bone piles sprite."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # 1. Base drop shadow
+    shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(
+        shadow_surf,
+        (*CRYPT_CLUTTER_SHADOW_COLOR, CRYPT_CLUTTER_SHADOW_ALPHA),
+        (3, height - 12, 34, 10),
+    )
+    surface.blit(shadow_surf, (0, 0))
+
+    # 2. Ancient Unrolled Parchment Scroll (approx x: 6..21, y: 19..30)
+    scroll_w, scroll_h = 15, 11
+    scroll_x, scroll_y = 6, 20
+    for sy in range(scroll_y, scroll_y + scroll_h):
+        for sx in range(scroll_x, scroll_x + scroll_w):
+            surface.set_at((sx, sy), (*CRYPT_PARCHMENT_BASE, 255))
+
+    for sx in range(scroll_x, scroll_x + scroll_w):
+        surface.set_at((sx, scroll_y), (*CRYPT_PARCHMENT_HI, 255))
+        surface.set_at((sx, scroll_y + scroll_h - 1), (*CRYPT_PARCHMENT_SHADOW, 255))
+    for sy in range(scroll_y, scroll_y + scroll_h):
+        surface.set_at((scroll_x, sy), (*CRYPT_PARCHMENT_HI, 255))
+        surface.set_at((scroll_x + scroll_w - 1, sy), (*CRYPT_PARCHMENT_SHADOW, 255))
+
+    ink_lines = [
+        (scroll_x + 3, scroll_y + 3, 9),
+        (scroll_x + 2, scroll_y + 5, 11),
+        (scroll_x + 3, scroll_y + 7, 8),
+    ]
+    for lx, ly, llen in ink_lines:
+        for ox in range(llen):
+            if ox % 3 != 2:
+                surface.set_at((lx + ox, ly), (*CRYPT_PARCHMENT_INK, 255))
+
+    # Tightly rolled manuscript cylinder
+    roll_rect = pygame.Rect(18, 27, 13, 5)
+    pygame.draw.rect(surface, (*CRYPT_PARCHMENT_BASE, 255), roll_rect)
+    pygame.draw.line(
+        surface, (*CRYPT_PARCHMENT_HI, 255),
+        (roll_rect.left, roll_rect.top), (roll_rect.right - 1, roll_rect.top), 1
+    )
+    pygame.draw.line(
+        surface, (*CRYPT_PARCHMENT_SHADOW, 255),
+        (roll_rect.left, roll_rect.bottom - 1), (roll_rect.right - 1, roll_rect.bottom - 1), 1
+    )
+    pygame.draw.circle(surface, (*CRYPT_PARCHMENT_SHADOW, 255), (roll_rect.left, roll_rect.centery), 2)
+    surface.set_at((roll_rect.left, roll_rect.centery), (*CRYPT_PARCHMENT_HI, 255))
+    pygame.draw.line(
+        surface, (82, 54, 42, 255),
+        (roll_rect.left + 6, roll_rect.top), (roll_rect.left + 6, roll_rect.bottom - 1), 1
+    )
+
+    # 3. Ancient Bone Pile & Skull Fragment
+    skull_x, skull_y = 23, 14
+    pygame.draw.ellipse(surface, (*CRYPT_BONE_BASE, 255), (skull_x, skull_y, 11, 10))
+    pygame.draw.arc(surface, (*CRYPT_BONE_HI, 255), (skull_x, skull_y, 11, 10), 1.0, 3.2, 1)
+    surface.set_at((skull_x + 3, skull_y + 5), (*CRYPT_BONE_SHADOW, 255))
+    surface.set_at((skull_x + 4, skull_y + 5), (*CRYPT_BONE_SHADOW, 255))
+    surface.set_at((skull_x + 4, skull_y + 6), (*CRYPT_BONE_SHADOW, 255))
+    surface.set_at((skull_x + 7, skull_y + 6), (*CRYPT_BONE_SHADOW, 255))
+    surface.set_at((skull_x + 6, skull_y + 2), (*CRYPT_BONE_SHADOW, 255))
+    surface.set_at((skull_x + 7, skull_y + 3), (*CRYPT_BONE_SHADOW, 255))
+
+    bones = [
+        ((14, 15), (21, 17)),
+        ((7, 28), (12, 33)),
+        ((32, 23), (36, 27)),
+    ]
+    for b_start, b_end in bones:
+        pygame.draw.line(surface, (*CRYPT_BONE_BASE, 255), b_start, b_end, 2)
+        surface.set_at(b_start, (*CRYPT_BONE_HI, 255))
+        surface.set_at(b_end, (*CRYPT_BONE_HI, 255))
+
+    # 4. Surface grit noise on opaque pixels
+    for y in range(height):
+        for x in range(width):
+            px = surface.get_at((x, y))
+            if px[3] == 255:
+                jitter = rng.randint(-3, 3)
+                surface.set_at((x, y), (
+                    _clamp(px[0] + jitter),
+                    _clamp(px[1] + jitter),
+                    _clamp(px[2] + jitter),
+                    255,
+                ))
+
+    return surface
+
+
+# ==============================================================================
 # BATCH GENERATION & CLI ENTRY POINT
 # ==============================================================================
 
@@ -1331,6 +1663,9 @@ def generate_all_assets(
     swamp_fungus_path: str = DEFAULT_SWAMP_FUNGUS_PATH,
     swamp_vent_path: str = DEFAULT_SWAMP_VENT_PATH,
     swamp_thorns_path: str = DEFAULT_SWAMP_THORNS_PATH,
+    ruins_rubble_path: str = DEFAULT_RUINS_RUBBLE_PATH,
+    swamp_flora_path: str = DEFAULT_SWAMP_FLORA_PATH,
+    crypt_clutter_path: str = DEFAULT_CRYPT_CLUTTER_PATH,
     seed: int = None,
 ) -> Dict[str, str]:
     """Generate all procedural assets and save them to disk.
@@ -1432,6 +1767,25 @@ def generate_all_assets(
     swamp_thorns_surf = generate_swamp_thorns(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(swamp_thorns_surf, swamp_thorns_path)
     results["swamp_thorns"] = swamp_thorns_path
+
+    # 8. Environmental Biome Clutter
+    # 8a. Broken stone pillars / rubble piles
+    _ensure_directory(ruins_rubble_path)
+    ruins_rubble_surf = generate_ruins_rubble(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(ruins_rubble_surf, ruins_rubble_path)
+    results["ruins_rubble"] = ruins_rubble_path
+
+    # 8b. Glowing fungal clusters or reeds
+    _ensure_directory(swamp_flora_path)
+    swamp_flora_surf = generate_swamp_flora(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(swamp_flora_surf, swamp_flora_path)
+    results["swamp_flora"] = swamp_flora_path
+
+    # 8c. Scattered ancient scrolls / bone piles
+    _ensure_directory(crypt_clutter_path)
+    crypt_clutter_surf = generate_crypt_clutter(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(crypt_clutter_surf, crypt_clutter_path)
+    results["crypt_clutter"] = crypt_clutter_path
 
     return results
 
