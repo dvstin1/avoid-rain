@@ -3,31 +3,36 @@ name: doc-audit
 description: >-
   Audits repository documentation against the live codebase. Enforces documentation conventions,
   validates task archiving in CHANGELOG.md, identifies code-vs-docs gaps (unimplemented features,
-  undocumented mechanics, contradictory stats, broken links), and produces a structured audit report.
+  undocumented mechanics, contradictory stats, broken links), produces a structured audit report,
+  and supports Triage & Prioritization mode to rank Category A roadmap items from lowest-risk to most complex.
 ---
 
 # Documentation Audit & Alignment Skill (`doc-audit`)
 
-This skill provides a standardized, repeatable procedure for auditing, aligning, and maintaining
-the documentation of **Avoid Rain** against the active Python codebase, map data, and assets.
+This skill provides a standardized, repeatable procedure for auditing, aligning, maintaining,
+and triaging the documentation of **Avoid Rain** against the active Python codebase, map data, and assets.
 
 Use this skill whenever:
 - Preparing for a milestone release or phase transition.
 - Syncing documentation after large feature additions or refactors.
 - Auditing discrepancies between game mechanics and design documentation.
 - Verifying link integrity, archiving standards, and convention compliance across `docs/`.
+- Triaging, ranking, and planning implementation order for Category A roadmap gaps.
 
 ---
 
 ## 1. Safety Guardrails & Principles
 
-1. **Zero Source Code Modification**: A documentation audit must **never** modify game source code
-   (`*.py`), level maps (`maps/*`), or assets (`assets/*`). All updates must be confined to `docs/`,
-   `AGENTS.md`, and audit report files.
-2. **Lore Preservation**: Never delete active world-building lore, narrative fragments, or artistic
+1. **Zero Source Code Modification**: In both Audit and Triage modes, this skill must **never** modify
+   game source code (`*.py`), level maps (`maps/*`), or assets (`assets/*`). All file edits are strictly
+   restricted to documentation (`docs/`, `AGENTS.md`, and audit reports).
+2. **Strict Read-Only Boundary on Game Code**: When triaging or analyzing implementation requirements,
+   inspect engine files strictly in read-only mode to assess complexity, architecture, and asset hooks.
+   Never generate code patches or mutate game state during a doc audit or triage session.
+3. **Lore Preservation**: Never delete active world-building lore, narrative fragments, or artistic
    reference notes from `docs/world_and_lore.md`, `docs/reference.md`, or `docs/extended-notes/`.
    If a lore feature is not yet in code, document it as a pending roadmap item rather than pruning it.
-3. **Continuous Cleanup Protocol**: Enforce the repository's strict task lifecycle rule: completed
+4. **Continuous Cleanup Protocol**: Enforce the repository's strict task lifecycle rule: completed
    tasks must be cut from the active section in `AGENTS.md` and archived in `docs/CHANGELOG.md`.
 
 ---
@@ -127,7 +132,7 @@ Inspect the codebase using file reads and search commands to populate the audit:
 
 #### 3. Combat, Physics, and Equipment
 - Compare weapon constants and anomalous traits in `constants.py`, `engine/weapon.py`, and
-  `engine/anomalous_weapon.py` (`INK_BLEED`, `VOID_STRIKE`, etc.) against `docs/architecture.md` Section 4.
+  `engine/player.py` (`bleed`, `slow_hp_regen`, etc.) against `docs/architecture.md`.
 - Verify combat parameters (sword reach, crescent arc radians, dash duration, parry window, block reduction)
   in `constants.py` match the combat specifications in `docs/architecture.md`.
 
@@ -138,7 +143,7 @@ Inspect the codebase using file reads and search commands to populate the audit:
   against `docs/navigation_and_ui.md`.
 
 #### 5. Persistence and Networking
-- Check the save schema (`save_data.json`) in `engine/persistence.py` and `engine/stats.py`
+- Check the save schema (`save_data.json`) in `engine/stats.py` and `engine/autosave.py`
   against `docs/persistence.md`.
 - Check client/server network sync (UDP state replication, port reuse, timeout reconnection)
   in `engine/network_manager.py` against `docs/architecture.md`.
@@ -162,9 +167,96 @@ Sort all discovered issues into the following four categories:
 
 ---
 
-## 4. Phase 3: Safe Cleanup, Archiving, and Reporting
+## 4. Phase 3: Triage & Prioritization Mode (Category A Ranking)
 
-### 4.1 Safe Documentation Cleanup Rules
+When prompted to **triage**, **prioritize**, or **rank** gaps, activate this specialized mode. Triage mode
+evaluates all Category A items recorded in `docs/AUDIT_GAPS.md` and design roadmaps, ordering them along a
+clear implementation spectrum from lowest-risk to highest-complexity, while assessing procedural asset feasibility.
+
+```mermaid
+flowchart TD
+    T1["Triage Mode Activated"] --> T2["Read docs/AUDIT_GAPS.md Category A Items"]
+    T2 --> T3["Evaluate Architectural Blast Radius\n(UI-only vs Logic vs Core Engine vs Network)"]
+    T3 --> T4["Analyze Procedural Asset Feasibility\n(generate_assets.py vs Manual Art)"]
+    T4 --> T5["Score Risk & Complexity (Tiers 1 to 4)"]
+    T5 --> T6["Generate Prioritized Implementation Roadmap\n(Ordered Lowest-Risk to Most Complex)"]
+```
+
+### 4.1 Strict Read-Only Boundary
+
+Triage & Prioritization mode is **strictly analytical and advisory**:
+- **Never modify game source code (`*.py`), level maps (`maps/*`), or assets (`assets/*`) during triage.**
+- The output of triage mode is a prioritized strategy report presented in Markdown (and optionally
+  recorded in `docs/AUDIT_GAPS.md` under Section 6 Action Items).
+- Code changes must occur only in dedicated subsequent coding tasks following user confirmation.
+
+### 4.2 Risk & Complexity Tiers
+
+Rank all Category A gaps across four distinct architectural tiers:
+
+- **Tier 1: Self-Contained Config & UI (Lowest Risk)**
+  - Modifies a single menu or config flag with zero collision or physics impact.
+  - *Typical Scope*: Options menu toggles, HUD indicators, debug OSD telemetry.
+- **Tier 2: Contained Mechanics & Local VFX (Low-to-Medium Risk)**
+  - Discrete game logic, local state timers, and contained boundaries.
+  - *Typical Scope*: Stamina / Quill Pressure meter, single-tile interactable props.
+- **Tier 3: Narrative & Economic Loops (Medium-to-High Risk)**
+  - Multi-step dialogue trees, inventory compilers, and economy hooks.
+  - *Typical Scope*: NPC artisan shops (The Binder), Market of Margins footnote trading.
+- **Tier 4: Cross-Cutting Core Engines (Highest Risk)**
+  - Overhauls spatial math, pathfinding, or networking.
+  - *Typical Scope*: A* autonomous pathfinding, multiplayer desync stabilization.
+
+### 4.3 Procedural Asset Feasibility via `generate_assets.py`
+
+Avoid Rain features an offline procedural pixel art generator (`generate_assets.py`) using PIL and NumPy
+that produces 40x40 transparent dark-fantasy PNG assets adhering to the Scriptorium Noir palette.
+
+During triage, classify the visual requirement of each Category A item into one of three asset categories:
+
+1. **Fully Procedural (`generate_assets.py` Enabled - Zero Manual Art Required)**:
+   - The feature requires 2D icons, props, markers, or tokens that fit the existing grit-textured,
+     low-contrast procedural pipeline.
+   - *Feasible Assets*: Environmental props, NPC static plinths/busts, manuscript glyph tokens, UI meter
+     frames, altar dials, clutter items, and consumable pickups.
+   - *Guideline*: Note the recommended sprite dimensions (e.g., 40x40 transparent PNG), target export path
+     (`assets/graphics/<name>.png`), and palette color constants (e.g., `COLOR_MARGIN_RED`, `COLOR_CANDLE_AMBER`).
+2. **Code-Only / Math / Typography (No Assets Required)**:
+   - The feature is purely algorithmic, typographic, or state-driven.
+   - *Examples*: Accessibility toggles, cooldown timers, screen shake dampening, pathfinding heuristics.
+3. **Complex External Art Required (Deferred / High Art Burden)**:
+   - The feature requires multi-frame directional walk cycles or bespoke narrative cutscene art.
+   - *Guideline*: Flag these for Phase 2 dedicated art passes or recommend procedural geometry/abstract ghost
+     fallbacks (`draw_actor_ghost`) to maintain decoupling.
+
+### 4.4 Triage Deliverable Format
+
+When generating a Triage & Prioritization response or updating the audit report, format the output as follows:
+
+```markdown
+### Category A Triage & Implementation Roadmap
+
+| Rank | Gap / Feature | Source Doc | Risk Tier | Asset Strategy | Blast Radius |
+| :---: | :--- | :--- | :---: | :--- | :--- |
+| **1** | Screen Shake Toggle | `backlog.md` | Tier 1 (Lowest) | Code-Only (0 assets) | `stats.py`, `renderer.py` |
+| **2** | Quill Pressure | `backlog.md` | Tier 2 (Low-Med) | Procedural icon | `player.py`, `constants.py` |
+| **3** | The Binder NPC | `backlog.md` | Tier 3 (Med-High)| Procedural NPC & glyphs | `world.py`, `generate_assets` |
+| **4** | Market of Margins | `world_and_lore.md` | Tier 3 (High) | Procedural shop props | `world.py`, `maps/` |
+| **5** | A* Pathfinding | `backlog.md` | Tier 4 (Highest) | Code-Only (Algorithms) | `enemy.py`, `world.py` |
+
+#### Detailed Item Breakdown & Implementation Briefs:
+- **Rank [X]: <Feature Name>**
+  - *Risk Rationale:* Explanation of why this rank was assigned.
+  - *Asset Leverage:* Specific `generate_assets.py` function design (if applicable).
+  - *Architectural Constraints:* Constants required, dt scaling, testing strategy.
+  - *Recommended Next Action:* Concrete first step for the implementation sprint.
+```
+
+---
+
+## 5. Phase 4: Safe Cleanup, Archiving, and Reporting
+
+### 5.1 Safe Documentation Cleanup Rules
 
 1. **Fix Broken Links**: Update stale markdown links in `docs/` to point to actual filenames and headers.
 2. **Synchronize Constants**: Update documented numbers in `docs/architecture.md` and `docs/navigation_and_ui.md`
@@ -174,61 +266,29 @@ Sort all discovered issues into the following four categories:
 4. **Move Obsolete Proposals to Backlog**: If a documented feature was redesigned during development,
    move the old concept into `docs/backlog.md` under an `[Archived Proposal]` section rather than erasing it.
 
-### 4.2 Audit Deliverable: `docs/AUDIT_GAPS.md`
+### 5.2 Audit Deliverable: `docs/AUDIT_GAPS.md`
 
-Every full doc-audit run must produce or refresh `docs/AUDIT_GAPS.md` with the following structure:
-
-```markdown
-# Documentation Audit Report - <Date>
-
-## 1. Executive Summary
-- Total documents audited.
-- Overall alignment score / state of documentation health.
-- High-priority discrepancies identified.
-
-## 2. Category A: Documented but Unimplemented Features
-- [ ] Feature Name (Source: `docs/file.md`) - Description of pending implementation.
-
-## 3. Category B: Implemented Mechanics Missing from Documentation
-- [ ] Subsystem / Entity (Code: `engine/file.py`) - Description of missing documentation.
-
-## 4. Category C: Value Mismatches & Contradictions
-- Parameter / Mechanic: Documented value vs. Code value (`constants.py:XXX`).
-
-## 5. Category D: Broken Links & Path Repairs
-- Source file: Broken link target -> Corrected target.
-
-## 6. Action Items & Remediation Plan
-1. Documentation updates applied during this audit.
-2. Recommended code or documentation follow-ups for future sprints.
-```
+Every full doc-audit run must produce or refresh `docs/AUDIT_GAPS.md` with the standard structure:
+Executive Summary, Category A (Unimplemented), Category B (Undocumented), Category C (Contradictions),
+Category D (Broken Links), and Action Items / Remediation Plan.
 
 ---
 
-## 5. Step-by-Step Audit Execution Runbook
+## 6. Step-by-Step Execution Runbooks
 
-When instructed to perform a documentation audit:
+### Runbook A: General Documentation Audit & Gap Discovery
+1. **Survey Documentation**: Scan `docs/` and `docs/extended-notes/`.
+2. **Scan Git History**: Check recent doc updates (`git log -n 15 --oneline -- docs/`).
+3. **Inspect Archiving Status**: Verify `AGENTS.md` active slot and `docs/CHANGELOG.md`.
+4. **Scan Codebase Artifacts**: Grep `SYMBOL_REGISTRY`, `BIOME_PALETTES`, and generated assets.
+5. **Verify Markdown Link Integrity**: Check relative file paths and anchors across all markdown files.
+6. **Compile Report**: Write or refresh `docs/AUDIT_GAPS.md`.
+7. **Synchronize Documentation**: Update core technical specs to reconcile Category B and C gaps.
+8. **Verify Verification Tests**: Run `pytest` to guarantee docstring and path assertion safety.
 
-1. **Survey Documentation**:
-   ```bash
-   ls -la docs/
-   ls -la docs/extended-notes/
-   ```
-2. **Scan Git History for Recent Doc Updates**:
-   ```bash
-   git log -n 15 --oneline -- docs/
-   ```
-3. **Inspect Active Task & Archiving Status**:
-   - Check `AGENTS.md` for stray completed tasks that should be archived in `docs/CHANGELOG.md`.
-4. **Scan Codebase Assets & Entities**:
-   - Grep `SYMBOL_REGISTRY` in `engine/world.py`.
-   - Grep `BIOME_PALETTES` and key constants in `constants.py`.
-   - List generated assets in `assets/graphics/`.
-5. **Verify Markdown Link Integrity**:
-   - Check all relative file links across `docs/*.md`.
-6. **Compile Findings**:
-   - Write or update `docs/AUDIT_GAPS.md`.
-7. **Synchronize Docs**:
-   - Update `docs/architecture.md`, `docs/visual_style_and_assets.md`, and hub files to resolve Category B and C gaps.
-8. **Verify Verification Tests**:
-   - Run `pytest` to guarantee documentation edits did not break docstring tests or file path assertions.
+### Runbook B: Triage & Prioritization Mode
+1. **Read Active Gaps**: Inspect Section 2 (Category A) in `docs/AUDIT_GAPS.md` and `docs/backlog.md`.
+2. **Enforce Read-Only Boundary**: Confirm no source code files (`*.py`, `maps/*`, `assets/*`) are modified.
+3. **Analyze Asset Viability**: Inspect `generate_assets.py` to identify procedural PNG opportunities.
+4. **Score Risk & Coupling**: Evaluate blast radius across state serialization, physics, and networking.
+5. **Generate Ranked Output**: Produce the canonical Triage & Prioritization Matrix ordered lowest to highest risk.

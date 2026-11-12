@@ -846,6 +846,17 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
   - Added 4 comprehensive unit tests verifying anomalous color resolution, exact 64.0 reach and 2.10 rad arc geometry, fading arc lifecycle, and impact spark emission on enemy and prop hits.
   - Verified 100% green test suite across all 226 tests in `pytest`.
 
+## [ARCHIVED] Triage & Prioritization Mode for Doc-Audit Skill - November 2026
+- **Documentation Skill Enhancement (`.gemini/skills/doc-audit/SKILL.md`):**
+  - Added "Triage & Prioritization Mode" specifying a standardized procedure for evaluating Category A gaps in `docs/AUDIT_GAPS.md`.
+  - Defined 4-tier risk and architectural coupling taxonomy (Tier 1: Config/UI to Tier 4: Cross-Cutting Engines) to order items from lowest-risk/most self-contained to most complex.
+  - Established procedural asset feasibility criteria identifying opportunities to leverage `generate_assets.py` for dark-fantasy PNG assets without manual art or external sprite sheets.
+  - Reinforced the strict read-only boundary on game source code (`*.py`), level maps (`maps/*`), and asset binaries (`assets/*`).
+  - Added dedicated execution Runbook B for rapid triage and roadmapping.
+- **Continuous Cleanup & Verification:**
+  - Verified 100% test suite pass across all 226 unit tests in `pytest`.
+
+
 
 
 
