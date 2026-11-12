@@ -1904,6 +1904,10 @@ class Renderer:
         # Parry Sparks
         self.draw_parry_effects(state, ox, oy)
 
+        # Fading Visual Slash Arcs & Impact Sparks
+        self.draw_fading_slash_arcs(state, ox, oy)
+        self.draw_impact_sparks(state, ox, oy)
+
         # Glyph Splatter Particles
         self.draw_glyph_splatter(state, ox, oy)
 
@@ -2309,8 +2313,8 @@ class Renderer:
 
         # 5. Off-hand ward shield when blocking, or carried sword at side when not attacking
         wpn = actor.get_active_weapon() if hasattr(actor, "get_active_weapon") and actor.weapons else {}
-        is_anomalous = "modifiers" in wpn
-        edge_col = constants.COLOR_PURPLE if is_anomalous else constants.COLOR_WEAPON_EDGE
+        is_anomalous = bool(wpn.get("modifiers")) or "anomalous" in wpn.get("name", "").lower()
+        edge_col = constants.get_weapon_passive_color(wpn) if is_anomalous else constants.COLOR_WEAPON_EDGE
 
         if base_state == "BLOCK":
             sh_x, sh_y = cx + int(fx * (w * 0.45)), cy + int(fy * (h * 0.45))
@@ -2336,26 +2340,50 @@ class Renderer:
 
         total_dur = max(0.01, constants.SWORD_DURATION)
         t = 1.0 - max(0.0, min(1.0, getattr(player, "attack_timer", 0.0) / total_dur))
-        arc_start = base_angle - 1.05
-        curr_angle = arc_start + t * 2.10
-        reach = constants.SWORD_OFFSET + constants.SWORD_WIDTH * 0.45
+        reach = constants.SWORD_REACH
+        half_arc = constants.SWORD_ARC_RADIANS / 2.0
+        arc_start = base_angle - half_arc
+        curr_angle = arc_start + t * constants.SWORD_ARC_RADIANS
 
         wpn = player.get_active_weapon() if hasattr(player, "get_active_weapon") and player.weapons else {}
-        is_anomalous = "modifiers" in wpn
-        slash_col = constants.COLOR_PURPLE if is_anomalous else constants.COLOR_CYAN
-        edge_col = constants.COLOR_PURPLE if is_anomalous else constants.COLOR_WEAPON_EDGE
+        is_anomalous = bool(wpn.get("modifiers")) or "anomalous" in wpn.get("name", "").lower()
+        slash_col = constants.get_weapon_passive_color(wpn)
+        edge_col = slash_col if is_anomalous else constants.COLOR_WEAPON_EDGE
 
-        # 1. Layered crescent slash trail behind the active blade angle
-        steps = 8
+        # 1. Distinct swept crescent fan and gradient trail
+        steps = constants.SWORD_ARC_STEPS
+        surf_size = int(reach * 2 + 32)
+        arc_surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        scx, scy = surf_size // 2, surf_size // 2
+
         for i in range(steps):
-            a1 = arc_start + (curr_angle - arc_start) * (i / steps)
-            a2 = arc_start + (curr_angle - arc_start) * ((i + 1) / steps)
+            u1 = i / steps
+            u2 = (i + 1) / steps
+            a1 = arc_start + (curr_angle - arc_start) * u1
+            a2 = arc_start + (curr_angle - arc_start) * u2
+
+            # Fading alpha along the swept trail
+            alpha = int(25 + 135 * u2)
+            poly_pts = [
+                (scx + math.cos(a1) * (reach * 0.60), scy + math.sin(a1) * (reach * 0.60)),
+                (scx + math.cos(a1) * reach, scy + math.sin(a1) * reach),
+                (scx + math.cos(a2) * reach, scy + math.sin(a2) * reach),
+                (scx + math.cos(a2) * (reach * 0.60), scy + math.sin(a2) * (reach * 0.60)),
+            ]
+            pygame.draw.polygon(arc_surf, (slash_col[0], slash_col[1], slash_col[2], alpha), poly_pts)
+
+            # Outer rim on screen surface
             p1 = (int(cx + math.cos(a1) * reach), int(cy + math.sin(a1) * reach))
             p2 = (int(cx + math.cos(a2) * reach), int(cy + math.sin(a2) * reach))
-            pygame.draw.line(self.screen, slash_col, p1, p2, 3)
-            in1 = (int(cx + math.cos(a1) * (reach - 8)), int(cy + math.sin(a1) * (reach - 8)))
-            in2 = (int(cx + math.cos(a2) * (reach - 8)), int(cy + math.sin(a2) * (reach - 8)))
-            pygame.draw.line(self.screen, constants.COLOR_WEAPON_EDGE, in1, in2, 2)
+            line_w = 3 if u2 > 0.4 else 2
+            pygame.draw.line(self.screen, slash_col, p1, p2, line_w)
+
+            # Inner accent line
+            in1 = (int(cx + math.cos(a1) * (reach - 8.0)), int(cy + math.sin(a1) * (reach - 8.0)))
+            in2 = (int(cx + math.cos(a2) * (reach - 8.0)), int(cy + math.sin(a2) * (reach - 8.0)))
+            pygame.draw.line(self.screen, edge_col, in1, in2, 2 if u2 > 0.5 else 1)
+
+        self.screen.blit(arc_surf, (int(cx - scx), int(cy - scy)))
 
         # 2. Active tapered sword along current swing angle
         hx = cx + math.cos(curr_angle) * 10.0
@@ -2363,6 +2391,9 @@ class Renderer:
         tx = cx + math.cos(curr_angle) * (reach + 6.0)
         ty = cy + math.sin(curr_angle) * (reach + 6.0)
         self._draw_tapered_blade((hx, hy), (tx, ty), 5.0, edge_col)
+
+        # 3. Leading crescent tip flare
+        pygame.draw.circle(self.screen, constants.COLOR_WHITE, (int(tx), int(ty)), 3)
 
     def draw_boss_weapon(self, actor, ox, oy):
         """Draws a sharp tapered greatblade held by a boss that swings or thrusts dynamically."""
@@ -2543,6 +2574,70 @@ class Renderer:
             pygame.draw.circle(surf, (255, 255, 255, alpha), (40, 40), 30, 4)
             pygame.draw.circle(surf, (120, 255, 100, alpha // 2), (40, 40), 40, 2)
             self.screen.blit(surf, (sx - 40, sy - 40))
+
+    def draw_fading_slash_arcs(self, state, ox, oy):
+        """Render completed visual slash arcs fading smoothly over their fade duration."""
+        for slash in getattr(state, "slash_effects", []):
+            remaining = slash.get("time", 0.0)
+            max_time = max(0.01, slash.get("max_time", constants.SLASH_FADE_DURATION))
+            ratio = max(0.0, min(1.0, remaining / max_time))
+            if ratio <= 0.0:
+                continue
+
+            px, py = slash["pos"]
+            cx, cy = px - ox, py - oy
+            fx, fy = slash["facing"]
+            base_angle = math.atan2(fy, fx)
+            reach = slash.get("reach", constants.SWORD_REACH)
+            arc_rad = slash.get("arc_radians", constants.SWORD_ARC_RADIANS)
+            half_arc = arc_rad / 2.0
+            arc_start = base_angle - half_arc
+            col = slash.get("color", constants.COLOR_CYAN)
+
+            surf_size = int(reach * 2 + 32)
+            arc_surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+            scx, scy = surf_size // 2, surf_size // 2
+            steps = constants.SWORD_ARC_STEPS
+            poly_alpha = int(ratio * 90)
+            rim_alpha = int(ratio * 210)
+
+            for i in range(steps):
+                a1 = arc_start + arc_rad * (i / steps)
+                a2 = arc_start + arc_rad * ((i + 1) / steps)
+                o1 = (scx + math.cos(a1) * reach, scy + math.sin(a1) * reach)
+                o2 = (scx + math.cos(a2) * reach, scy + math.sin(a2) * reach)
+                i1 = (scx + math.cos(a1) * (reach * 0.60), scy + math.sin(a1) * (reach * 0.60))
+                i2 = (scx + math.cos(a2) * (reach * 0.60), scy + math.sin(a2) * (reach * 0.60))
+                pygame.draw.polygon(arc_surf, (col[0], col[1], col[2], poly_alpha), [i1, o1, o2, i2])
+                pygame.draw.line(arc_surf, (col[0], col[1], col[2], rim_alpha), o1, o2, 2)
+
+            self.screen.blit(arc_surf, (int(cx - scx), int(cy - scy)))
+
+    def draw_impact_sparks(self, state, ox, oy):
+        """Render high-velocity directional impact sparks from landed melee attacks."""
+        for spark in getattr(state, "impact_sparks", []):
+            remaining = spark.get("time", 0.0)
+            max_time = max(0.01, spark.get("max_time", constants.IMPACT_SPARK_LIFETIME))
+            ratio = max(0.0, min(1.0, remaining / max_time))
+            if ratio <= 0.0:
+                continue
+
+            sx = int(spark["x"] - ox)
+            sy = int(spark["y"] - oy)
+            vx = spark.get("vx", 0.0)
+            vy = spark.get("vy", 0.0)
+            speed = math.hypot(vx, vy)
+            if speed > 1.0:
+                ux, uy = vx / speed, vy / speed
+                length = constants.IMPACT_SPARK_LENGTH * (0.5 + 0.5 * ratio)
+                tail_x = int(sx - ux * length)
+                tail_y = int(sy - uy * length)
+            else:
+                tail_x, tail_y = sx, sy
+
+            col = spark.get("color", constants.COLOR_IMPACT_SPARK_CORE)
+            pygame.draw.line(self.screen, col, (sx, sy), (tail_x, tail_y), 2)
+            pygame.draw.circle(self.screen, constants.COLOR_IMPACT_SPARK_CORE, (sx, sy), 1)
 
     def draw_glyph_splatter(self, state, ox, oy):
         """Render active manuscript glyph splatter particles scattering from combat impacts."""

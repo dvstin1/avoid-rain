@@ -832,6 +832,21 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Task Archiving & Continuous Cleanup:**
   - Archived completed task block from `AGENTS.md` and left active slot clean.
 
+## [ARCHIVED] Visual Slash Arc & Anomalous Combat Attack Feedback - November 2026
+- **Combat Visuals & Dynamic Anomalous Weapon Tinting (`constants.py`, `rendering/renderer.py`):**
+  - Added dedicated anomalous feedback colors in `constants.py`: `COLOR_ANOMALOUS_BLEED` (Crimson / Ink-Bleed), `COLOR_ANOMALOUS_REGEN` (Verdant Emerald / Life-Thread), `COLOR_ANOMALOUS_NEGATION` (Golden Amber / Iron-Nib), `COLOR_ANOMALOUS_STOUT` (Deep Amethyst / Stout-Draft / Void-Strike), `COLOR_ANOMALOUS_DEFAULT` (Arcane Purple), and `COLOR_IMPACT_SPARK_CORE`.
+  - Implemented `get_weapon_passive_color()` resolving dynamic weapon tints across modifiers and named anomalous quills, falling back to `COLOR_CYAN` for standard common weapons.
+  - Upgraded `draw_player_weapon_attack` to render a distinct crescent slash arc matching exact `SWORD_REACH = 64.0` px and `SWORD_ARC_RADIANS = 2.10` (~120 degrees) sweep with dynamic trail alpha fading and white glint blade flare.
+  - Updated carried sword glint at the Scholar's side to reflect anomalous passive colors.
+- **Persistent Fading Slash Arc Dissolution & Impact Sparks (`engine/game_state.py`, `rendering/renderer.py`):**
+  - Added `impact_sparks` and `slash_effects` collections to `GameState` with dt-scaled positions, velocities, and lifetimes.
+  - Implemented `spawn_impact_sparks()` in `GameState` triggering directional particle bursts upon scoring melee hits on enemies or breakable props.
+  - Implemented `draw_fading_slash_arcs` and `draw_impact_sparks` in `Renderer` for smooth crescent arc dissolution and tactile directional impact sparks.
+- **Comprehensive Unit Testing (`tests/test_slash_arc_and_impact_feedback.py`):**
+  - Added 4 comprehensive unit tests verifying anomalous color resolution, exact 64.0 reach and 2.10 rad arc geometry, fading arc lifecycle, and impact spark emission on enemy and prop hits.
+  - Verified 100% green test suite across all 226 tests in `pytest`.
+
+
 
 
 

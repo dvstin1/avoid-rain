@@ -100,6 +100,11 @@ class GameState:
             bool(self.stats.data.get("debug_text_enabled", False)) if self.stats else False
         )
         self.parry_effects = [] # Transient VFX sparks
+        self.impact_sparks = [] # Transient combat hit sparks
+        self.slash_effects = [] # Transient fading visual slash arcs
+        self._player_was_attacking = False
+        self._last_attack_center = None
+        self._last_attack_facing = None
 
         # 4. Input and Navigation State
         self.input_mode = INPUT_MODE_KEYBOARD
@@ -601,11 +606,62 @@ class GameState:
                 self.world.interactables.append(portal)
                 self.trigger_bloom("THE APPENDIX REVEALED", priority=2)
 
+    def spawn_impact_sparks(self, x, y, weapon=None, count=None):
+        """Spawns subtle directional impact sparks upon landed melee hits."""
+        import random
+        import math
+        from constants import (
+            IMPACT_SPARK_COUNT,
+            IMPACT_SPARK_LIFETIME,
+            IMPACT_SPARK_SPEED_MIN,
+            IMPACT_SPARK_SPEED_MAX,
+            get_weapon_passive_color,
+        )
+        tint = get_weapon_passive_color(weapon)
+        fx, fy = self.player.facing
+        base_angle = math.atan2(fy, fx)
+        spark_count = count if count is not None else IMPACT_SPARK_COUNT
+        for _ in range(spark_count):
+            angle = base_angle + random.uniform(-0.85, 0.85)
+            speed = random.uniform(IMPACT_SPARK_SPEED_MIN, IMPACT_SPARK_SPEED_MAX)
+            self.impact_sparks.append({
+                'x': float(x),
+                'y': float(y),
+                'vx': math.cos(angle) * speed,
+                'vy': math.sin(angle) * speed,
+                'time': IMPACT_SPARK_LIFETIME,
+                'max_time': IMPACT_SPARK_LIFETIME,
+                'color': tint,
+            })
+
     def update_combat(self, dt, attack_pressed, actions, audio_manager):
         """Phase 1: Handles player attacks and damage resolution."""
         if not self.player: return
         
         is_client = (self.network_manager.network_mode == "CLIENT")
+        
+        player_is_attacking = (self.player.state == PlayerStateEnum.ATTACKING)
+        if getattr(self, '_player_was_attacking', False) and not player_is_attacking:
+            from constants import (
+                SWORD_REACH, SWORD_ARC_RADIANS, SLASH_FADE_DURATION, get_weapon_passive_color
+            )
+            active_wpn = self.player.get_active_weapon() if self.player.weapons else {}
+            last_pos = getattr(self, '_last_attack_center', self.player.get_center())
+            last_facing = getattr(self, '_last_attack_facing', self.player.facing)
+            self.slash_effects.append({
+                'pos': last_pos,
+                'facing': last_facing,
+                'reach': SWORD_REACH,
+                'arc_radians': SWORD_ARC_RADIANS,
+                'color': get_weapon_passive_color(active_wpn),
+                'time': SLASH_FADE_DURATION,
+                'max_time': SLASH_FADE_DURATION,
+            })
+
+        if player_is_attacking:
+            self._last_attack_center = self.player.get_center()
+            self._last_attack_facing = self.player.facing
+        self._player_was_attacking = player_is_attacking
         
         # 0. Process queued remote damage (Host Only)
         if not is_client and self.pending_remote_damage:
@@ -692,6 +748,7 @@ class GameState:
                         impact_x, impact_y = enemy.get_center()
                         enemy_color = getattr(enemy, 'glyph_splatter_color', COLOR_INK_CHARCOAL)
                         self.glyph_particles.spawn_burst(impact_x, impact_y, color=enemy_color)
+                        self.spawn_impact_sparks(impact_x, impact_y, weapon=active_weapon)
 
                         # Apply anomalous weapon modifiers on hit
                         all_mods = self.player.get_all_modifiers()
@@ -723,6 +780,9 @@ class GameState:
                     
                     obj.take_damage(damage)
                     hit_landed = True
+                    prop_cx = obj.rect[0] + obj.rect[2] * 0.5
+                    prop_cy = obj.rect[1] + obj.rect[3] * 0.5
+                    self.spawn_impact_sparks(prop_cx, prop_cy, weapon=active_weapon)
                     if is_client:
                         self.network_manager.send_damage_event("prop", p_id, damage)
                     
@@ -786,6 +846,18 @@ class GameState:
         for effect in self.parry_effects[:]:
             effect['time'] -= dt
             if effect['time'] <= 0: self.parry_effects.remove(effect)
+
+        for spark in getattr(self, 'impact_sparks', [])[:]:
+            spark['time'] -= dt
+            spark['x'] += spark['vx'] * dt
+            spark['y'] += spark['vy'] * dt
+            if spark['time'] <= 0:
+                self.impact_sparks.remove(spark)
+
+        for slash in getattr(self, 'slash_effects', [])[:]:
+            slash['time'] -= dt
+            if slash['time'] <= 0:
+                self.slash_effects.remove(slash)
 
     def _update_player_lifecycle(self, dt, actions, attack_pressed, audio_manager):
         if self.hit_stop_timer > 0:

@@ -36,6 +36,7 @@ def test_client_attack_multi_hit_bug():
     client_state.network_manager.local_udp_port = 63002
     client_state.network_manager.identity = "Client"
     
+    time.sleep(0.05)
     connected = client_state.network_manager.connect_to_host("127.0.0.1")
     assert connected is True
 

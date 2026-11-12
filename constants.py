@@ -124,6 +124,53 @@ SWORD_DAMAGE = 10
 SWORD_REACH = 64.0 # Max radius of sword slash matching visual sweep (pixels)
 SWORD_ARC_RADIANS = 2.10 # Angular swing span (~120 degrees) matching renderer
 
+# Anomalous Weapon Visual & Combat Feedback Colors
+COLOR_ANOMALOUS_BLEED = (235, 55, 75)       # Crimson / Ink-Bleed
+COLOR_ANOMALOUS_REGEN = (80, 235, 150)      # Verdant Emerald / Life-Thread / Vampirism
+COLOR_ANOMALOUS_NEGATION = (255, 195, 60)   # Golden Amber / Iron-Nib / Fortitude
+COLOR_ANOMALOUS_STOUT = (185, 95, 255)      # Deep Void Amethyst / Stout-Draft / Void-Strike
+COLOR_ANOMALOUS_DEFAULT = (175, 75, 250)    # Standard Anomalous Arcane Purple
+COLOR_SWORD_SLASH_DEFAULT = COLOR_CYAN      # Standard Common Weapon Cyan Shimmer
+COLOR_IMPACT_SPARK_CORE = (255, 250, 220)   # Bright incandescent impact spark core
+COLOR_IMPACT_SPARK_GLOW = (255, 200, 100)   # Warm outer spark halo
+
+# Attack Feedback Visual Arc & Impact Sparks Configuration
+SWORD_ARC_STEPS = 12
+SLASH_FADE_DURATION = 0.14                  # Seconds the full visual slash arc fades after strike
+IMPACT_SPARK_COUNT = 6                      # Number of sparks emitted per landed hit
+IMPACT_SPARK_LIFETIME = 0.18                # Seconds sparks persist
+IMPACT_SPARK_SPEED_MIN = 60.0               # Minimum initial spark speed (px/s)
+IMPACT_SPARK_SPEED_MAX = 160.0              # Maximum initial spark speed (px/s)
+IMPACT_SPARK_LENGTH = 5.0                   # Visual length of spark streak
+
+
+def get_weapon_passive_color(weapon):
+    """Return the dynamic tint color for a weapon's attack arc and feedback."""
+    if not weapon:
+        return COLOR_SWORD_SLASH_DEFAULT
+    mods = weapon.get("modifiers", {})
+    name = weapon.get("name", "").lower()
+
+    if "bleed" in mods or "ink_bleed" in mods or "bleed" in name:
+        color = COLOR_ANOMALOUS_BLEED
+    elif "slow_hp_regen" in mods or "vampirism" in mods or "regen" in mods or "life" in name:
+        color = COLOR_ANOMALOUS_REGEN
+    elif (
+        "damage_negation_on_hit" in mods
+        or "parry_window" in mods
+        or "negation" in mods
+        or "iron" in name
+    ):
+        color = COLOR_ANOMALOUS_NEGATION
+    elif "max_hp_boost" in mods or "void_strike" in mods or "stout" in mods or "void" in name:
+        color = COLOR_ANOMALOUS_STOUT
+    elif mods or "anomalous" in name:
+        color = COLOR_ANOMALOUS_DEFAULT
+    else:
+        color = COLOR_SWORD_SLASH_DEFAULT
+    return color
+
+
 # Low-tier Slug enemy configuration
 SLUG_MAX_HP = 40
 SLUG_SPEED = 80.0  # pixels per second (slow approach)
