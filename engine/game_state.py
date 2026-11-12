@@ -661,12 +661,14 @@ class GameState:
 
         # 1. Local Attacks
         if self.player.state == PlayerStateEnum.ATTACKING:
-            from engine.combat import get_sword_hitbox
-            from engine.physics import check_aabb_collision
+            from engine.combat import get_sword_hitbox, check_sword_hit
             hitbox = get_sword_hitbox(self.player.get_center(), self.player.facing)
             active_weapon = self.player.get_active_weapon()
             bonus_atk = getattr(self.player, 'stats', {}).get('attack_modifier', 0)
-            from constants import SWORD_DAMAGE, HIT_STOP_DURATION, SCREEN_SHAKE_DURATION, DAMAGE_NUMBER_LIFETIME, COLOR_SELECTION
+            from constants import (
+                SWORD_DAMAGE, HIT_STOP_DURATION, SCREEN_SHAKE_DURATION,
+                DAMAGE_NUMBER_LIFETIME, COLOR_SELECTION
+            )
             damage = active_weapon.get("damage", SWORD_DAMAGE) + bonus_atk
             hit_landed = False
 
@@ -676,7 +678,10 @@ class GameState:
                     e_rect = enemy.get_rect()
                     net_id = getattr(enemy, 'network_id', id(enemy))
                     
-                    if check_aabb_collision(hitbox, e_rect) and net_id not in self.player.hit_entities_this_attack:
+                    if (
+                        check_sword_hit(self.player.get_center(), self.player.facing, e_rect)
+                        and net_id not in self.player.hit_entities_this_attack
+                    ):
                         # Rule: Hit once per attack swing
                         self.player.hit_entities_this_attack.add(net_id)
                         
@@ -709,7 +714,11 @@ class GameState:
             # Props
             for obj in list(self.world.interactables):
                 p_id = getattr(obj, 'id', id(obj))
-                if getattr(obj, 'is_breakable', False) and check_aabb_collision(hitbox, obj.rect) and p_id not in self.player.hit_props_this_attack:
+                if (
+                    getattr(obj, 'is_breakable', False)
+                    and check_sword_hit(self.player.get_center(), self.player.facing, obj.rect)
+                    and p_id not in self.player.hit_props_this_attack
+                ):
                     self.player.hit_props_this_attack.add(p_id)
                     
                     obj.take_damage(damage)

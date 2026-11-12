@@ -121,6 +121,8 @@ SWORD_HEIGHT = 20
 SWORD_OFFSET = 30 # Distance from player center
 SWORD_DURATION = 0.2 # How long the attack lasts (seconds)
 SWORD_DAMAGE = 10
+SWORD_REACH = 64.0 # Max radius of sword slash matching visual sweep (pixels)
+SWORD_ARC_RADIANS = 2.10 # Angular swing span (~120 degrees) matching renderer
 
 # Low-tier Slug enemy configuration
 SLUG_MAX_HP = 40

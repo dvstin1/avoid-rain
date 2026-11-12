@@ -1744,6 +1744,11 @@ class Renderer:
 
         if state.player.state == PlayerStateEnum.ATTACKING:
             self.draw_player_weapon_attack(state.player, ox, oy)
+            if getattr(state, "debug_text_enabled", False):
+                from engine.combat import get_sword_hitbox
+                hb = get_sword_hitbox(state.player.get_center(), state.player.facing)
+                hb_rect = pygame.Rect(int(hb[0] - ox), int(hb[1] - oy), int(hb[2]), int(hb[3]))
+                pygame.draw.rect(self.screen, (255, 60, 60), hb_rect, 1)
         for num in state.damage_numbers:
             self.screen.blit(
                 self.font.render(str(num['val']), True, num['color']),

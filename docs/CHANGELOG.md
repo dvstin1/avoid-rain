@@ -788,6 +788,19 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
     rendering.
   - Maintained 100% green test pass across all 220 tests in `pytest`.
 
+## [ARCHIVED] Visual-Aligned Sword Hitboxes & Diagonal Attack Support - November 2026
+- **Hitbox Geometry & Range Calibration (`constants.py`, `engine/combat.py`):**
+  - Added `constants.SWORD_REACH = 64.0` (matching the renderer's blade tip reach of ~63.0px) and `constants.SWORD_ARC_RADIANS = 2.10` (matching the renderer's 120-degree visual crescent sweep).
+  - Overhauled `engine/combat.get_sword_hitbox()` to dynamically compute the exact bounding box for cardinal, diagonal, and arbitrary facing angles, resolving the previous issue where diagonal facing collapsed into a narrow vertical strip.
+  - Implemented `engine/combat.check_sword_hit()` providing two-phase collision evaluation: fast AABB rejection via `get_sword_hitbox()` followed by angular-sector and radial-arc distance testing, ensuring hits match the visual slash trajectory.
+- **Combat Resolution Integration (`engine/game_state.py`):**
+  - Wired `check_sword_hit()` in `GameState.update_combat()` for both enemy and destructible prop melee damage checks during `PlayerStateEnum.ATTACKING`.
+  - Guaranteed point-blank enemies, diagonal enemies, and off-axis enemies sweeping through the 120-degree slash arc take damage accurately while targets strictly behind or out of reach are spared.
+- **Visual Debugging & Testing (`rendering/renderer.py`, `tests/test_combat.py`):**
+  - Added visual hitbox boundary debugging in `rendering/renderer.py` when `debug_text_enabled` is active.
+  - Updated and expanded unit tests in `tests/test_combat.py` covering cardinal and diagonal bounding boxes, sector hit accuracy, and full combat state resolution against diagonal enemies.
+  - Verified 100% green test suite across 220 tests in `pytest` and pylint score of 9.64/10.
+
 
 
 
