@@ -856,6 +856,16 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Continuous Cleanup & Verification:**
   - Verified 100% test suite pass across all 226 unit tests in `pytest`.
 
+## [ARCHIVED] Autonomous Task Selection Companion Skill (`pick-next-task`) - November 2026
+- **Companion Skill Creation (`.gemini/skills/pick-next-task/SKILL.md`):**
+  - Built an autonomous task execution skill designed as a companion to `doc-audit`.
+  - Codified algorithmic selection heuristics to filter Category A gaps in `docs/AUDIT_GAPS.md` and `docs/backlog.md` by risk tier, blast radius, and procedural asset feasibility.
+  - Enforced strict procedural asset alignment requiring zero new assets or offline procedural generation via `generate_assets.py` (preventing stalls on external manual art).
+  - Integrated 5-phase execution lifecycle: `AGENTS.md` staging, constants configuration, engine/renderer implementation, strict TDD verification via `pytest`, and `doc-audit` archiving protocol.
+- **Continuous Cleanup & Verification:**
+  - Verified 100% test suite pass across all 226 unit tests in `pytest`.
+
+
 
 
 
