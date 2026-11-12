@@ -62,8 +62,8 @@ The weather system state machine, particle calculations, and damage logic are st
 - **Global Coordinates:** Collision subroutines evaluate position against the master 440x440 grid. Local module boundaries must be passed seamlessly.
 
 ## 6. Combat Logic & Hitbox Rules
-- **Relative Hitboxes:** Calculated based on player center and cardinal facing direction (e.g., $60 \times 20$ for horizontal swings).
-- **Resolution:** Damage is applied to all enemies overlapping the active sword hitbox during the `ATTACKING` state.
+- **Visual-Aligned Hitbox Geometry:** Calculated based on player center and facing vector using `get_sword_hitbox()`. Generates dynamic bounding boxes covering the full 120-degree crescent sweep arc (`SWORD_ARC_RADIANS = 2.10`, `SWORD_REACH = 64.0` px) for cardinal, diagonal, and arbitrary facing vectors without collapsing diagonal hits into narrow strips.
+- **Two-Phase Resolution:** Damage resolution uses `check_sword_hit()` in `GameState.update_combat()`, combining fast AABB bounding box rejection with angular sector and radial reach tests against target rectangles. Point-blank enemies and off-axis enemies sweeping through the slash arc take damage accurately.
 - **The Layered SFX Rule:** To maximize tactile feedback, landed attacks trigger both `attack_swing.ogg` and `attack_hit.ogg` simultaneously. A "whiff" only triggers the swing sound.
 
 ## 7. Map Topography: The Unit Grid Canvas
@@ -155,19 +155,17 @@ To prevent canvas blackouts, the minimap must adhere to a strict pipeline:
 3. **Primary Blit:** Execute `main_screen.blit(minimap_surface, destination_rect)`.
 
 ## 14. Local Area Network (LAN) Architecture
-The engine plans to support local Wi-Fi co-op sessions using an Authoritative Host / Mirror Client structure. The implementation is isolated into progressive phases.
+The engine supports local Wi-Fi co-op sessions using an Authoritative Host / Mirror Client structure (`engine/network_manager.py`).
 
-### 1. Phased Development Roadmap
-- **Phase 1: Local Presence & Identity (Current Focus)**
-  - Establish a local configuration string for `player_name`.
-  - Implement a background UDP broadcast socket loop to announce server hosting across the LAN subnet without manual IP input.
-- **Phase 2: Lobby Registration & Connection Handshake**
-  - Build a visual "Lobby Menu" reading found hosts.
-  - Implement a TCP socket handshake to verify connection states.
-- **Phase 3: Ghost Client State Replication**
-  - Render non-local client players as text-tagged coordinate clones.
-- **Phase 4: Authoritative Simulation Sync**
-  - Route client action commands (e.g., barrel damage hits) to the host for primary state resolution.
+### 1. Phased Architecture & Implementation Status
+- **Phase 1: Local Presence & Identity [IMPLEMENTED]**
+  - Configurable `player_name` and background UDP broadcast socket loop announcing server hosting across the LAN subnet without manual IP input.
+- **Phase 2: Lobby Registration & Connection Handshake [IMPLEMENTED]**
+  - Visual Lobby Menu discovering hosts; TCP socket handshake verifying connection state.
+- **Phase 3: Ghost Client State Replication [IMPLEMENTED]**
+  - Renders non-local client players as text-tagged coordinate clones with position and velocity interpolation.
+- **Phase 4: Authoritative Simulation Sync [IMPLEMENTED]**
+  - Routes client action commands (attacks, healing, respite triggers, barrel hits) to the host for primary state resolution. Socket reuse handling for `TIME_WAIT` teardowns.
 
 ## 15. Layered Visual System (Ghost Indicators)
 A decoupled animation architecture that translates internal state flags into composable visual "intents."

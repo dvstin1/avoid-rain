@@ -818,6 +818,21 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
   - Added integration unit tests verifying prop caching, tile blitting across biomes, and obstacle rendering.
   - Maintained 100% green test pass across all 222 tests in `pytest` and 10.00/10 `pylint` on generator.
 
+## [ARCHIVED] Documentation Cleanup & Code-vs-Docs Gap Audit - November 2026
+- **General Documentation & Codebase Audit (`.gemini/skills/doc-audit/SKILL.md`):**
+  - Executed a comprehensive gap audit comparing live engine mechanics, map definitions, entity types, and assets against all 11 core documents in `docs/` and 13 extended notes in `docs/extended-notes/`.
+  - Audited relative markdown links and verified 100% path and anchor integrity across all documentation files.
+  - Generated detailed gap audit analysis and discrepancy report in `docs/AUDIT_GAPS.md`.
+- **Architectural & Design Documentation Synchronization:**
+  - `docs/architecture.md`: Updated Section 6 combat specifications to document 120-degree crescent arc slash sweep (`SWORD_ARC_RADIANS = 2.10`, `SWORD_REACH = 64.0`), diagonal attack support, and two-phase `check_sword_hit()` resolution. Updated Section 14 to reflect all 4 LAN multiplayer phases as implemented.
+  - `docs/modular_system.md`: Corrected macro socket pools (`POOL_MONTHLY_REPORT`, `POOL_CORRIDOR`, `POOL_SPECIAL_EDITION`) and updated boss arena path to canonical `maps/night_boss_arena.json`.
+  - `docs/visual_style_and_assets.md`: Replaced primitive prototype table with 28-entry live entity/tile symbol registry and documented the procedural PNG asset pipeline (18 generated assets).
+  - `docs/navigation_and_ui.md`: Documented map filename OSD display under audio HUD and Pause Menu `Debug Text: OFF/ON` toggle.
+  - `docs/backlog.md`: Marked completed features as `[DONE] Implemented` (Typographic Bloom, LAN Discovery, State Serialization, Anomalous Weapon Passives).
+- **Task Archiving & Continuous Cleanup:**
+  - Archived completed task block from `AGENTS.md` and left active slot clean.
+
+
 
 
 

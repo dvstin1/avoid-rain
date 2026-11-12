@@ -63,15 +63,15 @@ To support scaling world canvases (e.g., 440x440 grids) with variable socket div
 
 ### 1. Abstract Socket Classification Tagging
 Every socket registered on the macro layout canvas possesses a regional classification tier determining its pool filtering logic:
-- `SIZE_120X120` Pools: Filtered into standard narrative macro-zones (e.g., `Forest`, `Ruins`).
-- `SIZE_40X40_OUTER` (The Margins): Sockets along the outermost grid edges. Restricted to filtering the player's initial entry node (`The Colophon / Spawn`) and generic low-tier buffer modules.
-- `SIZE_40X40_INNER` (The Crown Ring): Sockets contained inside the central 200x200 space (3x3 to 7x7 in an 11x11 grid), bounding the center socket. Restricted to spawning the high-tier `Night Boss` encounter in a single random node, with adjacent slots pulling from standard hazard pools.
+- `SIZE_120X120` Pools (`POOL_MONTHLY_REPORT` in `constants.py`): Filtered into narrative macro-zones (`maps/windy_ridge.json`, `maps/pastoral_valley.json`, `maps/swamp_mire.json`, `maps/frozen_peaks.json`, `maps/tech_tower.json`). Sockets also have a 10% chance to roll `POOL_SPECIAL_EDITION`.
+- `SIZE_40X40_OUTER` (The Margins): Sockets along the outermost grid edges. Restricted to filtering the player's initial entry node (`The Colophon / Spawn`: `maps/the_colophon.json`) and generic buffer/corridor modules (`POOL_CORRIDOR`).
+- `SIZE_40X40_INNER` (The Crown Ring): Sockets contained inside the central 200x200 space (3x3 to 7x7 in an 11x11 grid), bounding the center socket. Restricted to spawning the high-tier `Night Boss` encounter in a single random node (`maps/night_boss_arena.json`), with adjacent slots pulling from corridor pools (`maps/smallcave.json`, `maps/gantry_bridge.json`, `maps/mire_causeway.json`).
 
 ### 2. Runtime Selection Sequence & Rule Logic
 1. **The Core Allocation Pass:** The generator calculates dimensions and draws empty socket frames across the canvas matrix.
 2. **The Spawn Assignment Phase:** The compiler selects exactly one socket matching the `SIZE_40X40_OUTER` criteria and binds it to `maps/the_colophon.json` (Spawn).
 3. **The Target Assignment Phase:** The compiler selects exactly one socket matching the `SIZE_40X40_INNER` criteria and binds it to `maps/night_boss_arena.json`.
-4. **The Pool Backfill Pass:** All remaining unassigned sockets independently roll selections from their matching dimension lists (e.g., 120s roll Forest/Ruins; remaining 40s roll from minor encounter pools).
+4. **The Pool Backfill Pass:** All remaining unassigned sockets independently roll selections from their matching dimension lists (120s roll from `POOL_MONTHLY_REPORT`; remaining 40s roll from `POOL_CORRIDOR`).
 
 ## 6. Runtime Symmetrical Compilation Pipeline (440x440 Matrix)
 
@@ -84,11 +84,11 @@ The layout coordinates are computed by tracking the cumulative widths of precedi
 
 ### 2. The Generation Cycle
 When the Chronicle gateway is activated:
-1. Initialize a blank 440x440 grid matrix filled with solid wall blocks or void tiles.
+1. Initialize a blank 440x440 grid matrix filled with open traversable floor spacing tiles (`" "`).
 2. Filter out one random perimeter 40x40 socket slot and stitch `maps/the_colophon.json` into it. Store these absolute coordinates as the Player Spawn Point.
-3. Filter out one random inner 40x40 socket slot and stitch `maps/night_boss.json` into it.
-4. Loop through remaining 120x120 slots, randomly choosing between `maps/forest.json` and `maps/ruins.json` per slot.
-5. Loop through remaining 40x40 slots, filling them with blank corridor layouts or small encounter modules.
+3. Filter out one random inner 40x40 socket slot and stitch `maps/night_boss_arena.json` into it.
+4. Loop through remaining 120x120 slots, randomly choosing between the active biome rooms in `POOL_MONTHLY_REPORT` per slot.
+5. Loop through remaining 40x40 slots, filling them with corridor layouts from `POOL_CORRIDOR` (`maps/smallcave.json`, `maps/gantry_bridge.json`, `maps/mire_causeway.json`).
 
 ## 7. Macro Matrix Canvas Space & Boss Entity Definitions
 

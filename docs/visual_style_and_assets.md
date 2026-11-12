@@ -11,16 +11,38 @@ This document defines the "Scriptorium Noir" aesthetic and the technical protoco
 - **Perspective:** Top-down orthographic (flat 2D view, no isometric skewing).
 
 ## 2. Atmospheric Entity Standards
-Entities use primitive shapes during the prototyping phase, with specific colors and physics properties.
+Entities and interactive obstacles registered in `constants.py` and `tools/edit_map.py`:
 
-| Entity | Symbol | Dimensions | Color | Traits |
+| Entity | Symbol | Dimensions | Type | Traits / Visual Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **Player** | `P` | 32x32 | Blue | Kinematic (TILE_SIZE 40) |
-| **Wall Tile** | `#` | 40x40 | Dark Gray | Solid |
-| **Bookcase** | `h` | 2x1 Tiles | Charcoal | Solid |
-| **Ink Urn** | `d` | 1x1 Tile | Slate Blue | Solid |
-| **Ink Puddle** | `v` | 1x1 Tile | Black | Hazard (-50% Speed) |
-| **Candelabra** | `l` | 1x1 Tile | Amber/Gray | Light Source |
+| **Player (Scholar)** | `P` | 32x32 | Player | Kinematic scholar with hooded cloak, cowl, and shield |
+| **Wall Tile** | `#` / `X` | 40x40 | Tile | Solid structural wall obstacle / perimeter boundary |
+| **Floor Tile** | `.` / ` ` | 40x40 | Tile | Walkable floor surface with multi-strata elevation |
+| **Grass Floor** | `g` | 40x40 | Tile | Passable grass with decorative tufts and biome clutter |
+| **Overgrown Thicket**| `G` | 40x40 | Tile | Dense overgrowth vegetation layer |
+| **Attunement Altar** | `a` | 40x40 | Tile/Prop | Stepped stone plinth; warps between Sanctuary variants |
+| **Barrel** | `B` | 40x40 | Prop | Solid breakable prop with 1 HP; can contain loot |
+| **Bench** | `S` | 40x80 | Obstacle | Solid sitting bench prop (spans 1x2 tiles) |
+| **Rock / Clutter** | `K` | 40x40 | Obstacle | Non-solid/solid obstacle: rock cluster, ruins rubble, crypt clutter |
+| **Structure** | `T` | 40x40 | Structure | Shelter structure: trees in forest, giant fungi in swamp |
+| **Bookcase** | `h` | 80x40 | Prop | Solid heavy horizontal bookcase (spans 2x1 tiles) |
+| **Ink Urn** | `d` | 40x40 | Prop | Solid ink urn prop; slowly drips ink hazard puddles |
+| **Ink Puddle** | `v` | 40x40 | Hazard | Non-solid ink pool hazard (-50% speed penalty) |
+| **Candelabra** | `l` | 40x40 | Light | Solid iron light source candleholder prop |
+| **Lotus Frame** | `M` | 40x40 | Conduit | Pulsing arcane conduit frame |
+| **Lore Fragment** | `L` | 40x40 | Lore | Interactable manuscript page fragment |
+| **Wellspring** | `F` | 40x40 | Wellspring | Fountain of clear water; inspects stats and bestiary |
+| **Respite** | `R` | 40x40 | Respite | Open Lectern anchor; rests, heals, refills flasks, and edifies |
+| **Chronicler** | `C` | 40x40 | NPC | Personification of The Libram; dialogues and run warp |
+| **Warp Point** | `W` | 40x40 | Warp | Pedestal chronicle warp gateway |
+| **Bat Enemy** | `A` | 40x40 | Enemy | Flying bat with flapping wings and swoop attack |
+| **Slug Enemy** | `Z` | 40x40 | Enemy | Ground slug leaving toxic slime trail |
+| **Flutter Enemy** | `f` | 40x40 | Enemy | Ethereal moth fluttering with powder motes |
+| **Bindling Enemy** | `b` | 40x40 | Enemy | Parchment puppet with stitch lines and grab bind |
+| **Smear Enemy** | `s` | 40x40 | Enemy | Liquid ink blob with pulsing core |
+| **Techno-Sentry** | `Y` | 40x40 | Enemy | Ranged artillery droid with directional plasma beam |
+| **Miniboss M1/M2/M3**| `E`/`2`/`3`| 40x40 | Elite | Elite strains with high HP, parry windows, and page drops |
+| **Night Boss** | `"night_boss"`| 80x80 | Boss | Heavy armored tyrant in `maps/night_boss_arena.json` |
 
 ## 3. The Redacting Circle Visuals (The Bleed)
 The weather system transitions through distinct visual phases:
@@ -40,6 +62,27 @@ The weather system transitions through distinct visual phases:
 - **Damage Numbers:** Floating colored text (Red for damage, Yellow for criticals).
 - **Stagger Outlines:** 100ms high-contrast outlines for hit-stop feedback.
 - **Bars:** Health, Stamina, and Defense meters. Flask charge counter.
+
+### 4.3. Procedural Pixel Art Asset Pipeline (`generate_assets.py`)
+A standalone, deterministic generator script producing 40x40 dark-fantasy grit-textured PNG assets:
+- **Core Tiles & Masonry:**
+  - `floor_tile.png`: Dark slate-brown ground with sand grit, scuffs, and edge vignette.
+  - `wall_tile.png`, `wall_tile_cracked.png`, `wall_tile_mossy.png`, `wall_tile_webbed.png`: 4 masonry variants.
+- **Natural Biome Surfaces (100% Opaque):**
+  - `swamp_water.png`: Viscous dark fluid with algae scum and reeds.
+  - `mud_turf.png`: Trampled silt and puddle silt.
+  - `peat_bank.png`: Fibrous soil with exposed root filaments.
+  - `swamp_wall.png`: Peat cliff embankment with layered sediment.
+- **Decorative Clutter & Props (Transparent Alpha):**
+  - `grass_natural.png`: Multi-seed organic foliage patch.
+  - `rock_cluster.png`: Rounded stones with drop shadows and highlight bevels.
+  - `attunement_altar.png`: Stepped stone pedestal with glowing cyan runic dial.
+  - `swamp_fungus.png`: Spotted toadstools with drop shadow.
+  - `swamp_gas_vent.png`: Organic pod mound with open bubbling pores.
+  - `swamp_thorns.png`: Skeletal bleached ash briars.
+  - `ruins_rubble.png`: Broken fluted stone pillar segments and chipped masonry debris.
+  - `swamp_flora.png`: Arching marsh reeds and bioluminescent fungal clusters with spore glow halos.
+  - `crypt_clutter.png`: Scattered aged parchment scrolls with faded ink text and bleached skull/bone fragments.
 
 ## 5. Art Blueprint Protocols
 ### 5.1. SVG Generation Rules

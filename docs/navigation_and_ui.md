@@ -45,7 +45,7 @@ Text items in the HUD use a compact 14pt font line size to prevent viewport crow
     - **Side-by-Side Comparison:** Tooltips are arranged horizontally for quick evaluation of floor items against current loadouts.
 
 ### 3.3. System Diagnostic Telemetry (Top-Center & Left)
-- **Audio OSD (Center):** Displays the active background track (e.g., `[ AUDIO_OSD ] MUSIC: night_boss.ogg`) in Toxic Green.
+- **Audio & Map OSD (Center):** When `debug_text_enabled` is active, displays the active background music track (e.g., `[ AUDIO_OSD ] MUSIC: night_boss.ogg`) in Toxic Green, followed directly by the active map filename (`Map: <map_filename>`). Controlled via Pause Menu's `Debug Text: OFF/ON` option.
 - **SFX Trigger Log (Top-Left):** Real-time list of triggered sound effects (e.g., `SFX: attack_hit.ogg`) that fade out over 2 seconds.
 - **Save Status (Top-Right):** Contextual indicator (`[Saved]`) following autosave operations.
 

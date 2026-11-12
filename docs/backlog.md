@@ -24,26 +24,26 @@
 ## 3. Narrative & Visuals
 - **Layered Visual System (Ghost Indicators):** [DONE] Implement a decoupled animation system that uses abstract indicators (color tints, squashing, borders) to represent states (WOUNDED, STAGGERED, BIND) without finalized assets.
 - **Logical Effect Buffer:** Create an engine-side queue for visual events (INK_DEATH, PARRY_SPARK) that the renderer consumes, ensuring visuals remain decoupled from logic.
-- **Chapter Titles:** Large typographic overlays when entering new modular zones. (Partially implemented as Typographic Bloom).
+- **Chapter Titles:** [DONE] Large typographic overlays (Typographic Bloom) when entering new modular zones and climatic weather transitions.
 
 ## 4. Technical & Navigation (Future Phases)
 - **A* Pathfinding:** Implement a dedicated pathfinding engine to allow Actors (Enemies and NPCs) to navigate around walls and obstacles autonomously.
     - **Dynamic Calculation:** Instead of simple linear vectors, actors will compute a tile-based route to their next PatrolPoint.
     - **Optimization:** Utilize a heat-map or hierarchical A* to manage the large 440x440 grid efficiently in Python.
     - **Obstacle Awareness:** Pathfinding must account for both static wall tiles and solid GameObjects (Bookcases, Candelabras).
-- **LAN Multiplayer:** Implement UDP broadcast (`SO_BROADCAST`) for automatic game discovery on the same subnet.
-- **State Serialization:** Ensure player entities cleanly serialize position and movement vectors into lightweight JSON/byte structs for low-latency networking.
 
 ## 5. Network & Multiplayer Stabilization (Completed)
+- **LAN Multiplayer:** [DONE] Implemented UDP broadcast (`SO_BROADCAST`), lobby discovery, and TCP socket handshake.
+- **State Serialization:** [DONE] Implemented clean 20Hz state packet serialization and client coordinate interpolation.
 - **Client Healing Regressions:** [DONE] Implemented input latching and authoritative TCP HEAL_EVENTs to prevent charge-drain and HP desync.
 - **Respite Desync:** [DONE] Implemented RESPITE_ACTION events for authoritative resting and edification.
 - **Boss Visibility:** [DONE] Host now broadcasts enemy names and dynamic interactables (Appendix Warp), and Clients correctly spawn them mid-session.
 - **Combat Balance:** [DONE] Implemented hit-latching to ensure each swing only deals damage once, preventing 'instant kill' glitches.
 
-## 6. Combat Refinement (Speculative)
-- **Weapon Arts:** Unique special attacks or passive effects for "Anomalous" weapons (e.g., Ink Bleed triggering a small AoE puddle on strike).
-- **Quill Pressure (Stamina):** A resource meter that limits rapid-fire attacks and dashes, encouraging tactical positioning and deliberate timing.
-- **Advanced Stagger Mechanics:** Variable stagger thresholds based on weapon weight or impact force.
+## 6. Combat Refinement
+- **Anomalous Weapon Effects:** [DONE] Implemented passive effects for Anomalous weapons (`INK_BLEED`, `VOID_STRIKE`, `PARRY_WINDOW`, `VAMPIRISM`) in `engine/anomalous_weapon.py`.
+- **Quill Pressure (Stamina):** [Speculative] A resource meter that limits rapid-fire attacks and dashes, encouraging tactical positioning and deliberate timing.
+- **Advanced Stagger Mechanics:** [Speculative] Variable stagger thresholds based on weapon weight or impact force.
 
 ## 7. Binder Scripts (Upgrade System)
 - **Concept:** The Binder NPC acts as a procedural artisan, weaving "Scripts" (operational metaphors like "Hemming Script" for HP buffs) into the player's frame using Torn Pages.
