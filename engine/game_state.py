@@ -111,6 +111,11 @@ class GameState:
         self.impact_sparks = [] # Transient combat hit sparks
         self.slash_effects = [] # Transient fading visual slash arcs
         self._player_was_attacking = False
+        self._hit_sfx_played_this_attack = False
+        self.local_swing_seq = 0
+        self.local_hit_seq = 0
+        self.pending_remote_sfx = []
+        self._remote_combat_seqs = {}
         self._last_attack_center = None
         self._last_attack_facing = None
 
@@ -174,7 +179,9 @@ class GameState:
         state = {
             "x": round(self.player.x, 1),
             "y": round(self.player.y, 1),
-            "hp": round(self.player.hp, 1)
+            "hp": round(self.player.hp, 1),
+            "swing_seq": self.local_swing_seq,
+            "hit_seq": self.local_hit_seq,
         }
         
         # Phase 4: Host Authority Sync
@@ -204,11 +211,25 @@ class GameState:
             
             # Broadcast the Host's view of all remote players AND themselves (authoritative HP)
             state["session_players"] = [
-                {"identity": self.network_manager.identity, "hp": self.player.hp, "x": self.player.x, "y": self.player.y}
+                {
+                    "identity": self.network_manager.identity,
+                    "hp": self.player.hp,
+                    "x": self.player.x,
+                    "y": self.player.y,
+                    "swing_seq": self.local_swing_seq,
+                    "hit_seq": self.local_hit_seq,
+                }
             ]
             for p in self.network_manager.remote_players.values():
                 state["session_players"].append(
-                    {"identity": p["identity"], "hp": p["hp"], "x": p["x"], "y": p["y"]}
+                    {
+                        "identity": p["identity"],
+                        "hp": p["hp"],
+                        "x": p["x"],
+                        "y": p["y"],
+                        "swing_seq": p.get("swing_seq", 0),
+                        "hit_seq": p.get("hit_seq", 0),
+                    }
                 )
             
         return state
@@ -225,11 +246,23 @@ class GameState:
             # If we are the Host, we only update remote player coordinates, not their HP.
             if self.network_manager.network_mode == "HOST":
                 current = self.network_manager.remote_players.get(identity, {"hp": float(data.get("hp", 0))})
+                rx = float(data.get("x", 0))
+                ry = float(data.get("y", 0))
+                swing_seq = int(data.get("swing_seq", 0))
+                hit_seq = int(data.get("hit_seq", 0))
+                prev_swing = int(current.get("swing_seq", 0))
+                prev_hit = int(current.get("hit_seq", 0))
+                if swing_seq > prev_swing:
+                    self.pending_remote_sfx.append(("sword_swing.ogg", rx, ry))
+                if hit_seq > prev_hit:
+                    self.pending_remote_sfx.append(("sword_hit.ogg", rx, ry))
                 self.network_manager.remote_players[identity] = {
                     "identity": identity,
-                    "x": float(data.get("x", 0)),
-                    "y": float(data.get("y", 0)),
+                    "x": rx,
+                    "y": ry,
                     "hp": current["hp"], # Authoritative Host-side HP
+                    "swing_seq": swing_seq,
+                    "hit_seq": hit_seq,
                     "time": time.time()
                 }
             else:
@@ -258,11 +291,21 @@ class GameState:
                 if p_identity == self.network_manager.identity:
                     self.player.hp = float(p_info.get("hp", self.player.hp))
                 else:
-                    # Update other scholars for ghost rendering
+                    # Update other scholars for ghost rendering and combat audio cues
+                    rx = float(p_info.get("x", 0))
+                    ry = float(p_info.get("y", 0))
+                    swing_seq = int(p_info.get("swing_seq", 0))
+                    hit_seq = int(p_info.get("hit_seq", 0))
+                    prev_swing, prev_hit = self._remote_combat_seqs.get(p_identity, (0, 0))
+                    if swing_seq > prev_swing:
+                        self.pending_remote_sfx.append(("sword_swing.ogg", rx, ry))
+                    if hit_seq > prev_hit:
+                        self.pending_remote_sfx.append(("sword_hit.ogg", rx, ry))
+                    self._remote_combat_seqs[p_identity] = (swing_seq, hit_seq)
                     self.network_manager.remote_players[p_identity] = {
                         "identity": p_identity,
-                        "x": float(p_info.get("x", 0)),
-                        "y": float(p_info.get("y", 0)),
+                        "x": rx,
+                        "y": ry,
                         "hp": float(p_info.get("hp", 0)),
                         "time": time.time()
                     }
@@ -684,8 +727,25 @@ class GameState:
         if not self.player: return
         
         is_client = (self.network_manager.network_mode == "CLIENT")
-        
+
+        if self.pending_remote_sfx:
+            queued = self.pending_remote_sfx[:]
+            self.pending_remote_sfx.clear()
+            if audio_manager:
+                import math
+                px, py = self.player.get_center()
+                for sfx_name, rx, ry in queued:
+                    dist = math.hypot(rx - px, ry - py)
+                    vol = audio_manager.calculate_spatial_volume(dist)
+                    jitter = 0.06 if sfx_name == "sword_swing.ogg" else 0.0
+                    audio_manager.play_sfx(sfx_name, volume=vol, pitch_jitter=jitter)
+
         player_is_attacking = (self.player.state == PlayerStateEnum.ATTACKING)
+        if player_is_attacking and not getattr(self, '_player_was_attacking', False):
+            self._hit_sfx_played_this_attack = False
+            self.local_swing_seq += 1
+            if audio_manager:
+                audio_manager.play_sfx("sword_swing.ogg", pitch_jitter=0.06)
         if getattr(self, '_player_was_attacking', False) and not player_is_attacking:
             from constants import (
                 SWORD_REACH, SWORD_ARC_RADIANS, SLASH_FADE_DURATION, get_weapon_passive_color
@@ -844,8 +904,11 @@ class GameState:
                             roll_drop(4, (obj.x, obj.y), self)
                         except Exception: pass
             
-            if hit_landed and audio_manager:
-                audio_manager.play_sfx("attack_hit.ogg")
+            if hit_landed and not getattr(self, '_hit_sfx_played_this_attack', False):
+                self._hit_sfx_played_this_attack = True
+                self.local_hit_seq += 1
+                if audio_manager:
+                    audio_manager.play_sfx("sword_hit.ogg")
 
         # 2. Enemy Lifecycle (Death/Cleanup) - Host Only handles death logic
         if not is_client:
@@ -1437,6 +1500,8 @@ class GameState:
         self.act1_world_data = None
         self.act2_world_data = None
         self.act_warp_target = None
+        self.pending_remote_sfx.clear()
+        self._remote_combat_seqs.clear()
 
         if self.stats:
             self.stats.data["run_state"] = None

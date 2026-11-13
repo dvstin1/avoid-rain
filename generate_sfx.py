@@ -903,6 +903,16 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
 SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "attack_swing.ogg": ("slash", {}),
     "attack_hit.ogg": ("hit_flesh", {}),
+    "sword_swing.ogg": ("whoosh", {
+        "duration": 0.16, "low_hz": 550.0, "high_hz": 3200.0, "q": 1.1,
+        "peak_pos": 0.42, "air_hp_hz": 4200.0, "air_level": 0.35, "peak": 0.82,
+    }),
+    "sword_hit.ogg": ("hit_flesh", {
+        "duration": 0.14, "thump_start_hz": 190.0, "thump_end_hz": 42.0,
+        "thump_drop_tau": 0.028, "thump_decay": 0.065, "body_cutoff_hz": 1400.0,
+        "body_decay": 0.035, "body_level": 0.75, "crunch_hp_hz": 2800.0,
+        "crunch_decay": 0.014, "crunch_level": 0.85, "drive": 2.8,
+    }),
     "enemy_telegraph.ogg": ("glint", {"peak": 0.7}),
     "combat_parry.ogg": ("hit_armor", {"duration": 0.9, "ring_hz": 1420.0, "ring_decay": 0.32, "ring_level": 1.0,
                                        "thud_level": 0.3}),

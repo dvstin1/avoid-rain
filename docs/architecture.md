@@ -64,7 +64,7 @@ The weather system state machine, particle calculations, and damage logic are st
 ## 6. Combat Logic & Hitbox Rules
 - **Visual-Aligned Hitbox Geometry:** Calculated based on player center and facing vector using `get_sword_hitbox()`. Generates dynamic bounding boxes covering the full 120-degree crescent sweep arc (`SWORD_ARC_RADIANS = 2.10`, `SWORD_REACH = 64.0` px) for cardinal, diagonal, and arbitrary facing vectors without collapsing diagonal hits into narrow strips.
 - **Two-Phase Resolution:** Damage resolution uses `check_sword_hit()` in `GameState.update_combat()`, combining fast AABB bounding box rejection with angular sector and radial reach tests against target rectangles. Point-blank enemies and off-axis enemies sweeping through the slash arc take damage accurately.
-- **The Layered SFX Rule:** To maximize tactile feedback, landed attacks trigger both `attack_swing.ogg` and `attack_hit.ogg` simultaneously. A "whiff" only triggers the swing sound.
+- **The Layered SFX Rule:** To maximize tactile feedback, initiating a slash plays `sword_swing.ogg` (with subtle pitch variance), and landing a hit plays `sword_hit.ogg` once per swing (capped to a single layered impact even when cleaving multiple enemies). A "whiff" only triggers `sword_swing.ogg`.
 
 ## 7. Map Topography: The Unit Grid Canvas
 The world is a massive $440 \times 440$ tile grid assembled from an $11 \times 11$ unit matrix.

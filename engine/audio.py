@@ -5,6 +5,7 @@ and smooth crossfading between music tracks.
 """
 import os
 import math
+import random
 import pygame
 from constants import SFX_FULL_VOLUME_DIST, SFX_MIN_VOLUME_DIST, SFX_MIN_VOLUME
 
@@ -22,6 +23,7 @@ class AudioManager:
 
         # SFX Registry
         self.sfx_cache = {}
+        self.sfx_pitch_cache = {}
         self.recent_sfx = [] # List of {'name': str, 'time': float} for debug OSD
         self.active_move_sounds = {} # Maps enemy_id -> pygame.mixer.Channel
 
@@ -131,8 +133,44 @@ class AudioManager:
                         pass
                 self.active_move_sounds.pop(enemy_id, None)
 
-    def play_sfx(self, sfx_name, volume=1.0):
-        """Load and trigger an SFX file, with debug tracking and volume."""
+    def _get_pitch_variant(self, sfx_name, base_sound, pitch_jitter):
+        """Return a cached pitch-shifted Sound variant when numpy/sndarray is available."""
+        if pitch_jitter <= 0.0:
+            return base_sound
+        variants = self.sfx_pitch_cache.get(sfx_name)
+        if variants is None:
+            variants = [base_sound]
+            try:
+                import numpy as np
+                arr = pygame.sndarray.array(base_sound)
+                n_frames = arr.shape[0]
+                if n_frames > 16:
+                    built = []
+                    for factor in (-1.0, -0.5, 0.0, 0.5, 1.0):
+                        ratio = 1.0 + factor * pitch_jitter
+                        if abs(ratio - 1.0) < 1e-4:
+                            built.append(base_sound)
+                            continue
+                        new_len = max(8, int(round(n_frames / ratio)))
+                        src_x = np.linspace(0, n_frames - 1, new_len)
+                        if arr.ndim == 2:
+                            cols = [
+                                np.interp(src_x, np.arange(n_frames), arr[:, c])
+                                for c in range(arr.shape[1])
+                            ]
+                            resampled = np.column_stack(cols)
+                        else:
+                            resampled = np.interp(src_x, np.arange(n_frames), arr)
+                        resampled = np.ascontiguousarray(resampled.round().astype(arr.dtype))
+                        built.append(pygame.sndarray.make_sound(resampled))
+                    variants = built
+            except Exception:
+                variants = [base_sound]
+            self.sfx_pitch_cache[sfx_name] = variants
+        return random.choice(variants)
+
+    def play_sfx(self, sfx_name, volume=1.0, pitch_jitter=0.0):
+        """Load and trigger an SFX file, with debug tracking, volume, and optional pitch variance."""
         self.recent_sfx.append({'name': sfx_name, 'time': 2.0})
 
         path = os.path.join(self.sfx_dir, sfx_name)
@@ -143,7 +181,7 @@ class AudioManager:
             if sfx_name not in self.sfx_cache:
                 self.sfx_cache[sfx_name] = pygame.mixer.Sound(path)
 
-            sound = self.sfx_cache[sfx_name]
+            sound = self._get_pitch_variant(sfx_name, self.sfx_cache[sfx_name], pitch_jitter)
 
             if sfx_name in ("slug_attack.ogg", "bat_attack.ogg"):
                 if sound.get_num_channels() >= 4:
