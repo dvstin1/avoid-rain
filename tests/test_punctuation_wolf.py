@@ -54,22 +54,45 @@ def test_punctuation_wolf_ai_telegraph_pounce_and_sfx():
     assert wolf.x > start_x
     assert wolf.state == ActorState.CHASE
 
-    # 2. Within pounce range -> enters WIND_UP and plays wolf_telegraph.ogg
+    # 2. Within pounce range -> enters WIND_UP and plays wolf_telegraph.ogg once (no pending_remote_sfx dup on HOST)
     state.player.x = wolf.x + 100.0
     wolf.cooldown_timer = 0.0
     wolf.update(0.05, state)
     assert wolf.state == ActorState.WIND_UP
-    assert "wolf_telegraph.ogg" in played_sfx
-    assert any(s[0] == "wolf_telegraph.ogg" for s in state.pending_remote_sfx)
+    assert played_sfx.count("wolf_telegraph.ogg") == 1
+    assert not any(s[0] == "wolf_telegraph.ogg" for s in state.pending_remote_sfx)
 
-    # 3. Complete wind-up -> transitions to STRIKE, plays wolf_attack.ogg, and lunges
+    # 3. Complete wind-up -> transitions to STRIKE, plays wolf_attack.ogg once, and lunges
     wolf.update(wolf.wind_up_duration + 0.05, state)
     assert wolf.state == ActorState.STRIKE
-    assert "wolf_attack.ogg" in played_sfx
-    assert any(s[0] == "wolf_attack.ogg" for s in state.pending_remote_sfx)
+    assert played_sfx.count("wolf_attack.ogg") == 1
+    assert not any(s[0] == "wolf_attack.ogg" for s in state.pending_remote_sfx)
     lunge_x = wolf.x
     wolf.update(0.05, state)
     assert wolf.x > lunge_x
+
+
+def test_punctuation_wolf_client_coop_sfx_queue():
+    """Verify CLIENT queues wolf_telegraph.ogg and wolf_attack.ogg on network state transitions."""
+    client_state = GameState(auto_load=False)
+    client_state.network_manager.network_mode = "CLIENT"
+    wolf = PunctuationWolfEnemy(120.0, 80.0)
+    wolf.network_id = 42
+    wolf.state = ActorState.CHASE
+    client_state.enemies = [wolf]
+
+    client_state._sync_enemies_from_host([{  # pylint: disable=protected-access
+        "id": 42, "name": "Punctuation Wolf", "x": 120.0, "y": 80.0,
+        "hp": wolf.hp, "state": ActorState.WIND_UP.value, "empowered": False,
+    }])
+    assert any(s[0] == "wolf_telegraph.ogg" for s in client_state.pending_remote_sfx)
+
+    client_state.pending_remote_sfx.clear()
+    client_state._sync_enemies_from_host([{  # pylint: disable=protected-access
+        "id": 42, "name": "Punctuation Wolf", "x": 140.0, "y": 80.0,
+        "hp": wolf.hp, "state": ActorState.STRIKE.value, "empowered": False,
+    }])
+    assert any(s[0] == "wolf_attack.ogg" for s in client_state.pending_remote_sfx)
 
 
 def test_punctuation_wolf_act2_scaling():

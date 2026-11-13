@@ -484,7 +484,7 @@ class SmearEnemy(Enemy):
                 puddle.is_solid = False
                 puddle.name = "Inkwell Puddle"
                 state.world.interactables.append(puddle)
-        
+
         # Then call standard actor update (handles stagger and movement)
         super().update(dt, state)
 
@@ -613,7 +613,7 @@ class PunctuationWolfEnemy(Enemy):
         return packet
 
     def _emit_wolf_sfx(self, state, sfx_name):
-        """Play spatialized wolf SFX locally and queue for remote co-op clients."""
+        """Play spatialized wolf SFX locally."""
         cx, cy = self.get_center()
         if hasattr(state, "audio_manager") and state.audio_manager:
             vol = 1.0
@@ -623,9 +623,6 @@ class PunctuationWolfEnemy(Enemy):
                 calc_vol = getattr(state.audio_manager, "calculate_spatial_volume", lambda _d: 1.0)
                 vol = calc_vol(dist)
             state.audio_manager.play_sfx(sfx_name, volume=vol, pitch_jitter=0.06)
-        if hasattr(state, "pending_remote_sfx") and getattr(state, "network_manager", None):
-            if getattr(state.network_manager, "network_mode", None) == "HOST":
-                state.pending_remote_sfx.append((sfx_name, cx, cy))
 
     def _on_start_strike(self, game_state):
         """Launch high-speed pounce in the locked facing direction."""
@@ -711,7 +708,7 @@ class FinalAuthor(Boss):
         self.speed = MINIBOSS_SPEED * 0.8
         self.detect_radius = 2000.0
         self.loot_tier = 0 # No rewards for the final redaction
-        
+
         self.wind_up_duration = 0.7
         self.strike_duration = 0.4
         self.recovery_duration = 1.0
