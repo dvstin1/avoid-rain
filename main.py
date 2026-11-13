@@ -398,13 +398,13 @@ def main():
                         elif mode == "continue":
                             state.hydrate_from_disk()
                             renderer.invalidate_static_world()
-                            pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
                         elif mode == "new_draft":
                             state.reset_to_new_game()
                             state.save_stats(wait=True)
                             renderer.invalidate_static_world()
-                            pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
                             title_menu.state = TitleMenuState.MAIN
+                        pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
+                        pause_menu.set_screen_shake_enabled(getattr(state, "screen_shake_enabled", True))
                         in_title = False
                     continue
 

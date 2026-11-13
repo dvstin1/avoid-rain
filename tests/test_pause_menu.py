@@ -217,3 +217,25 @@ def test_screen_shake_toggle_and_suppression(tmp_path, monkeypatch):
     finally:
         gs.shutdown_save_worker(timeout=1.0)
 
+
+def test_pause_menu_syncs_screen_shake_after_hydration(tmp_path, monkeypatch):
+    """Verify hydrating a saved screen_shake_enabled=False state updates PauseMenu label to OFF."""
+    save_file = tmp_path / "save_data.json"
+    monkeypatch.setattr("engine.stats.DEFAULT_PATH", save_file)
+    gs_writer = GameState(stats=None, stats_path=str(save_file), auto_load=True)
+    try:
+        gs_writer.set_screen_shake_enabled(False, save=False)
+        gs_writer.save_stats(str(save_file), wait=True)
+    finally:
+        gs_writer.shutdown_save_worker(timeout=1.0)
+
+    gs_reader = GameState(stats=None, stats_path=str(save_file), auto_load=False)
+    pm = PauseMenu()
+    assert "Screen Shake: ON" in pm.get_options()
+
+    gs_reader.hydrate_from_disk()
+    pm.set_screen_shake_enabled(getattr(gs_reader, "screen_shake_enabled", True))
+    assert gs_reader.screen_shake_enabled is False
+    assert "Screen Shake: OFF" in pm.get_options()
+
+
