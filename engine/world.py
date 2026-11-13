@@ -227,11 +227,15 @@ class Chronicler(Actor):
         valid_nodes.sort(key=lambda x: int(x.get("priority", 0)), reverse=True)
         node = valid_nodes[0]
 
+        emotion = node.get("emotion", "neutral")
         game_state.active_dialogue = {
             "speaker": self.name,
-            "text": node["text"]
+            "text": node["text"],
+            "emotion": emotion,
         }
-        print(f"[NPC] {self.name} triggered dialogue: {node['id']}")
+        if hasattr(game_state, "play_chronicler_mumble"):
+            game_state.play_chronicler_mumble(emotion)
+        print(f"[NPC] {self.name} triggered dialogue: {node['id']} (emotion={emotion})")
 
 class Wellspring(GameObject):
     """Refill station for flasks."""

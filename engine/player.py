@@ -185,8 +185,6 @@ class Player:
             self.dash_timer = DASH_DURATION
             self.dash_cooldown_timer = DASH_COOLDOWN
             self.parry_timer = PARRY_WINDOW # Trigger Parry Window
-            if audio_manager:
-                audio_manager.play_sfx("player_dash.ogg")
             return
 
         # 2. Check for attack start

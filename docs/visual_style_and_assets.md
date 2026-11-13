@@ -75,6 +75,7 @@ A standalone, deterministic generator script producing 40x40 dark-fantasy grit-t
 - **Decorative Clutter & Props (Transparent Alpha):**
   - `grass_natural.png`: Multi-seed organic foliage patch.
   - `rock_cluster.png`: Rounded stones with drop shadows and highlight bevels.
+  - `chronicle.png`: Ornate reading lectern holding an open gilded magical tome with glowing cyan runes.
   - `swamp_fungus.png`: Spotted toadstools with drop shadow.
   - `swamp_gas_vent.png`: Organic pod mound with open bubbling pores.
   - `swamp_thorns.png`: Skeletal bleached ash briars.
@@ -119,6 +120,10 @@ assets/
         ├── page_pickup.ogg       # A dry paper rustle or crisp parchment snap
         ├── weapon_swap.ogg       # A metallic slide or quill-scratching-stone sound
         ├── warp_trigger.ogg      # A low-frequency mystical hum or "vacuum" sound
+        ├── chronicle_open.ogg    # Mystical parchment flutter + arcane chime for Chronicle interaction
+        ├── chronicler_mumble_neutral.ogg       # Chronicler closed-mouth conversational mumble
+        ├── chronicler_mumble_happy.ogg         # Chronicler upbeat closed-mouth mumble (post-victory)
+        ├── chronicler_mumble_disappointed.ogg  # Chronicler quiet, low closed-mouth mumble (post-defeat)
         ├── enemy_death.ogg       # A wet ink splash or shattering glass sound
         ├── prop_break.ogg        # Splintering wood or crumbling stone thud
         ├── menu_navigate.ogg     # A soft, typewriter-key click
@@ -139,7 +144,7 @@ assets/
 ### 6.1. Procedural SFX Asset Pipeline (`generate_sfx.py`)
 Modeled after `generate_assets.py` and `generate_maps.py`, `generate_sfx.py` is a standalone offline DSP synthesizer that outputs game-ready 44.1 kHz mono Ogg Vorbis (`.ogg`) files into `assets/audio/sfx/` and verifies every output with `pygame.mixer.Sound`:
 - **DSP Engine:** Supports ADSR/exponential/swell/arch envelopes, exponential pitch sweeps & drops, band-limited additive oscillators & 2-op FM, white/pink/brown noise & sparse crackle, RBJ biquad filters (`lowpass`, `highpass`, `bandpass`, `peak`, and swept cutoffs), soft-clipping, bit-crushing, DC blocking, and peak normalization (`PEAK_TARGET = 0.85`). Uses `numpy` when available with a pure-Python `math` fallback.
-- **Presets & Manifest:** Provides 18 synthesis archetypes (`slash`, `whoosh`, `hit_flesh`, `hit_armor`, `explosion`, `footstep`, `pickup`, `level_up`, `ui_select`, `warp`, `arcane`, `boss_roar`, `glint`, `hiss`, `rumble`, `rustle`, `splash`, `rain`) and `SOUND_RECIPES` covering the engine SFX files.
+- **Presets & Manifest:** Provides 19 synthesis archetypes (`slash`, `whoosh`, `hit_flesh`, `hit_armor`, `explosion`, `footstep`, `pickup`, `level_up`, `ui_select`, `warp`, `arcane`, `boss_roar`, `glint`, `hiss`, `rumble`, `rustle`, `splash`, `rain`, `mumble`) and `SOUND_RECIPES` covering the engine SFX files.
 - **CLI Usage:**
   - `python generate_sfx.py` — Auto-fill all missing `.ogg` references across the codebase and manifest.
   - `python generate_sfx.py --list-missing` — Report missing `.ogg` references and their source lines.

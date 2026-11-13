@@ -47,6 +47,7 @@ DEFAULT_PEAT_BANK_PATH = os.path.join("assets", "graphics", "peat_bank.png")
 DEFAULT_SWAMP_WALL_PATH = os.path.join("assets", "graphics", "swamp_wall.png")
 DEFAULT_GRASS_PATH = os.path.join("assets", "graphics", "grass_natural.png")
 DEFAULT_ROCK_PATH = os.path.join("assets", "graphics", "rock_cluster.png")
+DEFAULT_CHRONICLE_PATH = os.path.join("assets", "graphics", "chronicle.png")
 DEFAULT_SWAMP_FUNGUS_PATH = os.path.join("assets", "graphics", "swamp_fungus.png")
 DEFAULT_SWAMP_VENT_PATH = os.path.join("assets", "graphics", "swamp_gas_vent.png")
 DEFAULT_SWAMP_THORNS_PATH = os.path.join("assets", "graphics", "swamp_thorns.png")
@@ -1952,6 +1953,63 @@ def generate_boss_abyss_rim(
     return surface
 
 
+def generate_chronicle(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Procedurally generate a 40x40 ornate lectern holding an open gilded magical tome."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # 1. Ground drop shadow under lectern base
+    shadow = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(shadow, (10, 10, 14, 150), (6, 31, 28, 7))
+    surface.blit(shadow, (0, 0))
+
+    # 2. Carved dark-oak / stone lectern base & column
+    pygame.draw.rect(surface, (42, 30, 24, 255), (10, 30, 20, 6), border_radius=1)
+    pygame.draw.line(surface, (86, 62, 46, 255), (10, 30), (29, 30), 1)
+    pygame.draw.rect(surface, (52, 36, 28, 255), (15, 20, 10, 11))
+    pygame.draw.line(surface, (82, 58, 44, 255), (15, 20), (15, 30), 1)
+    # Angled reading desk top
+    pygame.draw.rect(surface, (62, 42, 30, 255), (6, 13, 28, 10), border_radius=2)
+    pygame.draw.rect(surface, (36, 24, 18, 255), (6, 13, 28, 10), 1, border_radius=2)
+
+    # 3. Open gilded magical tome resting on the lectern
+    # Gilded brass/gold cover & trim
+    pygame.draw.rect(surface, (168, 128, 48, 255), (7, 8, 26, 14), border_radius=2)
+    pygame.draw.rect(surface, (218, 178, 78, 255), (7, 8, 26, 14), 1, border_radius=2)
+    # Left & right parchment pages
+    for rx, rw in ((9, 10), (21, 10)):
+        for py in range(10, 20):
+            for px in range(rx, rx + rw):
+                jit = rng.randint(-6, 6)
+                surface.set_at((px, py), (_clamp(226 + jit), _clamp(214 + jit), _clamp(186 + jit), 255))
+    # Center spine crease
+    pygame.draw.line(surface, (92, 68, 42, 255), (19, 9), (19, 20), 1)
+    pygame.draw.line(surface, (124, 92, 52, 255), (20, 9), (20, 20), 1)
+
+    # 4. Glowing cyan ink runes & arcane aura motes
+    glow = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(glow, (0, 225, 255, 55), (8, 6, 24, 16))
+    pygame.draw.ellipse(glow, (0, 245, 255, 110), (11, 9, 18, 10))
+    surface.blit(glow, (0, 0))
+
+    # Crisp arcane script lines on both pages
+    for lx in (11, 13, 15, 23, 25, 27):
+        surface.set_at((lx, 12), (0, 220, 245, 255))
+        surface.set_at((lx + 1, 15), (40, 245, 255, 255))
+    surface.set_at((14, 17), (190, 255, 255, 255))
+    surface.set_at((25, 17), (190, 255, 255, 255))
+    for mx, my in ((13, 5), (26, 6), (20, 4)):
+        surface.set_at((mx, my), (120, 250, 255, rng.randint(150, 220)))
+
+    return surface
+
+
 # ==============================================================================
 # BATCH GENERATION & CLI ENTRY POINT
 # ==============================================================================
@@ -1961,6 +2019,7 @@ def generate_all_assets(
     wall_path: str = DEFAULT_WALL_PATH,
     grass_path: str = DEFAULT_GRASS_PATH,
     rock_path: str = DEFAULT_ROCK_PATH,
+    chronicle_path: str = DEFAULT_CHRONICLE_PATH,
     wall_cracked_path: str = DEFAULT_WALL_CRACKED_PATH,
     wall_mossy_path: str = DEFAULT_WALL_MOSSY_PATH,
     wall_webbed_path: str = DEFAULT_WALL_WEBBED_PATH,
@@ -2061,6 +2120,12 @@ def generate_all_assets(
     rock_surf = generate_rock_cluster(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(rock_surf, rock_path)
     results["rock_cluster"] = rock_path
+
+    # 6. Sanctuary Chronicle Tome
+    _ensure_directory(chronicle_path)
+    chronicle_surf = generate_chronicle(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(chronicle_surf, chronicle_path)
+    results["chronicle"] = chronicle_path
 
     # 7. Reference-Driven Swamp Props
     # 7a. Bulbous fleshy toadstool / giant fungi

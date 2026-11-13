@@ -468,6 +468,7 @@ class Renderer:
 
         # 7. Swamp Biome Props: Fungus, Gas Vent, and Skeletal Thorns
         swamp_prop_defs = [
+            ("chronicle.png", "Chronicle"),
             ("swamp_fungus.png", "SwampFungus"),
             ("swamp_gas_vent.png", "SwampVent"),
             ("swamp_thorns.png", "SwampThorns"),
@@ -551,10 +552,19 @@ class Renderer:
             self.prop_cache["CryptClutter"] = crypt.convert_alpha() if display_init else crypt
 
     def draw_warp(self, warp, offset_x, offset_y):
-        """Draw the Warp Point as 'The Chronicle' book on a pedestal."""
+        """Draw the Warp Point as 'The Chronicle' gilded magical tome on a lectern."""
         wx, wy, ww, wh = warp.rect
         screen_x = wx - offset_x
         screen_y = wy - offset_y
+        chronicle_surf = getattr(self, "prop_cache", {}).get("Chronicle")
+        if chronicle_surf is not None:
+            self.screen.blit(chronicle_surf, (int(screen_x), int(screen_y)))
+            pulse = (math.sin(time.time() * 4.0) + 1.0) * 0.5
+            glow_alpha = int(35 + pulse * 65)
+            glow_surf = pygame.Surface((ww, wh), pygame.SRCALPHA)
+            pygame.draw.ellipse(glow_surf, (0, 240, 255, glow_alpha), (8, 5, ww - 16, 16))
+            self.screen.blit(glow_surf, (int(screen_x), int(screen_y)))
+            return
         pedestal_rect = pygame.Rect(screen_x + 5, screen_y + wh - 15, ww - 10, 15)
         pygame.draw.rect(self.screen, constants.COLOR_DARK_GREY, pedestal_rect)
         pygame.draw.rect(self.screen, constants.COLOR_BLACK, pedestal_rect, 1)

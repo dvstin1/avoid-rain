@@ -834,6 +834,31 @@ def preset_rain(rng: random.Random, p: Dict):
     return make_loopable(bed, p["loop_fade"])
 
 
+def preset_mumble(rng: random.Random, p: Dict):
+    """Closed-mouth vocal mumble: low-passed vocal buzz formants modulated by syllabic cadence."""
+    n = n_samples(p["duration"])
+    f_start = jitter(rng, p["f0_hz"], 0.03)
+    f_end = f_start * p["pitch_rise"]
+    freq = freq_curve(f_start, f_end, n, "lin")
+    buzz = mix((oscillator(freq, "saw"), 0.7), (oscillator(scale(freq, 0.5), "triangle"), 0.5))
+    buzz = soft_clip(buzz, 1.6)
+    vocal = biquad(buzz, "lowpass", p["lp_hz"], q=p["formant_q"], order=2)
+
+    syllables = max(1, int(p["syllables"]))
+    step = n / syllables
+    env = [0.0] * n
+    for idx in range(syllables):
+        s0 = int(idx * step + step * 0.08)
+        s1 = int((idx + 1) * step - step * 0.14)
+        span = max(4, s1 - s0)
+        amp = rng.uniform(0.75, 1.0)
+        for j in range(span):
+            if s0 + j < n:
+                phase = j / (span - 1)
+                env[s0 + j] = amp * (math.sin(math.pi * phase) ** 1.3)
+    return multiply(normalize(vocal), as_signal(env))
+
+
 PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
     "slash": (preset_slash, {
         "duration": 0.32, "sweep_start_hz": 700.0, "sweep_end_hz": 5200.0, "sweep_q": 1.4, "peak_pos": 0.35,
@@ -921,6 +946,10 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "high_bp_hz": 4200.0, "high_level": 0.3, "patter_rate_hz": 65.0, "patter_bp_hz": 2800.0,
         "patter_level": 0.25, "loopable": True, "peak": 0.72,
     }, "Seamless looping heavy rainfall with droplet patter"),
+    "mumble": (preset_mumble, {
+        "duration": 0.72, "f0_hz": 135.0, "pitch_rise": 0.96, "lp_hz": 360.0,
+        "formant_q": 1.8, "syllables": 4, "peak": 0.70,
+    }, "Closed-mouth vocal mumble with syllabic cadence"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -945,8 +974,17 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "bleed_start.ogg": ("rumble", {}),
     "respite_rest.ogg": ("level_up", {"duration": 2.0, "root_hz": 392.0, "warm": True, "exhale": True,
                                       "note_decay": 0.7}),
-    "player_dash.ogg": ("whoosh", {"duration": 0.26, "low_hz": 420.0, "high_hz": 2800.0, "peak_pos": 0.35,
-                                   "peak": 0.7}),
+    "player_dash.ogg": ("whoosh", {"duration": 0.16, "low_hz": 520.0, "high_hz": 3600.0, "q": 1.2,
+                                   "peak_pos": 0.22, "air_hp_hz": 4200.0, "air_level": 0.65, "peak": 0.82}),
+    "chronicle_open.ogg": ("arcane", {"duration": 0.65, "carrier_hz": 293.66, "fm_ratio": 2.0,
+                                      "fm_index": 1.8, "sweep_low_hz": 1200.0, "sweep_high_hz": 4200.0,
+                                      "sparkle_count": 5, "peak": 0.78}),
+    "chronicler_mumble_neutral.ogg": ("mumble", {"duration": 0.72, "f0_hz": 135.0, "pitch_rise": 0.96,
+                                                 "lp_hz": 360.0, "syllables": 4, "peak": 0.70}),
+    "chronicler_mumble_happy.ogg": ("mumble", {"duration": 0.68, "f0_hz": 172.0, "pitch_rise": 1.18,
+                                               "lp_hz": 450.0, "syllables": 5, "peak": 0.75}),
+    "chronicler_mumble_disappointed.ogg": ("mumble", {"duration": 0.88, "f0_hz": 108.0, "pitch_rise": 0.84,
+                                                      "lp_hz": 280.0, "syllables": 3, "peak": 0.45}),
     "player_block.ogg": ("hit_armor", {"duration": 0.35, "thud_level": 1.0, "ring_level": 0.35, "ring_decay": 0.08,
                                        "ring_hz": 620.0}),
     "flask_use.ogg": ("splash", {"duration": 0.7, "burst_level": 0.3, "slosh_level": 0.8, "bubble_count": 3,

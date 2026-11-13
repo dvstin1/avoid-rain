@@ -528,12 +528,19 @@ BIOME_PALETTES = {
 }
 
 # Structural Schema enforced for all conversation manifests
+CHRONICLER_MUMBLE_SFX = {
+    "neutral": "chronicler_mumble_neutral.ogg",
+    "happy": "chronicler_mumble_happy.ogg",
+    "disappointed": "chronicler_mumble_disappointed.ogg",
+}
+
 DIALOGUE_MANIFEST = {
     "chronicler": [
         {
             "id": "chr_victory",
             "conditions": {"last_run_result": "VICTORY"},
             "priority": "100",
+            "emotion": "happy",
             "text": (
                 "You did it! The wash was beautiful—the pages inside me felt "
                 "completely clear for the first time in an age. You are a master editor, my friend!"
@@ -543,6 +550,7 @@ DIALOGUE_MANIFEST = {
             "id": "chr_defeat",
             "conditions": {"last_run_result": "DEFEAT"},
             "priority": "100",
+            "emotion": "disappointed",
             "text": (
                 "You return... cold. I can still smell the burning ink on your hands. "
                 "Please... give me a moment of quiet before you open the cover again."
@@ -552,12 +560,14 @@ DIALOGUE_MANIFEST = {
             "id": "chr_init",
             "conditions": {"last_run_result": "INIT"},
             "priority": "50",
+            "emotion": "neutral",
             "text": "Welcome back to the Scriptorium, Reader. The pages are waiting whenever you are ready to begin."
         },
         {
             "id": "chr_fallback",
             "conditions": {}, # Empty means always valid
             "priority": "0",  # Checked last
+            "emotion": "neutral",
             "text": "The pages are waiting whenever you are ready."
         }
     ],

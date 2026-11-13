@@ -116,6 +116,7 @@ class GameState:
         self._hit_sfx_played_this_attack = False
         self.local_swing_seq = 0
         self.local_hit_seq = 0
+        self.local_dash_seq = 0
         self.pending_remote_sfx = []
         self._remote_combat_seqs = {}
         self._last_attack_center = None
@@ -184,6 +185,7 @@ class GameState:
             "hp": round(self.player.hp, 1),
             "swing_seq": self.local_swing_seq,
             "hit_seq": self.local_hit_seq,
+            "dash_seq": self.local_dash_seq,
         }
         
         # Phase 4: Host Authority Sync
@@ -222,6 +224,7 @@ class GameState:
                     "y": self.player.y,
                     "swing_seq": self.local_swing_seq,
                     "hit_seq": self.local_hit_seq,
+                    "dash_seq": self.local_dash_seq,
                 }
             ]
             for p in self.network_manager.remote_players.values():
@@ -233,6 +236,7 @@ class GameState:
                         "y": p["y"],
                         "swing_seq": p.get("swing_seq", 0),
                         "hit_seq": p.get("hit_seq", 0),
+                        "dash_seq": p.get("dash_seq", 0),
                     }
                 )
             
@@ -254,12 +258,16 @@ class GameState:
                 ry = float(data.get("y", 0))
                 swing_seq = int(data.get("swing_seq", 0))
                 hit_seq = int(data.get("hit_seq", 0))
+                dash_seq = int(data.get("dash_seq", 0))
                 prev_swing = int(current.get("swing_seq", 0))
                 prev_hit = int(current.get("hit_seq", 0))
+                prev_dash = int(current.get("dash_seq", 0))
                 if swing_seq > prev_swing:
                     self.pending_remote_sfx.append(("sword_swing.ogg", rx, ry))
                 if hit_seq > prev_hit:
                     self.pending_remote_sfx.append(("sword_hit.ogg", rx, ry))
+                if dash_seq > prev_dash:
+                    self.pending_remote_sfx.append(("player_dash.ogg", rx, ry))
                 self.network_manager.remote_players[identity] = {
                     "identity": identity,
                     "x": rx,
@@ -267,6 +275,7 @@ class GameState:
                     "hp": current["hp"], # Authoritative Host-side HP
                     "swing_seq": swing_seq,
                     "hit_seq": hit_seq,
+                    "dash_seq": dash_seq,
                     "time": time.time()
                 }
             else:
@@ -300,12 +309,17 @@ class GameState:
                     ry = float(p_info.get("y", 0))
                     swing_seq = int(p_info.get("swing_seq", 0))
                     hit_seq = int(p_info.get("hit_seq", 0))
-                    prev_swing, prev_hit = self._remote_combat_seqs.get(p_identity, (0, 0))
+                    dash_seq = int(p_info.get("dash_seq", 0))
+                    prev_seqs = self._remote_combat_seqs.get(p_identity, (0, 0, 0))
+                    prev_swing, prev_hit = prev_seqs[0], prev_seqs[1]
+                    prev_dash = prev_seqs[2] if len(prev_seqs) > 2 else 0
                     if swing_seq > prev_swing:
                         self.pending_remote_sfx.append(("sword_swing.ogg", rx, ry))
                     if hit_seq > prev_hit:
                         self.pending_remote_sfx.append(("sword_hit.ogg", rx, ry))
-                    self._remote_combat_seqs[p_identity] = (swing_seq, hit_seq)
+                    if dash_seq > prev_dash:
+                        self.pending_remote_sfx.append(("player_dash.ogg", rx, ry))
+                    self._remote_combat_seqs[p_identity] = (swing_seq, hit_seq, dash_seq)
                     self.network_manager.remote_players[p_identity] = {
                         "identity": p_identity,
                         "x": rx,
@@ -758,7 +772,7 @@ class GameState:
                 for sfx_name, rx, ry in queued:
                     dist = math.hypot(rx - px, ry - py)
                     vol = audio_manager.calculate_spatial_volume(dist)
-                    jitter = 0.06 if sfx_name == "sword_swing.ogg" else 0.0
+                    jitter = 0.06 if sfx_name in ("sword_swing.ogg", "player_dash.ogg") else 0.0
                     audio_manager.play_sfx(sfx_name, volume=vol, pitch_jitter=jitter)
 
         player_is_attacking = (self.player.state == PlayerStateEnum.ATTACKING)
@@ -1039,7 +1053,12 @@ class GameState:
                         speed_multiplier = 0.5
                         break
         
+        prev_player_state = self.player.state
         healed = self.player.update(dt, move_dir, walls, actions, attack_pressed, flask_pressed, dash_pressed, block_pressed, speed_multiplier)
+        if self.player.state == PlayerStateEnum.DASHING and prev_player_state != PlayerStateEnum.DASHING:
+            self.local_dash_seq += 1
+            if audio_manager:
+                audio_manager.play_sfx("player_dash.ogg", pitch_jitter=0.06)
         if healed and self.network_manager.network_mode == "CLIENT":
             from constants import FLASK_HEAL_AMOUNT
             self.network_manager.send_heal_event(FLASK_HEAL_AMOUNT)
@@ -1233,6 +1252,13 @@ class GameState:
             if self.network_manager.network_mode == "CLIENT":
                 threading.Thread(target=self.network_manager.send_full_state, args=(self.get_full_player_state(),), daemon=True).start()
 
+    def play_chronicler_mumble(self, emotion="neutral"):
+        """Play the Chronicler's closed-mouth mumble cue for the given emotion."""
+        from constants import CHRONICLER_MUMBLE_SFX
+        if getattr(self, 'audio_manager', None):
+            sfx_name = CHRONICLER_MUMBLE_SFX.get(emotion, CHRONICLER_MUMBLE_SFX["neutral"])
+            self.audio_manager.play_sfx(sfx_name)
+
     def open_chronicle_biome_dialog(self, portal=None):
         """Open the host-driven two-step Chronicle biome-selection dialog."""
         self.chronicle_dialog = {
@@ -1245,6 +1271,8 @@ class GameState:
         self.input_debounce_timer = 0.2
         self.input_ratchet_latched = True
         self.menu_nav_cooldown = 0.2
+        if getattr(self, 'audio_manager', None):
+            self.audio_manager.play_sfx("chronicle_open.ogg")
 
     def get_chronicle_dialog_options(self):
         """Return selectable options for the active Chronicle biome dialog step."""
@@ -1351,6 +1379,8 @@ class GameState:
         """Close the Chronicle dialog and launch the two-act run with Ink & Fog warp."""
         self.chronicle_dialog = None
         self.input_debounce_timer = 0.2
+        if getattr(self, 'audio_manager', None):
+            self.audio_manager.play_sfx("chronicle_open.ogg")
 
         def _launch(gs):
             gs.start_two_act_run(act1_choice, act2_choice)
