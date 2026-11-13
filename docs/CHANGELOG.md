@@ -935,3 +935,9 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Playback Pitch Variance (`engine/audio.py`):** Added `pitch_jitter` support to `AudioManager.play_sfx()` using cached `pygame.sndarray` resampled variants so consecutive swings vary subtly in pitch.
 - **Combat & Co-op Wiring (`engine/game_state.py`):** Wired `sword_swing.ogg` to attack initiation, `sword_hit.ogg` to once-per-swing sector hit evaluation (`SWORD_ARC_RADIANS = 2.10`, `SWORD_REACH = 64.0`), and UDP `swing_seq`/`hit_seq` synchronization for remote co-op players.
 - **Verification:** Added `tests/test_combat_audio.py` and verified with the full `pytest` suite.
+
+## [ARCHIVED] Act 2 Difficulty Escalation, Stat Scaling, & Empowered Visuals - November 2026
+- **Thematic Escalation Banner & Audio Cue (`constants.py`, `engine/game_state.py`, `rendering/renderer.py`):** Entering Act 2 sets `empowered_act = True`, triggers the full-width `THE STORM DEEPENS — EMPOWERED FOES STIR` banner overlay (`priority=3`), and plays `bleed_start.ogg` for both host and co-op clients without blocking player movement.
+- **2x Stat Scaling (`engine/enemy.py`, `engine/world.py`, `engine/maps.py`, `engine/game_state.py`):** Added `Enemy.apply_act_scaling(hp_multiplier, damage_multiplier)` and wired `2.0x` HP and damage scaling for Act 2 enemies, the Act 2 Night Boss, and `The Final Author` in `maps/night_boss_arena.json`, plus UDP `empowered_act` and per-enemy `empowered` sync.
+- **Empowered Visual Variants (`generate_assets.py`, `rendering/renderer.py`):** Generated 6 dark obsidian/crimson/violet procedural enemy sprites (`*_empowered.png`) and cached hue-shifted crimson-violet variants for hand-crafted Slug sprites at load time.
+- **Verification:** Added `tests/test_act2_escalation.py` and verified with the full `pytest` suite.

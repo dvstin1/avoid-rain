@@ -50,6 +50,7 @@ class Renderer:
         self._load_barrel_assets()
         self._load_tile_assets()
         self._load_slug_assets()
+        self._load_empowered_enemy_assets()
         self.grass_pools = {}
         self._load_grass_assets()
         self._generate_prop_cache()
@@ -58,7 +59,7 @@ class Renderer:
         """Pre-load barrel animation frames."""
         import os
         base_path = os.path.join("assets", "graphics")
-        display_init = pygame.display.get_init()
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
         
         for i in range(4):
             name = f"barrel_{i}.png"
@@ -77,7 +78,7 @@ class Renderer:
         """Pre-load slug enemy animation frames."""
         import os
         base_path = os.path.join("assets", "graphics")
-        display_init = pygame.display.get_init()
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
         
         # 1, 2, 3, 4 are directions/alternates. attack_1, attack_2 are attack states.
         slug_frames = ["slug_1.png", "slug_2.png", "slug_3.png", "slug_4.png", "slug_attack_1.png", "slug_attack_2.png"]
@@ -89,7 +90,43 @@ class Renderer:
                     if display_init:
                         img = img.convert_alpha()
                     # Scale slug to 48x48 (slightly larger than its 32x32 box for visual presence)
-                    self.image_cache[name] = pygame.transform.scale(img, (48, 48))
+                    scaled = pygame.transform.scale(img, (48, 48))
+                    self.image_cache[name] = scaled
+                    stem = name[:-4]
+                    self.image_cache[f"{stem}_empowered.png"] = self._tint_empowered_surface(scaled)
+                except Exception as e:
+                    print(f"[RENDER] Error loading {name}: {e}")
+
+    def _tint_empowered_surface(self, surf):
+        """Return a cached crimson-violet mutated variant of a hand-crafted sprite."""
+        w, h = surf.get_size()
+        tinted = pygame.Surface((w, h), pygame.SRCALPHA)
+        for y in range(h):
+            for x in range(w):
+                c = surf.get_at((x, y))
+                if c.a == 0:
+                    continue
+                # Shift organic greens/browns toward mutated crimson-violet while preserving contrast
+                nr = min(255, int(c.r * 1.15 + c.g * 0.45 + 24))
+                ng = max(0, int(c.g * 0.35 + c.r * 0.1))
+                nb = min(255, int(c.b * 0.85 + c.g * 0.35 + 28))
+                tinted.set_at((x, y), (nr, ng, nb, c.a))
+        return tinted
+
+    def _load_empowered_enemy_assets(self):
+        """Pre-load Act 2 empowered procedural enemy PNG variants."""
+        import os
+        base_path = os.path.join("assets", "graphics")
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
+        for kind in ("bat", "flutter", "bindling", "smear", "sentry", "boss"):
+            name = f"{kind}_empowered.png"
+            path = os.path.join(base_path, name)
+            if os.path.exists(path):
+                try:
+                    img = pygame.image.load(path)
+                    if display_init:
+                        img = img.convert_alpha()
+                    self.image_cache[name] = img
                 except Exception as e:
                     print(f"[RENDER] Error loading {name}: {e}")
 
@@ -106,7 +143,7 @@ class Renderer:
 
     def _prebake_floor_variants(self, base_floor_surf):
         """Pre-bake 4 subtle variants of floor_tile.png into RAM with rotations and value shifts."""
-        display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None) and pygame.display.get_surface() is not None
         ts = constants.TILE_SIZE
         scaled_base = pygame.transform.scale(base_floor_surf, (ts, ts))
         if display_init:
@@ -149,7 +186,7 @@ class Renderer:
         """Pre-load tile assets like walls, generator-driven variants, and biome surfaces."""
         import os
         base_path = os.path.join("assets", "graphics")
-        display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None) and pygame.display.get_surface() is not None
 
         # 1. Wall Tile & Feature Variants (standard, cracked, mossy, webbed)
         self.wall_variants = []
@@ -225,7 +262,7 @@ class Renderer:
     def _generate_biome_tile_cache(self):
         """Procedurally generate seamless base floor and wall surfaces per biome."""
         ts = constants.TILE_SIZE
-        display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None) and pygame.display.get_surface() is not None
         shadow_n = pygame.Surface((ts, 8), pygame.SRCALPHA)
         shadow_n.fill((0, 0, 0, 95), (0, 0, ts, 4))
         shadow_n.fill((0, 0, 0, 45), (0, 4, ts, 4))
@@ -333,7 +370,7 @@ class Renderer:
         """Pre-load grass assets and generate lightweight procedural grass tuft surfaces in RAM."""
         import os
         base_path = os.path.join("assets", "graphics")
-        display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None) and pygame.display.get_surface() is not None
 
         grass_name = "grass_natural.png"
         grass_path = os.path.join(base_path, grass_name)
@@ -370,7 +407,7 @@ class Renderer:
         import os
         base_path = os.path.join("assets", "graphics")
         ts = constants.TILE_SIZE
-        display_init = pygame.display.get_init() and pygame.display.get_surface() is not None
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None) and pygame.display.get_surface() is not None
 
         # 1. Structure (Stylized Deciduous Tree)
         tree = pygame.Surface((ts, ts), pygame.SRCALPHA)
@@ -1981,15 +2018,22 @@ class Renderer:
             fx, fy = packet["facing"]
             suffix = "1" if fx >= 0 else "2"
             
+            emp_suffix = "_empowered" if getattr(actor, "is_empowered", False) else ""
             if packet["base"] in ("WIND_UP", "STRIKE"):
-                sprite = self.image_cache.get(f"slug_attack_{suffix}.png")
+                sprite = (
+                    self.image_cache.get(f"slug_attack_{suffix}{emp_suffix}.png")
+                    or self.image_cache.get(f"slug_attack_{suffix}.png")
+                )
             else:
                 # Alternate frames if moving
                 if packet["base"] == "RUN":
                     # Swap every 0.3s
                     if int(packet["anim_timer"] * 3) % 2 == 1:
                         suffix = "3" if fx >= 0 else "4"
-                sprite = self.image_cache.get(f"slug_{suffix}.png")
+                sprite = (
+                    self.image_cache.get(f"slug_{suffix}{emp_suffix}.png")
+                    or self.image_cache.get(f"slug_{suffix}.png")
+                )
 
         # --- DRAWING ---
         used_procedural = False
@@ -2113,6 +2157,29 @@ class Renderer:
         fx, fy = packet.get("facing", (0.0, 1.0))
         anim_t = float(packet.get("anim_timer", 0.0))
         is_telegraph = packet.get("base") in ("WIND_UP", "STRIKE", "RECOVERY")
+
+        if getattr(actor, "is_empowered", False):
+            emp_key = None
+            if "bat" in actor_tag:
+                emp_key = "bat_empowered.png"
+            elif "flutter" in actor_tag:
+                emp_key = "flutter_empowered.png"
+            elif "bindling" in actor_tag:
+                emp_key = "bindling_empowered.png"
+            elif "smear" in actor_tag:
+                emp_key = "smear_empowered.png"
+            elif "sentry" in actor_tag:
+                emp_key = "sentry_empowered.png"
+            elif any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
+                emp_key = "boss_empowered.png"
+            emp_surf = self.image_cache.get(emp_key) if emp_key else None
+            if emp_surf is not None:
+                if emp_surf.get_size() != (w, h) and w > 0 and h > 0:
+                    emp_surf = pygame.transform.scale(emp_surf, (w, h))
+                self.screen.blit(emp_surf, draw_rect.topleft)
+                if is_telegraph:
+                    pygame.draw.rect(self.screen, state_color, draw_rect, 2)
+                return True
 
         if "bat" in actor_tag:
             body_col = state_color if is_telegraph else constants.COLOR_BAT_BODY
@@ -2776,15 +2843,31 @@ class Renderer:
         
         # Draw Title with stylized font
         text = getattr(state, 'bloom_text', "THE UNKNOWN MARGIN")
-        
+
+        # Full-width dramatic banner backing for long / escalation announcements
+        if len(text) > 26 or getattr(state, 'bloom_priority', 0) >= 3:
+            banner_h = 110
+            banner_y = sh // 3 - banner_h // 2
+            banner = pygame.Surface((sw, banner_h), pygame.SRCALPHA)
+            banner.fill((22, 8, 16, int(alpha * 0.82)))
+            pygame.draw.line(banner, (185, 38, 62, alpha), (0, 2), (sw, 2), 2)
+            pygame.draw.line(banner, (185, 38, 62, alpha), (0, banner_h - 3), (sw, banner_h - 3), 2)
+            bloom_surf.blit(banner, (0, banner_y))
+
         # Shadow / Bloom effect
         shadow_col = (*constants.COLOR_BLOOM_SHADOW, alpha // 2)
         shadow_surf = self.bloom_font.render(text, True, shadow_col)
-        bloom_surf.blit(shadow_surf, shadow_surf.get_rect(center=(sw // 2 + 5, sh // 3 + 5)))
-        
-        # Primary Text
         text_col = (*constants.COLOR_BLOOM_TEXT, alpha)
         text_surf = self.bloom_font.render(text, True, text_col)
+
+        max_w = max(200, sw - 80)
+        if text_surf.get_width() > max_w:
+            scale_ratio = max_w / float(text_surf.get_width())
+            new_size = (max_w, max(12, int(text_surf.get_height() * scale_ratio)))
+            shadow_surf = pygame.transform.smoothscale(shadow_surf, new_size)
+            text_surf = pygame.transform.smoothscale(text_surf, new_size)
+
+        bloom_surf.blit(shadow_surf, shadow_surf.get_rect(center=(sw // 2 + 4, sh // 3 + 4)))
         bloom_surf.blit(text_surf, text_surf.get_rect(center=(sw // 2, sh // 3)))
 
         self.screen.blit(bloom_surf, (0, 0))

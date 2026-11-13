@@ -2230,7 +2230,122 @@ def generate_all_assets(
         pygame.image.save(surf, out_path)
         results[key] = out_path
 
+    # Pipeline 11: Act 2 Empowered / Corrupted Procedural Enemy Variants
+    empowered_specs = [
+        ("bat_empowered", "bat", 40, 40),
+        ("flutter_empowered", "flutter", 40, 40),
+        ("bindling_empowered", "bindling", 40, 40),
+        ("smear_empowered", "smear", 40, 40),
+        ("sentry_empowered", "sentry", 40, 40),
+        ("boss_empowered", "boss", 64, 64),
+    ]
+    for key, kind, w, h in empowered_specs:
+        out_path = os.path.join("assets", "graphics", f"{key}.png")
+        _ensure_directory(out_path)
+        surf = generate_empowered_enemy_sprite(kind, w, h, rng=rng)
+        pygame.image.save(surf, out_path)
+        results[key] = out_path
+
     return results
+
+
+def generate_empowered_enemy_sprite(
+    kind: str,
+    width: int = 40,
+    height: int = 40,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a high-contrast Act 2 empowered enemy sprite with crimson/violet accents."""
+    if rng is None:
+        rng = random.Random(DEFAULT_SEED + hash(kind))
+
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    obsidian = (24, 18, 30, 255)
+    charcoal = (44, 30, 52, 255)
+    crimson = (210, 38, 68, 255)
+    bright_crimson = (255, 92, 118, 255)
+    eclipse_violet = (155, 65, 220, 255)
+    edge_glow = (120, 28, 58, 200)
+
+    if kind == "bat":
+        pygame.draw.polygon(surf, charcoal, [(cx, cy), (2, 10), (8, cy + 4), (cx - 4, cy + 2)])
+        pygame.draw.polygon(surf, charcoal, [(cx, cy), (width - 3, 10), (width - 9, cy + 4), (cx + 4, cy + 2)])
+        pygame.draw.line(surf, crimson, (cx, cy), (3, 11), 2)
+        pygame.draw.line(surf, crimson, (cx, cy), (width - 4, 11), 2)
+        pygame.draw.circle(surf, obsidian, (cx, cy), max(6, width // 4))
+        pygame.draw.circle(surf, edge_glow, (cx, cy), max(6, width // 4), 1)
+        pygame.draw.circle(surf, bright_crimson, (cx - 3, cy - 2), 2)
+        pygame.draw.circle(surf, bright_crimson, (cx + 3, cy - 2), 2)
+    elif kind == "flutter":
+        pygame.draw.polygon(surf, charcoal, [(cx - 4, cy), (3, 6), (6, height - 8)])
+        pygame.draw.polygon(surf, charcoal, [(cx + 4, cy), (width - 4, 6), (width - 7, height - 8)])
+        core = pygame.Rect(cx - width // 5, cy - height // 5, width * 2 // 5, height * 2 // 5)
+        pygame.draw.rect(surf, obsidian, core, border_radius=3)
+        pygame.draw.rect(surf, crimson, core, 2, border_radius=3)
+        pygame.draw.circle(surf, eclipse_violet, (cx - 10, 8), 2)
+        pygame.draw.circle(surf, bright_crimson, (cx + 10, height - 9), 2)
+    elif kind == "bindling":
+        body = pygame.Rect(6, 5, width - 12, height - 10)
+        pygame.draw.rect(surf, obsidian, body, border_radius=6)
+        pygame.draw.rect(surf, eclipse_violet, body, 2, border_radius=6)
+        hood = pygame.Rect(8, 4, width - 16, height // 3)
+        pygame.draw.rect(surf, charcoal, hood, border_radius=4)
+        pygame.draw.line(surf, crimson, (10, 14), (width - 11, height - 10), 2)
+        pygame.draw.circle(surf, bright_crimson, (cx - 3, cy + 2), 2)
+        pygame.draw.circle(surf, bright_crimson, (cx + 3, cy + 2), 2)
+    elif kind == "smear":
+        pygame.draw.circle(surf, obsidian, (cx, cy), width // 3)
+        for ang_idx in range(4):
+            ang = ang_idx * (math.pi / 2.0) + 0.4
+            lx = cx + int(math.cos(ang) * (width * 0.22))
+            ly = cy + int(math.sin(ang) * (height * 0.22))
+            pygame.draw.circle(surf, charcoal, (lx, ly), width // 5)
+        pygame.draw.circle(surf, eclipse_violet, (cx, cy), width // 3, 1)
+        pygame.draw.circle(surf, bright_crimson, (cx + 4, cy - 2), 4)
+    elif kind == "sentry":
+        for ang_idx in range(4):
+            ang = ang_idx * (math.pi / 2.0) + (math.pi / 4.0)
+            fx = cx + int(math.cos(ang) * (width * 0.42))
+            fy = cy + int(math.sin(ang) * (height * 0.42))
+            pygame.draw.line(surf, crimson, (cx, cy), (fx, fy), 3)
+            pygame.draw.circle(surf, bright_crimson, (fx, fy), 3)
+        core = pygame.Rect(7, 7, width - 14, height - 14)
+        pygame.draw.rect(surf, obsidian, core, border_radius=7)
+        pygame.draw.circle(surf, eclipse_violet, (cx, cy), width // 3, 2)
+        pygame.draw.circle(surf, bright_crimson, (cx + 4, cy), 4)
+    else:  # boss (Miniboss / Night Boss / Final Author)
+        pauldron_r = max(8, width // 4)
+        pygame.draw.circle(surf, charcoal, (10, cy - height // 8), pauldron_r)
+        pygame.draw.circle(surf, charcoal, (width - 10, cy - height // 8), pauldron_r)
+        pygame.draw.circle(surf, crimson, (10, cy - height // 8), pauldron_r, 2)
+        pygame.draw.circle(surf, crimson, (width - 10, cy - height // 8), pauldron_r, 2)
+        torso = pygame.Rect(8, 6, width - 16, height - 12)
+        pygame.draw.rect(surf, obsidian, torso, border_radius=10)
+        pygame.draw.rect(surf, eclipse_violet, torso, 2, border_radius=10)
+        visor = pygame.Rect(cx - width // 4, 14, width // 2, max(8, height // 6))
+        pygame.draw.rect(surf, (12, 8, 18, 255), visor, border_radius=3)
+        pygame.draw.circle(surf, bright_crimson, (cx, visor.centery), max(4, width // 12))
+
+    # Subtle dark-fantasy grit speckles inside opaque pixels
+    for _ in range((width * height) // 16):
+        gx = rng.randrange(0, width)
+        gy = rng.randrange(0, height)
+        col = surf.get_at((gx, gy))
+        if col.a > 180:
+            delta = rng.randint(-12, 12)
+            surf.set_at(
+                (gx, gy),
+                (
+                    max(0, min(255, col.r + delta)),
+                    max(0, min(255, col.g + delta // 2)),
+                    max(0, min(255, col.b + delta)),
+                    col.a,
+                ),
+            )
+    return surf
 
 
 def main() -> None:

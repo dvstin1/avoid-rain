@@ -98,6 +98,8 @@ class GameState:
         self.act1_world_data = None
         self.act2_world_data = None
         self.act_warp_target = None
+        self.empowered_act = False
+        self.audio_manager = None
         
         self.hit_stop_timer = 0.0
         self.shake_timer = 0.0
@@ -197,7 +199,8 @@ class GameState:
                     "id": getattr(e, "network_id", -1),
                     "name": getattr(e, "name", "Enemy"),
                     "x": round(e.x, 1), "y": round(e.y, 1), "hp": round(e.hp, 1),
-                    "state": e.state.value if hasattr(e, 'state') else 0
+                    "state": e.state.value if hasattr(e, 'state') else 0,
+                    "empowered": bool(getattr(e, "is_empowered", False)),
                 }
                 for e in self.enemies
             ]
@@ -208,6 +211,7 @@ class GameState:
             state["defeated_miniboss_ids"] = list(self.defeated_miniboss_ids)
             state["current_act"] = self.current_act
             state["act_warp_target"] = self.act_warp_target
+            state["empowered_act"] = bool(self.empowered_act)
             
             # Broadcast the Host's view of all remote players AND themselves (authoritative HP)
             state["session_players"] = [
@@ -327,7 +331,9 @@ class GameState:
             if def_bosses is not None:
                 self.defeated_miniboss_ids = set(def_bosses)
 
-            # 7. Synchronized Two-Act Warp Transitions
+            # 7. Synchronized Two-Act Warp Transitions & Act 2 Escalation Flag
+            if "empowered_act" in data:
+                self.empowered_act = bool(data.get("empowered_act", False))
             remote_warp = data.get("act_warp_target")
             if remote_warp == "act2" and self.current_act == 1 and self.act2_world_data:
                 if not (hasattr(self, 'warp_controller') and self.warp_controller.is_active()):
@@ -349,6 +355,7 @@ class GameState:
                 enemy.x = float(e_data.get("x", enemy.x))
                 enemy.y = float(e_data.get("y", enemy.y))
                 enemy.hp = float(e_data.get("hp", enemy.hp))
+                enemy.is_empowered = bool(e_data.get("empowered", getattr(self, "empowered_act", False)))
                 
                 # Sync visual state for animations
                 if "state" in e_data:
@@ -373,6 +380,7 @@ class GameState:
                 cls = mapping.get(e_data.get("name"), SlugEnemy)
                 new_e = cls(e_data["x"], e_data["y"], hp=e_data["hp"])
                 new_e.network_id = net_id
+                new_e.is_empowered = bool(e_data.get("empowered", getattr(self, "empowered_act", False)))
                 self.enemies.append(new_e)
 
     def _sync_interactables_from_host(self, interactable_data_list):
@@ -521,6 +529,8 @@ class GameState:
         attack_pressed = actions.get('attack', False)
         ratchet_reset = actions.get('ratchet_reset', False)
         self.inspect_active = actions.get('inspect', False)
+        if audio_manager is not None:
+            self.audio_manager = audio_manager
         is_client = (self.network_manager.network_mode == "CLIENT")
 
         if is_client:
@@ -666,6 +676,9 @@ class GameState:
                     bx, by = coords['x'] * TILE_SIZE, coords['y'] * TILE_SIZE
                     new_boss = NightBoss(bx, by)
                     new_boss.network_id = 9000 + idx
+                    if getattr(self, 'empowered_act', False) or self.current_act >= 2:
+                        from constants import ACT2_HP_MULTIPLIER, ACT2_DAMAGE_MULTIPLIER
+                        new_boss.apply_act_scaling(ACT2_HP_MULTIPLIER, ACT2_DAMAGE_MULTIPLIER)
                     self.enemies.append(new_boss)
                     print(f"[THE BLEED] Night Boss manifested at ({bx}, {by}).")
                     boss_alive = True
@@ -1339,7 +1352,14 @@ class GameState:
         if not started:
             _launch(self)
 
-    def _load_generated_world_from_path(self, path, world_name, reset_progress=True):
+    def _load_generated_world_from_path(
+        self,
+        path,
+        world_name,
+        reset_progress=True,
+        hp_multiplier=1.0,
+        damage_multiplier=1.0,
+    ):
         """Load a serialized world JSON into self.world and reset weather/camera."""
         from engine.world import World, LevelLoader
         from constants import TILE_SIZE
@@ -1359,7 +1379,12 @@ class GameState:
             self.world.enemies,
             self.world.boss_coords_list,
             self.world.module_sockets,
-        ) = LevelLoader.load_json_map(path, defeated_ids=self.defeated_miniboss_ids)
+        ) = LevelLoader.load_json_map(
+            path,
+            defeated_ids=self.defeated_miniboss_ids,
+            hp_multiplier=hp_multiplier,
+            damage_multiplier=damage_multiplier,
+        )
         self.enemies = self.world.enemies
 
         if self.player:
@@ -1395,6 +1420,7 @@ class GameState:
             "act2": bundle["act2_biome"],
         }
         self.current_act = 1
+        self.empowered_act = False
         self.act_warp_target = None
         self.last_zone_id = None
 
@@ -1411,7 +1437,13 @@ class GameState:
     def transition_to_act2(self):
         """Warp into the pre-generated Act 2 world while preserving player progression."""
         import json
-        from constants import get_generated_world_path
+        from constants import (
+            get_generated_world_path,
+            ACT2_HP_MULTIPLIER,
+            ACT2_DAMAGE_MULTIPLIER,
+            ACT2_ESCALATION_BANNER,
+            ACT2_ESCALATION_SFX,
+        )
 
         if not self.act2_world_data:
             return False
@@ -1425,11 +1457,20 @@ class GameState:
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(self.act2_world_data, f)
 
-        self._load_generated_world_from_path(path, world_name, reset_progress=True)
+        self.empowered_act = True
+        self._load_generated_world_from_path(
+            path,
+            world_name,
+            reset_progress=True,
+            hp_multiplier=ACT2_HP_MULTIPLIER,
+            damage_multiplier=ACT2_DAMAGE_MULTIPLIER,
+        )
         self.current_act = 2
         self.act_warp_target = None
         self.last_zone_id = None
-        self.trigger_bloom("ACT II: THE SECOND DRAFT", priority=2)
+        self.trigger_bloom(ACT2_ESCALATION_BANNER, priority=3)
+        if getattr(self, 'audio_manager', None):
+            self.audio_manager.play_sfx(ACT2_ESCALATION_SFX)
         return True
 
     def _handle_victory_conditions(self, dt):
@@ -1500,6 +1541,8 @@ class GameState:
         self.act1_world_data = None
         self.act2_world_data = None
         self.act_warp_target = None
+        self.empowered_act = False
+        self.audio_manager = None
         self.pending_remote_sfx.clear()
         self._remote_combat_seqs.clear()
 

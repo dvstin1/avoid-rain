@@ -77,14 +77,37 @@ class WarpPortal(GameObject):
             # Universal Reset: Clear visual debris on every map transition
             game_state.world_debris = []
 
+            from constants import ACT2_HP_MULTIPLIER, ACT2_DAMAGE_MULTIPLIER
+            is_empowered_arena = (
+                self.target_name in ("night_boss_arena", "final_boss")
+                and (
+                    getattr(game_state, 'empowered_act', False)
+                    or getattr(game_state, 'current_act', 0) >= 2
+                )
+            )
+            hp_mult = ACT2_HP_MULTIPLIER if is_empowered_arena else 1.0
+            dmg_mult = ACT2_DAMAGE_MULTIPLIER if is_empowered_arena else 1.0
+            if is_empowered_arena:
+                game_state.empowered_act = True
+
             # Phase 3 Intercept: If Client entering macro-world, fetch host map
             is_client = (game_state.network_manager.network_mode == "CLIENT")
             if is_client and self.target_name in ("macro_world", "outside"):
                 if not game_state.fetch_host_map():
                     print("[NETWORK] Map fetch failed. Falling back to local generation.")
-                    game_state.world = create_world(self.target_name, defeated_ids=game_state.defeated_miniboss_ids)
+                    game_state.world = create_world(
+                        self.target_name,
+                        defeated_ids=game_state.defeated_miniboss_ids,
+                        hp_multiplier=hp_mult,
+                        damage_multiplier=dmg_mult,
+                    )
             else:
-                game_state.world = create_world(self.target_name, defeated_ids=game_state.defeated_miniboss_ids)
+                game_state.world = create_world(
+                    self.target_name,
+                    defeated_ids=game_state.defeated_miniboss_ids,
+                    hp_multiplier=hp_mult,
+                    damage_multiplier=dmg_mult,
+                )
 
             # Weather Sync Rule: Update boss center coordinates for the safe circle
             new_boss_list = getattr(game_state.world, 'boss_coords_list', None)
@@ -490,7 +513,14 @@ class LevelLoader:
     Translates symbols into spatial entities and initial layout.
     """
     @staticmethod
-    def load_json_map(file_path, saved_enemies=None, defeated_ids=None, destroyed_ids=None):
+    def load_json_map(
+        file_path,
+        saved_enemies=None,
+        defeated_ids=None,
+        destroyed_ids=None,
+        hp_multiplier=1.0,
+        damage_multiplier=1.0,
+    ):
         """Loads a JSON map file and parses it, supporting modular stitching."""
         import os
         map_filename = os.path.basename(file_path)
@@ -556,13 +586,15 @@ class LevelLoader:
                 continue
 
         grid, interactables, warp_tiles, player_start, enemies = LevelLoader.parse_map(
-            ["".join(row) for row in grid], 
-            entity_data, 
+            ["".join(row) for row in grid],
+            entity_data,
             saved_enemies=saved_enemies,
             map_name=map_name,
             defeated_ids=defeated_ids,
             destroyed_ids=destroyed_ids,
-            map_filename=map_filename
+            map_filename=map_filename,
+            hp_multiplier=hp_multiplier,
+            damage_multiplier=damage_multiplier,
         )
 
         # Apply procedural spawn override if present
@@ -586,6 +618,8 @@ class LevelLoader:
         defeated_ids=None,
         destroyed_ids=None,
         map_filename=None,
+        hp_multiplier=1.0,
+        damage_multiplier=1.0,
     ):
         """
         Parses a string array and returns (grid, interactables, warp_tiles, player_start, enemies).
@@ -809,6 +843,8 @@ class LevelLoader:
                         
                         data = entity_data.get((x, y), {})
                         temp_enemy = enemy_cls(pos[0], pos[1], id=enemy_id)
+                        if hp_multiplier != 1.0 or damage_multiplier != 1.0:
+                            temp_enemy.apply_act_scaling(hp_multiplier, damage_multiplier)
                         
                         # Phase 4 Network Rule: Assign numeric ID for sync
                         temp_enemy.network_id = get_next_id()

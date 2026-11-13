@@ -4,7 +4,14 @@ import os
 from engine.world import World, LevelLoader
 from constants import get_generated_world_path
 
-def create_world(name: str, saved_enemies=None, defeated_ids=None, destroyed_ids=None) -> World:
+def create_world(
+    name: str,
+    saved_enemies=None,
+    defeated_ids=None,
+    destroyed_ids=None,
+    hp_multiplier=1.0,
+    damage_multiplier=1.0,
+) -> World:
     """Factory function to create and populate a World instance by name."""
     print(f"[DEBUG] Fetching room prototype: {name}")
 
@@ -57,7 +64,9 @@ def create_world(name: str, saved_enemies=None, defeated_ids=None, destroyed_ids
             world.enemies, world.boss_coords_list, world.module_sockets
         ) = LevelLoader.load_json_map(
             json_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids,
-            destroyed_ids=destroyed_ids
+            destroyed_ids=destroyed_ids,
+            hp_multiplier=hp_multiplier,
+            damage_multiplier=damage_multiplier,
         )
         return world
 

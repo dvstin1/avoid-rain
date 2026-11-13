@@ -19,6 +19,16 @@ class Enemy(Actor):
         self.attack_type = "LUNGE" # Default for non-weapon enemies
         self.is_parryable = False
         self.damage = 0
+        self.is_empowered = False
+
+    def apply_act_scaling(self, hp_multiplier=1.0, damage_multiplier=1.0):
+        """Scale enemy max HP, current HP, and attack damage for Act 2+ escalation."""
+        if hp_multiplier != 1.0:
+            self.max_hp = float(self.max_hp) * float(hp_multiplier)
+            self.hp = float(self.hp) * float(hp_multiplier)
+        if damage_multiplier != 1.0:
+            self.damage = float(self.damage) * float(damage_multiplier)
+        self.is_empowered = (hp_multiplier > 1.0 or damage_multiplier > 1.0)
 
 
     def attempt_damage_player(self, state):
