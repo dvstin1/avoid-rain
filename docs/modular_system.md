@@ -64,6 +64,8 @@ To support scaling world canvases (e.g., 440x440 grids) with variable socket div
 ### 1. Single-Biome World Cohesion & Per-Biome Segment Pools
 To prevent jarring mid-map biome transitions, each generated macro-world selects **one cohesive biome** per run from `BIOME_SEGMENT_POOLS` in `constants.py` (`windy_ridge`, `pastoral_valley`, `swamp_mire`, `frozen_peaks`, `tech_tower`) and populates every room and corridor slot exclusively from that biome's segment pool (`maps/segments/<biome>/`).
 
+> **Note:** Top-level `maps/<biome>.json` files (e.g., `maps/windy_ridge.json`, `maps/pastoral_valley.json`) and `maps/smallcave.json` are legacy/test fallbacks only; all active runtime biome layouts and enemy spawns are produced by `generate_maps.py --generate-pools` into `maps/segments/<biome>/`.
+
 Each biome pool contains multiple distinct procedurally generated module segments produced by `generate_maps.py --generate-pools`:
 - **120x120 Room Segments (`<biome>_room_1..N.json`):** Varied macro-chambers built using biome-appropriate organic or architectural algorithms, 2.5D verticality/elevation layers, and aligned 6-tile-wide cardinal doorway connectors on all four edges.
 - **40x40 Corridor Segments (`<biome>_corridor_1..N.json`):** Varied connecting junctions and passages with aligned cardinal connectors and guaranteed BFS reachability.

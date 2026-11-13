@@ -72,8 +72,9 @@ core technical documentation prior to this audit:
     in `save_data.json` and gating camera/combat shake impulses.
   - *Remediation:* Updated `docs/navigation_and_ui.md` and marked Section 1 Screen Shake Toggle `[DONE]` in `docs/backlog.md`.
 - [X] **5-Biome Macro-Room & Corridor Sockets (`constants.py`, `engine/world_generator.py`):**
-  - *Code:* `POOL_MONTHLY_REPORT` (`windy_ridge`, `pastoral_valley`, `swamp_mire`, `frozen_peaks`, `tech_tower`),
-    `POOL_CORRIDOR` (`smallcave`, `gantry_bridge`, `mire_causeway`), and `POOL_SPECIAL_EDITION`.
+  - *Code:* `BIOME_SEGMENT_POOLS` (`maps/segments/<biome>/` for `windy_ridge`, `pastoral_valley`, `swamp_mire`,
+    `frozen_peaks`, `tech_tower`), `POOL_MONTHLY_REPORT`, `POOL_CORRIDOR` (`maps/smallcave.json` fallback), and
+    `POOL_SPECIAL_EDITION`.
   - *Remediation:* Updated Section 5 and Section 6 in `docs/modular_system.md` to document the active biome pools.
 - [X] **Persistent Audio & Map Filename Debug HUD (`rendering/renderer.py`):**
   - *Code:* Under `debug_text_enabled`, the audio OSD displays the current background track followed directly by

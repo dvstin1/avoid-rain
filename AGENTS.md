@@ -22,6 +22,7 @@
 - Keep changes low-coupled and limited to the files required by the user's request.
 - **Map Editor Architecture Rules:**
   1. **Palette Divergence Law:** Whenever a new structural tile, item type, or enemy symbol (e.g., Miniboss strains) is added to the core game engine, you must instantly update the map editor's palette loading dictionary to mirror that addition. The palette layout must never fall out of synchronization with engine configurations.
+  2. **Runtime Segment Boundary:** Active runtime biome layouts and enemy spawns live in `generate_maps.py` -> `maps/segments/<biome>/` (`BIOME_SEGMENT_POOLS`). Top-level `maps/<biome>.json` files (plus `forest.json`, `ruins.json`, `smallcave.json`, `world_map1.json`, `final_boss.json`) are legacy/test fallbacks only—always update `generate_maps.py` and re-run `--generate-pools` when changing runtime biome spawns.
 
 ## Definition of Ready (DoR) Checklist
 1. [X] **Application Architecture Defined:** See `docs/architecture.md`.

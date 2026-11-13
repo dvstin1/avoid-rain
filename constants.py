@@ -297,8 +297,6 @@ POOL_MONTHLY_REPORT = [
 POOL_SPECIAL_EDITION = ["maps/tech_tower.json"]
 POOL_CORRIDOR = [
     "maps/smallcave.json",
-    "maps/gantry_bridge.json",
-    "maps/mire_causeway.json"
 ]
 
 # Per-Biome Modular Segment Pools (Single-Biome World Stitching)
