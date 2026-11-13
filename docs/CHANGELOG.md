@@ -865,6 +865,21 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **Continuous Cleanup & Verification:**
   - Verified 100% test suite pass across all 226 unit tests in `pytest`.
 
+## [ARCHIVED] Procedural Offline Map Generator (`generate_maps.py`) - November 2026
+- **Standalone Offline Map Generator (`generate_maps.py`):**
+  - Built standalone procedural level generator honoring Avoid Rain's 28-entry symbol registry and dual `.json` / `.txt` serialization schema.
+  - Implemented organic biome generator combining meandering Drunkard's Walk pathways with Cellular Automata smoothing (4 iterations) to carve natural shorelines, islands, mud banks, and shallow ink pools for Swamp and Wilds biomes.
+  - Implemented architectural biome generator creating multi-room layouts with 45° chamfered corners, recessed alcoves, stepped 2-tile corridors, symmetrical pillar rows, and focal central altars/dais for Ruins, Sanctuary, and Chambers biomes.
+  - Developed distance-to-wall weighted clutter and prop placement, placing rocks, foliage, bookcases, benches, and urns near room perimeters while preserving open navigation corridors.
+  - Added BFS flood-fill connectivity validation that tunnels between major disconnected components and eliminates stranded micro-pockets to guarantee 100% reachability from player start to warp exits.
+  - Integrated headless Pygame minimap preview renderer (`render_map_preview`) outputting crisp color-coded PNGs to `maps/previews/`.
+  - Provided comprehensive CLI interface with `--biome`, `--seed`, `--width`, `--height`, `--output`, `--format`, `--preview`, `--batch`, and `--list-biomes`.
+- **Comprehensive Unit Testing (`tests/test_generate_maps.py`):**
+  - Added 9 unit tests verifying 28-symbol registry coverage, organic/architectural generation, BFS flood-fill connectivity, edge-weighted prop clustering, JSON/TXT serialization, LevelLoader parsing compatibility, headless PNG preview generation, multi-biome coverage, and CLI execution.
+  - Verified 100% green test suite across all 235 unit tests in `pytest`.
+  - Achieved `pylint` scores of 9.92/10 on both `generate_maps.py` and `tests/test_generate_maps.py` with strict line length <= 120 characters.
+
+
 
 
 
