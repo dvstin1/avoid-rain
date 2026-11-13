@@ -251,80 +251,6 @@ class Wellspring(GameObject):
             game_state.trigger_bloom("HYDRATION FULL", priority=1)
             print("[WELLSPRING] Flasks already full.")
 
-class AttunementAltar(GameObject):
-    """Biome Attunement Altar that cycles between Sanctuary biome variants."""
-    VARIANTS = [
-        "sanctuary_paved.txt",
-        "sanctuary_geometric.txt",
-        "sanctuary_swamp.txt",
-        "sanctuary_ruins.txt",
-    ]
-
-    def __init__(self, position, dimensions, current_map="sanctuary_paved.txt"):
-        super().__init__(position, dimensions)
-        self.name = "Attunement Altar"
-        self.is_interactive = True
-        self.is_solid = True
-        self.current_map = current_map
-
-    def get_next_variant(self) -> str:
-        """Return the next sanctuary variant map in sequential order."""
-        import os
-        cur = os.path.basename(self.current_map)
-        cur_base = cur.replace(".txt", "").replace(".json", "")
-        for idx, var in enumerate(self.VARIANTS):
-            var_base = var.replace(".txt", "").replace(".json", "")
-            if cur_base == var_base:
-                return self.VARIANTS[(idx + 1) % len(self.VARIANTS)]
-        return self.VARIANTS[0]
-
-    def execute_interaction(self, game_state):
-        """Initiate warp sequence to the next sanctuary variant."""
-        next_map = self.get_next_variant()
-        print(f"[ALTAR] Attuning to {next_map}...")
-        game_state.start_warp(self)
-
-    def apply_transfer(self, game_state):
-        """Perform the physical map transition and player/camera repositioning."""
-        try:
-            import os
-            from engine.maps import create_world
-            next_map = self.get_next_variant()
-            print(f"[ALTAR] Transferring to {next_map}...")
-            game_state.world_debris = []
-            game_state.world = create_world(next_map)
-            game_state.world.map_filename = os.path.basename(next_map)
-            game_state.on_enter_sanctuary()
-
-            if getattr(game_state.world, "player_start", None):
-                target_x, target_y = game_state.world.player_start
-            else:
-                target_x, target_y = self.x, self.y + TILE_SIZE
-
-            game_state.player.is_exposed = False
-            game_state.player.x = float(target_x)
-            game_state.player.y = float(target_y)
-
-            if hasattr(game_state, 'camera'):
-                game_state.camera.world_w = len(game_state.world.grid[0]) * TILE_SIZE
-                game_state.camera.world_h = len(game_state.world.grid) * TILE_SIZE
-                game_state.camera.instant_center(game_state.player.get_center())
-
-            if hasattr(game_state.world, 'enemies'):
-                game_state.enemies = getattr(game_state.world, 'enemies', [])
-            else:
-                game_state.enemies = []
-
-            LevelLoader.link_actors_to_routes(game_state)
-            game_state.save_stats(wait=True)
-            theme_title = next_map.replace("sanctuary_", "").replace(".txt", "").replace(".json", "").upper()
-            game_state.trigger_bloom(f"ATTUNED: {theme_title}", priority=2)
-            print(f"[ALTAR] Warp to {next_map} complete.")
-        except Exception as e:
-            print(f"[ERROR] Altar transfer failed: {e}")
-            import traceback
-            traceback.print_exc()
-
 class LoreFragment(GameObject):
     """Collectable piece of text that reveals world history."""
     def __init__(self, position, dimensions, fragment_id, name="Lost Page"):
@@ -737,11 +663,6 @@ class LevelLoader:
                     tree.is_solid = True
                     tree.name = "Structure"
                     interactables.append(tree)
-
-                elif char == 'a':
-                    # Biome Attunement Altar
-                    altar = AttunementAltar(pos, dim, current_map=map_filename)
-                    interactables.append(altar)
 
                 elif char == 'C':
                     # The Chronicler NPC

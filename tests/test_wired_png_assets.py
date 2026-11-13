@@ -345,7 +345,7 @@ def test_environmental_clutter_cached_and_wired_to_biomes():
 
     # 2. Wire Ruins Rubble to ruins/tech_tower obstacle tiles
     state_ruins = GameState(auto_load=False)
-    state_ruins.world.name = "sanctuary_ruins"
+    state_ruins.world.name = "tech_tower"
     state_ruins.world.load_from_prototype(["K."])
     surf_ruins = pygame.Surface((constants.TILE_SIZE * 2, constants.TILE_SIZE))
     renderer._draw_static_tile_to_surface(surf_ruins, state_ruins, (0, 0, 2, 1), (0, 0, 40, 40))
@@ -369,7 +369,7 @@ def test_environmental_clutter_cached_and_wired_to_biomes():
     assert pygame.image.tobytes(sub_g, "RGB") != pygame.image.tobytes(sub_swamp_floor, "RGB")
     assert pygame.image.tobytes(sub_g_thicket, "RGB") != pygame.image.tobytes(sub_swamp_floor, "RGB")
 
-    # 4. Wire Crypt Clutter to the_colophon / sanctuary_paved obstacle tiles
+    # 4. Wire Crypt Clutter to the_colophon obstacle tiles
     state_crypt = GameState(auto_load=False)
     state_crypt.world.name = "the_colophon"
     state_crypt.world.load_from_prototype(["K."])

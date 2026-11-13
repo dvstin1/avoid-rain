@@ -16,8 +16,7 @@ palettes to simulate natural, worn materials:
    - Organic swamp wall (swamp_wall.png) - dark peat cliff embankment with sediment layers and root lip.
 4. Moss/Overgrowth Patch (grass_natural.png) - 40x40 transparent alpha organic foliage patch.
 5. Rock Cluster (rock_cluster.png) - 40x40 irregular rounded stones with drop shadows and highlight bevels.
-6. Biome Attunement Altar (attunement_altar.png) - 40x40 stepped stone plinth with glowing runic dial.
-7. Swamp Props (swamp_fungus.png, swamp_gas_vent.png, swamp_thorns.png) - organic swamp vegetation & vents.
+6. Swamp Props (swamp_fungus.png, swamp_gas_vent.png, swamp_thorns.png) - organic swamp vegetation & vents.
 8. Environmental Biome Clutter:
    - Broken stone pillars / rubble piles (ruins_rubble.png) - 40x40 fluted stone column & chipped debris.
    - Glowing fungal clusters or reeds (swamp_flora.png) - 40x40 bioluminescent marsh reeds & fungal blooms.
@@ -48,7 +47,6 @@ DEFAULT_PEAT_BANK_PATH = os.path.join("assets", "graphics", "peat_bank.png")
 DEFAULT_SWAMP_WALL_PATH = os.path.join("assets", "graphics", "swamp_wall.png")
 DEFAULT_GRASS_PATH = os.path.join("assets", "graphics", "grass_natural.png")
 DEFAULT_ROCK_PATH = os.path.join("assets", "graphics", "rock_cluster.png")
-DEFAULT_ALTAR_PATH = os.path.join("assets", "graphics", "attunement_altar.png")
 DEFAULT_SWAMP_FUNGUS_PATH = os.path.join("assets", "graphics", "swamp_fungus.png")
 DEFAULT_SWAMP_VENT_PATH = os.path.join("assets", "graphics", "swamp_gas_vent.png")
 DEFAULT_SWAMP_THORNS_PATH = os.path.join("assets", "graphics", "swamp_thorns.png")
@@ -210,17 +208,6 @@ ROCK_GRIT_NOISE_RANGE = (-5, 5)          # Surface grit jitter
 ROCK_HIGHLIGHT_COLOR = (128, 134, 142)   # 1px top-left highlight bevel
 ROCK_SHADOW_COLOR = (14, 16, 20)         # Dark bottom-edge drop shadow
 ROCK_SHADOW_ALPHA = 140                  # Drop shadow opacity
-
-# --- 6. Biome Attunement Altar Parameters ---
-ALTAR_SHADOW_COLOR = (12, 14, 18)        # Dark ground drop shadow
-ALTAR_SHADOW_ALPHA = 130                 # Drop shadow alpha
-ALTAR_BASE_STONE = (34, 38, 46)          # Stepped base bottom plinth
-ALTAR_MID_STONE = (38, 42, 52)           # Stepped middle tier
-ALTAR_TOP_STONE = (42, 48, 58)           # Capital top altar slab
-ALTAR_HIGHLIGHT = (84, 96, 112)          # Top-down bevel highlights
-ALTAR_SHADOW = (18, 20, 26)              # Underside recess shadow
-ALTAR_GLOW_CYAN = (0, 220, 255)          # Cyan runic dial glow
-ALTAR_GLOW_CORE = (210, 255, 255)        # Central bright runic core
 
 # --- 8. Environmental Clutter Parameters ---
 # 8a. Ruins Rubble & Broken Stone Pillars (ruins_rubble.png)
@@ -1133,93 +1120,6 @@ def generate_rock_cluster(
 
 
 # ==============================================================================
-# GENERATIVE PIPELINE 6: BIOME ATTUNEMENT ALTAR
-# ==============================================================================
-
-def generate_attunement_altar(
-    width: int = TILE_WIDTH,
-    height: int = TILE_HEIGHT,
-    rng: random.Random = None,
-) -> pygame.Surface:
-    """Procedurally generate a 40x40 Biome Attunement Altar on a transparent background."""
-    if rng is None:
-        rng = random.Random()
-
-    surface = pygame.Surface((width, height), pygame.SRCALPHA)
-
-    # 1. Ambient bottom drop shadow
-    shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
-    pygame.draw.ellipse(shadow_surf, (*ALTAR_SHADOW_COLOR, ALTAR_SHADOW_ALPHA), (4, 30, 32, 8))
-    surface.blit(shadow_surf, (0, 0))
-
-    # Helper for stepped stone plinth tier with surface grit noise and bevel highlights
-    def _draw_plinth_tier(
-        rect: Tuple[int, int, int, int],
-        base_col: Tuple[int, int, int],
-        hi_col: Tuple[int, int, int],
-    ):
-        rx, ry, rw, rh = rect
-        tier_surf = pygame.Surface((rw, rh), pygame.SRCALPHA)
-        for py in range(rh):
-            for px in range(rw):
-                jitter = rng.randint(-3, 3)
-                r = _clamp(base_col[0] + jitter)
-                g = _clamp(base_col[1] + jitter)
-                b = _clamp(base_col[2] + jitter)
-                tier_surf.set_at((px, py), (r, g, b, 255))
-        # Top-down bevel highlights (top and left 1px)
-        for px in range(rw):
-            tier_surf.set_at((px, 0), (*hi_col, 255))
-        for py in range(rh):
-            tier_surf.set_at((0, py), (*hi_col, 255))
-        # Recess shadows (bottom and right 1px)
-        for px in range(rw):
-            tier_surf.set_at((px, rh - 1), (*ALTAR_SHADOW, 255))
-        for py in range(rh):
-            tier_surf.set_at((rw - 1, py), (*ALTAR_SHADOW, 255))
-        surface.blit(tier_surf, (rx, ry))
-
-    # 2. Stepped Base:
-    # Tier 1: Base plinth
-    _draw_plinth_tier((6, 26, 28, 8), ALTAR_BASE_STONE, (68, 76, 88))
-    # Tier 2: Middle pedestal
-    _draw_plinth_tier((9, 18, 22, 9), ALTAR_MID_STONE, (76, 86, 100))
-    # Tier 3: Capital top slab
-    _draw_plinth_tier((7, 10, 26, 9), ALTAR_TOP_STONE, ALTAR_HIGHLIGHT)
-
-    # 3. Glowing Runic Core / Dial on top
-    # Runic basin inset
-    pygame.draw.ellipse(surface, (20, 24, 32, 255), (12, 11, 16, 7))
-
-    # Concentric cyan glow halos
-    glow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
-    pygame.draw.ellipse(glow_surf, (*ALTAR_GLOW_CYAN, 45), (10, 9, 20, 11))
-    pygame.draw.ellipse(glow_surf, (*ALTAR_GLOW_CYAN, 90), (12, 10, 16, 9))
-    pygame.draw.ellipse(glow_surf, (*ALTAR_GLOW_CYAN, 170), (14, 11, 12, 7))
-    surface.blit(glow_surf, (0, 0))
-
-    # Inner glowing dial disc
-    pygame.draw.ellipse(surface, (*ALTAR_GLOW_CYAN, 240), (16, 12, 8, 5))
-    # Central mystic core
-    pygame.draw.ellipse(surface, (*ALTAR_GLOW_CORE, 255), (18, 13, 4, 3))
-
-    # Compass rune tick marks
-    ticks = [(20, 11), (20, 16), (14, 14), (25, 14)]
-    for tx, ty in ticks:
-        surface.set_at((tx, ty), (*ALTAR_GLOW_CORE, 255))
-
-    # Floating ethereal aura motes (subtle ambient sparks above the altar)
-    motes = [(17, 7), (23, 8), (20, 6)]
-    for mx, my in motes:
-        alpha = rng.randint(140, 200)
-        surface.set_at((mx, my), (*ALTAR_GLOW_CYAN, alpha))
-        if mx + 1 < width:
-            surface.set_at((mx + 1, my), (*ALTAR_GLOW_CORE, alpha // 2))
-
-    return surface
-
-
-# ==============================================================================
 # GENERATIVE PIPELINE 7: REFERENCE-DRIVEN SWAMP PROPS (FUNGI, VENTS, THORNS)
 # ==============================================================================
 
@@ -2061,7 +1961,6 @@ def generate_all_assets(
     wall_path: str = DEFAULT_WALL_PATH,
     grass_path: str = DEFAULT_GRASS_PATH,
     rock_path: str = DEFAULT_ROCK_PATH,
-    altar_path: str = DEFAULT_ALTAR_PATH,
     wall_cracked_path: str = DEFAULT_WALL_CRACKED_PATH,
     wall_mossy_path: str = DEFAULT_WALL_MOSSY_PATH,
     wall_webbed_path: str = DEFAULT_WALL_WEBBED_PATH,
@@ -2162,12 +2061,6 @@ def generate_all_assets(
     rock_surf = generate_rock_cluster(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(rock_surf, rock_path)
     results["rock_cluster"] = rock_path
-
-    # 6. Biome Attunement Altar
-    _ensure_directory(altar_path)
-    altar_surf = generate_attunement_altar(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(altar_surf, altar_path)
-    results["attunement_altar"] = altar_path
 
     # 7. Reference-Driven Swamp Props
     # 7a. Bulbous fleshy toadstool / giant fungi

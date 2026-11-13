@@ -229,33 +229,6 @@ def test_swamp_biome_surfaces_opaque():
                 assert len(px) < 4 or px[3] == 255, f"{name} has non-opaque pixel at ({x}, {y}): {px}"
 
 
-def test_generate_attunement_altar():
-    """Verify procedural Biome Attunement Altar generation, stepped plinth, and glowing core."""
-    rng = random.Random(999)
-    altar = generate_assets.generate_attunement_altar(40, 40, rng=rng)
-
-    assert altar.get_size() == (40, 40)
-    assert altar.get_flags() & pygame.SRCALPHA != 0
-
-    # Corner background is transparent
-    assert altar.get_at((0, 0))[3] == 0
-    assert altar.get_at((39, 0))[3] == 0
-
-    # Stepped base is opaque dark slate stone
-    base_pixel = altar.get_at((20, 28))
-    assert base_pixel[3] == 255
-    assert base_pixel[0] < 70 and base_pixel[1] < 70 and base_pixel[2] < 70
-
-    # Bottom ambient drop shadow is translucent
-    shadow_pixel = altar.get_at((5, 33))
-    assert 0 < shadow_pixel[3] < 255
-
-    # Glowing runic core contains vibrant cyan / bright glyph
-    core_pixel = altar.get_at((20, 13))
-    assert core_pixel[3] > 200
-    assert core_pixel[1] >= 180 and core_pixel[2] >= 200  # Strong cyan/blue-green highlight
-
-
 def test_generate_swamp_props():
     """Verify procedural generation of swamp fungus, gas vent, and skeletal thorns."""
     rng = random.Random(404)
@@ -407,7 +380,6 @@ def test_generate_all_assets_includes_verticality():
             wall_path=os.path.join(tmpdir, "wall.png"),
             grass_path=os.path.join(tmpdir, "grass.png"),
             rock_path=os.path.join(tmpdir, "rock.png"),
-            altar_path=os.path.join(tmpdir, "altar.png"),
             wall_cracked_path=os.path.join(tmpdir, "wall_cracked.png"),
             wall_mossy_path=os.path.join(tmpdir, "wall_mossy.png"),
             wall_webbed_path=os.path.join(tmpdir, "wall_webbed.png"),

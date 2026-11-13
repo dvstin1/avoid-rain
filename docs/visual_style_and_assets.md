@@ -20,7 +20,6 @@ Entities and interactive obstacles registered in `constants.py` and `tools/edit_
 | **Floor Tile** | `.` / ` ` | 40x40 | Tile | Walkable floor surface with multi-strata elevation |
 | **Grass Floor** | `g` | 40x40 | Tile | Passable grass with decorative tufts and biome clutter |
 | **Overgrown Thicket**| `G` | 40x40 | Tile | Dense overgrowth vegetation layer |
-| **Attunement Altar** | `a` | 40x40 | Tile/Prop | Stepped stone plinth; warps between Sanctuary variants |
 | **Barrel** | `B` | 40x40 | Prop | Solid breakable prop with 1 HP; can contain loot |
 | **Bench** | `S` | 40x80 | Obstacle | Solid sitting bench prop (spans 1x2 tiles) |
 | **Rock / Clutter** | `K` | 40x40 | Obstacle | Non-solid/solid obstacle: rock cluster, ruins rubble, crypt clutter |
@@ -76,7 +75,6 @@ A standalone, deterministic generator script producing 40x40 dark-fantasy grit-t
 - **Decorative Clutter & Props (Transparent Alpha):**
   - `grass_natural.png`: Multi-seed organic foliage patch.
   - `rock_cluster.png`: Rounded stones with drop shadows and highlight bevels.
-  - `attunement_altar.png`: Stepped stone pedestal with glowing cyan runic dial.
   - `swamp_fungus.png`: Spotted toadstools with drop shadow.
   - `swamp_gas_vent.png`: Organic pod mound with open bubbling pores.
   - `swamp_thorns.png`: Skeletal bleached ash briars.

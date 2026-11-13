@@ -325,16 +325,8 @@ class Renderer:
     def _resolve_tile_biome(self, state, tx, ty):
         """Determine the biome key for tile coordinates (tx, ty)."""
         w_name = getattr(state.world, "name", "sanctuary").lower()
-        map_file = getattr(state.world, "map_filename", "").lower()
 
-        # Biome Attunement Altar Sanctuary Variants:
-        if "sanctuary_geometric" in w_name or "sanctuary_geometric" in map_file:
-            return "windy_ridge"
-        if "sanctuary_swamp" in w_name or "sanctuary_swamp" in map_file:
-            return "swamp_mire"
-        if "sanctuary_ruins" in w_name or "sanctuary_ruins" in map_file:
-            return "tech_tower"
-        if "sanctuary_paved" in w_name or "sanctuary_paved" in map_file or w_name == "sanctuary":
+        if w_name == "sanctuary":
             return "sanctuary"
 
         for key in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower"):
@@ -474,26 +466,7 @@ class Renderer:
         pygame.draw.circle(glow, (255, 190, 40, 60), (glow_r, glow_r), glow_r)
         self.prop_cache["CandelabraGlow"] = glow.convert_alpha() if display_init else glow
 
-        # 7. Biome Attunement Altar (40x40 PNG Asset with procedural fallback)
-        altar_name = "attunement_altar.png"
-        altar_path = os.path.join(base_path, altar_name)
-        if os.path.exists(altar_path):
-            try:
-                a_img = pygame.image.load(altar_path)
-                if display_init:
-                    a_img = a_img.convert_alpha()
-                self.prop_cache["Attunement Altar"] = pygame.transform.scale(a_img, (ts, ts))
-                self.image_cache[altar_name] = self.prop_cache["Attunement Altar"]
-            except Exception as e:
-                print(f"[RENDER] Error loading {altar_name}: {e}")
-        if "Attunement Altar" not in self.prop_cache:
-            altar = pygame.Surface((ts, ts), pygame.SRCALPHA)
-            pygame.draw.rect(altar, (34, 38, 46), (6, 22, 28, 14), border_radius=2)
-            pygame.draw.rect(altar, (42, 48, 58), (8, 12, 24, 11), border_radius=2)
-            pygame.draw.circle(altar, constants.COLOR_CYAN, (20, 15), 5)
-            self.prop_cache["Attunement Altar"] = altar.convert_alpha() if display_init else altar
-
-        # 8. Swamp Biome Props: Fungus, Gas Vent, and Skeletal Thorns
+        # 7. Swamp Biome Props: Fungus, Gas Vent, and Skeletal Thorns
         swamp_prop_defs = [
             ("swamp_fungus.png", "SwampFungus"),
             ("swamp_gas_vent.png", "SwampVent"),
@@ -600,7 +573,6 @@ class Renderer:
         target = player.current_interactable
         if target.name == "The Chronicler": prompt_text = f"Speak to {target.name}"
         elif "Chronicle" in target.name or "Return" in target.name: prompt_text = f"Read {target.name}"
-        elif target.name == "Attunement Altar": prompt_text = f"Attune at {target.name}"
         elif hasattr(target, 'weapon_data'):
             prompt_text = "[Click [PICK UP] on HUD to claim weapon]"
         else: prompt_text = f"Interact with {target.name}" if hasattr(target, 'name') else "Interact"
@@ -1454,8 +1426,6 @@ class Renderer:
                     target_surf.blit(self.prop_cache["SwampVent"], (sx + rdx, sy + rdy))
                 elif (
                     "colophon" in w_name
-                    or "sanctuary_paved" in w_name
-                    or "sanctuary_paved" in map_file
                     or (x * 7 + y * 13) % 3 == 0
                 ) and "CryptClutter" in getattr(self, "prop_cache", {}):
                     target_surf.blit(self.prop_cache["CryptClutter"], (sx + rdx, sy + rdy))
@@ -1529,8 +1499,6 @@ class Renderer:
                 elif (
                     "colophon" in w_name
                     or "crypt" in w_name
-                    or "sanctuary_paved" in w_name
-                    or "sanctuary_paved" in map_file
                 ) and "CryptClutter" in getattr(self, "prop_cache", {}):
                     crypt_surf = self.prop_cache["CryptClutter"]
                     target_surf.blit(crypt_surf, (sx + rdx, sy + rdy))
@@ -1789,14 +1757,6 @@ class Renderer:
             elif obj.name == "Bench":
                 pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, obj.width, obj.height))
                 pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, obj.width, 2))
-            elif obj.name == "Attunement Altar":
-                altar_surf = prop_cache.get("Attunement Altar")
-                if altar_surf is not None:
-                    self.screen.blit(altar_surf, (int(sx_o), int(sy_o)))
-                else:
-                    ax, ay, aw, ah = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
-                    pygame.draw.rect(self.screen, (25, 27, 32), (ax + 2, ay + 6, aw - 4, ah - 8), border_radius=4)
-                    pygame.draw.circle(self.screen, (80, 220, 240), (ax + aw // 2, ay + ah // 2 - 2), 6)
             elif obj.name == "Rock":
                 obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
                 rdx = ((int(obj.x) * 11 + int(obj.y) * 23) % 9) - 4
@@ -1820,8 +1780,6 @@ class Renderer:
                 elif (
                     "colophon" in w_name
                     or "crypt" in w_name
-                    or "sanctuary_paved" in w_name
-                    or "sanctuary_paved" in map_file
                 ) and "CryptClutter" in prop_cache:
                     self.screen.blit(prop_cache["CryptClutter"], (int(sx_o) + rdx, int(sy_o) + rdy))
                 else:

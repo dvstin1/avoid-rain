@@ -42,7 +42,7 @@ def test_symbol_registry_coverage():
     """Verifies that all canonical map symbols are defined in the generator legend."""
     expected_symbols = {
         '#', 'X', '.', 'g', 'G', 'v', 'T', 'P', 'W', 'R', 'L', 'F',
-        'a', 'S', 's', 'A', 'b', 'Y', 'E', 'Z', 'M', '2', '3',
+        'S', 's', 'A', 'b', 'Y', 'E', 'Z', 'M', '2', '3',
         'B', 'h', 'K', 'd', 'l', 'C', 'f', '!'
     }
     legend_keys = set(MAP_LEGEND.keys())

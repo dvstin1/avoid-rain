@@ -44,7 +44,6 @@ SYMBOL_WALL_BORDER = 'X'
 SYMBOL_FLOOR = '.'
 SYMBOL_GRASS = 'g'
 SYMBOL_THICKET = 'G'
-SYMBOL_ALTAR = 'a'
 SYMBOL_BARREL = 'B'
 SYMBOL_BENCH = 'S'
 SYMBOL_CLUTTER = 'K'
@@ -77,7 +76,6 @@ MAP_LEGEND: Dict[str, str] = {
     SYMBOL_FLOOR: "Floor Tile",
     SYMBOL_GRASS: "Grass Floor",
     SYMBOL_THICKET: "Overgrown Thicket",
-    SYMBOL_ALTAR: "Attunement Altar",
     SYMBOL_BARREL: "Barrel",
     SYMBOL_BENCH: "Bench",
     SYMBOL_CLUTTER: "Rock / Clutter",
@@ -114,7 +112,7 @@ COLOR_PREVIEW_PUDDLE = (18, 28, 54)
 COLOR_PREVIEW_PLAYER = (0, 245, 255)
 COLOR_PREVIEW_WARP = (255, 205, 70)
 COLOR_PREVIEW_RESPITE = (255, 185, 50)
-COLOR_PREVIEW_ALTAR = (0, 230, 200)
+COLOR_PREVIEW_LOTUS = (0, 230, 200)
 COLOR_PREVIEW_WELLSPRING = (120, 210, 255)
 COLOR_PREVIEW_CLUTTER = (125, 120, 115)
 COLOR_PREVIEW_BARREL = (120, 85, 45)
@@ -138,7 +136,6 @@ SYMBOL_COLOR_MAP: Dict[str, Tuple[int, int, int]] = {
     SYMBOL_PLAYER: COLOR_PREVIEW_PLAYER,
     SYMBOL_WARP: COLOR_PREVIEW_WARP,
     SYMBOL_RESPITE: COLOR_PREVIEW_RESPITE,
-    SYMBOL_ALTAR: COLOR_PREVIEW_ALTAR,
     SYMBOL_WELLSPRING: COLOR_PREVIEW_WELLSPRING,
     SYMBOL_CLUTTER: COLOR_PREVIEW_CLUTTER,
     SYMBOL_BARREL: COLOR_PREVIEW_BARREL,
@@ -149,7 +146,7 @@ SYMBOL_COLOR_MAP: Dict[str, Tuple[int, int, int]] = {
     SYMBOL_INK_URN: COLOR_PREVIEW_URN,
     SYMBOL_LORE: COLOR_PREVIEW_LORE,
     SYMBOL_CHRONICLER: COLOR_PREVIEW_CHRONICLER,
-    SYMBOL_LOTUS_FRAME: COLOR_PREVIEW_ALTAR,
+    SYMBOL_LOTUS_FRAME: COLOR_PREVIEW_LOTUS,
     SYMBOL_ENEMY_BAT: COLOR_PREVIEW_ENEMY,
     SYMBOL_ENEMY_SLUG: COLOR_PREVIEW_ENEMY,
     SYMBOL_ENEMY_FLUTTER: COLOR_PREVIEW_ENEMY,
@@ -495,10 +492,10 @@ def generate_organic_biome(
         px, py = open_floors.pop()
         grid[py][px] = SYMBOL_PLAYER
 
-        # Primary landmark altar or respite
+        # Primary landmark respite
         if open_floors:
             ax, ay = open_floors.pop()
-            grid[ay][ax] = SYMBOL_ALTAR if "swamp" in active_biome else SYMBOL_RESPITE
+            grid[ay][ax] = SYMBOL_RESPITE
 
         # Far warp portal
         if open_floors:
@@ -652,9 +649,9 @@ def generate_architectural_biome(
                 if grid[py][px] == SYMBOL_FLOOR:
                     grid[py][px] = SYMBOL_WALL  # Stone column pillar
 
-    # 6. Central Focal Dais & Altar
+    # 6. Central Focal Dais & Respite
     cx, cy = sx + sw // 2, sy + sh // 2
-    grid[cy][cx] = SYMBOL_ALTAR if "sanctuary" in active_biome else SYMBOL_RESPITE
+    grid[cy][cx] = SYMBOL_RESPITE
 
     # Flanking candelabras or urns
     for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
@@ -1029,7 +1026,7 @@ def render_map_preview(
                 surf.blit(sh_c, (rect.left, rect.top))
 
             # Highlight landmark and player tiles with crisp inner accents
-            if tile in (SYMBOL_PLAYER, SYMBOL_WARP, SYMBOL_RESPITE, SYMBOL_ALTAR, SYMBOL_MINIBOSS_M1):
+            if tile in (SYMBOL_PLAYER, SYMBOL_WARP, SYMBOL_RESPITE, SYMBOL_MINIBOSS_M1):
                 pygame.draw.rect(surf, (255, 255, 255), rect, 1)
 
     if not output_path:

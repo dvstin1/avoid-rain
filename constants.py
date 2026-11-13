@@ -336,13 +336,11 @@ TILE_STRUCTURE = 10
 TILE_PATROL = 11
 TILE_GRASS = 12
 TILE_THICKET = 13
-TILE_ALTAR = 14
 
 TILE_KEY = {
     '#': TILE_WALL,
     ' ': TILE_EMPTY, # Explicitly open floor
     '.': TILE_EMPTY,
-    'a': TILE_ALTAR,
     'g': TILE_GRASS,
     'G': TILE_THICKET,
     'W': TILE_WARP,
