@@ -352,8 +352,10 @@ def main():
     )
     
     # [Initialization] Detect existing compatible save file to enable 'Continue'
+    from engine.title_menu import TitleMenu, TitleMenuState, TitleTransition, TitleTransitionPhase
     from engine.stats import StatisticsTracker
     title_menu = TitleMenu(has_save=StatisticsTracker.has_compatible_save())
+    title_transition = TitleTransition()
     
     in_title = True
     running = True
@@ -367,6 +369,41 @@ def main():
                 state.menu_nav_cooldown -= dt
 
             if in_title:
+                if title_transition.is_active():
+                    for ev in pygame.event.get():
+                        if ev.type == pygame.QUIT:
+                            running = False
+                        elif ev.type == pygame.KEYDOWN and ev.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE):
+                            title_transition.skip()
+                        elif ev.type == pygame.JOYBUTTONDOWN:
+                            title_transition.skip()
+                    completed = title_transition.update(dt, audio_manager=audio)
+                    if title_transition.phase == TitleTransitionPhase.FADE_TO_BLACK:
+                        renderer.draw_title_screen(title_menu, state)
+                    renderer.draw_title_transition(title_transition)
+                    pygame.display.flip()
+                    if completed:
+                        mode = title_transition.mode
+                        title_transition.reset()
+                        if mode == "join_lobby":
+                            state.reset_to_new_game()
+                            if state.network_manager.network_mode == "CLIENT":
+                                full_state = state.get_full_player_state()
+                                import threading
+                                threading.Thread(target=state.network_manager.send_full_state, args=(full_state,), daemon=True).start()
+                            title_menu.state = TitleMenuState.MAIN
+                        elif mode == "continue":
+                            try: state.hydrate_from_disk()
+                            except Exception: state.reset_to_new_game()
+                            pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
+                        elif mode == "new_draft":
+                            try: state.reset_to_new_game(); state.save_stats(wait=True)
+                            except Exception: pass
+                            pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
+                            title_menu.state = TitleMenuState.MAIN
+                        in_title = False
+                    continue
+
                 in_title, running, ratchet_reset = handle_title_events(state, renderer, title_menu, audio_manager=audio)
                 renderer.draw_title_screen(title_menu, state)
                 audio.update(dt, "title_theme.ogg")
@@ -383,46 +420,19 @@ def main():
                             if not state.network_manager.is_connected:
                                 state.network_manager.start_searching()
                         elif title_menu.state == TitleMenuState.LOBBY:
-                            # Connection happened in handle_title_events
-                            renderer.fade_to_black()
-                            # Rule: State reset must preserve existing network session
-                            state.reset_to_new_game()
-                            
-                            # Phase 3: Immediate profile sync to Host
-                            if state.network_manager.network_mode == "CLIENT":
-                                full_state = state.get_full_player_state()
-                                import threading
-                                threading.Thread(target=state.network_manager.send_full_state, args=(full_state,), daemon=True).start()
-
-                            title_menu.state = TitleMenuState.MAIN
-                            in_title = False
+                            title_transition.start("join_lobby")
                         continue
                         
                     if selected == 'Continue':
-                        audio.play_sfx("warp_trigger.ogg")
-                        renderer.fade_to_black()
-                        try: state.hydrate_from_disk()
-                        except Exception: state.reset_to_new_game()
-                        pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
-                        in_title = False
+                        title_transition.start("continue")
                         continue
                     if selected == 'New Draft':
                         if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
-                            audio.play_sfx("warp_trigger.ogg")
-                            try: state.reset_to_new_game(); state.save_stats(wait=True)
-                            except Exception: pass
-                            pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
-                            renderer.fade_to_black()
-                            title_menu.state = TitleMenuState.MAIN
-                            in_title = False
+                            title_transition.start("new_draft")
                             continue
                         if StatisticsTracker.has_compatible_save(): title_menu.state = TitleMenuState.CONFIRM_NEW_GAME
                         else:
-                            try: state.reset_to_new_game(); state.save_stats(wait=True)
-                            except Exception: pass
-                            pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
-                            renderer.fade_to_black()
-                            in_title = False
+                            title_transition.start("new_draft")
                             continue
                     if selected == 'Controls':
                         title_menu.state = TitleMenuState.CONTROLS

@@ -32,6 +32,7 @@ The `Camera` is a stateful, frame-rate independent controller centered on the pl
 The title screen adaptively presents options based on the physical presence of `save_data.json`.
 - **Dynamic Options:** Displays `[Continue]` only if valid save data is detected.
 - **Overwrite Protection:** Selecting `[New Game]` while a save exists triggers a mandatory Y/N confirmation modal with a 2-second input lock.
+- **Storm-and-Lightning Transition (`TitleTransition`):** Starting or continuing a game runs a 3-phase sequence (`FADE_TO_BLACK` → `STORM_VIGNETTE` with `storm_intro.ogg`, falling rain, and procedural lightning bolts → `FADE_OUT_AND_WARP` into the Sanctuary). Pressing `Space`, `Enter`, `Escape`, or a gamepad button skips directly to the Sanctuary.
 
 ### 3.2. HUD Status Display (Lower-Left)
 Text items in the HUD use a compact 14pt font line size to prevent viewport crowding:

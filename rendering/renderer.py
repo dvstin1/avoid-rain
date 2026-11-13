@@ -3466,6 +3466,71 @@ class Renderer:
             pygame.display.flip()
             pygame.time.delay(10)
 
+    def draw_title_transition(self, transition):
+        """Render the multi-phase storm-and-lightning title transition."""
+        from engine.title_menu import TitleTransitionPhase
+
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        phase = getattr(transition, "phase", TitleTransitionPhase.IDLE)
+
+        if phase == TitleTransitionPhase.FADE_TO_BLACK:
+            overlay = pygame.Surface((sw, sh))
+            overlay.fill(constants.COLOR_BLACK)
+            overlay.set_alpha(transition.get_fade_alpha())
+            self.screen.blit(overlay, (0, 0))
+            return
+
+        if phase in (TitleTransitionPhase.STORM_VIGNETTE, TitleTransitionPhase.FADE_OUT_AND_WARP):
+            flash = transition.get_lightning_flash()
+            sky_r = min(255, int(10 + 95 * flash))
+            sky_g = min(255, int(12 + 108 * flash))
+            sky_b = min(255, int(20 + 135 * flash))
+            self.screen.fill((sky_r, sky_g, sky_b))
+
+            # Brooding storm cloud bands
+            t = getattr(transition, "timer", 0.0)
+            for idx in range(5):
+                cx = int(((idx * 310 + t * (28 + idx * 9)) % (sw + 360)) - 180)
+                cy = 24 + idx * 28
+                cloud_col = (
+                    min(255, int(22 + 70 * flash)),
+                    min(255, int(26 + 80 * flash)),
+                    min(255, int(38 + 105 * flash)),
+                )
+                pygame.draw.ellipse(self.screen, cloud_col, (cx, cy, 340, 86))
+
+            # Angled falling rain streaks
+            rain_col = (
+                min(255, int(95 + 110 * flash)),
+                min(255, int(115 + 110 * flash)),
+                min(255, int(155 + 95 * flash)),
+            )
+            for i in range(95):
+                rx = ((i * 97 + int(t * 260)) % (sw + 120)) - 60
+                ry = ((i * 53 + int(t * 780)) % (sh + 60)) - 30
+                pygame.draw.line(self.screen, rain_col, (rx, ry), (rx - 9, ry + 26), 1)
+
+            # Jagged procedural lightning bolts synced to flash
+            bolt_idx = transition.get_active_bolt_index()
+            if flash > 0.05 and bolt_idx is not None:
+                start_x = int(sw * (0.34 if bolt_idx == 0 else 0.68))
+                pts = [(start_x, 0)]
+                cur_x, cur_y = start_x, 0
+                step_y = sh // 9
+                for seg in range(1, 9):
+                    jitter = ((seg * 37 + bolt_idx * 19) % 54) - 27
+                    cur_x += jitter
+                    cur_y = seg * step_y
+                    pts.append((cur_x, cur_y))
+                pygame.draw.lines(self.screen, (110, 210, 255), False, pts, 5)
+                pygame.draw.lines(self.screen, (240, 252, 255), False, pts, 2)
+
+            if phase == TitleTransitionPhase.FADE_OUT_AND_WARP:
+                overlay = pygame.Surface((sw, sh))
+                overlay.fill(constants.COLOR_BLACK)
+                overlay.set_alpha(transition.get_fade_alpha())
+                self.screen.blit(overlay, (0, 0))
+
     def draw_loading_screen(self, msg, sub=None, min_t=2.0, sleep=None):
         """Draw loading screen."""
         import time; sl = sleep if sleep else time.sleep

@@ -859,6 +859,51 @@ def preset_mumble(rng: random.Random, p: Dict):
     return multiply(normalize(vocal), as_signal(env))
 
 
+def preset_storm_intro(rng: random.Random, p: Dict):
+    """Cinematic storm intro: swelling rain, electric lightning crack, and rolling thunder."""
+    n = n_samples(p["duration"])
+    rain_bed = mix(
+        (normalize(biquad(brown_noise(n, rng), "lowpass", 650.0, q=0.85, order=2)), 0.7),
+        (normalize(biquad(pink_noise(n, rng), "bandpass", 1550.0, 0.8)), 0.55),
+    )
+    rain_env = arch(n, 0.45, 1.4, 1.8)
+    rain = multiply(rain_bed, rain_env)
+
+    # Primary lightning crack + thunder roll
+    c1_len = n_samples(0.32)
+    crack1 = multiply(
+        normalize(biquad(white_noise(c1_len, rng), "highpass", 1600.0, order=2)),
+        exp_decay(c1_len, 0.04, attack=0.001),
+    )
+    snap1 = multiply(
+        normalize(biquad(white_noise(c1_len, rng), "bandpass", 3400.0, 1.2)),
+        exp_decay(c1_len, 0.025, attack=0.0005),
+    )
+
+    t_len = n_samples(1.75)
+    thunder_noise = normalize(biquad(brown_noise(t_len, rng), "lowpass", 145.0, q=0.9, order=2))
+    thunder_sub = oscillator(freq_curve(52.0, 30.0, t_len), "sine")
+    thunder = multiply(
+        mix((thunder_noise, 0.9), (thunder_sub, 0.55)),
+        multiply(exp_decay(t_len, 0.72, attack=0.02), lfo(t_len, 4.2, 0.22)),
+    )
+
+    # Secondary distant fork crack
+    c2_len = n_samples(0.24)
+    crack2 = multiply(
+        normalize(biquad(white_noise(c2_len, rng), "bandpass", 2600.0, 1.1)),
+        exp_decay(c2_len, 0.035, attack=0.001),
+    )
+
+    return mix(
+        (rain, p["rain_level"]),
+        (crack1, p["crack_level"], p["crack1_time"]),
+        (snap1, p["crack_level"] * 0.8, p["crack1_time"]),
+        (thunder, p["thunder_level"], p["crack1_time"] + 0.03),
+        (crack2, p["crack_level"] * 0.55, p["crack2_time"]),
+    )
+
+
 PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
     "slash": (preset_slash, {
         "duration": 0.32, "sweep_start_hz": 700.0, "sweep_end_hz": 5200.0, "sweep_q": 1.4, "peak_pos": 0.35,
@@ -950,6 +995,10 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "duration": 0.72, "f0_hz": 135.0, "pitch_rise": 0.96, "lp_hz": 360.0,
         "formant_q": 1.8, "syllables": 4, "peak": 0.70,
     }, "Closed-mouth vocal mumble with syllabic cadence"),
+    "storm_intro": (preset_storm_intro, {
+        "duration": 2.5, "rain_level": 0.55, "crack_level": 1.0, "thunder_level": 0.95,
+        "crack1_time": 0.35, "crack2_time": 1.25, "peak": 0.85,
+    }, "Swelling rain + lightning crack + rolling thunder intro"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -994,6 +1043,7 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
                                   "sweep_q": 3.0, "peak_pos": 0.6, "ring_level": 0.4, "ring_hz": 1900.0,
                                   "peak": 0.7}),
     "warp_trigger.ogg": ("warp", {}),
+    "storm_intro.ogg": ("storm_intro", {}),
     "enemy_death.ogg": ("splash", {"duration": 0.75, "thump_level": 0.7, "bubble_count": 7, "burst_decay": 0.12}),
     "prop_break.ogg": ("explosion", {"duration": 0.6, "sub_level": 0.35, "rumble_level": 0.3, "crunch_level": 1.0,
                                      "debris_level": 0.8, "crunch_decay": 0.1}),

@@ -618,6 +618,13 @@ RAIN_AUDIO_INSIDE_RAMP_DIST = 240.0
 RAIN_AUDIO_BOSS_FADE_DURATION = 1.25
 BOSS_COMBAT_TRACKS = ("miniboss_combat.ogg", "night_boss.ogg", "final_reckoning.ogg")
 
+# Title Screen Storm-and-Lightning Transition Constants
+STORM_INTRO_SFX = "storm_intro.ogg"
+TITLE_TRANSITION_FADE_IN_DURATION = 0.5
+TITLE_TRANSITION_STORM_DURATION = 2.4
+TITLE_TRANSITION_FADE_OUT_DURATION = 0.5
+TITLE_LIGHTNING_BOLTS = ((0.35, 0.28), (1.25, 0.24))
+
 # Act 2 & Final Boss Escalation Constants
 ACT2_HP_MULTIPLIER = 2.0
 ACT2_DAMAGE_MULTIPLIER = 2.0
