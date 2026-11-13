@@ -65,6 +65,7 @@ SYMBOL_ENEMY_FLUTTER = 'f'
 SYMBOL_ENEMY_BINDLING = 'b'
 SYMBOL_ENEMY_SMEAR = 's'
 SYMBOL_ENEMY_SENTRY = 'Y'
+SYMBOL_ENEMY_WOLF = 'w'
 SYMBOL_MINIBOSS_M1 = 'E'
 SYMBOL_MINIBOSS_M2 = '2'
 SYMBOL_MINIBOSS_M3 = '3'
@@ -97,6 +98,7 @@ MAP_LEGEND: Dict[str, str] = {
     SYMBOL_ENEMY_BINDLING: "Bindling",
     SYMBOL_ENEMY_SMEAR: "Smear",
     SYMBOL_ENEMY_SENTRY: "Techno-Sentry",
+    SYMBOL_ENEMY_WOLF: "Punctuation Wolf",
     SYMBOL_MINIBOSS_M1: "Miniboss M1",
     SYMBOL_MINIBOSS_M2: "Miniboss M2",
     SYMBOL_MINIBOSS_M3: "Miniboss M3",
@@ -153,6 +155,7 @@ SYMBOL_COLOR_MAP: Dict[str, Tuple[int, int, int]] = {
     SYMBOL_ENEMY_BINDLING: COLOR_PREVIEW_ENEMY,
     SYMBOL_ENEMY_SMEAR: COLOR_PREVIEW_ENEMY,
     SYMBOL_ENEMY_SENTRY: COLOR_PREVIEW_ENEMY,
+    SYMBOL_ENEMY_WOLF: COLOR_PREVIEW_ENEMY,
     SYMBOL_MINIBOSS_M1: COLOR_PREVIEW_MINIBOSS,
     SYMBOL_MINIBOSS_M2: COLOR_PREVIEW_MINIBOSS,
     SYMBOL_MINIBOSS_M3: COLOR_PREVIEW_MINIBOSS,
@@ -511,6 +514,8 @@ def generate_organic_biome(
 
         # Scatter themed organic enemies (balanced density for UDP sync & pacing)
         enemy_types = [SYMBOL_ENEMY_SLUG, SYMBOL_ENEMY_BAT, SYMBOL_ENEMY_FLUTTER, SYMBOL_ENEMY_SMEAR]
+        if active_biome in ("windy_ridge", "pastoral_valley"):
+            enemy_types.extend([SYMBOL_ENEMY_WOLF, SYMBOL_ENEMY_WOLF])
         num_enemies = min(20, max(4, (width * height) // 750))
         for _ in range(num_enemies):
             if open_floors:
