@@ -183,6 +183,23 @@ ARCH_MAX_ROOM_SIZE = 14
 ARCH_CHAMFER_SIZE = 2
 ARCH_PILLAR_INTERVAL = 3
 
+# 2.5D Elevation Tiers & Shadow Casters
+ELEVATION_PIT = -1
+ELEVATION_LOWER = 0
+ELEVATION_TERRACE = 1
+
+SHADOW_CASTER_SYMBOLS: Set[str] = {
+    SYMBOL_WALL,
+    SYMBOL_WALL_BORDER,
+    SYMBOL_STRUCTURE,
+    SYMBOL_BOOKCASE,
+    SYMBOL_BARREL,
+    SYMBOL_CLUTTER,
+    SYMBOL_BENCH,
+    SYMBOL_INK_URN,
+    SYMBOL_CANDELABRA,
+}
+
 
 # ==============================================================================
 # DATA STRUCTURES
@@ -201,6 +218,8 @@ class GeneratedMap:
         entities: Optional[Dict[str, dict]] = None,
         module_sockets: Optional[list] = None,
         seed: Optional[int] = None,
+        elevation_grid: Optional[List[List[int]]] = None,
+        verticality_layers: Optional[dict] = None,
     ):
         self.map_id = map_id
         self.biome = biome
@@ -210,6 +229,10 @@ class GeneratedMap:
         self.entities = entities or {}
         self.module_sockets = module_sockets or []
         self.seed = seed
+        self.elevation_grid = elevation_grid or [
+            [ELEVATION_LOWER for _ in range(width)] for _ in range(height)
+        ]
+        self.verticality_layers = verticality_layers or {}
 
     def to_dict(self) -> dict:
         """Serializes the map into the canonical Avoid Rain JSON schema dictionary."""
@@ -224,6 +247,8 @@ class GeneratedMap:
             "grid": ["".join(row) for row in self.grid],
             "entities": self.entities,
             "module_sockets": self.module_sockets,
+            "elevation_grid": self.elevation_grid,
+            "verticality_layers": self.verticality_layers,
         }
 
     def to_json(self, indent: int = 2) -> str:
@@ -488,8 +513,23 @@ def generate_organic_biome(
                 ex, ey = open_floors.pop()
                 grid[ey][ex] = rng.choice(enemy_types)
 
+    elevation_grid, stairs = build_elevation_grid(
+        grid, terrace_center=(width // 2, height // 2), terrace_radius=max(4, min(width, height) // 6)
+    )
+    verticality_layers = apply_verticality_post_pass(grid, elevation_grid, stairs)
+
     map_id = f"{active_biome}_{seed or rng.randint(1000, 9999)}"
-    return GeneratedMap(map_id, active_biome, width, height, grid, entities=entities, seed=seed)
+    return GeneratedMap(
+        map_id,
+        active_biome,
+        width,
+        height,
+        grid,
+        entities=entities,
+        seed=seed,
+        elevation_grid=elevation_grid,
+        verticality_layers=verticality_layers,
+    )
 
 
 # ==============================================================================
@@ -675,8 +715,23 @@ def generate_architectural_biome(
         grid[y][0] = SYMBOL_WALL
         grid[y][width - 1] = SYMBOL_WALL
 
+    elevation_grid, stairs = build_elevation_grid(
+        grid, terrace_rect=(sx, sy, sw, sh)
+    )
+    verticality_layers = apply_verticality_post_pass(grid, elevation_grid, stairs)
+
     map_id = f"{active_biome}_{seed or rng.randint(1000, 9999)}"
-    return GeneratedMap(map_id, active_biome, width, height, grid, entities=entities, seed=seed)
+    return GeneratedMap(
+        map_id,
+        active_biome,
+        width,
+        height,
+        grid,
+        entities=entities,
+        seed=seed,
+        elevation_grid=elevation_grid,
+        verticality_layers=verticality_layers,
+    )
 
 
 # ==============================================================================
@@ -716,12 +771,181 @@ def find_spawn_point(grid: List[List[str]], symbol: str = SYMBOL_PLAYER) -> Opti
     return None
 
 
+def _is_walkable_tile(tile: str) -> bool:
+    """Returns True if tile is not a solid wall."""
+    return tile not in (SYMBOL_WALL, SYMBOL_WALL_BORDER)
+
+
+def build_elevation_grid(
+    grid: List[List[str]],
+    terrace_center: Optional[Tuple[int, int]] = None,
+    terrace_radius: int = 5,
+    terrace_rect: Optional[Tuple[int, int, int, int]] = None,
+) -> Tuple[List[List[int]], List[List[int]]]:
+    """Builds elevation tier grid (Pit=-1, Lower=0, Terrace=1) and connecting staircase coordinates."""
+    h = len(grid)
+    w = len(grid[0]) if h > 0 else 0
+    elev = [[ELEVATION_LOWER for _ in range(w)] for _ in range(h)]
+
+    # 1. Assign Pit/Abyss (-1) to deep outer wall void with no nearby walkable floor
+    for y in range(h):
+        for x in range(w):
+            if not _is_walkable_tile(grid[y][x]):
+                has_walkable_neighbor = False
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < w and 0 <= ny < h and _is_walkable_tile(grid[ny][nx]):
+                            has_walkable_neighbor = True
+                            break
+                    if has_walkable_neighbor:
+                        break
+                if not has_walkable_neighbor:
+                    elev[y][x] = ELEVATION_PIT
+
+    # 2. Assign Raised Terrace (1) for focal sanctum rect or dry organic plateau
+    if terrace_rect is not None:
+        rx, ry, rw, rh = terrace_rect
+        for y in range(max(1, ry), min(h - 1, ry + rh)):
+            for x in range(max(1, rx), min(w - 1, rx + rw)):
+                if _is_walkable_tile(grid[y][x]) and grid[y][x] != SYMBOL_INK_PUDDLE:
+                    elev[y][x] = ELEVATION_TERRACE
+    elif terrace_center is not None:
+        cx, cy = terrace_center
+        for y in range(1, h - 1):
+            for x in range(1, w - 1):
+                if _is_walkable_tile(grid[y][x]) and grid[y][x] != SYMBOL_INK_PUDDLE:
+                    if abs(x - cx) + abs(y - cy) <= terrace_radius:
+                        elev[y][x] = ELEVATION_TERRACE
+
+    # 3. Place staircase connections where Terrace (1) meets Lower (0) on walkable approaches
+    stairs: List[List[int]] = []
+    for y in range(1, h - 1):
+        for x in range(1, w - 1):
+            if elev[y][x] == ELEVATION_TERRACE and _is_walkable_tile(grid[y][x]):
+                borders_lower = any(
+                    _is_walkable_tile(grid[y + dy][x + dx]) and elev[y + dy][x + dx] == ELEVATION_LOWER
+                    for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0))
+                )
+                # Keep staircase placement along cardinal axes or threshold edges
+                if borders_lower and (x % 3 == 0 or y % 3 == 0):
+                    stairs.append([x, y])
+
+    # Ensure at least one staircase exists if any terrace borders lower floor
+    if not stairs:
+        for y in range(1, h - 1):
+            for x in range(1, w - 1):
+                if elev[y][x] == ELEVATION_TERRACE and _is_walkable_tile(grid[y][x]):
+                    if any(
+                        _is_walkable_tile(grid[y + dy][x + dx]) and elev[y + dy][x + dx] == ELEVATION_LOWER
+                        for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0))
+                    ):
+                        stairs.append([x, y])
+                        break
+            if stairs:
+                break
+
+    return elev, stairs
+
+
+def apply_verticality_post_pass(
+    grid: List[List[str]],
+    elevation_grid: List[List[int]],
+    stairs_coords: Optional[List[List[int]]] = None,
+) -> dict:
+    """Auto-shading and auto-facing post-pass for 2.5D verticality layers."""
+    h = len(grid)
+    w = len(grid[0]) if h > 0 else 0
+    stair_set = {(sx, sy) for sx, sy in (stairs_coords or [])}
+
+    wall_front_faces: List[List[int]] = []
+    wall_top_caps: List[List[int]] = []
+    shadows_south: List[List[int]] = []
+    shadows_east: List[List[int]] = []
+    shadows_corner: List[List[int]] = []
+    cliff_edges: List[List[int]] = []
+    pit_rims: List[List[int]] = []
+
+    for y in range(h):
+        for x in range(w):
+            tile = grid[y][x]
+            elev = elevation_grid[y][x]
+
+            # 1. Wall Front Faces vs Top Caps
+            if tile in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
+                south_walkable = (
+                    y + 1 < h
+                    and _is_walkable_tile(grid[y + 1][x])
+                    and elevation_grid[y + 1][x] != ELEVATION_PIT
+                )
+                if south_walkable:
+                    wall_front_faces.append([x, y])
+                else:
+                    wall_top_caps.append([x, y])
+
+            # 2. Chasm / Pit Rims
+            if elev == ELEVATION_PIT:
+                borders_solid = any(
+                    0 <= x + dx < w and 0 <= y + dy < h and elevation_grid[y + dy][x + dx] != ELEVATION_PIT
+                    for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0))
+                )
+                if borders_solid:
+                    pit_rims.append([x, y])
+                continue
+
+            # 3. Walkable Floor Drop-Shadow Overlays & Cliff Ledges
+            if _is_walkable_tile(tile):
+                north_casts = (
+                    (y > 0 and grid[y - 1][x] in SHADOW_CASTER_SYMBOLS)
+                    or (y > 0 and elevation_grid[y - 1][x] > elev)
+                )
+                west_casts = (
+                    (x > 0 and grid[y][x - 1] in SHADOW_CASTER_SYMBOLS)
+                    or (x > 0 and elevation_grid[y][x - 1] > elev)
+                )
+                nw_casts = (
+                    x > 0 and y > 0 and grid[y - 1][x - 1] in SHADOW_CASTER_SYMBOLS
+                )
+
+                if north_casts:
+                    shadows_south.append([x, y])
+                if west_casts:
+                    shadows_east.append([x, y])
+                if nw_casts and not north_casts and not west_casts:
+                    shadows_corner.append([x, y])
+
+                # Cliff ledge on south drop-off from Terrace -> Lower without stairs
+                if (
+                    elev == ELEVATION_TERRACE
+                    and (x, y) not in stair_set
+                    and y + 1 < h
+                    and _is_walkable_tile(grid[y + 1][x])
+                    and elevation_grid[y + 1][x] < elev
+                ):
+                    cliff_edges.append([x, y])
+
+    return {
+        "wall_faces": {
+            "front_face": wall_front_faces,
+            "top_cap": wall_top_caps,
+        },
+        "floor_shadows": {
+            "south": shadows_south,
+            "east": shadows_east,
+            "corner": shadows_corner,
+        },
+        "cliff_edges": cliff_edges,
+        "stairs": stairs_coords or [],
+        "pit_rims": pit_rims,
+    }
+
+
 def render_map_preview(
     gen_map: GeneratedMap,
     output_path: Optional[str] = None,
     scale: int = PREVIEW_TILE_SIZE,
 ) -> str:
-    """Renders a color-coded minimap PNG preview of the generated map."""
+    """Renders a 2.5D verticality-aware color-coded minimap PNG preview of the generated map."""
     if "SDL_VIDEODRIVER" not in os.environ and not pygame.display.get_init():
         os.environ["SDL_VIDEODRIVER"] = "dummy"
 
@@ -730,14 +954,72 @@ def render_map_preview(
     w_px = gen_map.width * scale
     h_px = gen_map.height * scale
     surf = pygame.Surface((w_px, h_px))
-    surf.fill(COLOR_PREVIEW_WALL)
+    surf.fill((8, 8, 13))
+
+    v_layers = gen_map.verticality_layers or apply_verticality_post_pass(
+        gen_map.grid, gen_map.elevation_grid
+    )
+    front_faces = {tuple(pt) for pt in v_layers.get("wall_faces", {}).get("front_face", [])}
+    south_shadows = {tuple(pt) for pt in v_layers.get("floor_shadows", {}).get("south", [])}
+    east_shadows = {tuple(pt) for pt in v_layers.get("floor_shadows", {}).get("east", [])}
+    corner_shadows = {tuple(pt) for pt in v_layers.get("floor_shadows", {}).get("corner", [])}
+    cliff_edges = {tuple(pt) for pt in v_layers.get("cliff_edges", [])}
+    stair_coords = {tuple(pt) for pt in v_layers.get("stairs", [])}
+    pit_rims = {tuple(pt) for pt in v_layers.get("pit_rims", [])}
 
     for y in range(gen_map.height):
         for x in range(gen_map.width):
             tile = gen_map.grid[y][x]
-            col = SYMBOL_COLOR_MAP.get(tile, COLOR_PREVIEW_FLOOR)
+            elev = gen_map.elevation_grid[y][x] if y < len(gen_map.elevation_grid) else ELEVATION_LOWER
             rect = pygame.Rect(x * scale, y * scale, scale, scale)
+
+            if elev == ELEVATION_PIT:
+                pygame.draw.rect(surf, (8, 8, 13), rect)
+                if (x, y) in pit_rims:
+                    pygame.draw.line(surf, (58, 56, 66), (rect.left, rect.top), (rect.right - 1, rect.top), 1)
+                continue
+
+            if tile in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
+                if (x, y) in front_faces:
+                    pygame.draw.rect(surf, (24, 27, 36), rect)
+                    pygame.draw.line(
+                        surf, (46, 52, 66), (rect.left, rect.top), (rect.right - 1, rect.top), 1
+                    )
+                else:
+                    pygame.draw.rect(surf, (58, 64, 78), rect)
+                continue
+
+            col = SYMBOL_COLOR_MAP.get(tile, COLOR_PREVIEW_FLOOR)
+            if elev == ELEVATION_TERRACE and tile == SYMBOL_FLOOR:
+                col = (min(255, col[0] + 18), min(255, col[1] + 16), min(255, col[2] + 16))
             pygame.draw.rect(surf, col, rect)
+
+            if (x, y) in cliff_edges:
+                pygame.draw.line(
+                    surf, (112, 106, 98), (rect.left, rect.bottom - 2), (rect.right - 1, rect.bottom - 2), 1
+                )
+                pygame.draw.line(
+                    surf, (16, 16, 22), (rect.left, rect.bottom - 1), (rect.right - 1, rect.bottom - 1), 1
+                )
+            elif (x, y) in stair_coords:
+                for step_y in range(1, scale, 2):
+                    pygame.draw.line(
+                        surf, (140, 134, 124), (rect.left + 1, rect.top + step_y), (rect.right - 2, rect.top + step_y)
+                    )
+
+            # Composite floor drop-shadows
+            if (x, y) in south_shadows:
+                sh_s = pygame.Surface((scale, max(2, scale // 2)), pygame.SRCALPHA)
+                sh_s.fill((6, 7, 12, 115))
+                surf.blit(sh_s, (rect.left, rect.top))
+            if (x, y) in east_shadows:
+                sh_e = pygame.Surface((max(2, scale // 2), scale), pygame.SRCALPHA)
+                sh_e.fill((6, 7, 12, 95))
+                surf.blit(sh_e, (rect.left, rect.top))
+            if (x, y) in corner_shadows:
+                sh_c = pygame.Surface((max(2, scale // 2), max(2, scale // 2)), pygame.SRCALPHA)
+                sh_c.fill((6, 7, 12, 95))
+                surf.blit(sh_c, (rect.left, rect.top))
 
             # Highlight landmark and player tiles with crisp inner accents
             if tile in (SYMBOL_PLAYER, SYMBOL_WARP, SYMBOL_RESPITE, SYMBOL_ALTAR, SYMBOL_MINIBOSS_M1):

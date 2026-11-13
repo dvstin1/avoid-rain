@@ -56,9 +56,34 @@ DEFAULT_RUINS_RUBBLE_PATH = os.path.join("assets", "graphics", "ruins_rubble.png
 DEFAULT_SWAMP_FLORA_PATH = os.path.join("assets", "graphics", "swamp_flora.png")
 DEFAULT_CRYPT_CLUTTER_PATH = os.path.join("assets", "graphics", "crypt_clutter.png")
 
+# 2.5D Verticality & Elevation Asset Paths
+DEFAULT_WALL_TOP_CAP_PATH = os.path.join("assets", "graphics", "wall_top_cap.png")
+DEFAULT_WALL_FRONT_FACE_PATH = os.path.join("assets", "graphics", "wall_front_face.png")
+DEFAULT_SHADOW_SOUTH_PATH = os.path.join("assets", "graphics", "shadow_south.png")
+DEFAULT_SHADOW_EAST_PATH = os.path.join("assets", "graphics", "shadow_east.png")
+DEFAULT_SHADOW_CORNER_PATH = os.path.join("assets", "graphics", "shadow_corner.png")
+DEFAULT_CLIFF_EDGE_PATH = os.path.join("assets", "graphics", "cliff_edge.png")
+DEFAULT_STAIRCASE_PATH = os.path.join("assets", "graphics", "staircase_tile.png")
+DEFAULT_PIT_RIM_PATH = os.path.join("assets", "graphics", "pit_rim.png")
+
 # Canonical Dimensions
 TILE_WIDTH = 40
 TILE_HEIGHT = 40
+
+# --- 9. 2.5D Verticality & Elevation Parameters ---
+WALL_CAP_BASE_RGB = (56, 62, 74)
+WALL_CAP_HIGHLIGHT_RGB = (78, 86, 100)
+WALL_CAP_BEVEL_RGB = (42, 46, 56)
+WALL_FACE_TOP_RGB = (34, 38, 48)
+WALL_FACE_BOTTOM_RGB = (18, 20, 26)
+SHADOW_MAX_ALPHA = 155
+SHADOW_SOUTH_DEPTH = 18
+SHADOW_EAST_DEPTH = 16
+SHADOW_CORNER_RADIUS = 18
+CLIFF_LEDGE_HEIGHT = 11
+STAIR_STEP_COUNT = 5
+PIT_LIP_HEIGHT = 12
+PIT_ABYSS_RGB = (8, 8, 13)
 
 # --- 1. Dirt / Floor Tile Parameters ---
 # Dark, desaturated slate-brown/charcoal base tone (R:45-55, G:40-48, B:35-42)
@@ -1644,6 +1669,271 @@ def generate_crypt_clutter(
 
 
 # ==============================================================================
+# GENERATIVE PIPELINE 9: 2.5D VERTICALITY & ELEVATION ASSETS
+# ==============================================================================
+
+def generate_wall_top_cap(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generates a lighter top-down wall cap with crisp bevel highlights and subtle slab seams."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    surface.fill(WALL_CAP_BASE_RGB)
+
+    # Subtle stone grit & slab seams
+    for y in range(height):
+        for x in range(width):
+            jitter = rng.randint(-5, 5)
+            is_seam = (y in (0, 20) and rng.random() < 0.85) or (x in (0, 20) and rng.random() < 0.7)
+            if is_seam:
+                col = (
+                    _clamp(WALL_CAP_BEVEL_RGB[0] + jitter),
+                    _clamp(WALL_CAP_BEVEL_RGB[1] + jitter),
+                    _clamp(WALL_CAP_BEVEL_RGB[2] + jitter),
+                )
+            else:
+                col = (
+                    _clamp(WALL_CAP_BASE_RGB[0] + jitter),
+                    _clamp(WALL_CAP_BASE_RGB[1] + jitter),
+                    _clamp(WALL_CAP_BASE_RGB[2] + jitter),
+                )
+            surface.set_at((x, y), col)
+
+    # Top and left crisp bevel highlights + bottom rim bevel
+    for x in range(width):
+        surface.set_at((x, 0), WALL_CAP_HIGHLIGHT_RGB)
+        surface.set_at((x, 1), (68, 75, 88))
+        surface.set_at((x, height - 1), WALL_CAP_BEVEL_RGB)
+    for y in range(height):
+        surface.set_at((0, y), WALL_CAP_HIGHLIGHT_RGB)
+        surface.set_at((width - 1, y), WALL_CAP_BEVEL_RGB)
+
+    return surface
+
+
+def generate_wall_front_face(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generates a darker south-facing vertical masonry wall face with vertical shadow gradient."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    courses = _build_masonry_layout(width, height)
+
+    # Base vertical gradient from upper face to darkened ground-contact base
+    for y in range(height):
+        t = y / max(1, height - 1)
+        base_r = int(WALL_FACE_TOP_RGB[0] * (1.0 - t) + WALL_FACE_BOTTOM_RGB[0] * t)
+        base_g = int(WALL_FACE_TOP_RGB[1] * (1.0 - t) + WALL_FACE_BOTTOM_RGB[1] * t)
+        base_b = int(WALL_FACE_TOP_RGB[2] * (1.0 - t) + WALL_FACE_BOTTOM_RGB[2] * t)
+        for x in range(width):
+            jitter = rng.randint(-4, 4)
+            surface.set_at((x, y), (_clamp(base_r + jitter), _clamp(base_g + jitter), _clamp(base_b + jitter)))
+
+    # Draw recessed horizontal/vertical brick joints and subtle top overhang shadow
+    for y_start, c_h, bricks in courses:
+        for x_start, _, b_w, b_h in bricks:
+            for bx in range(x_start, min(width, x_start + b_w)):
+                if y_start < height:
+                    surface.set_at((bx, y_start), (14, 15, 20))
+                if y_start + 1 < height:
+                    cur = surface.get_at((bx, y_start + 1))
+                    surface.set_at((bx, y_start + 1), (_clamp(cur[0] + 10), _clamp(cur[1] + 10), _clamp(cur[2] + 12)))
+            for by in range(y_start, min(height, y_start + b_h)):
+                if x_start < width:
+                    surface.set_at((x_start, by), (14, 15, 20))
+
+    # Top 2px overhang shadow beneath the wall cap, plus dark ambient occlusion at y=height-1..height-3
+    for x in range(width):
+        surface.set_at((x, 0), (14, 16, 22))
+        surface.set_at((x, 1), (20, 22, 30))
+        for base_y in range(height - 3, height):
+            cur = surface.get_at((x, base_y))
+            surface.set_at((x, base_y), (_clamp(cur[0] - 8), _clamp(cur[1] - 8), _clamp(cur[2] - 8)))
+
+    return surface
+
+
+def generate_floor_shadow_overlay(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    direction: str = "south",
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generates a semi-transparent dark gradient floor drop-shadow overlay.
+
+    Supported directions:
+    - 'south': Wall/pillar shadow falling southward from top edge (y=0).
+    - 'east': Wall/pillar shadow falling eastward from left edge (x=0).
+    - 'corner': Inner corner drop-shadow radiating from top-left (0, 0).
+    """
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+
+    for y in range(height):
+        for x in range(width):
+            alpha = 0
+            if direction == "south":
+                if y < SHADOW_SOUTH_DEPTH:
+                    ratio = 1.0 - (y / SHADOW_SOUTH_DEPTH)
+                    alpha = int(SHADOW_MAX_ALPHA * (ratio ** 1.4))
+            elif direction == "east":
+                if x < SHADOW_EAST_DEPTH:
+                    ratio = 1.0 - (x / SHADOW_EAST_DEPTH)
+                    alpha = int(SHADOW_MAX_ALPHA * 0.85 * (ratio ** 1.4))
+            elif direction == "corner":
+                dist = math.hypot(x, y)
+                if dist < SHADOW_CORNER_RADIUS:
+                    ratio = 1.0 - (dist / SHADOW_CORNER_RADIUS)
+                    alpha = int(SHADOW_MAX_ALPHA * 0.9 * (ratio ** 1.35))
+
+            if alpha > 0:
+                jitter = rng.randint(-6, 6)
+                final_alpha = _clamp(alpha + jitter, 0, 220)
+                surface.set_at((x, y), (8, 9, 14, final_alpha))
+
+    return surface
+
+
+def generate_cliff_edge_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generates a raised-terrace cliff edge tile with top plateau lip and striated vertical cliff face."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    # Top terrace lip (0..CLIFF_LEDGE_HEIGHT-1)
+    for y in range(CLIFF_LEDGE_HEIGHT):
+        for x in range(width):
+            jitter = rng.randint(-5, 5)
+            base = (62, 58, 54) if y < CLIFF_LEDGE_HEIGHT - 2 else (84, 80, 74)
+            surface.set_at((x, y), (_clamp(base[0] + jitter), _clamp(base[1] + jitter), _clamp(base[2] + jitter)))
+
+    # Crisp rim shadow separating terrace top from cliff face
+    for x in range(width):
+        surface.set_at((x, CLIFF_LEDGE_HEIGHT), (16, 16, 20))
+
+    # Vertical rocky cliff face below ledge
+    for y in range(CLIFF_LEDGE_HEIGHT + 1, height):
+        t = (y - CLIFF_LEDGE_HEIGHT) / max(1, height - CLIFF_LEDGE_HEIGHT - 1)
+        for x in range(width):
+            strata_shift = 4 if ((y // 5 + x // 9) % 2 == 0) else -4
+            jitter = rng.randint(-5, 5) + strata_shift
+            r_val = int(42 * (1.0 - t) + 20 * t) + jitter
+            g_val = int(40 * (1.0 - t) + 19 * t) + jitter
+            b_val = int(44 * (1.0 - t) + 23 * t) + jitter
+            surface.set_at((x, y), (_clamp(r_val), _clamp(g_val), _clamp(b_val)))
+
+    # Vertical rock fissures
+    for fx in (9, 21, 32):
+        cx = fx + rng.randint(-2, 2)
+        for fy in range(CLIFF_LEDGE_HEIGHT + 2, height - 2):
+            if rng.random() < 0.75 and 1 <= cx < width - 1:
+                surface.set_at((cx, fy), (14, 14, 18))
+                surface.set_at((cx + 1, fy), (54, 52, 56))
+            cx += rng.choice((-1, 0, 0, 1))
+
+    return surface
+
+
+def generate_staircase_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generates a stepped stone staircase tile with alternating riser highlights and drop shadows."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    step_h = height // STAIR_STEP_COUNT
+
+    for step_idx in range(STAIR_STEP_COUNT):
+        y0 = step_idx * step_h
+        y1 = height if step_idx == STAIR_STEP_COUNT - 1 else (step_idx + 1) * step_h
+        # Progressive darkening down the steps
+        shade = step_idx * 4
+        for y in range(y0, y1):
+            local_y = y - y0
+            for x in range(width):
+                jitter = rng.randint(-4, 4)
+                # Side stone curbs
+                if x < 3 or x >= width - 3:
+                    col = (44 - shade // 2, 46 - shade // 2, 52 - shade // 2)
+                elif local_y == 0:
+                    # Bright step lip highlight
+                    col = (82 - shade, 80 - shade, 76 - shade)
+                elif local_y >= (y1 - y0) - 2:
+                    # Deep riser under-shadow
+                    col = (18, 19, 24)
+                else:
+                    # Stone tread surface
+                    col = (56 - shade, 54 - shade, 52 - shade)
+
+                surface.set_at((x, y), (_clamp(col[0] + jitter), _clamp(col[1] + jitter), _clamp(col[2] + jitter)))
+
+    return surface
+
+
+def generate_pit_rim_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generates a chasm/pit rim tile showing a thick floor lip dropping off into dark abyssal void."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    # Top stone floor lip
+    for y in range(PIT_LIP_HEIGHT):
+        for x in range(width):
+            jitter = rng.randint(-4, 4)
+            if y >= PIT_LIP_HEIGHT - 2:
+                # Chipped bright edge highlight right before drop-off
+                base = (74, 72, 70)
+            else:
+                base = (48, 44, 42)
+            surface.set_at((x, y), (_clamp(base[0] + jitter), _clamp(base[1] + jitter), _clamp(base[2] + jitter)))
+
+    # Under-lip shadow overhang (4px)
+    for y in range(PIT_LIP_HEIGHT, min(height, PIT_LIP_HEIGHT + 4)):
+        for x in range(width):
+            jitter = rng.randint(-3, 3)
+            depth_drop = (y - PIT_LIP_HEIGHT) * 4
+            surface.set_at(
+                (x, y),
+                (_clamp(24 - depth_drop + jitter), _clamp(22 - depth_drop + jitter), _clamp(28 + jitter)),
+            )
+
+    # Abyssal chasm void
+    for y in range(PIT_LIP_HEIGHT + 4, height):
+        for x in range(width):
+            jitter = rng.randint(-2, 2)
+            abyss_col = (
+                _clamp(PIT_ABYSS_RGB[0] + jitter),
+                _clamp(PIT_ABYSS_RGB[1] + jitter),
+                _clamp(PIT_ABYSS_RGB[2] + jitter),
+            )
+            surface.set_at((x, y), abyss_col)
+
+    return surface
+
+
+# ==============================================================================
 # BATCH GENERATION & CLI ENTRY POINT
 # ==============================================================================
 
@@ -1666,6 +1956,14 @@ def generate_all_assets(
     ruins_rubble_path: str = DEFAULT_RUINS_RUBBLE_PATH,
     swamp_flora_path: str = DEFAULT_SWAMP_FLORA_PATH,
     crypt_clutter_path: str = DEFAULT_CRYPT_CLUTTER_PATH,
+    wall_top_cap_path: str = DEFAULT_WALL_TOP_CAP_PATH,
+    wall_front_face_path: str = DEFAULT_WALL_FRONT_FACE_PATH,
+    shadow_south_path: str = DEFAULT_SHADOW_SOUTH_PATH,
+    shadow_east_path: str = DEFAULT_SHADOW_EAST_PATH,
+    shadow_corner_path: str = DEFAULT_SHADOW_CORNER_PATH,
+    cliff_edge_path: str = DEFAULT_CLIFF_EDGE_PATH,
+    staircase_path: str = DEFAULT_STAIRCASE_PATH,
+    pit_rim_path: str = DEFAULT_PIT_RIM_PATH,
     seed: int = None,
 ) -> Dict[str, str]:
     """Generate all procedural assets and save them to disk.
@@ -1786,6 +2084,26 @@ def generate_all_assets(
     crypt_clutter_surf = generate_crypt_clutter(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(crypt_clutter_surf, crypt_clutter_path)
     results["crypt_clutter"] = crypt_clutter_path
+
+    # 9. 2.5D Verticality & Elevation Assets
+    verticality_specs = [
+        ("wall_top_cap", wall_top_cap_path, generate_wall_top_cap(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
+        ("wall_front_face", wall_front_face_path, generate_wall_front_face(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
+        ("shadow_south", shadow_south_path, generate_floor_shadow_overlay(TILE_WIDTH, TILE_HEIGHT, "south", rng=rng)),
+        ("shadow_east", shadow_east_path, generate_floor_shadow_overlay(TILE_WIDTH, TILE_HEIGHT, "east", rng=rng)),
+        (
+            "shadow_corner",
+            shadow_corner_path,
+            generate_floor_shadow_overlay(TILE_WIDTH, TILE_HEIGHT, "corner", rng=rng),
+        ),
+        ("cliff_edge", cliff_edge_path, generate_cliff_edge_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
+        ("staircase_tile", staircase_path, generate_staircase_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
+        ("pit_rim", pit_rim_path, generate_pit_rim_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
+    ]
+    for key, out_path, surf in verticality_specs:
+        _ensure_directory(out_path)
+        pygame.image.save(surf, out_path)
+        results[key] = out_path
 
     return results
 

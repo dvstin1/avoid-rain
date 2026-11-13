@@ -328,3 +328,115 @@ def test_generate_environmental_clutter_sprites():
     # Ink script marks exist
     assert any(p[0] <= 70 and p[1] <= 60 and p[2] <= 55 for p in parchment_pixels)
 
+
+def test_generate_wall_top_cap_vs_front_face():
+    """Verify wall top cap is lighter than south-facing vertical wall front face."""
+    rng = random.Random(606)
+    cap = generate_assets.generate_wall_top_cap(40, 40, rng=rng)
+    face = generate_assets.generate_wall_front_face(40, 40, rng=rng)
+
+    assert cap.get_size() == (40, 40)
+    assert face.get_size() == (40, 40)
+
+    cap_lum = sum(sum(cap.get_at((x, y))[:3]) for x in range(10, 30) for y in range(10, 30)) / 400
+    face_lum = sum(sum(face.get_at((x, y))[:3]) for x in range(10, 30) for y in range(10, 30)) / 400
+    assert cap_lum > face_lum + 30
+
+    # Front face darkens toward the ground-contact bottom edge
+    face_top_lum = sum(sum(face.get_at((x, 4))[:3]) for x in range(10, 30)) / 20
+    face_bot_lum = sum(sum(face.get_at((x, 38))[:3]) for x in range(10, 30)) / 20
+    assert face_top_lum > face_bot_lum
+
+
+def test_generate_floor_shadow_overlays():
+    """Verify south, east, and corner drop-shadow overlays have smooth alpha gradients."""
+    rng = random.Random(707)
+    south = generate_assets.generate_floor_shadow_overlay(40, 40, direction="south", rng=rng)
+    east = generate_assets.generate_floor_shadow_overlay(40, 40, direction="east", rng=rng)
+    corner = generate_assets.generate_floor_shadow_overlay(40, 40, direction="corner", rng=rng)
+
+    for surf in (south, east, corner):
+        assert surf.get_size() == (40, 40)
+        assert surf.get_flags() & pygame.SRCALPHA != 0
+
+    # South shadow is opaque/semi-transparent near y=0 and fades to 0 near y=35
+    assert south.get_at((20, 1))[3] > 80
+    assert south.get_at((20, 35))[3] == 0
+
+    # East shadow is semi-transparent near x=0 and fades to 0 near x=35
+    assert east.get_at((1, 20))[3] > 70
+    assert east.get_at((35, 20))[3] == 0
+
+    # Corner shadow is concentrated near (0, 0) and fades out
+    assert corner.get_at((1, 1))[3] > 80
+    assert corner.get_at((35, 35))[3] == 0
+
+
+def test_generate_cliff_stairs_and_pit_rim():
+    """Verify cliff edge, staircase, and pit rim tiles render distinct elevation features."""
+    rng = random.Random(808)
+    cliff = generate_assets.generate_cliff_edge_tile(40, 40, rng=rng)
+    stairs = generate_assets.generate_staircase_tile(40, 40, rng=rng)
+    pit = generate_assets.generate_pit_rim_tile(40, 40, rng=rng)
+
+    for surf in (cliff, stairs, pit):
+        assert surf.get_size() == (40, 40)
+
+    # Cliff top ledge is brighter than lower cliff face
+    cliff_top = sum(sum(cliff.get_at((x, 5))[:3]) for x in range(10, 30)) / 20
+    cliff_bot = sum(sum(cliff.get_at((x, 34))[:3]) for x in range(10, 30)) / 20
+    assert cliff_top > cliff_bot
+
+    # Staircase has alternating bright step lip (y=0) and dark riser shadow (y=6)
+    step_lip = sum(stairs.get_at((20, 0))[:3])
+    step_riser = sum(stairs.get_at((20, 6))[:3])
+    assert step_lip > step_riser + 50
+
+    # Pit rim has lit floor lip near top and near-black abyssal void at bottom
+    pit_lip = sum(pit.get_at((20, 5))[:3])
+    pit_abyss = sum(pit.get_at((20, 34))[:3])
+    assert pit_lip > 90
+    assert pit_abyss < 45
+
+
+def test_generate_all_assets_includes_verticality():
+    """Verify generate_all_assets creates all 8 new 2.5D verticality PNG files."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        paths = generate_assets.generate_all_assets(
+            floor_path=os.path.join(tmpdir, "floor.png"),
+            wall_path=os.path.join(tmpdir, "wall.png"),
+            grass_path=os.path.join(tmpdir, "grass.png"),
+            rock_path=os.path.join(tmpdir, "rock.png"),
+            altar_path=os.path.join(tmpdir, "altar.png"),
+            wall_cracked_path=os.path.join(tmpdir, "wall_cracked.png"),
+            wall_mossy_path=os.path.join(tmpdir, "wall_mossy.png"),
+            wall_webbed_path=os.path.join(tmpdir, "wall_webbed.png"),
+            swamp_water_path=os.path.join(tmpdir, "swamp_water.png"),
+            mud_turf_path=os.path.join(tmpdir, "mud_turf.png"),
+            peat_bank_path=os.path.join(tmpdir, "peat_bank.png"),
+            swamp_wall_path=os.path.join(tmpdir, "swamp_wall.png"),
+            swamp_fungus_path=os.path.join(tmpdir, "swamp_fungus.png"),
+            swamp_vent_path=os.path.join(tmpdir, "swamp_vent.png"),
+            swamp_thorns_path=os.path.join(tmpdir, "swamp_thorns.png"),
+            ruins_rubble_path=os.path.join(tmpdir, "ruins_rubble.png"),
+            swamp_flora_path=os.path.join(tmpdir, "swamp_flora.png"),
+            crypt_clutter_path=os.path.join(tmpdir, "crypt_clutter.png"),
+            wall_top_cap_path=os.path.join(tmpdir, "wall_top_cap.png"),
+            wall_front_face_path=os.path.join(tmpdir, "wall_front_face.png"),
+            shadow_south_path=os.path.join(tmpdir, "shadow_south.png"),
+            shadow_east_path=os.path.join(tmpdir, "shadow_east.png"),
+            shadow_corner_path=os.path.join(tmpdir, "shadow_corner.png"),
+            cliff_edge_path=os.path.join(tmpdir, "cliff_edge.png"),
+            staircase_path=os.path.join(tmpdir, "staircase_tile.png"),
+            pit_rim_path=os.path.join(tmpdir, "pit_rim.png"),
+            seed=42,
+        )
+        for key in (
+            "wall_top_cap", "wall_front_face", "shadow_south", "shadow_east",
+            "shadow_corner", "cliff_edge", "staircase_tile", "pit_rim",
+        ):
+            assert key in paths
+            assert os.path.exists(paths[key])
+            assert os.path.getsize(paths[key]) > 100
+
+

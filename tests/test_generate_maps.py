@@ -17,10 +17,14 @@ from generate_maps import (
     generate_procedural_map,
     render_map_preview,
     find_spawn_point,
+    apply_verticality_post_pass,
     GeneratedMap,
     MAP_LEGEND,
     ORGANIC_BIOMES,
     ARCHITECTURAL_BIOMES,
+    ELEVATION_PIT,
+    ELEVATION_LOWER,
+    ELEVATION_TERRACE,
 )
 
 
@@ -233,3 +237,83 @@ def test_cli_integration(temp_dir):
     # Clean up preview created during test
     if os.path.exists(expected_preview):
         os.remove(expected_preview)
+
+
+def test_elevation_tiers_and_staircases():
+    """Verifies elevation tiers (Pit, Lower, Terrace) and connecting staircase placement."""
+    for biome, seed in (("swamp_mire", 42), ("ruins", 101)):
+        gen_map = generate_procedural_map(biome=biome, width=40, height=40, seed=seed)
+        elev_values = {val for row in gen_map.elevation_grid for val in row}
+        assert ELEVATION_PIT in elev_values, f"Expected Pit tier in {biome}"
+        assert ELEVATION_LOWER in elev_values, f"Expected Lower tier in {biome}"
+        assert ELEVATION_TERRACE in elev_values, f"Expected Terrace tier in {biome}"
+
+        stairs = gen_map.verticality_layers.get("stairs", [])
+        assert len(stairs) > 0, f"Expected connecting staircases in {biome}"
+        for sx, sy in stairs:
+            assert gen_map.elevation_grid[sy][sx] == ELEVATION_TERRACE
+            assert any(
+                gen_map.elevation_grid[sy + dy][sx + dx] == ELEVATION_LOWER
+                for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0))
+            )
+
+
+def test_auto_shading_and_wall_facing_post_pass():
+    """Verifies auto-facing walls, floor drop shadows, cliff edges, and pit rims."""
+    grid = [
+        list("#####"),
+        list("#...#"),
+        list("#.B.#"),
+        list("#...#"),
+        list("#####"),
+    ]
+    elev = [
+        [ELEVATION_PIT, ELEVATION_PIT, ELEVATION_PIT, ELEVATION_PIT, ELEVATION_PIT],
+        [ELEVATION_LOWER, ELEVATION_TERRACE, ELEVATION_TERRACE, ELEVATION_TERRACE, ELEVATION_LOWER],
+        [ELEVATION_LOWER, ELEVATION_LOWER, ELEVATION_LOWER, ELEVATION_LOWER, ELEVATION_LOWER],
+        [ELEVATION_LOWER, ELEVATION_LOWER, ELEVATION_LOWER, ELEVATION_LOWER, ELEVATION_LOWER],
+        [ELEVATION_PIT, ELEVATION_PIT, ELEVATION_PIT, ELEVATION_PIT, ELEVATION_PIT],
+    ]
+    layers = apply_verticality_post_pass(grid, elev, stairs_coords=[[2, 1]])
+
+    # Row 0 walls border walkable row 1 -> front_face
+    assert [1, 0] in layers["wall_faces"]["front_face"]
+    assert [2, 0] in layers["wall_faces"]["front_face"]
+    # Row 4 walls have nothing south -> top_cap
+    assert [1, 4] in layers["wall_faces"]["top_cap"]
+
+    # Walkable tile (2, 3) immediately south of Barrel 'B' at (2, 2) gets south shadow
+    assert [2, 3] in layers["floor_shadows"]["south"]
+    # Walkable tile (3, 2) immediately east of Barrel 'B' at (2, 2) gets east shadow
+    assert [3, 2] in layers["floor_shadows"]["east"]
+    # Walkable tile (3, 3) SE of Barrel 'B' gets inner corner shadow
+    assert [3, 3] in layers["floor_shadows"]["corner"]
+
+    # Terrace tiles (1, 1) and (3, 1) border lower floor to south without stairs -> cliff_edges
+    assert [1, 1] in layers["cliff_edges"]
+    assert [3, 1] in layers["cliff_edges"]
+    assert [2, 1] not in layers["cliff_edges"]  # Has stair
+
+    # Pit tiles bordering non-pit tiles get pit_rims
+    assert [1, 0] in layers["pit_rims"]
+    assert [2, 4] in layers["pit_rims"]
+
+
+def test_verticality_serialization_and_engine_compatibility(temp_dir):
+    """Verifies verticality layers serialize cleanly to JSON without breaking LevelLoader."""
+    gen_map = generate_procedural_map(biome="ruins", width=36, height=36, seed=202)
+    out_path = os.path.join(temp_dir, "vertical_ruins.json")
+    gen_map.save(out_path, file_format="json")
+
+    with open(out_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    assert "elevation_grid" in data
+    assert "verticality_layers" in data
+    assert "wall_faces" in data["verticality_layers"]
+    assert "floor_shadows" in data["verticality_layers"]
+    assert "pit_rims" in data["verticality_layers"]
+
+    grid, _, _, player_start, _, _, _ = LevelLoader.load_json_map(out_path)
+    assert len(grid) == 36
+    assert player_start is not None

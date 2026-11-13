@@ -879,6 +879,22 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
   - Verified 100% green test suite across all 235 unit tests in `pytest`.
   - Achieved `pylint` scores of 9.92/10 on both `generate_maps.py` and `tests/test_generate_maps.py` with strict line length <= 120 characters.
 
+## [ARCHIVED] 2.5D Verticality & Elevation Pipeline (`generate_assets.py` & `generate_maps.py`) - November 2026
+- **Procedural 2.5D Verticality Assets (`generate_assets.py`):**
+  - Implemented `generate_wall_top_cap()` and `generate_wall_front_face()` (`wall_top_cap.png`, `wall_front_face.png`) to distinguish lighter top masonry caps from darker vertically shaded south-facing wall faces.
+  - Implemented `generate_floor_shadow_overlay()` (`shadow_south.png`, `shadow_east.png`, `shadow_corner.png`) generating semi-transparent `SRCALPHA` drop-shadow gradient overlays for walkable floors adjacent to walls and tall props.
+  - Implemented `generate_cliff_edge_tile()` and `generate_staircase_tile()` (`cliff_edge.png`, `staircase_tile.png`) for raised-terrace ledge faces and stepped stone staircases with alternating riser highlights and shadows.
+  - Implemented `generate_pit_rim_tile()` (`pit_rim.png`) showing a bevelled stone floor lip dropping off into dark abyssal void.
+- **Elevation Tiers & Auto-Shading Post-Pass (`generate_maps.py`):**
+  - Introduced elevation tiers (`ELEVATION_PIT = -1`, `ELEVATION_LOWER = 0`, `ELEVATION_TERRACE = 1`) and `build_elevation_grid()` connecting raised terraces and lower floors via staircase transitions (`stairs`).
+  - Added `apply_verticality_post_pass()` automatically assigning `wall_front_face` vs `wall_top_cap`, south/east/inner-corner `floor_shadows` next to walls and tall props, `cliff_edges` on terrace drop-offs, and `pit_rims` surrounding chasm zones.
+  - Serialized `elevation_grid` and `verticality_layers` into map JSON exports while keeping `LevelLoader.load_json_map()` compatibility intact.
+  - Upgraded `render_map_preview()` to render elevation tiers, wall front faces vs top caps, staircases, cliff edges, pit rims, and semi-transparent floor drop-shadows.
+- **Verification & Quality Control (`tests/test_generate_assets.py`, `tests/test_generate_maps.py`):**
+  - Added 7 new unit tests covering verticality asset generation, elevation tiers, staircase connections, auto-shading/auto-facing rules, and JSON/LevelLoader compatibility.
+  - Verified 100% green test suite across all 242 unit tests in `pytest`, `pylint` rating 9.96/10, and line lengths <= 120 characters.
+
+
 
 
 
