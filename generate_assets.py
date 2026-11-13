@@ -66,6 +66,11 @@ DEFAULT_CLIFF_EDGE_PATH = os.path.join("assets", "graphics", "cliff_edge.png")
 DEFAULT_STAIRCASE_PATH = os.path.join("assets", "graphics", "staircase_tile.png")
 DEFAULT_PIT_RIM_PATH = os.path.join("assets", "graphics", "pit_rim.png")
 
+# Final Boss Arena (Eclipse / Dark Ritual) Asset Paths
+DEFAULT_BOSS_DAIS_PATH = os.path.join("assets", "graphics", "boss_dais_tile.png")
+DEFAULT_BOSS_PILLAR_PATH = os.path.join("assets", "graphics", "boss_pillar_tile.png")
+DEFAULT_BOSS_ABYSS_RIM_PATH = os.path.join("assets", "graphics", "boss_abyss_rim.png")
+
 # Canonical Dimensions
 TILE_WIDTH = 40
 TILE_HEIGHT = 40
@@ -1934,6 +1939,120 @@ def generate_pit_rim_tile(
 
 
 # ==============================================================================
+# GENERATIVE PIPELINE 10: FINAL BOSS ARENA (DARK RITUAL / ECLIPSE) ASSETS
+# ==============================================================================
+
+def generate_boss_dais_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generates ornate cracked obsidian ritual dais stonework with faint eclipse-gold runes."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    base_rgb = (28, 26, 36)
+    for y in range(height):
+        for x in range(width):
+            jitter = rng.randint(-4, 4)
+            is_border = x in (0, width - 1) or y in (0, height - 1) or x == width // 2 or y == height // 2
+            if is_border:
+                col = (_clamp(16 + jitter), _clamp(15 + jitter), _clamp(22 + jitter))
+            else:
+                col = (_clamp(base_rgb[0] + jitter), _clamp(base_rgb[1] + jitter), _clamp(base_rgb[2] + jitter))
+            surface.set_at((x, y), col)
+
+    # Ornate eclipse-gold / crimson ritual ring inlay
+    cx, cy = width // 2, height // 2
+    for y in range(height):
+        for x in range(width):
+            dist = math.hypot(x - cx, y - cy)
+            if 10.5 <= dist <= 12.0 or 4.0 <= dist <= 5.2:
+                surface.set_at((x, y), (118, 86, 52))
+            elif 9.5 <= dist < 10.5:
+                surface.set_at((x, y), (74, 34, 46))
+
+    # Cracked stone fissures
+    for _ in range(2):
+        fx, fy = rng.randint(4, width - 5), rng.randint(4, height - 5)
+        for _ in range(6):
+            if 1 <= fx < width - 1 and 1 <= fy < height - 1:
+                surface.set_at((fx, fy), (12, 11, 16))
+            fx += rng.choice((-1, 0, 1))
+            fy += rng.choice((-1, 0, 1))
+
+    return surface
+
+
+def generate_boss_pillar_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generates a towering ruined dark-ritual stone pillar with fluted shaft and cap highlight."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+
+    # Ground drop shadow
+    pygame.draw.ellipse(surface, (10, 8, 14, 150), (6, height - 12, width - 12, 10))
+
+    # Fluted stone shaft
+    for y in range(10, height - 4):
+        for x in range(10, width - 10):
+            flute = 8 if (x % 4 in (0, 1)) else -6
+            shade = int((y - 10) * 0.4)
+            jitter = rng.randint(-3, 3)
+            r_v = _clamp(48 + flute - shade + jitter)
+            g_v = _clamp(46 + flute - shade + jitter)
+            b_v = _clamp(58 + flute - shade + jitter)
+            surface.set_at((x, y), (r_v, g_v, b_v, 255))
+
+    # Ruined beveled capital top
+    for y in range(4, 12):
+        for x in range(8, width - 8):
+            jitter = rng.randint(-3, 3)
+            if y == 4 or x == 8:
+                col = (94, 90, 108, 255)
+            elif y == 11:
+                col = (20, 18, 26, 255)
+            else:
+                col = (_clamp(64 + jitter), _clamp(60 + jitter), _clamp(76 + jitter), 255)
+            surface.set_at((x, y), col)
+
+    return surface
+
+
+def generate_boss_abyss_rim(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generates an eclipse-tinted abyssal chasm rim tile with fractured stone lip."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    for y in range(height):
+        for x in range(width):
+            jitter = rng.randint(-3, 3)
+            if y < 10:
+                base = (44, 40, 54)
+            elif y < 13:
+                base = (82, 74, 96) if (x % 7 != 0) else (22, 20, 30)
+            elif y < 18:
+                base = (24, 18, 34)
+            else:
+                base = (7, 6, 12)
+            surface.set_at((x, y), (_clamp(base[0] + jitter), _clamp(base[1] + jitter), _clamp(base[2] + jitter)))
+
+    return surface
+
+
+# ==============================================================================
 # BATCH GENERATION & CLI ENTRY POINT
 # ==============================================================================
 
@@ -1964,6 +2083,9 @@ def generate_all_assets(
     cliff_edge_path: str = DEFAULT_CLIFF_EDGE_PATH,
     staircase_path: str = DEFAULT_STAIRCASE_PATH,
     pit_rim_path: str = DEFAULT_PIT_RIM_PATH,
+    boss_dais_path: str = DEFAULT_BOSS_DAIS_PATH,
+    boss_pillar_path: str = DEFAULT_BOSS_PILLAR_PATH,
+    boss_abyss_rim_path: str = DEFAULT_BOSS_ABYSS_RIM_PATH,
     seed: int = None,
 ) -> Dict[str, str]:
     """Generate all procedural assets and save them to disk.
@@ -2099,6 +2221,9 @@ def generate_all_assets(
         ("cliff_edge", cliff_edge_path, generate_cliff_edge_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
         ("staircase_tile", staircase_path, generate_staircase_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
         ("pit_rim", pit_rim_path, generate_pit_rim_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
+        ("boss_dais_tile", boss_dais_path, generate_boss_dais_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
+        ("boss_pillar_tile", boss_pillar_path, generate_boss_pillar_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
+        ("boss_abyss_rim", boss_abyss_rim_path, generate_boss_abyss_rim(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
     ]
     for key, out_path, surf in verticality_specs:
         _ensure_directory(out_path)

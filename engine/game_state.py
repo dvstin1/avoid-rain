@@ -90,6 +90,14 @@ class GameState:
         self.active_choice = None
         self.active_dialogue = None
         self.active_respite = None
+        self.chronicle_dialog = None
+        from constants import DEBUG_BIOME_SELECT
+        self.debug_biome_select = DEBUG_BIOME_SELECT
+        self.current_act = 0
+        self.run_biomes = {"act1": None, "act2": None}
+        self.act1_world_data = None
+        self.act2_world_data = None
+        self.act_warp_target = None
         
         self.hit_stop_timer = 0.0
         self.shake_timer = 0.0
@@ -191,6 +199,8 @@ class GameState:
             state["interactables"] = [obj.to_dict() for obj in self.world.interactables if obj.name == "Appendix Warp"]
             state["destroyed_props"] = list(self.destroyed_prop_ids)
             state["defeated_miniboss_ids"] = list(self.defeated_miniboss_ids)
+            state["current_act"] = self.current_act
+            state["act_warp_target"] = self.act_warp_target
             
             # Broadcast the Host's view of all remote players AND themselves (authoritative HP)
             state["session_players"] = [
@@ -273,6 +283,15 @@ class GameState:
             def_bosses = data.get("defeated_miniboss_ids")
             if def_bosses is not None:
                 self.defeated_miniboss_ids = set(def_bosses)
+
+            # 7. Synchronized Two-Act Warp Transitions
+            remote_warp = data.get("act_warp_target")
+            if remote_warp == "act2" and self.current_act == 1 and self.act2_world_data:
+                if not (hasattr(self, 'warp_controller') and self.warp_controller.is_active()):
+                    self.start_warp("act2", callback=lambda gs: gs.transition_to_act2(), confirmed=True)
+            elif remote_warp == "night_boss_arena" and getattr(self.world, 'name', '') != "night_boss_arena":
+                if not (hasattr(self, 'warp_controller') and self.warp_controller.is_active()):
+                    self.start_warp("night_boss_arena", confirmed=True)
 
 
     def _sync_enemies_from_host(self, enemy_data_list):
@@ -360,6 +379,10 @@ class GameState:
         if map_json:
             import json
             from constants import get_generated_world_path
+            if "act2_world" in map_json:
+                self.act2_world_data = map_json.pop("act2_world")
+                self.run_biomes = map_json.pop("run_biomes", {"act1": None, "act2": None})
+                self.current_act = int(map_json.pop("current_act", 1))
             path = get_generated_world_path().replace(".json", "_client.json")
             with open(path, 'w', encoding='utf-8') as f: json.dump(map_json, f)
             print(f"[NETWORK] Received map payload ({len(json.dumps(map_json)) // 1024} KB).")
@@ -389,7 +412,13 @@ class GameState:
         import os, json
         path = get_generated_world_path()
         if os.path.exists(path):
-            with open(path, 'r', encoding='utf-8') as f: return json.load(f)
+            with open(path, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+            if self.act2_world_data:
+                payload["act2_world"] = self.act2_world_data
+                payload["run_biomes"] = self.run_biomes
+                payload["current_act"] = self.current_act or 1
+            return payload
         return None
 
     def host_restorer_callback(self, identity, ip): return self.cached_client_states.get(identity)
@@ -492,6 +521,7 @@ class GameState:
             and getattr(target, 'is_interactive', False)
             and not self.active_dialogue
             and not self.active_choice
+            and not getattr(self, 'chronicle_dialog', None)
             and not warp_blocked
         ):
             from engine.world import WarpPortal
@@ -536,7 +566,12 @@ class GameState:
         
         # Rule: Movement is suppressed if a menu, dialogue, or warp sequence is active
         warp_blocks = hasattr(self, 'warp_controller') and self.warp_controller.blocks_input()
-        if not self.active_dialogue and not getattr(self, 'active_choice', None) and not warp_blocks:
+        if (
+            not self.active_dialogue
+            and not getattr(self, 'active_choice', None)
+            and not getattr(self, 'chronicle_dialog', None)
+            and not warp_blocks
+        ):
             self._update_player_lifecycle(dt, actions, attack_pressed, audio_manager)
         else:
             # Freeze momentum while in menus or warping
@@ -593,18 +628,28 @@ class GameState:
                     boss_alive = True
             self.weather_manager.lock_circle_for_boss(boss_alive)
 
-        # Appendix Rule: Spawn portal after Night 2 defeat
-        if self.weather_manager.bleed_state == "APPENDIX" and not any(e.name == "Appendix Warp" for e in self.world.interactables):
-            idx = self.weather_manager.current_boss_idx
-            boss_list = getattr(self.world, 'boss_coords_list', []) or []
-            if idx < len(boss_list):
-                coords = boss_list[idx]
-                from engine.world import WarpPortal
-                from constants import TILE_SIZE
-                portal_rect = (coords['x'] * TILE_SIZE - 20, coords['y'] * TILE_SIZE - 20, 40, 40)
-                portal = WarpPortal("final_boss", 25, 25, portal_rect, name="Appendix Warp")
-                self.world.interactables.append(portal)
-                self.trigger_bloom("THE APPENDIX REVEALED", priority=2)
+        # Appendix / Act Transition Rule: After Night Boss defeat & dilution interlude
+        if self.weather_manager.bleed_state == "APPENDIX":
+            warp_active = hasattr(self, 'warp_controller') and self.warp_controller.is_active()
+            if self.current_act == 1 and self.act2_world_data:
+                if self.act_warp_target != "act2" and not warp_active:
+                    self.act_warp_target = "act2"
+                    self.start_warp("act2", callback=lambda gs: gs.transition_to_act2(), confirmed=True)
+            elif self.current_act == 2:
+                if self.act_warp_target != "night_boss_arena" and not warp_active:
+                    self.act_warp_target = "night_boss_arena"
+                    self.start_warp("night_boss_arena", confirmed=True)
+            elif not any(e.name == "Appendix Warp" for e in self.world.interactables):
+                idx = self.weather_manager.current_boss_idx
+                boss_list = getattr(self.world, 'boss_coords_list', []) or []
+                if idx < len(boss_list):
+                    coords = boss_list[idx]
+                    from engine.world import WarpPortal
+                    from constants import TILE_SIZE
+                    portal_rect = (coords['x'] * TILE_SIZE - 20, coords['y'] * TILE_SIZE - 20, 40, 40)
+                    portal = WarpPortal("final_boss", 25, 25, portal_rect, name="Appendix Warp")
+                    self.world.interactables.append(portal)
+                    self.trigger_bloom("THE APPENDIX REVEALED", priority=2)
 
     def spawn_impact_sparks(self, x, y, weapon=None, count=None):
         """Spawns subtle directional impact sparks upon landed melee hits."""
@@ -1002,8 +1047,12 @@ class GameState:
                 self.sanctuary_reset_complete = True
         else: self.sanctuary_reset_complete = False
 
-        if self.active_dialogue: self._handle_dialogue_ui(actions, attack_pressed, audio_manager)
-        elif getattr(self, 'active_choice', None): self._handle_choice_ui(actions, attack_pressed)
+        if getattr(self, 'chronicle_dialog', None):
+            self._handle_chronicle_dialog_ui(actions, attack_pressed)
+        elif self.active_dialogue:
+            self._handle_dialogue_ui(actions, attack_pressed, audio_manager)
+        elif getattr(self, 'active_choice', None):
+            self._handle_choice_ui(actions, attack_pressed)
         
         # Pickup Logic
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
@@ -1100,8 +1149,228 @@ class GameState:
             if self.network_manager.network_mode == "CLIENT":
                 threading.Thread(target=self.network_manager.send_full_state, args=(self.get_full_player_state(),), daemon=True).start()
 
+    def open_chronicle_biome_dialog(self, portal=None):
+        """Open the host-driven two-step Chronicle biome-selection dialog."""
+        self.chronicle_dialog = {
+            "step": 1,
+            "selection": 0,
+            "act1_choice": None,
+            "act2_choice": None,
+            "portal": portal,
+        }
+        self.input_debounce_timer = 0.2
+        self.input_ratchet_latched = True
+        self.menu_nav_cooldown = 0.2
+
+    def get_chronicle_dialog_options(self):
+        """Return selectable options for the active Chronicle biome dialog step."""
+        dialog = getattr(self, 'chronicle_dialog', None)
+        if not dialog:
+            return []
+        from constants import BIOME_SEGMENT_POOLS, BIOME_DISPLAY_NAMES
+
+        step = dialog.get("step", 1)
+        act1_choice = dialog.get("act1_choice")
+        options = [{"label": "Random", "value": "random", "enabled": True}]
+        if getattr(self, 'debug_biome_select', True):
+            for biome_id in BIOME_SEGMENT_POOLS:
+                enabled = True
+                if step == 2 and act1_choice and act1_choice != "random" and biome_id == act1_choice:
+                    enabled = False
+                options.append({
+                    "label": BIOME_DISPLAY_NAMES.get(biome_id, biome_id),
+                    "value": biome_id,
+                    "enabled": enabled,
+                })
+        if step == 1:
+            options.append({"label": "Cancel", "value": "cancel", "enabled": True})
+        else:
+            options.append({"label": "Back to Act 1", "value": "back", "enabled": True})
+        return options
+
+    def cancel_chronicle_dialog(self):
+        """Step back from Act 2 to Act 1, or close the Chronicle dialog from Step 1."""
+        dialog = getattr(self, 'chronicle_dialog', None)
+        if not dialog:
+            return
+        if dialog.get("step", 1) == 2:
+            dialog["step"] = 1
+            dialog["selection"] = 0
+            dialog["act2_choice"] = None
+        else:
+            self.chronicle_dialog = None
+        self.input_debounce_timer = 0.2
+
+    def _step_chronicle_selection(self, options, current_idx, delta):
+        """Advance selection index over enabled options."""
+        if not options:
+            return 0
+        count = len(options)
+        idx = (current_idx + delta) % count
+        for _ in range(count):
+            if options[idx].get("enabled", True):
+                return idx
+            idx = (idx + delta) % count
+        return current_idx
+
+    def _handle_chronicle_dialog_ui(self, actions, attack_pressed):
+        """Handle keyboard/gamepad navigation for the two-step Chronicle modal."""
+        dialog = getattr(self, 'chronicle_dialog', None)
+        if not dialog:
+            return
+        options = self.get_chronicle_dialog_options()
+        if not options:
+            self.chronicle_dialog = None
+            return
+
+        if actions.get("cancel"):
+            self.cancel_chronicle_dialog()
+            return
+
+        move_dir = actions.get('move', (0, 0))
+        if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
+            if move_dir[1] > 0.6:
+                dialog["selection"] = self._step_chronicle_selection(options, dialog.get("selection", 0), 1)
+                self.input_ratchet_latched = True
+                self.menu_nav_cooldown = 0.2
+            elif move_dir[1] < -0.6:
+                dialog["selection"] = self._step_chronicle_selection(options, dialog.get("selection", 0), -1)
+                self.input_ratchet_latched = True
+                self.menu_nav_cooldown = 0.2
+
+        if attack_pressed and not self.input_ratchet_latched:
+            self.input_ratchet_latched = True
+            sel_idx = min(max(0, dialog.get("selection", 0)), len(options) - 1)
+            chosen = options[sel_idx]
+            if not chosen.get("enabled", True):
+                return
+            val = chosen["value"]
+            if dialog.get("step", 1) == 1:
+                if val == "cancel":
+                    self.chronicle_dialog = None
+                    self.input_debounce_timer = 0.2
+                    return
+                dialog["act1_choice"] = val
+                dialog["step"] = 2
+                dialog["selection"] = 0
+                self.input_debounce_timer = 0.15
+            else:
+                if val == "back":
+                    dialog["step"] = 1
+                    dialog["selection"] = 0
+                    self.input_debounce_timer = 0.15
+                    return
+                dialog["act2_choice"] = val
+                self.confirm_chronicle_run(dialog["act1_choice"], dialog["act2_choice"], dialog.get("portal"))
+
+    def confirm_chronicle_run(self, act1_choice="random", act2_choice="random", portal=None):
+        """Close the Chronicle dialog and launch the two-act run with Ink & Fog warp."""
+        self.chronicle_dialog = None
+        self.input_debounce_timer = 0.2
+
+        def _launch(gs):
+            gs.start_two_act_run(act1_choice, act2_choice)
+
+        target = portal if portal is not None else "macro_world"
+        started = self.start_warp(target, callback=_launch, confirmed=True)
+        if not started:
+            _launch(self)
+
+    def _load_generated_world_from_path(self, path, world_name, reset_progress=True):
+        """Load a serialized world JSON into self.world and reset weather/camera."""
+        from engine.world import World, LevelLoader
+        from constants import TILE_SIZE
+
+        if reset_progress:
+            self.world_debris = []
+            self.loot = []
+            self.destroyed_prop_ids.clear()
+            self.defeated_miniboss_ids.clear()
+
+        self.world = World(world_name)
+        (
+            self.world.grid,
+            self.world.interactables,
+            self.world.warp_tiles,
+            self.world.player_start,
+            self.world.enemies,
+            self.world.boss_coords_list,
+            self.world.module_sockets,
+        ) = LevelLoader.load_json_map(path, defeated_ids=self.defeated_miniboss_ids)
+        self.enemies = self.world.enemies
+
+        if self.player:
+            self.player.x, self.player.y = self.world.player_start
+            self.player.vx = 0
+            self.player.vy = 0
+            self.player.is_exposed = False
+            self.player.alpha = 255
+
+        if hasattr(self, 'weather_manager'):
+            self.weather_manager.reset(boss_coords_list=self.world.boss_coords_list)
+            self.active_safe_radius = self.weather_manager.active_safe_radius
+            self.bleed_state = self.weather_manager.bleed_state
+            self.current_boss_coords = self.weather_manager.get_current_boss_coords()
+
+        if hasattr(self, 'camera') and self.world.grid:
+            self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
+            self.camera.world_h = len(self.world.grid) * TILE_SIZE
+            if self.player:
+                self.camera.instant_center(self.player.get_center())
+
+    def start_two_act_run(self, act1_choice="random", act2_choice="random"):
+        """Generate Act 1 and Act 2 single-biome worlds upfront and enter Act 1."""
+        import json
+        from constants import get_generated_world_path
+        from engine.world_generator import generate_dual_worlds
+
+        bundle = generate_dual_worlds(act1_choice, act2_choice)
+        self.act1_world_data = bundle["act1_data"]
+        self.act2_world_data = bundle["act2_data"]
+        self.run_biomes = {
+            "act1": bundle["act1_biome"],
+            "act2": bundle["act2_biome"],
+        }
+        self.current_act = 1
+        self.act_warp_target = None
+        self.last_zone_id = None
+
+        path = get_generated_world_path()
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(self.act1_world_data, f)
+
+        self._load_generated_world_from_path(path, "generated_world", reset_progress=True)
+        if self.stats:
+            self.stats.data["active_session_in_progress"] = True
+        self.trigger_bloom("ACT I: THE FIRST DRAFT", priority=2)
+        return self.run_biomes
+
+    def transition_to_act2(self):
+        """Warp into the pre-generated Act 2 world while preserving player progression."""
+        import json
+        from constants import get_generated_world_path
+
+        if not self.act2_world_data:
+            return False
+
+        is_client = (self.network_manager.network_mode == "CLIENT")
+        world_name = "generated_world_client" if is_client else "generated_world"
+        path = get_generated_world_path()
+        if is_client:
+            path = path.replace(".json", "_client.json")
+
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(self.act2_world_data, f)
+
+        self._load_generated_world_from_path(path, world_name, reset_progress=True)
+        self.current_act = 2
+        self.act_warp_target = None
+        self.last_zone_id = None
+        self.trigger_bloom("ACT II: THE SECOND DRAFT", priority=2)
+        return True
+
     def _handle_victory_conditions(self, dt):
-        if getattr(self.world, 'name', '') != "final_boss":
+        if getattr(self.world, 'name', '') not in ("final_boss", "night_boss_arena"):
             return
 
         final_boss_dead = not any(getattr(e, 'name', '') == "The Final Author" for e in self.enemies)
@@ -1116,8 +1385,13 @@ class GameState:
                 if not (hasattr(self, 'warp_controller') and self.warp_controller.is_active()):
                     self.start_warp("sanctuary")
 
-    def start_warp(self, target, callback=None):
+    def start_warp(self, target, callback=None, confirmed=False):
         """Initiate the three-stage Ink & Fog transit sequence."""
+        target_name = getattr(target, 'target_name', target if isinstance(target, str) else None)
+        is_client = hasattr(self, 'network_manager') and self.network_manager.network_mode == "CLIENT"
+        if not confirmed and not is_client and target_name == "macro_world":
+            self.open_chronicle_biome_dialog(portal=target if hasattr(target, 'target_name') else None)
+            return False
         if hasattr(self, 'warp_controller') and self.warp_controller and self.player:
             return self.warp_controller.start_warp(self.player, target, callback=callback)
         return False
@@ -1157,6 +1431,12 @@ class GameState:
         # Purification: Clear run state and persistent world changes when entering Hub
         self.world_debris = []
         self.destroyed_prop_ids.clear()
+        self.chronicle_dialog = None
+        self.current_act = 0
+        self.run_biomes = {"act1": None, "act2": None}
+        self.act1_world_data = None
+        self.act2_world_data = None
+        self.act_warp_target = None
 
         if self.stats:
             self.stats.data["run_state"] = None
@@ -1393,7 +1673,12 @@ class GameState:
         world_name = getattr(self.world, 'name', 'sanctuary')
         target_track = "world_exploration.ogg"
         if world_name == "sanctuary": target_track = "sanctuary_hub.ogg"
-        if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY" and world_name == "final_boss": self.player.active_track_name = "victory_theme.ogg"; return
+        if (
+            getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY"
+            and world_name in ("final_boss", "night_boss_arena")
+        ):
+            self.player.active_track_name = "victory_theme.ogg"
+            return
         if self.player.hp <= 0: self.player.active_track_name = "death_theme.ogg"; return
         proximity_threshold = 15 * TILE_SIZE
         cooldown_limit = 3.0

@@ -134,3 +134,59 @@ def draw_respite_menu(screen, font, state):
     close_col = constants.COLOR_SELECTION if close_focused else constants.COLOR_GREY
     close_text = f"{'> ' if close_focused else '  '}[ CLOSE MENU ]"
     screen.blit(font.render(close_text, True, close_col), (x + 40, y + y_off))
+
+
+def draw_chronicle_biome_menu(screen, font, state):
+    """Draw the two-step host Chronicle biome-selection modal matching Respite styling."""
+    dialog = getattr(state, 'chronicle_dialog', None)
+    if not dialog:
+        return
+
+    sw, sh = screen.get_width(), screen.get_height()
+    mx, my = 100, 100
+    w, h = sw - mx * 2, sh - my * 2
+    x, y = mx, my
+
+    panel = pygame.Rect(x, y, w, h)
+    pygame.draw.rect(screen, (10, 10, 30), panel)
+    pygame.draw.rect(screen, constants.COLOR_WHITE, panel, 2)
+
+    step = dialog.get("step", 1)
+    title_str = "CHRONICLE: SELECT ACT 1 BIOME" if step == 1 else "CHRONICLE: SELECT ACT 2 BIOME"
+    title = font.render(title_str, True, constants.COLOR_SELECTION)
+    screen.blit(title, (x + 25, y + 20))
+
+    y_off = 65
+    if step == 2:
+        act1_choice = dialog.get("act1_choice") or "random"
+        act1_label = "Random" if act1_choice == "random" else constants.BIOME_DISPLAY_NAMES.get(
+            act1_choice, act1_choice
+        )
+        sub = font.render(f"Act 1 Biome: {act1_label}", True, constants.COLOR_GREY)
+        screen.blit(sub, (x + 25, y + y_off))
+        y_off += 35
+
+    options = state.get_chronicle_dialog_options()
+    sel_idx = dialog.get("selection", 0)
+    spacing = 36
+
+    for idx, opt in enumerate(options):
+        focused = idx == sel_idx
+        enabled = opt.get("enabled", True)
+        label = opt.get("label", "")
+        if not enabled:
+            color = (80, 80, 80)
+            label = f"{label} (Selected for Act 1)"
+        elif focused:
+            color = constants.COLOR_SELECTION
+        elif opt.get("value") in ("cancel", "back"):
+            color = constants.COLOR_GREY
+        else:
+            color = constants.COLOR_WHITE
+
+        prefix = "> " if focused else "  "
+        screen.blit(font.render(f"{prefix}{label}", True, color), (x + 40, y + y_off))
+        y_off += spacing
+
+    hint = font.render("[UP/DOWN] Navigate   [ENTER/E] Confirm   [ESC] Cancel/Back", True, constants.COLOR_GREY)
+    screen.blit(hint, (x + 25, y + h - 42))

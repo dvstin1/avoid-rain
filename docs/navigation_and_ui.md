@@ -138,7 +138,12 @@ To provide a seamless experience, the engine monitors all input hardware concurr
 - **Display Configurations:**
   - Mode Keyboard: Displays `[ Input: Keyboard ]` in standard ivory white.
   - Mode Gamepad: Displays `[ Input: Gamepad ]` in stark gold/amber.
-- **The Menu Snapping Rule:** While `input_mode == "GAMEPAD"`, all active menu surfaces (Respite, Options) utilize directional index trapping. Moving the analog stick shifts focus loops between menu items, completely bypassing mouse cursor coordinate collision requirements.
+- **The Menu Snapping Rule:** While `input_mode == "GAMEPAD"`, all active menu surfaces (Respite, Chronicle Biome Selection, Options) utilize directional index trapping. Moving the analog stick shifts focus loops between menu items, completely bypassing mouse cursor coordinate collision requirements.
+
+### 4. Host-Driven Chronicle Biome Selection Dialog
+Interacting with the Sanctuary Chronicle opens a two-step modal (`draw_chronicle_biome_menu`, styled identically to `draw_respite_menu`) before warping:
+- **Step 1 (Act 1 Biome):** `Random` (default) + all active biomes (gated by `DEBUG_BIOME_SELECT`) + `Cancel`.
+- **Step 2 (Act 2 Biome):** `Random` (default) + all active biomes (with Step 1's specific choice greyed out/disabled) + `Back to Act 1`.
 
 ## 9. Map Editor Access & Core Controls
 The project includes a native Pygame-based map editor for designing modular sub-maps and macro layouts.

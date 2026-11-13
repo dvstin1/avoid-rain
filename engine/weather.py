@@ -59,7 +59,7 @@ class WeatherManager:
             return
             
         # Final Boss Arena Isolation: Weather remains dormant until victory
-        if getattr(world, 'name', '') == "final_boss" and self.bleed_state != "DILUTION":
+        if getattr(world, 'name', '') in ("final_boss", "night_boss_arena") and self.bleed_state != "DILUTION":
             self.active_safe_radius = 1000000.0
             return
 

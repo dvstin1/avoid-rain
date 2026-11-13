@@ -917,3 +917,10 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 
 
 
+
+## [ARCHIVED] Two-Act Progression, Chronicle Biome Selection, Dual-World LAN Sync, & Expanded Final Boss Arena - November 2026
+- **Two-Step Chronicle Biome Selection Dialog (`ui/menu.py`, `engine/game_state.py`, `constants.py`):** Implemented host-driven modal matching `draw_respite_menu` styling with Step 1 (Act 1 Biome: `Random` + biomes + `Cancel`) and Step 2 (Act 2 Biome: `Random` + biomes with Step 1's specific pick disabled + `Back to Act 1`), gated by `DEBUG_BIOME_SELECT`.
+- **Upfront Dual-World Generation & LAN Co-op Sync (`engine/world_generator.py`, `engine/game_state.py`):** Added `resolve_run_biomes()` (guaranteeing `Act 2 != Act 1`), `generate_dual_worlds()`, TCP `MAP_RESPONSE` bundling (`act2_world`, `run_biomes`, `current_act`), and UDP `act_warp_target` synchronization.
+- **Synchronized Act 1 → Act 2 → Final Boss Arena Loop (`engine/game_state.py`, `engine/weather.py`):** Defeating Act 1's Night Boss transitions host and clients into the pre-generated Act 2 world while preserving player HP, stats, weapons, flasks, and torn pages and resetting weather/enemies/props; defeating Act 2's Night Boss warps into the expanded 72x72 `maps/night_boss_arena.json`.
+- **Expanded Final Boss Arena & Assets (`generate_assets.py`, `generate_maps.py`):** Added `boss_dais_tile.png`, `boss_pillar_tile.png`, and `boss_abyss_rim.png` and generated the 72x72 elevated ritual-dais `maps/night_boss_arena.json`.
+- **Verification:** Added `tests/test_two_act_progression.py` and updated `tests/test_warp.py`.

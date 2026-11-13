@@ -13,7 +13,7 @@ import pygame
 import constants
 from engine.player import PlayerStateEnum
 from engine.camera import Camera
-from ui.menu import draw_respite_menu
+from ui.menu import draw_respite_menu, draw_chronicle_biome_menu
 from ui.lobby_menu import draw_lobby_menu
 
 class Renderer:
@@ -1882,7 +1882,9 @@ class Renderer:
         if getattr(state, "debug_text_enabled", False):
             self.draw_audio_debug(audio_manager, state=state)
 
-        if getattr(state, 'active_respite', None):
+        if getattr(state, 'chronicle_dialog', None):
+            draw_chronicle_biome_menu(self.screen, self.font, state)
+        elif getattr(state, 'active_respite', None):
             draw_respite_menu(self.screen, self.font, state)
         elif getattr(state, 'active_dialogue', None):
             self.draw_dialogue_box(state)

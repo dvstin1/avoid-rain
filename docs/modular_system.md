@@ -72,13 +72,13 @@ Each biome pool contains multiple distinct procedurally generated module segment
 Every socket registered on the macro layout canvas possesses a regional classification tier determining its pool filtering logic:
 - `SIZE_120X120` Pools (`BIOME_SEGMENT_POOLS[biome]["rooms"]`): Populated exclusively from the selected biome's 120x120 room segment deck (shuffled so each run varies layouts while staying 100% within one biome).
 - `SIZE_40X40_OUTER` (The Margins): Sockets along the outermost grid edges. Restricted to filtering the player's initial entry node (`The Colophon / Spawn`: `maps/the_colophon.json`) and corridor segments from `BIOME_SEGMENT_POOLS[biome]["corridors"]`.
-- `SIZE_40X40_INNER` (The Crown Ring): Sockets contained inside the central 200x200 space (3x3 to 7x7 in an 11x11 grid), bounding the center socket. Restricted to spawning the high-tier `Night Boss` encounter (`maps/night_boss_arena.json`), with adjacent slots pulling exclusively from the selected biome's corridor segment deck.
+- `SIZE_40X40_INNER` (The Crown Ring): Sockets contained inside the central 200x200 space (3x3 to 7x7 in an 11x11 grid), bounding the center socket. One inner socket is reserved for the Act's `Night Boss` encounter center, with adjacent slots pulling exclusively from the selected biome's corridor segment deck.
 
 ### 3. Runtime Selection Sequence & Rule Logic
-1. **Biome Selection:** `WorldGenerator` selects a single cohesive biome for the run (either explicitly specified or randomly chosen from `BIOME_SEGMENT_POOLS`).
+1. **Two-Act Biome Resolution (`resolve_run_biomes`):** Act 1 and Act 2 each select a single cohesive biome from `BIOME_SEGMENT_POOLS`, guaranteeing `Act 2 Biome != Act 1 Biome` when resolving `Random`. Both worlds are generated upfront via `generate_dual_worlds()` and bundled into the initial TCP `MAP_RESPONSE` payload (`act2_world`, `run_biomes`) for LAN co-op clients.
 2. **The Core Allocation Pass:** The generator calculates dimensions and draws empty socket frames across the 440x440 canvas matrix.
 3. **The Spawn Assignment Phase:** The compiler selects one `SIZE_40X40_OUTER` socket and binds it to `maps/the_colophon.json` (Spawn).
-4. **The Target Assignment Phase:** The compiler selects two `SIZE_40X40_INNER` sockets and binds them to `maps/night_boss_arena.json`.
+4. **The Target Assignment Phase:** The compiler selects one `SIZE_40X40_INNER` socket for the Act's Night Boss encounter.
 5. **The Single-Biome Pool Backfill Pass:** All remaining unassigned `120x120` and `40x40` sockets are filled from shuffled decks drawn exclusively from the active biome's segment pool (`BIOME_SEGMENT_POOLS[biome]`).
 
 ## 6. Runtime Symmetrical Compilation Pipeline (440x440 Matrix)
@@ -91,12 +91,13 @@ The layout coordinates are computed by tracking the cumulative widths of precedi
 - Column/Row Index 1, 3: Size = 40 tiles
 
 ### 2. The Generation Cycle
-When the Chronicle gateway is activated:
-1. Select one cohesive biome for the run and initialize a blank 440x440 grid matrix filled with open traversable floor spacing tiles (`" "`).
-2. Filter out one random perimeter 40x40 socket slot and stitch `maps/the_colophon.json` into it. Store these absolute coordinates as the Player Spawn Point.
-3. Filter out two random inner 40x40 socket slots and stitch `maps/night_boss_arena.json` into them.
+When the Chronicle gateway is confirmed:
+1. Resolve distinct Act 1 and Act 2 biomes and generate both 440x440 single-biome grids upfront (`generate_dual_worlds`).
+2. For each Act world, filter out one random perimeter 40x40 socket slot and stitch `maps/the_colophon.json` into it as the Player Spawn Point.
+3. Filter out one random inner 40x40 socket slot as the Act's Night Boss Arena center (`boss_coords_list`).
 4. Loop through remaining 120x120 slots, popping from a shuffled deck of the selected biome's room segments (`maps/segments/<biome>/<biome>_room_*.json`).
 5. Loop through remaining 40x40 slots, popping from a shuffled deck of the selected biome's corridor segments (`maps/segments/<biome>/<biome>_corridor_*.json`).
+6. Upon defeating the Act 2 Night Boss, players warp into the standalone 72x72 Final Boss Arena (`maps/night_boss_arena.json`).
 
 ## 7. Macro Matrix Canvas Space & Boss Entity Definitions
 

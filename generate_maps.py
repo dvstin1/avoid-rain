@@ -1184,6 +1184,108 @@ def generate_biome_segment_pools(
     return manifest
 
 
+def generate_final_boss_arena(
+    width: int = 72,
+    height: int = 72,
+    seed: Optional[int] = 777,
+) -> GeneratedMap:
+    """Generates the expanded Final Boss Arena (night_boss_arena) with dais, pillars, and abyssal rim."""
+    grid = [[SYMBOL_WALL for _ in range(width)] for _ in range(height)]
+    elev = [[ELEVATION_PIT for _ in range(width)] for _ in range(height)]
+
+    margin = 4
+    # Carve wide flanking walkways inside the outer arena wall
+    for y in range(margin + 1, height - margin - 1):
+        for x in range(margin + 1, width - margin - 1):
+            grid[y][x] = SYMBOL_FLOOR
+            elev[y][x] = ELEVATION_LOWER
+
+    # Ensure solid arena perimeter walls sit on ELEVATION_LOWER bordering the outer abyssal pit
+    for x in range(margin, width - margin):
+        grid[margin][x] = SYMBOL_WALL
+        grid[height - margin - 1][x] = SYMBOL_WALL
+        elev[margin][x] = ELEVATION_LOWER
+        elev[height - margin - 1][x] = ELEVATION_LOWER
+    for y in range(margin, height - margin):
+        grid[y][margin] = SYMBOL_WALL
+        grid[y][width - margin - 1] = SYMBOL_WALL
+        elev[y][margin] = ELEVATION_LOWER
+        elev[y][width - margin - 1] = ELEVATION_LOWER
+
+    # Chamfered outer arena corners for a grand octagonal silhouette
+    chamfer = 6
+    for dy in range(chamfer):
+        for dx in range(chamfer - dy):
+            for cy, cx in (
+                (margin + 1 + dy, margin + 1 + dx),
+                (margin + 1 + dy, width - margin - 2 - dx),
+                (height - margin - 2 - dy, margin + 1 + dx),
+                (height - margin - 2 - dy, width - margin - 2 - dx),
+            ):
+                grid[cy][cx] = SYMBOL_WALL
+                elev[cy][cx] = ELEVATION_LOWER
+
+    # Elevated central ritual dais (chamfered octagon)
+    cx, cy = width // 2, height // 2
+    dais_half = 11
+    for y in range(cy - dais_half, cy + dais_half + 1):
+        for x in range(cx - dais_half, cx + dais_half + 1):
+            if abs(x - cx) + abs(y - cy) <= dais_half + 6:
+                elev[y][x] = ELEVATION_TERRACE
+
+    # Four cardinal 4-tile-wide staircases connecting flanking walkways to the ritual dais
+    stairs: List[List[int]] = []
+    for offset in range(-2, 2):
+        # North & South stairs
+        for sx in (cx + offset,):
+            stairs.append([sx, cy - dais_half])
+            stairs.append([sx, cy + dais_half])
+        # West & East stairs
+        for sy in (cy + offset,):
+            stairs.append([cx - dais_half, sy])
+            stairs.append([cx + dais_half, sy])
+
+    # Cover pillars (#) around the flanking walkways & dais corners
+    pillar_offsets = [
+        (-16, -16), (16, -16), (-16, 16), (16, 16),
+        (-18, 0), (18, 0), (0, -18), (0, 18),
+        (-8, -8), (8, -8), (-8, 8), (8, 8),
+    ]
+    for ox, oy in pillar_offsets:
+        px, py = cx + ox, cy + oy
+        for dy in (0, 1):
+            for dx in (0, 1):
+                if 0 <= px + dx < width and 0 <= py + dy < height:
+                    grid[py + dy][px + dx] = SYMBOL_WALL
+
+    # Flanking candelabras & destructible ritual props/cover
+    for ox, oy in ((-12, -4), (12, -4), (-12, 4), (12, 4), (-4, -12), (4, -12), (-4, 12), (4, 12)):
+        grid[cy + oy][cx + ox] = SYMBOL_CANDELABRA
+
+    for ox, oy in ((-14, -10), (14, -10), (-14, 10), (14, 10)):
+        grid[cy + oy][cx + ox] = SYMBOL_BARREL
+        grid[cy + oy][cx + ox + (1 if ox < 0 else -1)] = SYMBOL_INK_URN
+
+    # Canonical Player Start (south promenade) & Final Author Boss Spawn (central dais)
+    player_x, player_y = cx, height - margin - 8
+    boss_x, boss_y = cx, cy - 2
+    grid[player_y][player_x] = SYMBOL_PLAYER
+    grid[boss_y][boss_x] = SYMBOL_FINAL_AUTHOR
+
+    verticality_layers = apply_verticality_post_pass(grid, elev, stairs_coords=stairs)
+    return GeneratedMap(
+        map_id="night_boss_arena",
+        biome="ruins",
+        width=width,
+        height=height,
+        grid=grid,
+        entities={},
+        seed=seed,
+        elevation_grid=elev,
+        verticality_layers=verticality_layers,
+    )
+
+
 def parse_arguments() -> argparse.Namespace:
     """Configures and parses CLI arguments."""
     parser = argparse.ArgumentParser(
@@ -1253,6 +1355,11 @@ def parse_arguments() -> argparse.Namespace:
         default=DEFAULT_SEGMENTS_PER_BIOME,
         help="Number of room/corridor segments to generate per biome with --generate-pools (default: 4).",
     )
+    parser.add_argument(
+        "--generate-boss-arena",
+        action="store_true",
+        help="Regenerate the expanded Final Boss Arena (maps/night_boss_arena.json).",
+    )
     return parser.parse_args()
 
 
@@ -1285,6 +1392,16 @@ def main() -> None:
             print(f"  [+] {biome:<16} -> {len(pools['rooms'])} rooms (120x120), "
                   f"{len(pools['corridors'])} corridors (40x40)")
         print("Segment pool generation complete.")
+        return
+
+    if args.generate_boss_arena:
+        arena_map = generate_final_boss_arena(seed=base_seed)
+        arena_path = args.output or os.path.join(MAPS_DIR, "night_boss_arena.json")
+        arena_map.save(arena_path, file_format="json")
+        print(f"  [+] Expanded Final Boss Arena -> {arena_path} ({arena_map.width}x{arena_map.height})")
+        if args.preview:
+            p_path = render_map_preview(arena_map, os.path.join(PREVIEWS_DIR, "night_boss_arena_preview.png"))
+            print(f"      Preview Saved -> {p_path}")
         return
 
     print("==================================================")

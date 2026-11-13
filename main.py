@@ -203,8 +203,15 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
                 continue
 
             if event.key == pygame.K_ESCAPE:
+                if getattr(state, 'chronicle_dialog', None):
+                    state.cancel_chronicle_dialog()
+                    continue
                 if pause_menu is not None: pause_menu.toggle()
                 else: running = False
+            if getattr(state, 'chronicle_dialog', None) and event.key in (
+                pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_e
+            ):
+                attack = True
             if event.key == pygame.K_SPACE: attack = True
             if event.key == pygame.K_1: flask = True
             if event.key == pygame.K_q: swap = True

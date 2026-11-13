@@ -109,15 +109,13 @@ class WorldGenerator:
         self.spawn_x = spawn_socket["bounds"]["x"] + 20
         self.spawn_y = spawn_socket["bounds"]["y"] + 20
 
-        # 4. The Target Assignment Phase (Night Boss - DUAL)
+        # 4. The Target Assignment Phase (Act Circle-Closing Night Boss)
         inner_40s = [s for s in self.sockets if "40x40" in s["tags"] and "inner" in s["tags"]]
-        # Select two distinct arenas
-        arenas = random.sample(inner_40s, 2) if len(inner_40s) >= 2 else inner_40s
+        boss_socket = random.choice(inner_40s) if inner_40s else None
 
         self.boss_coords_list = []
-        for i, boss_socket in enumerate(arenas):
-            boss_socket["active_plug"] = "maps/night_boss_arena.json"
-            # Corrected: bounds are already in tiles
+        if boss_socket is not None:
+            boss_socket["active_plug"] = random.choice(filtered_40) if filtered_40 else "maps/smallcave.json"
             bx = boss_socket["bounds"]["x"] + 20
             by = boss_socket["bounds"]["y"] + 20
             self.boss_coords_list.append({"x": bx, "y": by})
@@ -149,22 +147,18 @@ class WorldGenerator:
                     else:
                         s["active_plug"] = "maps/smallcave.json"
 
-    def export_world(self, filename=None):
-        """Exports the layout as a single-biome macro-world JSON file."""
-        if filename is None:
-            filename = get_generated_world_path()
-
-        module_sockets = []
-        for s in self.sockets:
-            module_sockets.append({
+    def to_dict(self):
+        """Builds the serializable macro-world JSON dictionary."""
+        module_sockets = [
+            {
                 "name": s["id"],
                 "bounds": s["bounds"],
-                "active_plug": s["active_plug"]
-            })
-
+                "active_plug": s["active_plug"],
+            }
+            for s in self.sockets
+        ]
         base_grid = [" " * self.total_size for _ in range(self.total_size)]
-
-        data = {
+        return {
             "map_id": self.world_id,
             "biome": self.biome,
             "dimensions": {"width": self.total_size, "height": self.total_size},
@@ -173,13 +167,60 @@ class WorldGenerator:
             "entities": {},
             "module_sockets": module_sockets,
             "spawn_coords": {"x": self.spawn_x, "y": self.spawn_y},
-            "boss_coords_list": self.boss_coords_list
+            "boss_coords_list": self.boss_coords_list,
         }
-        
+
+    def export_world(self, filename=None):
+        """Exports the layout as a single-biome macro-world JSON file."""
+        if filename is None:
+            filename = get_generated_world_path()
+
+        data = self.to_dict()
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
         print(f"Generated world exported to {filename}")
+
+
+def resolve_run_biomes(act1_choice=None, act2_choice=None):
+    """Resolves Act 1 and Act 2 biomes, guaranteeing Act 1 != Act 2."""
+    all_biomes = list(BIOME_SEGMENT_POOLS.keys())
+    if act1_choice and act1_choice in BIOME_SEGMENT_POOLS:
+        act1 = act1_choice
+    else:
+        act1 = random.choice(all_biomes)
+
+    remaining = [b for b in all_biomes if b != act1]
+    if act2_choice and act2_choice in BIOME_SEGMENT_POOLS and act2_choice != act1:
+        act2 = act2_choice
+    else:
+        act2 = random.choice(remaining) if remaining else act1
+
+    return act1, act2
+
+
+def generate_dual_worlds(act1_choice=None, act2_choice=None):
+    """Generates both Act 1 and Act 2 single-biome world maps upfront for a two-act run."""
+    act1_biome, act2_biome = resolve_run_biomes(act1_choice, act2_choice)
+
+    gen1 = WorldGenerator(world_id="macro_act1", biome=act1_biome)
+    gen1.generate_layout()
+    act1_path = get_generated_world_path()
+    gen1.export_world(act1_path)
+
+    gen2 = WorldGenerator(world_id="macro_act2", biome=act2_biome)
+    gen2.generate_layout()
+    act2_path = act1_path.replace(".json", "_act2.json")
+    gen2.export_world(act2_path)
+
+    return {
+        "act1_biome": act1_biome,
+        "act2_biome": act2_biome,
+        "act1_data": gen1.to_dict(),
+        "act2_data": gen2.to_dict(),
+        "act1_path": act1_path,
+        "act2_path": act2_path,
+    }
 
 if __name__ == "__main__":
     gen = WorldGenerator()

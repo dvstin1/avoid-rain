@@ -32,7 +32,7 @@ The `GameState` object manages the following data structures:
 "The Bleed" is a spatial contraction mechanic that shrinks a designated safe perimeter down toward a sequence of Night Boss Arenas.
 
 ### 1. Radial Proximity Math
-- **The Center Anchor:** Upon map generation, the engine assigns TWO distinct 40x40 inner sockets as Night Boss Arenas (Arena 1 and Arena 2). The circle centers on Arena 1 first.
+- **The Center Anchor:** Upon map generation, each Act's single-biome world assigns one 40x40 inner socket as its Night Boss Arena (`boss_coords_list`). Across a full two-act run, Act 1 and Act 2 each generate an independent single-biome world with one Night Boss encounter.
 - **The Safe Zone Radius:** The engine tracks a float variable: `active_safe_radius`.
 - **The Exposure Condition:** During every update frame, the engine calculates the Euclidean distance between the player's position and the active boss center.
   - **Inside Circle:** If `Distance <= active_safe_radius`, the player is safe.
@@ -117,9 +117,10 @@ The `"night_boss"` entity type is strictly restricted from manifesting during ru
 - **The Awakening Phase:** The boss manifests at its arena center the exact frame the safe circle hits its final `CLAMP` boundary.
 - **The Lockdown Rule:** Contraction logic is locked in the closed state while the Night Boss is alive. The radius cannot alter until the boss is defeated.
 
-### 2. Victory and The Appendix
-- **Manifestation:** Defeating the second Night Boss manifests a Warp Portal to the separate **Final Boss Arena** (`maps/final_boss.json`, 50x50 size).
-- **The Extraction Sequence:** Upon defeating the Final Boss, a 10-second "Dilution" interlude begins. Once the timer hits zero, the player is automatically warped back to the Sanctuary hub.
+### 2. Two-Act Progression & The Final Boss Arena
+- **Act 1 → Act 2 Synchronized Warp:** Defeating the Act 1 Night Boss triggers the 10-second **Dilution** victory beat, followed by a synchronized Ink & Fog warp (host & LAN clients) into the pre-generated Act 2 single-biome world (`current_act = 2`). Player progression (HP, max HP, flasks, stats/level, weapons, torn pages) persists across the transition while weather, debris, and enemies reset.
+- **Manifestation (Final Boss Arena):** Defeating the Act 2 Night Boss triggers a synchronized warp into the expanded **Final Boss Arena** (`maps/night_boss_arena.json`, 72x72 size, `The Final Author`).
+- **The Extraction Sequence:** Upon defeating The Final Author, a 10-second "Dilution" interlude begins. Once the timer hits zero, the player is automatically warped back to the Sanctuary hub.
 - **Conclusion:** True victory (`last_run_result = "VICTORY"`) is achieved only upon successful extraction.
 
 ## 12. Hub Persistence Boundaries & State Purification

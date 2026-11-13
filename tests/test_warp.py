@@ -20,8 +20,20 @@ def test_warp_interaction_required():
     gs.update(0.016, {'move': (0, 0), 'attack': False})
     assert gs.world.name == "sanctuary"
 
-    # Call update WITH attack: should initiate cinematic warp and transition to generated_world
+    # Call update WITH attack: opens two-step Chronicle biome dialog
     gs.update(0.016, {'move': (0, 0), 'attack': True})
+    assert gs.chronicle_dialog is not None
+    assert gs.chronicle_dialog["step"] == 1
+
+    # Confirm Step 1 (Random) and Step 2 (Random) to initiate cinematic warp
+    gs.update(0.25, {'move': (0, 0), 'attack': False})
+    gs.input_ratchet_latched = False
+    gs.update(0.016, {'move': (0, 0), 'attack': True})
+    assert gs.chronicle_dialog["step"] == 2
+    gs.update(0.25, {'move': (0, 0), 'attack': False})
+    gs.input_ratchet_latched = False
+    gs.update(0.016, {'move': (0, 0), 'attack': True})
+    assert gs.chronicle_dialog is None
     assert gs.warp_controller.is_active()
 
     # Step through transit stages to arrival

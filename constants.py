@@ -301,6 +301,16 @@ BIOME_SEGMENT_POOLS = {
     for biome in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")
 }
 
+# Chronicle Biome Selection (Host-Driven Two-Act Setup)
+DEBUG_BIOME_SELECT = True
+BIOME_DISPLAY_NAMES = {
+    "windy_ridge": "Windy Ridge",
+    "pastoral_valley": "Pastoral Valley",
+    "swamp_mire": "Swamp Mire",
+    "frozen_peaks": "Frozen Peaks",
+    "tech_tower": "Tech Tower",
+}
+
 # Weather System: The Bleed (Shrinking Circle)
 # Measurements in pixels
 WEATHER_MAX_RADIUS = 10000.0
