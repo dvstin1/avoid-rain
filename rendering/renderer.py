@@ -469,6 +469,9 @@ class Renderer:
         # 7. Swamp Biome Props: Fungus, Gas Vent, and Skeletal Thorns
         swamp_prop_defs = [
             ("chronicle.png", "Chronicle"),
+            ("respite.png", "Respite"),
+            ("respite_corrupted.png", "RespiteCorrupted"),
+            ("chronicler.png", "Chronicler"),
             ("swamp_fungus.png", "SwampFungus"),
             ("swamp_gas_vent.png", "SwampVent"),
             ("swamp_thorns.png", "SwampThorns"),
@@ -1673,12 +1676,38 @@ class Renderer:
             elif "Respite" in obj.name:
                 if not getattr(obj, 'is_active', True):
                     continue
+                rx = obj.x + obj.width / 2
+                ry = obj.y + obj.height / 2
+                weather_mgr = getattr(state, 'weather_manager', None)
+                is_safe = weather_mgr.is_pos_safe(rx, ry) if weather_mgr else True
                 dr = pygame.Rect(sx_o, sy_o, obj.width, obj.height)
-                pygame.draw.rect(self.screen, (20, 40, 60), dr)
-                pygame.draw.rect(self.screen, constants.COLOR_CYAN, dr, 2)
-                pulse = (math.sin(now * 5) + 1) / 2
-                inner_r = int(5 + pulse * 10)
-                pygame.draw.circle(self.screen, constants.COLOR_CYAN, (int(dr.centerx), int(dr.centery)), inner_r, 1)
+                sprite_key = "Respite" if is_safe else "RespiteCorrupted"
+                respite_img = self.prop_cache.get(sprite_key) or self.image_cache.get(sprite_key)
+                if respite_img:
+                    if is_safe:
+                        pulse = (math.sin(now * 5.0) + 1.0) / 2.0
+                        aura_r = int(obj.width * 0.48 + pulse * 6)
+                        aura_surf = pygame.Surface((aura_r * 2 + 4, aura_r * 2 + 4), pygame.SRCALPHA)
+                        pygame.draw.circle(
+                            aura_surf, (60, 235, 255, int(45 + pulse * 45)),
+                            (aura_r + 2, aura_r + 2), aura_r, 2
+                        )
+                        self.screen.blit(aura_surf, (dr.centerx - aura_r - 2, dr.centery - aura_r - 2))
+                    else:
+                        ripple = (math.sin(now * 3.5) + 1.0) / 2.0
+                        drip_y = int(dr.bottom - 2 + ripple * 4)
+                        pygame.draw.circle(self.screen, (18, 18, 28), (int(dr.centerx - 6), drip_y), 2)
+                        pygame.draw.circle(self.screen, (18, 18, 28), (int(dr.centerx + 5), drip_y + 1), 2)
+                    scaled = pygame.transform.smoothscale(respite_img, (int(obj.width), int(obj.height)))
+                    self.screen.blit(scaled, (sx_o, sy_o))
+                else:
+                    pygame.draw.rect(self.screen, (20, 40, 60), dr)
+                    pygame.draw.rect(self.screen, constants.COLOR_CYAN, dr, 2)
+                    pulse = (math.sin(now * 5) + 1) / 2
+                    inner_r = int(5 + pulse * 10)
+                    pygame.draw.circle(
+                        self.screen, constants.COLOR_CYAN, (int(dr.centerx), int(dr.centery)), inner_r, 1
+                    )
             elif obj.name == "Barrel":
                 img = self.image_cache.get("barrel_0.png")
                 if img:
@@ -1728,9 +1757,29 @@ class Renderer:
                         pygame.draw.circle(self.screen, (92, 218, 110), (cx_t - 1, cy_t - 2), sw_o // 2 - 5)
                         pygame.draw.circle(self.screen, (162, 246, 148), (cx_t - 4, cy_t - 6), sw_o // 4)
             elif obj.name == "The Chronicler":
-                pygame.draw.rect(self.screen, (220, 220, 220), (sx_o, sy_o, obj.width, obj.height))
-                pygame.draw.rect(self.screen, (255, 200, 150), (sx_o + 5, sy_o + 5, obj.width - 10, 10))
-                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (sx_o, sy_o, obj.width, obj.height), 1)
+                chron_img = self.prop_cache.get("Chronicler") or self.image_cache.get("Chronicler")
+                if chron_img:
+                    vx = getattr(obj, 'vx', 0.0)
+                    vy = getattr(obj, 'vy', 0.0)
+                    is_moving = abs(vx) > 1.0 or abs(vy) > 1.0
+                    bob_freq = 8.0 if is_moving else 2.0
+                    bob_amp = 1.5 if is_moving else 0.6
+                    bob_y = int(round(math.sin(now * bob_freq) * bob_amp))
+                    flip_x = vx < -1.0
+                    active_dlg = getattr(state, 'active_dialogue', None)
+                    if active_dlg and getattr(active_dlg, 'speaker', '') == "The Chronicler" and state.player:
+                        flip_x = state.player.x < obj.x
+                    shadow_surf = pygame.Surface((int(obj.width * 0.7), 8), pygame.SRCALPHA)
+                    pygame.draw.ellipse(shadow_surf, (0, 0, 0, 95), (0, 0, int(obj.width * 0.7), 8))
+                    self.screen.blit(shadow_surf, (sx_o + int(obj.width * 0.15), sy_o + obj.height - 6))
+                    sprite_surf = pygame.transform.smoothscale(chron_img, (int(obj.width), int(obj.height)))
+                    if flip_x:
+                        sprite_surf = pygame.transform.flip(sprite_surf, True, False)
+                    self.screen.blit(sprite_surf, (sx_o, sy_o + bob_y))
+                else:
+                    pygame.draw.rect(self.screen, (220, 220, 220), (sx_o, sy_o, obj.width, obj.height))
+                    pygame.draw.rect(self.screen, (255, 200, 150), (sx_o + 5, sy_o + 5, obj.width - 10, 10))
+                    pygame.draw.rect(self.screen, constants.COLOR_BLACK, (sx_o, sy_o, obj.width, obj.height), 1)
             elif obj.name == "The Wellspring":
                 self.draw_wellspring(obj, ox, oy)
             elif obj.name == "Heavy Bookcase":

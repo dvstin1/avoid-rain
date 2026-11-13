@@ -412,3 +412,58 @@ def test_generate_all_assets_includes_verticality():
             assert os.path.getsize(paths[key]) > 100
 
 
+def test_respite_and_chronicler_sprites():
+    """Verify Respite (normal & corrupted) and Chronicler sprites are 40x40 with non-empty alpha."""
+    respite = generate_assets.generate_respite(40, 40, corrupted=False)
+    respite_corr = generate_assets.generate_respite(40, 40, corrupted=True)
+    chronicler = generate_assets.generate_chronicler(40, 40)
+
+    for surf in (respite, respite_corr, chronicler):
+        assert surf.get_size() == (40, 40)
+        assert surf.get_flags() & pygame.SRCALPHA != 0
+        non_empty = sum(1 for x in range(40) for y in range(40) if surf.get_at((x, y)).a > 0)
+        assert non_empty > 200
+
+    # Normal and corrupted Respite must differ visually (cyan runes vs dark ink)
+    assert pygame.image.tobytes(respite, "RGBA") != pygame.image.tobytes(respite_corr, "RGBA")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        paths = generate_assets.generate_all_assets(
+            floor_path=os.path.join(tmpdir, "floor.png"),
+            wall_path=os.path.join(tmpdir, "wall.png"),
+            grass_path=os.path.join(tmpdir, "grass.png"),
+            rock_path=os.path.join(tmpdir, "rock.png"),
+            chronicle_path=os.path.join(tmpdir, "chronicle.png"),
+            respite_path=os.path.join(tmpdir, "respite.png"),
+            respite_corrupted_path=os.path.join(tmpdir, "respite_corrupted.png"),
+            chronicler_path=os.path.join(tmpdir, "chronicler.png"),
+            wall_cracked_path=os.path.join(tmpdir, "wall_cracked.png"),
+            wall_mossy_path=os.path.join(tmpdir, "wall_mossy.png"),
+            wall_webbed_path=os.path.join(tmpdir, "wall_webbed.png"),
+            swamp_water_path=os.path.join(tmpdir, "swamp_water.png"),
+            mud_turf_path=os.path.join(tmpdir, "mud_turf.png"),
+            peat_bank_path=os.path.join(tmpdir, "peat_bank.png"),
+            swamp_wall_path=os.path.join(tmpdir, "swamp_wall.png"),
+            swamp_fungus_path=os.path.join(tmpdir, "swamp_fungus.png"),
+            swamp_vent_path=os.path.join(tmpdir, "swamp_vent.png"),
+            swamp_thorns_path=os.path.join(tmpdir, "swamp_thorns.png"),
+            ruins_rubble_path=os.path.join(tmpdir, "ruins_rubble.png"),
+            swamp_flora_path=os.path.join(tmpdir, "swamp_flora.png"),
+            crypt_clutter_path=os.path.join(tmpdir, "crypt_clutter.png"),
+            wall_top_cap_path=os.path.join(tmpdir, "wall_top_cap.png"),
+            wall_front_face_path=os.path.join(tmpdir, "wall_front_face.png"),
+            shadow_south_path=os.path.join(tmpdir, "shadow_south.png"),
+            shadow_east_path=os.path.join(tmpdir, "shadow_east.png"),
+            shadow_corner_path=os.path.join(tmpdir, "shadow_corner.png"),
+            cliff_edge_path=os.path.join(tmpdir, "cliff_edge.png"),
+            staircase_path=os.path.join(tmpdir, "staircase_tile.png"),
+            pit_rim_path=os.path.join(tmpdir, "pit_rim.png"),
+            seed=42,
+        )
+        for key in ("respite", "respite_corrupted", "chronicler"):
+            assert key in paths
+            assert os.path.exists(paths[key])
+            assert os.path.getsize(paths[key]) > 100
+
+
+

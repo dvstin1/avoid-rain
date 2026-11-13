@@ -48,6 +48,9 @@ DEFAULT_SWAMP_WALL_PATH = os.path.join("assets", "graphics", "swamp_wall.png")
 DEFAULT_GRASS_PATH = os.path.join("assets", "graphics", "grass_natural.png")
 DEFAULT_ROCK_PATH = os.path.join("assets", "graphics", "rock_cluster.png")
 DEFAULT_CHRONICLE_PATH = os.path.join("assets", "graphics", "chronicle.png")
+DEFAULT_RESPITE_PATH = os.path.join("assets", "graphics", "respite.png")
+DEFAULT_RESPITE_CORRUPTED_PATH = os.path.join("assets", "graphics", "respite_corrupted.png")
+DEFAULT_CHRONICLER_PATH = os.path.join("assets", "graphics", "chronicler.png")
 DEFAULT_SWAMP_FUNGUS_PATH = os.path.join("assets", "graphics", "swamp_fungus.png")
 DEFAULT_SWAMP_VENT_PATH = os.path.join("assets", "graphics", "swamp_gas_vent.png")
 DEFAULT_SWAMP_THORNS_PATH = os.path.join("assets", "graphics", "swamp_thorns.png")
@@ -2014,12 +2017,169 @@ def generate_chronicle(
 # BATCH GENERATION & CLI ENTRY POINT
 # ==============================================================================
 
+def generate_respite(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+    corrupted: bool = False,
+) -> pygame.Surface:
+    """Generate The Respite ('First Edition' anchor plinth) in safe or rain-corrupted state."""
+    if rng is None:
+        rng = random.Random(431 if not corrupted else 432)
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx, cy = width // 2, height // 2
+
+    # Grounded plinth shadow
+    pygame.draw.ellipse(surface, (12, 12, 18, 130), (3, height - 10, width - 6, 8))
+
+    # Carved weathered marble/slate stepped pedestal
+    base_rect = pygame.Rect(4, 7, width - 8, height - 12)
+    pygame.draw.rect(surface, (52, 56, 66, 255), base_rect, border_radius=3)
+    pygame.draw.rect(surface, (82, 88, 100, 255), base_rect, 1, border_radius=3)
+
+    top_rect = pygame.Rect(7, 9, width - 14, height - 18)
+    slab_col = (148, 152, 160, 255) if not corrupted else (88, 90, 98, 255)
+    pygame.draw.rect(surface, slab_col, top_rect, border_radius=2)
+    # Beveled stone highlight & lower shadow
+    pygame.draw.line(surface, (192, 196, 204, 255) if not corrupted else (118, 120, 128, 255),
+                     (top_rect.left + 1, top_rect.top), (top_rect.right - 2, top_rect.top))
+    pygame.draw.line(surface, (66, 70, 80, 255),
+                     (top_rect.left + 1, top_rect.bottom), (top_rect.right - 2, top_rect.bottom))
+
+    # Subtle weathered stone grain
+    for _ in range(14):
+        gx = rng.randint(top_rect.left + 2, top_rect.right - 3)
+        gy = rng.randint(top_rect.top + 2, top_rect.bottom - 3)
+        delta = rng.randint(-14, 10)
+        c_val = max(40, min(210, slab_col[0] + delta))
+        surface.set_at((gx, gy), (c_val, c_val + 2, c_val + 6, 255))
+
+    # Inlaid gold/brass corner brackets
+    brass = (212, 174, 86, 255) if not corrupted else (120, 96, 52, 255)
+    brass_dark = (132, 102, 42, 255) if not corrupted else (70, 56, 30, 255)
+    corners = [
+        (top_rect.left, top_rect.top, 1, 1),
+        (top_rect.right - 1, top_rect.top, -1, 1),
+        (top_rect.left, top_rect.bottom - 1, 1, -1),
+        (top_rect.right - 1, top_rect.bottom - 1, -1, -1),
+    ]
+    for bx, by, dx, dy in corners:
+        pygame.draw.line(surface, brass, (bx, by), (bx + 4 * dx, by))
+        pygame.draw.line(surface, brass, (bx, by), (bx, by + 4 * dy))
+        surface.set_at((bx + dx, by + dy), brass_dark)
+
+    # Open carved manuscript / bookmark relief at core
+    book_rect = pygame.Rect(cx - 8, cy - 7, 16, 12)
+    pygame.draw.rect(surface, (62, 66, 76, 255), book_rect.inflate(2, 2), border_radius=1)
+    page_col = (218, 212, 196, 255) if not corrupted else (98, 96, 94, 255)
+    pygame.draw.rect(surface, page_col, book_rect)
+    pygame.draw.line(surface, (110, 106, 100, 255), (cx, book_rect.top), (cx, book_rect.bottom - 1))
+    # Bookmark ribbon extending downward
+    ribbon_col = (196, 62, 68, 255) if not corrupted else (54, 24, 30, 255)
+    pygame.draw.line(surface, ribbon_col, (cx, book_rect.bottom), (cx, book_rect.bottom + 3), 2)
+
+    if not corrupted:
+        # Luminous cyan ink-glyph runes etched into the stone and pages
+        rune_glow = (60, 235, 255, 110)
+        rune_core = (150, 250, 255, 255)
+        for rx, ry in [(cx - 5, cy - 4), (cx - 4, cy - 1), (cx + 3, cy - 4), (cx + 4, cy - 1)]:
+            pygame.draw.line(surface, rune_glow, (rx - 1, ry), (rx + 2, ry), 2)
+            pygame.draw.line(surface, rune_core, (rx, ry), (rx + 2, ry))
+        for rx, ry in [(top_rect.left + 3, cy), (top_rect.right - 4, cy), (cx, top_rect.top + 2)]:
+            pygame.draw.circle(surface, rune_glow, (rx, ry), 2)
+            surface.set_at((rx, ry), rune_core)
+    else:
+        # Smothered under glossy, dripping black liquid ink pools
+        ink_dark = (14, 14, 20, 245)
+        ink_edge = (28, 30, 42, 230)
+        ink_shine = (88, 96, 122, 210)
+        pygame.draw.ellipse(surface, ink_dark, (cx - 10, cy - 6, 20, 13))
+        pygame.draw.ellipse(surface, ink_edge, (cx - 11, cy - 3, 9, 8))
+        pygame.draw.ellipse(surface, ink_dark, (cx + 2, cy - 8, 9, 9))
+        # Dripping ink tendrils over the plinth's lower lip
+        for dx, drip_len in [(-6, 7), (-1, 9), (5, 6)]:
+            pygame.draw.line(surface, ink_dark, (cx + dx, cy + 4), (cx + dx, cy + 4 + drip_len), 2)
+            surface.set_at((cx + dx, cy + 4 + drip_len), ink_edge)
+        # Glossy specular highlights on liquid ink
+        pygame.draw.line(surface, ink_shine, (cx - 6, cy - 3), (cx - 2, cy - 4))
+        pygame.draw.line(surface, ink_shine, (cx + 4, cy - 5), (cx + 7, cy - 5))
+
+    return surface
+
+
+def generate_chronicler(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate The Chronicler top-down / 2.5D scholar sprite."""
+    if rng is None:
+        rng = random.Random(433)
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx = width // 2
+
+    # Grounded shadow
+    pygame.draw.ellipse(surface, (10, 10, 16, 135), (7, height - 10, width - 14, 7))
+
+    # Layered pale parchment-ivory scholar robes with ink-stained lower hem
+    robe_outer = (196, 186, 164, 255)
+    robe_inner = (224, 216, 196, 255)
+    ink_hem = (46, 48, 62, 240)
+    robe_poly = [(cx - 9, 17), (cx + 9, 17), (cx + 12, height - 7), (cx - 12, height - 7)]
+    pygame.draw.polygon(surface, robe_outer, robe_poly)
+    pygame.draw.polygon(surface, robe_inner, [(cx - 6, 18), (cx + 6, 18), (cx + 8, height - 9), (cx - 8, height - 9)])
+    pygame.draw.line(surface, ink_hem, (cx - 11, height - 8), (cx + 11, height - 8), 2)
+    for _ in range(6):
+        sx = rng.randint(cx - 10, cx + 10)
+        sy = rng.randint(height - 11, height - 8)
+        surface.set_at((sx, sy), ink_hem)
+
+    # Draped archival stole/scarf with gold trim
+    stole_col = (58, 72, 98, 255)
+    gold_trim = (218, 178, 84, 255)
+    pygame.draw.rect(surface, stole_col, (cx - 5, 16, 3, 14))
+    pygame.draw.rect(surface, stole_col, (cx + 2, 16, 3, 14))
+    pygame.draw.line(surface, gold_trim, (cx - 5, 16), (cx - 5, 29))
+    pygame.draw.line(surface, gold_trim, (cx + 4, 16), (cx + 4, 29))
+    pygame.draw.line(surface, gold_trim, (cx - 5, 29), (cx - 3, 29))
+    pygame.draw.line(surface, gold_trim, (cx + 2, 29), (cx + 4, 29))
+
+    # Heavy bound ledger & quill tucked at right side
+    ledger_rect = pygame.Rect(cx + 6, 20, 6, 9)
+    pygame.draw.rect(surface, (108, 64, 42, 255), ledger_rect, border_radius=1)
+    pygame.draw.rect(surface, gold_trim, ledger_rect, 1, border_radius=1)
+    pygame.draw.line(surface, (238, 232, 214, 255), (cx + 10, 21), (cx + 13, 15))
+
+    # Lantern-lit glow near left hand
+    pygame.draw.circle(surface, (255, 205, 110, 75), (cx - 9, 23), 6)
+    pygame.draw.rect(surface, (255, 218, 128, 255), (cx - 10, 22, 3, 4))
+
+    # Shadowed hood framing a warm lantern-lit visage
+    hood_outer = (158, 148, 128, 255)
+    hood_shadow = (44, 40, 48, 255)
+    pygame.draw.ellipse(surface, hood_outer, (cx - 8, 5, 16, 15))
+    pygame.draw.ellipse(surface, hood_shadow, (cx - 5, 8, 10, 10))
+    # Warm lantern-lit face & subtle eyes
+    pygame.draw.ellipse(surface, (232, 192, 150, 255), (cx - 4, 10, 8, 7))
+    surface.set_at((cx - 2, 12), (48, 38, 34, 255))
+    surface.set_at((cx + 1, 12), (48, 38, 34, 255))
+    # Hood rim highlight
+    pygame.draw.arc(surface, (226, 218, 198, 255), (cx - 8, 5, 16, 14), 0.35, 2.8, 1)
+
+    return surface
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
     grass_path: str = DEFAULT_GRASS_PATH,
     rock_path: str = DEFAULT_ROCK_PATH,
     chronicle_path: str = DEFAULT_CHRONICLE_PATH,
+    respite_path: str = DEFAULT_RESPITE_PATH,
+    respite_corrupted_path: str = DEFAULT_RESPITE_CORRUPTED_PATH,
+    chronicler_path: str = DEFAULT_CHRONICLER_PATH,
     wall_cracked_path: str = DEFAULT_WALL_CRACKED_PATH,
     wall_mossy_path: str = DEFAULT_WALL_MOSSY_PATH,
     wall_webbed_path: str = DEFAULT_WALL_WEBBED_PATH,
@@ -2121,11 +2281,26 @@ def generate_all_assets(
     pygame.image.save(rock_surf, rock_path)
     results["rock_cluster"] = rock_path
 
-    # 6. Sanctuary Chronicle Tome
+    # 6. Sanctuary Chronicle Tome, Respite Plinths & Chronicler
     _ensure_directory(chronicle_path)
     chronicle_surf = generate_chronicle(TILE_WIDTH, TILE_HEIGHT, rng=rng)
     pygame.image.save(chronicle_surf, chronicle_path)
     results["chronicle"] = chronicle_path
+
+    _ensure_directory(respite_path)
+    respite_surf = generate_respite(TILE_WIDTH, TILE_HEIGHT, rng=rng, corrupted=False)
+    pygame.image.save(respite_surf, respite_path)
+    results["respite"] = respite_path
+
+    _ensure_directory(respite_corrupted_path)
+    respite_corr_surf = generate_respite(TILE_WIDTH, TILE_HEIGHT, rng=rng, corrupted=True)
+    pygame.image.save(respite_corr_surf, respite_corrupted_path)
+    results["respite_corrupted"] = respite_corrupted_path
+
+    _ensure_directory(chronicler_path)
+    chronicler_surf = generate_chronicler(TILE_WIDTH, TILE_HEIGHT, rng=rng)
+    pygame.image.save(chronicler_surf, chronicler_path)
+    results["chronicler"] = chronicler_path
 
     # 7. Reference-Driven Swamp Props
     # 7a. Bulbous fleshy toadstool / giant fungi

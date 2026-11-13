@@ -380,3 +380,43 @@ def test_environmental_clutter_cached_and_wired_to_biomes():
     sub_crypt_floor = surf_crypt.subsurface((40, 0, 40, 40))
     assert pygame.image.tobytes(sub_crypt_k, "RGB") != pygame.image.tobytes(sub_crypt_floor, "RGB")
 
+
+def test_respite_and_chronicler_sprites_cached_and_rendered():
+    """Verify Respite, RespiteCorrupted, and Chronicler sprites load into Renderer and render cleanly."""
+    from engine.world import Chronicler, Respite
+
+    screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+
+    for key in ("Respite", "RespiteCorrupted", "Chronicler"):
+        assert key in renderer.prop_cache, f"{key} missing from prop_cache"
+        surf = renderer.prop_cache[key]
+        assert surf.get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
+
+    state = GameState(auto_load=False)
+    state.world.load_from_prototype(["..."])
+    state.player.x = 60.0
+    state.player.y = 60.0
+    respite = Respite((40, 40), (40, 40))
+    chronicler = Chronicler((80, 40))
+    state.world.interactables = [respite, chronicler]
+    state.camera.x = 0.0
+    state.camera.y = 0.0
+
+    # Render with Respite inside safe zone
+    state.weather_manager.bleed_state = "BLEED"
+    state.weather_manager.boss_coords_list = [{"x": 1.5, "y": 1.5}]
+    state.weather_manager.current_boss_idx = 0
+    state.weather_manager.active_safe_radius = 500.0
+    renderer.render(state)
+    safe_bytes = pygame.image.tobytes(screen, "RGB")
+
+    # Render with Respite outside safe zone (Rain Inversion -> RespiteCorrupted)
+    state.weather_manager.boss_coords_list = [{"x": 100, "y": 100}]
+    state.weather_manager.active_safe_radius = 10.0
+    renderer.render(state)
+    corrupted_bytes = pygame.image.tobytes(screen, "RGB")
+
+    assert safe_bytes != corrupted_bytes
+
+

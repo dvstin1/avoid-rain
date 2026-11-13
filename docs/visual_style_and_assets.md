@@ -76,6 +76,9 @@ A standalone, deterministic generator script producing 40x40 dark-fantasy grit-t
   - `grass_natural.png`: Multi-seed organic foliage patch.
   - `rock_cluster.png`: Rounded stones with drop shadows and highlight bevels.
   - `chronicle.png`: Ornate reading lectern holding an open gilded magical tome with glowing cyan runes.
+  - `respite.png`: "First Edition" anchor plinth — carved weathered marble/slate pedestal with inlaid brass brackets, open manuscript relief, and luminous cyan ink runes.
+  - `respite_corrupted.png`: Rain-inverted Respite plinth smothered under glossy, dripping black liquid ink pools when outside the safe circle.
+  - `chronicler.png`: Top-down/2.5D scholar sprite with pale parchment-ivory robes, gold-trimmed archival stole, shadowed hood framing a lantern-lit visage, and bound ledger/quill.
   - `swamp_fungus.png`: Spotted toadstools with drop shadow.
   - `swamp_gas_vent.png`: Organic pod mound with open bubbling pores.
   - `swamp_thorns.png`: Skeletal bleached ash briars.
