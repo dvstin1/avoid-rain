@@ -18,6 +18,7 @@
 - Always create a single git commit for each user prompt that requires code or documentation changes. Each commit should be atomic, include a clear message, and include the required Co-authored-by trailer.
 - **Testing Enforcement:** Every code modification must be verified by running the full unit test suite (`pytest`). Never assume a change is safe; project stability is verified only through 100% green tests.
 - Do NOT push commits to remote automatically. Pushing is not needed unless explicitly requested.
+- **Separate Assets Repository:** `assets/` is a separate git repository (gitignored by the root repo). Whenever assets are generated or modified, commit them separately inside `assets/` (`git -C assets ...`).
 - Keep changes low-coupled and limited to the files required by the user's request.
 - **Map Editor Architecture Rules:**
   1. **Palette Divergence Law:** Whenever a new structural tile, item type, or enemy symbol (e.g., Miniboss strains) is added to the core game engine, you must instantly update the map editor's palette loading dictionary to mirror that addition. The palette layout must never fall out of synchronization with engine configurations.
