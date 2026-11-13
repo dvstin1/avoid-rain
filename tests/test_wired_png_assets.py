@@ -381,10 +381,11 @@ def test_environmental_clutter_cached_and_wired_to_biomes():
     assert pygame.image.tobytes(sub_crypt_k, "RGB") != pygame.image.tobytes(sub_crypt_floor, "RGB")
 
 
-def test_respite_and_chronicler_sprites_cached_and_rendered():
+def test_respite_and_chronicler_sprites_cached_and_rendered(monkeypatch):
     """Verify Respite, RespiteCorrupted, and Chronicler sprites load into Renderer and render cleanly."""
     from engine.world import Chronicler, Respite
 
+    monkeypatch.setattr(pygame.time, "get_ticks", lambda: 0)
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
 
@@ -394,11 +395,11 @@ def test_respite_and_chronicler_sprites_cached_and_rendered():
         assert surf.get_size() == (constants.TILE_SIZE, constants.TILE_SIZE)
 
     state = GameState(auto_load=False)
-    state.world.load_from_prototype(["..."])
-    state.player.x = 60.0
-    state.player.y = 60.0
+    state.world.load_from_prototype(["........"])
+    state.player.x = 100.0
+    state.player.y = 40.0
     respite = Respite((40, 40), (40, 40))
-    chronicler = Chronicler((80, 40))
+    chronicler = Chronicler((200, 40))
     state.world.interactables = [respite, chronicler]
     state.camera.x = 0.0
     state.camera.y = 0.0
@@ -418,5 +419,18 @@ def test_respite_and_chronicler_sprites_cached_and_rendered():
     corrupted_bytes = pygame.image.tobytes(screen, "RGB")
 
     assert safe_bytes != corrupted_bytes
+
+    # Verify Chronicler flips toward player during dict-based active_dialogue
+    state.active_dialogue = {"speaker": "The Chronicler", "text": "Stay inside the margin."}
+    state.player.x = 100.0
+    renderer.render(state)
+    left_facing_bytes = pygame.image.tobytes(screen.subsurface((200, 40, 40, 40)), "RGB")
+
+    state.player.x = 300.0
+    renderer.render(state)
+    right_facing_bytes = pygame.image.tobytes(screen.subsurface((200, 40, 40, 40)), "RGB")
+
+    assert left_facing_bytes != right_facing_bytes
+
 
 

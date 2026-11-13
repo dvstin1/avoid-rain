@@ -488,6 +488,7 @@ class Renderer:
                     self.image_cache[sp_file] = scaled_sp
                 except Exception as e:
                     print(f"[RENDER] Error loading {sp_file}: {e}")
+        self._fx_surface_cache = {}
 
         if "SwampFungus" not in self.prop_cache:
             fungus = pygame.Surface((ts, ts), pygame.SRCALPHA)
@@ -1687,19 +1688,28 @@ class Renderer:
                     if is_safe:
                         pulse = (math.sin(now * 5.0) + 1.0) / 2.0
                         aura_r = int(obj.width * 0.48 + pulse * 6)
-                        aura_surf = pygame.Surface((aura_r * 2 + 4, aura_r * 2 + 4), pygame.SRCALPHA)
-                        pygame.draw.circle(
-                            aura_surf, (60, 235, 255, int(45 + pulse * 45)),
-                            (aura_r + 2, aura_r + 2), aura_r, 2
-                        )
+                        aura_alpha = ((45 + int(pulse * 45)) // 5) * 5
+                        aura_key = ("respite_aura", aura_r, aura_alpha)
+                        aura_surf = self._fx_surface_cache.get(aura_key)
+                        if aura_surf is None:
+                            aura_surf = pygame.Surface((aura_r * 2 + 4, aura_r * 2 + 4), pygame.SRCALPHA)
+                            pygame.draw.circle(
+                                aura_surf, (60, 235, 255, aura_alpha),
+                                (aura_r + 2, aura_r + 2), aura_r, 2
+                            )
+                            self._fx_surface_cache[aura_key] = aura_surf
                         self.screen.blit(aura_surf, (dr.centerx - aura_r - 2, dr.centery - aura_r - 2))
                     else:
                         ripple = (math.sin(now * 3.5) + 1.0) / 2.0
                         drip_y = int(dr.bottom - 2 + ripple * 4)
                         pygame.draw.circle(self.screen, (18, 18, 28), (int(dr.centerx - 6), drip_y), 2)
                         pygame.draw.circle(self.screen, (18, 18, 28), (int(dr.centerx + 5), drip_y + 1), 2)
-                    scaled = pygame.transform.smoothscale(respite_img, (int(obj.width), int(obj.height)))
-                    self.screen.blit(scaled, (sx_o, sy_o))
+                    target_size = (int(obj.width), int(obj.height))
+                    if respite_img.get_size() == target_size:
+                        sprite_surf = respite_img
+                    else:
+                        sprite_surf = pygame.transform.smoothscale(respite_img, target_size)
+                    self.screen.blit(sprite_surf, (sx_o, sy_o))
                 else:
                     pygame.draw.rect(self.screen, (20, 40, 60), dr)
                     pygame.draw.rect(self.screen, constants.COLOR_CYAN, dr, 2)
@@ -1767,14 +1777,37 @@ class Renderer:
                     bob_y = int(round(math.sin(now * bob_freq) * bob_amp))
                     flip_x = vx < -1.0
                     active_dlg = getattr(state, 'active_dialogue', None)
-                    if active_dlg and getattr(active_dlg, 'speaker', '') == "The Chronicler" and state.player:
+                    speaker = (
+                        active_dlg.get("speaker", "")
+                        if isinstance(active_dlg, dict)
+                        else getattr(active_dlg, "speaker", "")
+                    )
+                    if speaker == "The Chronicler" and state.player:
                         flip_x = state.player.x < obj.x
-                    shadow_surf = pygame.Surface((int(obj.width * 0.7), 8), pygame.SRCALPHA)
-                    pygame.draw.ellipse(shadow_surf, (0, 0, 0, 95), (0, 0, int(obj.width * 0.7), 8))
+                    shadow_w = int(obj.width * 0.7)
+                    shadow_key = ("shadow", shadow_w, 8)
+                    shadow_surf = self._fx_surface_cache.get(shadow_key)
+                    if shadow_surf is None:
+                        shadow_surf = pygame.Surface((shadow_w, 8), pygame.SRCALPHA)
+                        pygame.draw.ellipse(shadow_surf, (0, 0, 0, 95), (0, 0, shadow_w, 8))
+                        self._fx_surface_cache[shadow_key] = shadow_surf
                     self.screen.blit(shadow_surf, (sx_o + int(obj.width * 0.15), sy_o + obj.height - 6))
-                    sprite_surf = pygame.transform.smoothscale(chron_img, (int(obj.width), int(obj.height)))
+                    target_size = (int(obj.width), int(obj.height))
+                    if chron_img.get_size() == target_size:
+                        sprite_surf = chron_img
+                    else:
+                        scale_key = ("chron_scale", target_size)
+                        sprite_surf = self._fx_surface_cache.get(scale_key)
+                        if sprite_surf is None:
+                            sprite_surf = pygame.transform.smoothscale(chron_img, target_size)
+                            self._fx_surface_cache[scale_key] = sprite_surf
                     if flip_x:
-                        sprite_surf = pygame.transform.flip(sprite_surf, True, False)
+                        flip_key = ("chron_flip", target_size)
+                        flipped_surf = self._fx_surface_cache.get(flip_key)
+                        if flipped_surf is None:
+                            flipped_surf = pygame.transform.flip(sprite_surf, True, False)
+                            self._fx_surface_cache[flip_key] = flipped_surf
+                        sprite_surf = flipped_surf
                     self.screen.blit(sprite_surf, (sx_o, sy_o + bob_y))
                 else:
                     pygame.draw.rect(self.screen, (220, 220, 220), (sx_o, sy_o, obj.width, obj.height))
