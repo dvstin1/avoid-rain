@@ -387,18 +387,20 @@ def main():
                         title_transition.reset()
                         if mode == "join_lobby":
                             state.reset_to_new_game()
+                            renderer.invalidate_static_world()
                             if state.network_manager.network_mode == "CLIENT":
                                 full_state = state.get_full_player_state()
                                 import threading
                                 threading.Thread(target=state.network_manager.send_full_state, args=(full_state,), daemon=True).start()
                             title_menu.state = TitleMenuState.MAIN
                         elif mode == "continue":
-                            try: state.hydrate_from_disk()
-                            except Exception: state.reset_to_new_game()
+                            state.hydrate_from_disk()
+                            renderer.invalidate_static_world()
                             pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
                         elif mode == "new_draft":
-                            try: state.reset_to_new_game(); state.save_stats(wait=True)
-                            except Exception: pass
+                            state.reset_to_new_game()
+                            state.save_stats(wait=True)
+                            renderer.invalidate_static_world()
                             pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
                             title_menu.state = TitleMenuState.MAIN
                         in_title = False

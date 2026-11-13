@@ -1,8 +1,12 @@
 """Headless unit tests for the Storm-and-Lightning Title Transition."""
+import json
+import os
 from unittest.mock import MagicMock
 
 import constants
+from engine.enemy import SlugEnemy
 from engine.game_state import GameState
+from engine.stats import StatisticsTracker
 from engine.title_menu import TitleTransition, TitleTransitionPhase
 
 
@@ -62,3 +66,46 @@ def test_title_transition_skip_and_sanctuary_ready():
     gs = GameState(auto_load=False)
     gs.reset_to_new_game()
     assert gs.world.name == "sanctuary"
+
+
+def test_title_transition_new_draft_and_continue_sanctuary_clean():
+    """Regression: new_draft and continue clear stray enemies and align Sanctuary collisions."""
+    with open(os.path.join("maps", "sanctuary.json"), encoding="utf-8") as f:
+        sanctuary_data = json.load(f)
+    expected_w = sanctuary_data["dimensions"]["width"]
+    expected_h = sanctuary_data["dimensions"]["height"]
+
+    # 1. Simulate a dirty state with a SlugEnemy before New Draft transition completes
+    gs = GameState(auto_load=False, stats=StatisticsTracker())
+    gs.enemies = [SlugEnemy(100, 100)]
+    tr = TitleTransition()
+    tr.start("new_draft")
+    tr.skip()
+    assert tr.update(0.016) is True
+    gs.reset_to_new_game()
+
+    assert gs.world.name == "sanctuary"
+    assert gs.enemies == []
+    assert len(gs.world.grid) == expected_h
+    assert len(gs.world.grid[0]) == expected_w
+    assert gs.world.grid[0][0] == constants.TILE_WALL
+
+    # 2. Simulate Continue with a stale generated_world run_state whose temp file is absent
+    temp_path = constants.get_generated_world_path()
+    if os.path.exists(temp_path):
+        os.remove(temp_path)
+    gs.stats.data["run_state"] = {
+        "world_name": "generated_world",
+        "enemies": [{"name": "Slug", "x": 120, "y": 120, "hp": 30}],
+        "player": {"x": 200.0, "y": 200.0, "hp": 80.0},
+    }
+    tr.start("continue")
+    tr.skip()
+    assert tr.update(0.016) is True
+    gs.hydrate_from_disk()
+
+    assert gs.world.name == "sanctuary"
+    assert gs.enemies == []
+    assert len(gs.world.grid) == expected_h
+    assert len(gs.world.grid[0]) == expected_w
+    assert gs.world.grid[0][0] == constants.TILE_WALL

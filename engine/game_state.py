@@ -1645,6 +1645,15 @@ class GameState:
 
         run_data = self.stats.data.get("run_state")
         if run_data:
+            import os
+            from constants import get_generated_world_path
+            world_name = run_data.get("world_name", "sanctuary")
+            if world_name == "generated_world" and not os.path.exists(get_generated_world_path()):
+                # Generated temp map no longer exists on disk; resume safely in Sanctuary
+                world_name = "sanctuary"
+                run_data = None
+
+        if run_data:
             world_name = run_data.get("world_name", "sanctuary")
             self.world_debris = run_data.get("world_debris", [])
             self.defeated_miniboss_ids = set(run_data.get("defeated_miniboss_ids", []))
@@ -1652,7 +1661,11 @@ class GameState:
             self.world = create_world(world_name, saved_enemies=run_data.get("enemies", []), defeated_ids=self.defeated_miniboss_ids, destroyed_ids=self.destroyed_prop_ids)
             
             p_data = run_data.get("player", {})
-            self.player = Player(float(p_data.get("x", self.world.player_start[0])), float(p_data.get("y", self.world.player_start[1])))
+            px = float(p_data.get("x", self.world.player_start[0]))
+            py = float(p_data.get("y", self.world.player_start[1]))
+            if world_name == "sanctuary":
+                px, py = self.world.player_start
+            self.player = Player(px, py)
             
             # Phase 4: Sync camera bounds
             if hasattr(self, 'camera'):
@@ -1665,7 +1678,10 @@ class GameState:
             self.player.active_weapon_idx = int(p_data.get("active_weapon_idx", 0))
             self.player.weapons = p_data.get("weapons", self.player.weapons)
             self.player.stats = p_data.get("stats", {})
-            self.enemies = getattr(self.world, 'enemies', [])
+            self.enemies = [] if world_name == "sanctuary" else list(getattr(self.world, 'enemies', []))
+            self.loot = []
+            self.fading_entities = []
+            self.damage_numbers = []
             from engine.weather import WeatherManager
             self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
             self.weather_manager.from_dict(run_data.get("weather"))
@@ -1676,6 +1692,7 @@ class GameState:
             self.active_dialogue = None
             self.active_choice = None
             self.active_respite = None
+            self.chronicle_dialog = None
             
             # Auto-Host Rule: Start hosting if resuming outside Sanctuary
             if world_name not in ("sanctuary", ""):
@@ -1683,8 +1700,33 @@ class GameState:
                     if self.network_manager.network_mode == "OFFLINE":
                         self.network_manager.start_hosting()
         else:
-            # Fallback for empty run_state: reset to sanctuary
-            self.reset_to_new_game()
+            # Resume in Sanctuary while preserving persistent meta-progression stats
+            self.defeated_miniboss_ids = set()
+            self.destroyed_prop_ids = set()
+            self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
+            self.player = Player(self.world.player_start[0], self.world.player_start[1])
+            if hasattr(self, 'camera'):
+                self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
+                self.camera.world_h = len(self.world.grid) * TILE_SIZE
+                self.camera.instant_center(self.player.get_center())
+            self.enemies = []
+            self.loot = []
+            self.fading_entities = []
+            self.world_debris = []
+            self.damage_numbers = []
+            from engine.weather import WeatherManager
+            self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
+            self.input_ratchet_latched = False
+            self.menu_nav_cooldown = 0.0
+            self.active_dialogue = None
+            self.active_choice = None
+            self.active_respite = None
+            self.chronicle_dialog = None
+            if self.stats:
+                self.stats.data["run_state"] = None
+                self.stats.data["active_session_in_progress"] = False
+            from engine.world import LevelLoader
+            LevelLoader.link_actors_to_routes(self)
 
     def reset_to_new_game(self):
         from engine.maps import create_world
@@ -1701,6 +1743,7 @@ class GameState:
             try: self.stats.increment("runs_started", 1)
             except Exception: pass
         self.defeated_miniboss_ids = set()
+        self.destroyed_prop_ids = set()
         self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
         
         self.player = Player(self.world.player_start[0], self.world.player_start[1])
@@ -1711,7 +1754,20 @@ class GameState:
             self.camera.world_h = len(self.world.grid) * TILE_SIZE
             self.camera.instant_center(self.player.get_center())
         
+        self.enemies = list(getattr(self.world, 'enemies', []))
+        self.fading_entities = []
         self.world_debris = []
+        self.pending_remote_sfx = []
+        self._remote_combat_seqs = {}
+        self.local_swing_seq = 0
+        self.local_hit_seq = 0
+        self.local_dash_seq = 0
+        self.current_act = 0
+        self.run_biomes = {"act1": None, "act2": None}
+        self.act1_world_data = None
+        self.act2_world_data = None
+        self.act_warp_target = None
+        self.empowered_act = False
         self.player.stats = {"attack_modifier": 0, "max_hp_modifier": 0, "edification": 1}
         self.input_ratchet_latched = False
         self.menu_nav_cooldown = 0.0
@@ -1724,6 +1780,7 @@ class GameState:
         self.active_dialogue = None
         self.active_choice = None
         self.active_respite = None
+        self.chronicle_dialog = None
         from engine.world import LevelLoader
         LevelLoader.link_actors_to_routes(self)
 
