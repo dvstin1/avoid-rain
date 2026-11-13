@@ -377,8 +377,16 @@ class GameState:
                 # Sync visual state for animations
                 if "state" in e_data:
                     from engine.actor import ActorState
-                    try: enemy.state = ActorState(e_data["state"])
-                    except ValueError: pass
+                    prev_state = enemy.state
+                    try:
+                        enemy.state = ActorState(e_data["state"])
+                    except ValueError:
+                        pass
+                    if enemy.name == "Punctuation Wolf" and enemy.state != prev_state:
+                        if enemy.state == ActorState.WIND_UP:
+                            self.pending_remote_sfx.append(("wolf_telegraph.ogg", enemy.x, enemy.y))
+                        elif enemy.state == ActorState.STRIKE:
+                            self.pending_remote_sfx.append(("wolf_attack.ogg", enemy.x, enemy.y))
             else:
                 if enemy in self.enemies: self.enemies.remove(enemy)
 
@@ -387,12 +395,13 @@ class GameState:
             if net_id not in local_net_ids:
                 # We need to map Name back to Class.
                 from engine.enemy import (
-                    SlugEnemy, BatEnemy, NightBoss, MinibossM2, MinibossM3, SentryEnemy
+                    SlugEnemy, BatEnemy, NightBoss, MinibossM2, MinibossM3, SentryEnemy,
+                    PunctuationWolfEnemy,
                 )
                 mapping = {
                     "Slug": SlugEnemy, "Bat": BatEnemy, "Night Boss": NightBoss,
                     "Ink-Stained": MinibossM2, "Forgotten Binder": MinibossM3,
-                    "Techno-Sentry": SentryEnemy
+                    "Techno-Sentry": SentryEnemy, "Punctuation Wolf": PunctuationWolfEnemy,
                 }
                 cls = mapping.get(e_data.get("name"), SlugEnemy)
                 new_e = cls(e_data["x"], e_data["y"], hp=e_data["hp"])

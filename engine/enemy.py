@@ -582,6 +582,115 @@ class SentryEnemy(Enemy):
             self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
             self.facing = (ux, uy)
 
+
+class PunctuationWolfEnemy(Enemy):
+    """Pack predator shaped from glyphs that stalks targets and pounces from margins."""
+
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import (
+            WOLF_MAX_HP, WOLF_SPEED, WOLF_POUNCE_SPEED,
+            WOLF_DETECT_METERS, WOLF_POUNCE_RANGE, WOLF_DAMAGE, WOLF_DAMAGE_COOLDOWN,
+        )
+        initial_hp = hp if hp is not None else WOLF_MAX_HP
+        super().__init__(x, y, 36, 36, initial_hp, id=id, name="Punctuation Wolf")
+        self.speed = WOLF_SPEED
+        self.pounce_speed = WOLF_POUNCE_SPEED
+        self.detect_radius = WOLF_DETECT_METERS * TILE_SIZE
+        self.pounce_range = WOLF_POUNCE_RANGE
+        self.damage = WOLF_DAMAGE
+        self.attack_cooldown = WOLF_DAMAGE_COOLDOWN
+        self.attack_type = "POUNCE"
+        self.is_parryable = True
+
+        self.wind_up_duration = 0.45
+        self.strike_duration = 0.25
+        self.recovery_duration = 0.55
+        self._flank_dir = 1.0 if (int(x + y) % 2 == 0) else -1.0
+
+    def get_visual_packet(self):
+        packet = super().get_visual_packet()
+        packet["color_hint"] = (255, 215, 166)
+        return packet
+
+    def _emit_wolf_sfx(self, state, sfx_name):
+        """Play spatialized wolf SFX locally and queue for remote co-op clients."""
+        cx, cy = self.get_center()
+        if hasattr(state, "audio_manager") and state.audio_manager:
+            vol = 1.0
+            if getattr(state, "player", None):
+                px, py = state.player.get_center()
+                dist = math.hypot(cx - px, cy - py)
+                calc_vol = getattr(state.audio_manager, "calculate_spatial_volume", lambda _d: 1.0)
+                vol = calc_vol(dist)
+            state.audio_manager.play_sfx(sfx_name, volume=vol, pitch_jitter=0.06)
+        if hasattr(state, "pending_remote_sfx") and getattr(state, "network_manager", None):
+            if getattr(state.network_manager, "network_mode", None) == "HOST":
+                state.pending_remote_sfx.append((sfx_name, cx, cy))
+
+    def _on_start_strike(self, game_state):
+        """Launch high-speed pounce in the locked facing direction."""
+        fx, fy = self.facing
+        mag = math.hypot(fx, fy)
+        if mag > 0.001:
+            fx, fy = fx / mag, fy / mag
+        else:
+            fx, fy = 1.0, 0.0
+        self.vx = fx * self.pounce_speed
+        self.vy = fy * self.pounce_speed
+        self._emit_wolf_sfx(game_state, "wolf_attack.ogg")
+
+    def _update_strike(self, dt, game_state):
+        """Advance pounce lunge with wall collision and apply contact bite damage."""
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        if getattr(game_state, "world", None):
+            walls = game_state.world.get_nearby_walls(self.get_rect())
+            self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+        super()._update_strike(dt, game_state)
+
+    def _update_chase(self, dt, state):
+        """Stalk target with subtle pack-flanking offset, then telegraph a pounce."""
+        if not self.active_target:
+            self.state = ActorState.IDLE
+            return
+
+        target_cx, target_cy = self.active_target
+        cx, cy = self.get_center()
+        dx, dy = target_cx - cx, target_cy - cy
+        dist = math.hypot(dx, dy)
+
+        if dist <= self.pounce_range and self.cooldown_timer <= 0:
+            self.state = ActorState.WIND_UP
+            self.combat_timer = self.wind_up_duration
+            self.vx, self.vy = 0.0, 0.0
+            self.has_hit_this_attack = False
+            if dist > 0.1:
+                self.facing = (dx / dist, dy / dist)
+            self._emit_wolf_sfx(state, "wolf_telegraph.ogg")
+            return
+
+        if dist > 0.1:
+            ux, uy = dx / dist, dy / dist
+            # Pack AI: flank laterally if another wolf is nearby
+            has_packmate = any(
+                other is not self and getattr(other, "name", "") == "Punctuation Wolf"
+                and math.hypot(other.x - self.x, other.y - self.y) < 140.0
+                for other in getattr(state, "enemies", [])
+            )
+            flank = 0.45 * self._flank_dir if has_packmate and dist > 75.0 else 0.0
+            px, py = -uy * flank, ux * flank
+            move_x, move_y = ux + px, uy + py
+            move_mag = math.hypot(move_x, move_y) or 1.0
+            self.vx = (move_x / move_mag) * self.speed
+            self.vy = (move_y / move_mag) * self.speed
+
+            self.x += self.vx * dt
+            self.y += self.vy * dt
+            if getattr(state, "world", None):
+                walls = state.world.get_nearby_walls(self.get_rect())
+                self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+            self.facing = (ux, uy)
+
 class NightBoss(Miniboss):
     """Dual-encounter boss."""
     def __init__(self, x, y, hp=None, id=None):
@@ -611,11 +720,12 @@ ENEMY_REGISTRY = {
     "SlugEnemy": SlugEnemy, "BatEnemy": BatEnemy, "FlutterEnemy": FlutterEnemy,
     "BindlingEnemy": BindlingEnemy, "Miniboss": Miniboss, "MinibossM2": MinibossM2,
     "MinibossM3": MinibossM3, "SmearEnemy": SmearEnemy, "SentryEnemy": SentryEnemy,
+    "PunctuationWolfEnemy": PunctuationWolfEnemy,
     "NightBoss": NightBoss, "FinalAuthor": FinalAuthor
 }
 
 SYMBOL_REGISTRY = {
     'Z': SlugEnemy, 'A': BatEnemy, 'f': FlutterEnemy, 'b': BindlingEnemy,
     'E': Miniboss, '2': MinibossM2, '3': MinibossM3, 's': SmearEnemy,
-    'Y': SentryEnemy, '!': FinalAuthor
+    'Y': SentryEnemy, 'w': PunctuationWolfEnemy, '!': FinalAuthor
 }

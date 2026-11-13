@@ -118,7 +118,7 @@ class Renderer:
         import os
         base_path = os.path.join("assets", "graphics")
         display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
-        for kind in ("bat", "flutter", "bindling", "smear", "sentry", "boss"):
+        for kind in ("bat", "flutter", "bindling", "smear", "sentry", "punctuation_wolf", "boss"):
             name = f"{kind}_empowered.png"
             path = os.path.join(base_path, name)
             if os.path.exists(path):
@@ -2228,6 +2228,8 @@ class Renderer:
                 emp_key = "smear_empowered.png"
             elif "sentry" in actor_tag:
                 emp_key = "sentry_empowered.png"
+            elif "wolf" in actor_tag:
+                emp_key = "punctuation_wolf_empowered.png"
             elif any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
                 emp_key = "boss_empowered.png"
             emp_surf = self.image_cache.get(emp_key) if emp_key else None
@@ -2325,6 +2327,37 @@ class Renderer:
             eye_x = cx + int(fx * (w * 0.18))
             eye_y = cy + int(fy * (h * 0.18))
             pygame.draw.circle(self.screen, constants.COLOR_SENTRY_EYE, (eye_x, eye_y), 4)
+            return True
+
+        if "wolf" in actor_tag:
+            glyph_col = state_color if is_telegraph else constants.COLOR_WOLF_GLYPH
+            spine_col = state_color if is_telegraph else constants.COLOR_WOLF_SPINE
+            stride = int(math.sin(anim_t * 14.0) * 2)
+            dir_x = 1 if fx >= 0 else -1
+            # Glyph-shaped lupine torso & pointed ears
+            body_poly = [
+                (cx - 12 * dir_x, cy + 4 + stride),
+                (cx - 7 * dir_x, cy - 6),
+                (cx + 5 * dir_x, cy - 7),
+                (cx + 14 * dir_x, cy - 1),
+                (cx + 6 * dir_x, cy + 7 - stride),
+            ]
+            pygame.draw.polygon(self.screen, constants.COLOR_WOLF_INK, body_poly)
+            pygame.draw.polygon(
+                self.screen, glyph_col,
+                [(cx + 2 * dir_x, cy - 5), (cx + 5 * dir_x, cy - 13), (cx + 8 * dir_x, cy - 5)],
+            )
+            pygame.draw.polygon(
+                self.screen, glyph_col,
+                [(cx - 4 * dir_x, cy - 5), (cx - 1 * dir_x, cy - 12), (cx + 2 * dir_x, cy - 5)],
+            )
+            # Electric cyan spine arc & exclamation-mark tail
+            pygame.draw.arc(self.screen, spine_col, (cx - 13, cy - 10, 26, 16), 0.2, 2.9, 2)
+            pygame.draw.line(self.screen, spine_col, (cx - 11 * dir_x, cy + 2), (cx - 16 * dir_x, cy - 6), 2)
+            pygame.draw.circle(self.screen, glyph_col, (cx - 16 * dir_x, cy - 9), 2)
+            # Glowing glyph eye & fang
+            pygame.draw.circle(self.screen, spine_col, (cx + 8 * dir_x, cy - 3), 2)
+            pygame.draw.line(self.screen, glyph_col, (cx + 11 * dir_x, cy + 1), (cx + 11 * dir_x, cy + 5), 2)
             return True
 
         if any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):

@@ -40,6 +40,7 @@ Entities and interactive obstacles registered in `constants.py` and `tools/edit_
 | **Bindling Enemy** | `b` | 40x40 | Enemy | Parchment puppet with stitch lines and grab bind |
 | **Smear Enemy** | `s` | 40x40 | Enemy | Liquid ink blob with pulsing core |
 | **Techno-Sentry** | `Y` | 40x40 | Enemy | Ranged artillery droid with directional plasma beam |
+| **Punctuation Wolf** | `w` | 36x36 | Enemy | Glyph-shaped pack predator with cyan spine arc and pounce attack (`punctuation_wolf_empowered.png` in Act 2) |
 | **Miniboss M1/M2/M3**| `E`/`2`/`3`| 40x40 | Elite | Elite strains with high HP, parry windows, and page drops |
 | **Night Boss** | `"night_boss"`| 80x80 | Boss | Heavy armored tyrant in `maps/night_boss_arena.json` |
 

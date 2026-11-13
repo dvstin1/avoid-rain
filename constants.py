@@ -221,6 +221,15 @@ SENTRY_DAMAGE_COOLDOWN = 1.4
 SENTRY_BEAM_RANGE = 160.0
 SENTRY_BEAM_WIDTH = 24.0
 
+# Punctuation Wolf pack-predator configuration
+WOLF_MAX_HP = 36
+WOLF_SPEED = 115.0
+WOLF_POUNCE_SPEED = 360.0
+WOLF_DETECT_METERS = 10
+WOLF_POUNCE_RANGE = 175.0
+WOLF_DAMAGE = 14
+WOLF_DAMAGE_COOLDOWN = 1.15
+
 # Edification Leveling Constants
 EDIFICATION_BASE_COST = 10
 EDIFICATION_COST_SCALE = 5
@@ -366,6 +375,7 @@ TILE_KEY = {
     'N': 107, # NightBoss Spawn
     '!': 108, # FinalAuthor Spawn
     'Y': 109, # SentryEnemy Spawn
+    'w': 110, # PunctuationWolfEnemy Spawn
     '1': TILE_PATROL, # Patrol Marker 1
     '2': TILE_PATROL, # Patrol Marker 2
     '3': TILE_PATROL, # Patrol Marker 3
@@ -393,6 +403,9 @@ COLOR_FLOOR = (25, 25, 25)
 # Procedural Enemy Colors
 COLOR_BAT_BODY = (45, 40, 55)
 COLOR_BAT_WING = (75, 50, 90)
+COLOR_WOLF_GLYPH = (255, 215, 166)
+COLOR_WOLF_SPINE = (132, 225, 255)
+COLOR_WOLF_INK = (24, 32, 46)
 COLOR_BAT_EYE = (255, 240, 200)
 COLOR_FLUTTER_BODY = (207, 239, 255)
 COLOR_FLUTTER_WING = (132, 225, 255)

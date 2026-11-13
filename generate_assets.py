@@ -2370,6 +2370,7 @@ def generate_all_assets(
         ("bindling_empowered", "bindling", 40, 40),
         ("smear_empowered", "smear", 40, 40),
         ("sentry_empowered", "sentry", 40, 40),
+        ("punctuation_wolf_empowered", "punctuation_wolf", 40, 40),
         ("boss_empowered", "boss", 64, 64),
     ]
     for key, kind, w, h in empowered_specs:
@@ -2390,7 +2391,7 @@ def generate_empowered_enemy_sprite(
 ) -> pygame.Surface:
     """Generate a high-contrast Act 2 empowered enemy sprite with crimson/violet accents."""
     if rng is None:
-        rng = random.Random(DEFAULT_SEED + hash(kind))
+        rng = random.Random(42 + sum(ord(c) for c in kind))
 
     surf = pygame.Surface((width, height), pygame.SRCALPHA)
     surf.fill((0, 0, 0, 0))
@@ -2449,6 +2450,19 @@ def generate_empowered_enemy_sprite(
         pygame.draw.rect(surf, obsidian, core, border_radius=7)
         pygame.draw.circle(surf, eclipse_violet, (cx, cy), width // 3, 2)
         pygame.draw.circle(surf, bright_crimson, (cx + 4, cy), 4)
+    elif kind == "punctuation_wolf":
+        # Lupine silhouette shaped from punctuation glyphs & arching spine
+        body_poly = [(6, cy + 5), (12, cy - 6), (cx + 4, cy - 8), (width - 6, cy - 1), (cx + 6, cy + 8)]
+        pygame.draw.polygon(surf, obsidian, body_poly)
+        pygame.draw.polygon(surf, charcoal, [(10, cy - 4), (14, 7), (18, cy - 4)])
+        pygame.draw.polygon(surf, charcoal, [(cx - 1, cy - 5), (cx + 3, 6), (cx + 6, cy - 5)])
+        # Arching crimson/violet spine arc & tail glyph
+        pygame.draw.arc(surf, eclipse_violet, (5, cy - 10, width - 10, 18), 0.2, 2.9, 2)
+        pygame.draw.line(surf, crimson, (6, cy + 3), (2, cy - 5), 2)
+        pygame.draw.circle(surf, bright_crimson, (3, cy - 8), 2)
+        # Sharp glyph fangs & predator eye
+        pygame.draw.line(surf, bright_crimson, (width - 9, cy + 1), (width - 9, cy + 6), 2)
+        pygame.draw.circle(surf, bright_crimson, (width - 12, cy - 3), 2)
     else:  # boss (Miniboss / Night Boss / Final Author)
         pauldron_r = max(8, width // 4)
         pygame.draw.circle(surf, charcoal, (10, cy - height // 8), pauldron_r)
@@ -2479,6 +2493,15 @@ def generate_empowered_enemy_sprite(
                 ),
             )
     return surf
+
+
+def generate_punctuation_wolf_empowered(
+    width: int = 40,
+    height: int = 40,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate the Act 2 empowered Punctuation Wolf sprite (40x40)."""
+    return generate_empowered_enemy_sprite("punctuation_wolf", width, height, rng=rng)
 
 
 def main() -> None:

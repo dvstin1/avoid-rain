@@ -1016,6 +1016,11 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
         "crunch_decay": 0.014, "crunch_level": 0.85, "drive": 2.8,
     }),
     "enemy_telegraph.ogg": ("glint", {"peak": 0.7}),
+    "wolf_telegraph.ogg": ("glint", {"duration": 0.24, "peak": 0.72}),
+    "wolf_attack.ogg": ("whoosh", {
+        "duration": 0.18, "low_hz": 380.0, "high_hz": 2900.0, "q": 1.3,
+        "peak_pos": 0.30, "air_hp_hz": 3400.0, "air_level": 0.55, "peak": 0.85,
+    }),
     "combat_parry.ogg": ("hit_armor", {"duration": 0.9, "ring_hz": 1420.0, "ring_decay": 0.32, "ring_level": 1.0,
                                        "thud_level": 0.3}),
     "player_hurt_rain.ogg": ("hiss", {}),

@@ -287,6 +287,14 @@ MASTER_TOOL_REGISTRY = [
         "desc": "Hovering artillery droid. Maintains spacing and fires a directional plasma beam."
     },
     {
+        "id": "enemy_wolf",
+        "char": "w",
+        "name": "Punctuation Wolf",
+        "type": "enemy",
+        "size": "36x36 px (~0.9 tile)",
+        "desc": "Pack predator shaped from glyphs. Stalks targets and pounces from margins."
+    },
+    {
         "id": "enemy_bindling",
         "char": "b",
         "name": "Bindling",
