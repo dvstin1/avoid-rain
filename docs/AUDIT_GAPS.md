@@ -2,7 +2,7 @@
 
 **Audit Date:** November 2026  
 **Auditor:** Antigravity Agent (`doc-audit` skill)  
-**Target Repository:** Avoid Rain (commit `9ee9492`)
+**Target Repository:** Avoid Rain (synced post-`9ee9492` with current `HEAD`)
 
 ---
 
@@ -43,9 +43,6 @@ but have not yet been instantiated in the live Python codebase:
 5. **Constellations of the Void (`docs/extended-notes/constellations-of-the-void.md`):**
    - *Concept:* Negative space patterns visible when holding the page up to the Wellspring.
    - *Status:* Narrative lore concept.
-6. **Screen Shake & Accessibility Toggles in Options (`docs/backlog.md` Section 1):**
-   - *Concept:* In-game toggle to disable or adjust screen shake intensity.
-   - *Status:* Pause Menu currently features `Debug Text: OFF/ON`; screen shake toggle is a backlog item.
 
 ---
 
@@ -55,14 +52,25 @@ The following active features existed in the codebase or were recently implement
 core technical documentation prior to this audit:
 
 - [X] **Procedural PNG Pixel Art Asset Pipeline (`generate_assets.py`):**
-  - *Code:* Modular generator producing 18 discrete 40x40 dark-fantasy PNG assets across floor tiles, wall variants,
-    swamp terrain, and clutter sprites (`ruins_rubble.png`, `swamp_flora.png`, `crypt_clutter.png`).
-  - *Remediation:* Added Section 4.3 to `docs/visual_style_and_assets.md` cataloging all generated PNG assets.
+  - *Code:* Modular generator producing 40x40 dark-fantasy PNG assets across floor tiles, wall variants,
+    swamp terrain, clutter sprites (`ruins_rubble.png`, `swamp_flora.png`, `crypt_clutter.png`), and Sanctuary/actor
+    sprites (`chronicle.png`, `respite.png`, `respite_corrupted.png`, `chronicler.png`).
+  - *Remediation:* Updated Section 4.3 of `docs/visual_style_and_assets.md` cataloging all generated PNG assets.
+- [X] **Procedural SFX & Ambient Audio Pipeline (`generate_sfx.py`):**
+  - *Code:* Synthesizes `rain_loop.ogg` (distance-attenuated storm loop), `player_dash.ogg`, `chronicle_open.ogg`,
+    and `storm_intro.ogg` for the Title-to-Sanctuary storm transition.
+  - *Remediation:* Wired into `engine/weather.py`, `engine/game_state.py`, `engine/title_menu.py`, and `engine/audio.py`.
 - [X] **Comprehensive Entity & Symbol Registry (`constants.py`, `tools/edit_map.py`):**
-  - *Code:* `TILE_KEY` defines 28 symbols including `a` (Altar), `B` (Barrel), `S` (Bench), `K` (Obstacle/Clutter),
-    `T` (Structure), `g`/`G` (Grass/Thicket), `M` (Lotus Frame), `L` (Lore), `F` (Wellspring), `R` (Respite),
-    `C` (Chronicler), and enemies `A`, `Z`, `f`, `b`, `s`, `Y`, `E`, `2`, `3`.
-  - *Remediation:* Upgraded Section 2 in `docs/visual_style_and_assets.md` with a complete entity table.
+  - *Code:* `TILE_KEY` defines 27 symbols (following removal of the deprecated Sanctuary Attunement Altar `'a'` and
+    `.txt` sanctuary variants) including `B` (Barrel), `S` (Bench), `K` (Obstacle/Clutter), `T` (Structure), `g`/`G`
+    (Grass/Thicket), `M` (Lotus Frame), `L` (Lore), `F` (Wellspring), `R` (Respite), `C` (Chronicler), and enemies
+    `A`, `Z`, `f`, `b`, `s`, `Y`, `E`, `2`, `3`.
+  - *Remediation:* Synchronized Section 2 in `docs/visual_style_and_assets.md` and `maps/sanctuary.json` as the sole
+    canonical Sanctuary map.
+- [X] **Pause Menu Accessibility & Debug Toggles (`engine/pause_menu.py`, `engine/stats.py`):**
+  - *Code:* `PauseMenu` exposes `Debug Text: ON/OFF` and `Screen Shake: ON/OFF` (`screen_shake_enabled`), persisted
+    in `save_data.json` and gating camera/combat shake impulses.
+  - *Remediation:* Updated `docs/navigation_and_ui.md` and marked Section 1 Screen Shake Toggle `[DONE]` in `docs/backlog.md`.
 - [X] **5-Biome Macro-Room & Corridor Sockets (`constants.py`, `engine/world_generator.py`):**
   - *Code:* `POOL_MONTHLY_REPORT` (`windy_ridge`, `pastoral_valley`, `swamp_mire`, `frozen_peaks`, `tech_tower`),
     `POOL_CORRIDOR` (`smallcave`, `gantry_bridge`, `mire_causeway`), and `POOL_SPECIAL_EDITION`.
@@ -120,6 +128,5 @@ The following discrepancies between documented specifications and actual constan
 6. Generated this canonical audit report (`docs/AUDIT_GAPS.md`).
 
 ### Recommended Next Steps for Future Sprints:
-- Add a screen shake toggle to the Pause Menu Options to complete the accessibility backlog item.
 - Evaluate stamina/pressure mechanic proposals if tactical combat pacing requires further throttling.
 - Implement Phase 2 dialogue branching and hub interaction polish when expanding Sanctuary.

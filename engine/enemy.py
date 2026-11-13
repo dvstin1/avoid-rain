@@ -98,7 +98,10 @@ class Enemy(Actor):
         
         # Player Reward
         state.player.dash_cooldown_timer = 0.0 # Kinetic Reset
-        state.shake_timer = SCREEN_SHAKE_DURATION # Intense feedback
+        if hasattr(state, "trigger_shake"):
+            state.trigger_shake(SCREEN_SHAKE_DURATION)
+        elif getattr(state, "screen_shake_enabled", True):
+            state.shake_timer = SCREEN_SHAKE_DURATION  # Intense feedback
         
         # Signal Feedback
         if hasattr(state, 'audio_manager') and state.audio_manager:

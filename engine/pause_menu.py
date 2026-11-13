@@ -31,9 +31,13 @@ class PauseMenu(MenuBase):
         on_open: Optional[Callable[[], None]] = None,
         debug_text_enabled: bool = False,
         on_toggle_debug: Optional[Callable[[bool], None]] = None,
+        screen_shake_enabled: bool = True,
+        on_toggle_screen_shake: Optional[Callable[[bool], None]] = None,
     ) -> None:
         self.debug_text_enabled = bool(debug_text_enabled)
         self.on_toggle_debug = on_toggle_debug
+        self.screen_shake_enabled = bool(screen_shake_enabled)
+        self.on_toggle_screen_shake = on_toggle_screen_shake
         MenuBase.__init__(self, self._build_options())
         self.pause_handler = pause_handler or PauseHandler()
         self._open = False
@@ -43,13 +47,19 @@ class PauseMenu(MenuBase):
         self.on_open = on_open
 
     def _build_options(self) -> list[str]:
-        """Return pause menu options reflecting current debug text state."""
+        """Return pause menu options reflecting current toggle states."""
         dbg_label = f"Debug Text: {'ON' if self.debug_text_enabled else 'OFF'}"
-        return ["Resume", "Controls", dbg_label, "Quit"]
+        shake_label = f"Screen Shake: {'ON' if self.screen_shake_enabled else 'OFF'}"
+        return ["Resume", "Controls", dbg_label, shake_label, "Quit"]
 
     def set_debug_text_enabled(self, enabled: bool) -> None:
         """Synchronize the pause menu's debug text state and option label."""
         self.debug_text_enabled = bool(enabled)
+        self._options = self._build_options()
+
+    def set_screen_shake_enabled(self, enabled: bool) -> None:
+        """Synchronize the pause menu's screen shake state and option label."""
+        self.screen_shake_enabled = bool(enabled)
         self._options = self._build_options()
 
     def open(self) -> None:
@@ -114,5 +124,12 @@ class PauseMenu(MenuBase):
             if self.on_toggle_debug is not None:
                 try:
                     self.on_toggle_debug(self.debug_text_enabled)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
+        elif selected.startswith("Screen Shake:"):
+            self.set_screen_shake_enabled(not self.screen_shake_enabled)
+            if self.on_toggle_screen_shake is not None:
+                try:
+                    self.on_toggle_screen_shake(self.screen_shake_enabled)
                 except Exception:  # pylint: disable=broad-exception-caught
                     pass

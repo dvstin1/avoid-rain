@@ -45,8 +45,9 @@ Text items in the HUD use a compact 14pt font line size to prevent viewport crow
     - **Full Metadata:** Reveals full name, flavor description (Critique), and explicit stat modifiers (e.g., `Bleed`, `Attack`, `Max HP`).
     - **Side-by-Side Comparison:** Tooltips are arranged horizontally for quick evaluation of floor items against current loadouts.
 
-### 3.3. System Diagnostic Telemetry (Top-Center & Left)
+### 3.3. System Diagnostic Telemetry & Pause Options (Top-Center & Left)
 - **Audio & Map OSD (Center):** When `debug_text_enabled` is active, displays the active background music track (e.g., `[ AUDIO_OSD ] MUSIC: night_boss.ogg`) in Toxic Green, followed directly by the active map filename (`Map: <map_filename>`). Controlled via Pause Menu's `Debug Text: OFF/ON` option.
+- **Screen Shake Toggle (Pause Menu):** `Screen Shake: ON/OFF` controls `screen_shake_enabled` (default `ON`), gating combat/parry camera shake impulses and persisted in `save_data.json`.
 - **SFX Trigger Log (Top-Left):** Real-time list of triggered sound effects (e.g., `SFX: attack_hit.ogg`) that fade out over 2 seconds.
 - **Save Status (Top-Right):** Contextual indicator (`[Saved]`) following autosave operations.
 

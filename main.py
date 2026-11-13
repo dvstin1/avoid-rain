@@ -349,6 +349,8 @@ def main():
     pause_menu = PauseMenu(
         debug_text_enabled=getattr(state, "debug_text_enabled", False),
         on_toggle_debug=lambda val: state.set_debug_text_enabled(val, save=True),
+        screen_shake_enabled=getattr(state, "screen_shake_enabled", True),
+        on_toggle_screen_shake=lambda val: state.set_screen_shake_enabled(val, save=True),
     )
     
     # [Initialization] Detect existing compatible save file to enable 'Continue'

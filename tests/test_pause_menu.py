@@ -43,11 +43,10 @@ def test_request_quit_flag():
     pm = PauseMenu()
     assert not pm.should_quit()
     pm.open()
-    # Options: ["Resume", "Controls", "Debug Text: OFF", "Quit"] -> index 3 is Quit
-    pm.navigate('down')
-    pm.navigate('down')
-    pm.navigate('down')
-    assert pm.get_selected_index() == 3
+    # Options: ["Resume", "Controls", "Debug Text: OFF", "Screen Shake: ON", "Quit"] -> index 4 is Quit
+    for _ in range(4):
+        pm.navigate('down')
+    assert pm.get_selected_index() == 4
     pm.confirm()
     assert pm.should_quit()
     pm.clear_quit()
@@ -165,3 +164,56 @@ def test_renderer_gates_debug_text_until_enabled(monkeypatch):
     assert any("AUDIO_OSD" in s for s in rendered_strings)
     assert any("DEBUG_AUDIO" in s for s in rendered_strings)
     assert any("[ Input:" in s for s in rendered_strings)
+
+
+def test_screen_shake_toggle_and_suppression(tmp_path, monkeypatch):
+    """Verify Screen Shake defaults to ON, toggles in PauseMenu, and gates shake impulses."""
+    save_file = tmp_path / "save_data.json"
+    gs = GameState(stats=None, stats_path=str(save_file), auto_load=True)
+    try:
+        assert gs.screen_shake_enabled is True
+        assert gs.stats.data["screen_shake_enabled"] is True
+
+        pm = PauseMenu(
+            screen_shake_enabled=gs.screen_shake_enabled,
+            on_toggle_screen_shake=lambda val: gs.set_screen_shake_enabled(val, save=True),
+        )
+        assert "Screen Shake: ON" in pm.get_options()
+
+        # Navigate to index 3 ("Screen Shake: ON") and toggle OFF
+        pm.open()
+        pm.navigate('down')
+        pm.navigate('down')
+        pm.navigate('down')
+        assert pm.get_selected_index() == 3
+        pm.confirm()
+
+        assert pm.screen_shake_enabled is False
+        assert "Screen Shake: OFF" in pm.get_options()
+        assert gs.screen_shake_enabled is False
+        assert gs.stats.data["screen_shake_enabled"] is False
+
+        # Triggering shake while disabled must keep shake_timer at 0.0
+        gs.trigger_shake(0.25)
+        assert gs.shake_timer == 0.0
+
+        # Renderer must not apply random shake offset when screen_shake_enabled is False
+        pygame.init()
+        called_uniform = []
+        monkeypatch.setattr("rendering.renderer.random.uniform", lambda a, b: called_uniform.append((a, b)) or 0.0)
+        screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        renderer = Renderer(screen)
+        gs.shake_timer = 0.25
+        renderer.render(gs)
+        assert not called_uniform
+
+        # Re-enabling allows shake impulses and renderer shake offset
+        pm.confirm()
+        assert gs.screen_shake_enabled is True
+        gs.trigger_shake(0.25)
+        assert gs.shake_timer == 0.25
+        renderer.render(gs)
+        assert len(called_uniform) == 2
+    finally:
+        gs.shutdown_save_worker(timeout=1.0)
+

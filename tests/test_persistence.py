@@ -55,3 +55,22 @@ def test_new_game_clears_state():
     assert gs.world.name == 'sanctuary'
     assert gs.player.x == gs.world.player_start[0]
     assert gs.player.y == gs.world.player_start[1]
+
+
+def test_screen_shake_preference_persists(tmp_path):
+    """Verify screen_shake_enabled defaults to True and persists False across save/load."""
+    save_file = tmp_path / "save_data.json"
+    gs = GameState(stats=None, stats_path=str(save_file), auto_load=True)
+    try:
+        assert gs.screen_shake_enabled is True
+        gs.set_screen_shake_enabled(False, save=False)
+        gs.save_stats(str(save_file), wait=True)
+        gs.shutdown_save_worker(timeout=2.0)
+
+        reloaded = StatisticsTracker.load(save_file)
+        assert reloaded.data["screen_shake_enabled"] is False
+        gs2 = GameState(stats=reloaded, auto_load=False)
+        assert gs2.screen_shake_enabled is False
+    finally:
+        gs.shutdown_save_worker(timeout=1.0)
+

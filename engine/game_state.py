@@ -109,6 +109,9 @@ class GameState:
         self.debug_text_enabled = (
             bool(self.stats.data.get("debug_text_enabled", False)) if self.stats else False
         )
+        self.screen_shake_enabled = (
+            bool(self.stats.data.get("screen_shake_enabled", True)) if self.stats else True
+        )
         self.parry_effects = [] # Transient VFX sparks
         self.impact_sparks = [] # Transient combat hit sparks
         self.slash_effects = [] # Transient fading visual slash arcs
@@ -901,7 +904,7 @@ class GameState:
                         if is_client:
                             self.network_manager.send_damage_event("enemy", net_id, damage)
                         self.hit_stop_timer = HIT_STOP_DURATION
-                        self.shake_timer = SCREEN_SHAKE_DURATION
+                        self.trigger_shake(SCREEN_SHAKE_DURATION)
                         self.damage_numbers.append({
                             'val': damage, 'pos': (enemy.x + 10, enemy.y - 20),
                             'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_SELECTION
@@ -1640,6 +1643,7 @@ class GameState:
         # Update Network Identity and Debug Text Preference from loaded stats
         if self.stats:
             self.debug_text_enabled = bool(self.stats.data.get("debug_text_enabled", False))
+            self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
             if hasattr(self, 'network_manager'):
                 self.network_manager.identity = self.stats.data.get("player_name", self.network_manager.identity)
 
@@ -1736,6 +1740,8 @@ class GameState:
             self.stats.is_revision_compatible = True
             self.stats.data.setdefault("debug_text_enabled", bool(getattr(self, "debug_text_enabled", False)))
             self.debug_text_enabled = bool(self.stats.data.get("debug_text_enabled", False))
+            self.stats.data.setdefault("screen_shake_enabled", bool(getattr(self, "screen_shake_enabled", True)))
+            self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
             self.stats.data["lifetime_stats"]["pages_collected"] = 0
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
@@ -1797,11 +1803,31 @@ class GameState:
             "weather": self.weather_manager.to_dict() if hasattr(self, 'weather_manager') else None
         }
 
+    def trigger_shake(self, duration: Optional[float] = None) -> None:
+        """Start screen shake only when screen_shake_enabled is True."""
+        if not getattr(self, "screen_shake_enabled", True):
+            self.shake_timer = 0.0
+            return
+        if duration is None:
+            from constants import SCREEN_SHAKE_DURATION
+            duration = SCREEN_SHAKE_DURATION
+        self.shake_timer = float(duration)
+
     def set_debug_text_enabled(self, enabled: bool, save: bool = True) -> None:
         """Update the debug text toggle and persist it in the save file."""
         self.debug_text_enabled = bool(enabled)
         if self.stats is not None:
             self.stats.data["debug_text_enabled"] = self.debug_text_enabled
+            if save:
+                self.save_stats(wait=True)
+
+    def set_screen_shake_enabled(self, enabled: bool, save: bool = True) -> None:
+        """Update the screen shake toggle and persist it in the save file."""
+        self.screen_shake_enabled = bool(enabled)
+        if not self.screen_shake_enabled:
+            self.shake_timer = 0.0
+        if self.stats is not None:
+            self.stats.data["screen_shake_enabled"] = self.screen_shake_enabled
             if save:
                 self.save_stats(wait=True)
 
@@ -1814,6 +1840,7 @@ class GameState:
         self.stats.data["engine_revision"] = ENGINE_REVISION
         self.stats.is_revision_compatible = True
         self.stats.data["debug_text_enabled"] = bool(getattr(self, "debug_text_enabled", False))
+        self.stats.data["screen_shake_enabled"] = bool(getattr(self, "screen_shake_enabled", True))
         
         # --- Persistence: Sanctuary is the hub; runs are completed/redacted here ---
         world_name = getattr(self.world, 'name', 'sanctuary')

@@ -15,7 +15,7 @@
 ## 1. Input & Accessibility
 - **Gamepad Support (Polish):** Native controller mapping for Xbox/PlayStation layouts is implemented, but could use further refinement and rumble support.
 - **Remappable Keys:** In-game menu for custom keyboard/controller bindings.
-- **Screen Shake Toggle:** Ability to disable or reduce intense combat visual effects.
+- **Screen Shake Toggle:** [DONE] Implemented `Screen Shake: ON/OFF` in the Pause Menu (`screen_shake_enabled`), persisted in `save_data.json` and gating combat/parry camera shake impulses.
 
 ## 2. Audio & Atmosphere
 - **Noir Soundtrack:** Procedural ambient tracks that shift intensity based on proximity to enemies or the Rain.

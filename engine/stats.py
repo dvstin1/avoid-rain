@@ -51,6 +51,7 @@ class StatisticsTracker:
                 "engine_revision": ENGINE_REVISION,
                 "player_name": "Scholar",
                 "debug_text_enabled": False,
+                "screen_shake_enabled": True,
                 "active_session_in_progress": False,
                 "run_state": None,
                 "last_run_result": "INIT",
@@ -81,6 +82,8 @@ class StatisticsTracker:
                 self.data["last_run_result"] = "INIT"
             if "debug_text_enabled" not in self.data:
                 self.data["debug_text_enabled"] = False
+            if "screen_shake_enabled" not in self.data:
+                self.data["screen_shake_enabled"] = True
 
     @classmethod
     def has_compatible_save(cls, path: Path | str | None = None) -> bool:

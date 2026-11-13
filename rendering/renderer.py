@@ -1609,7 +1609,7 @@ class Renderer:
         else:
             cam = Camera(sw, sh, ww, wh)
             ox, oy = cam.get_target_offset(state.player.get_center())
-        if getattr(state, 'shake_timer', 0) > 0:
+        if getattr(state, 'shake_timer', 0) > 0 and getattr(state, 'screen_shake_enabled', True):
             ox += random.uniform(-constants.SCREEN_SHAKE_INTENSITY, constants.SCREEN_SHAKE_INTENSITY)
             oy += random.uniform(-constants.SCREEN_SHAKE_INTENSITY, constants.SCREEN_SHAKE_INTENSITY)
 
