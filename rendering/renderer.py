@@ -1534,6 +1534,14 @@ class Renderer:
             pulse_col = (0, 240, 255) if int(time.time() * 4 + x + y) % 2 == 0 else (235, 70, 195)
             pygame.draw.rect(self.screen, pulse_col, (dr[0] + 4, dr[1] + 4, dr[2] - 8, dr[3] - 8), 2, border_radius=3)
 
+    def invalidate_static_world(self):
+        """Clear cached static world chunks and minimap surfaces on world transition."""
+        self._chunk_cache.clear()
+        self._chunk_world_key = None
+        self._minimap_surf = None
+        self._minimap_walls_surf = None
+        self._minimap_world_key = None
+
     def _get_world_chunk(self, state, cx, cy, w, h):
         """Return or lazily bake a 16x16 tile chunk Surface and its sparse animated tile list."""
         world_key = (id(state.world), getattr(state.world, "name", ""), id(state.world.grid), w, h)

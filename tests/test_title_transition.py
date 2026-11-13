@@ -109,3 +109,15 @@ def test_title_transition_new_draft_and_continue_sanctuary_clean():
     assert len(gs.world.grid) == expected_h
     assert len(gs.world.grid[0]) == expected_w
     assert gs.world.grid[0][0] == constants.TILE_WALL
+
+    # 3. Verify Renderer.invalidate_static_world() clears chunk and minimap caches
+    import pygame
+    from rendering.renderer import Renderer
+    pygame.init()
+    screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+    renderer._chunk_cache[(0, 0)] = ("dummy", [])
+    renderer._chunk_world_key = "stale"
+    renderer.invalidate_static_world()
+    assert renderer._chunk_cache == {}
+    assert renderer._chunk_world_key is None
