@@ -136,3 +136,12 @@ assets/
 - **The Environmental Hiss:** `player_hurt_rain.ogg` should be short and loopable, providing constant auditory feedback that the player is currently exposed and losing health.
 - **The Seismic Rumble:** `bleed_start.ogg` triggers the moment the safe circle begins a contraction phase, signaling that the "margins are shifting."
 - **The Respite Resolution:** `respite_rest.ogg` should feel like a moment of absolute safety, cleansing the cold "ink" atmosphere with a warmer tonal palette.
+
+### 6.1. Procedural SFX Asset Pipeline (`generate_sfx.py`)
+Modeled after `generate_assets.py` and `generate_maps.py`, `generate_sfx.py` is a standalone offline DSP synthesizer that outputs game-ready 44.1 kHz mono Ogg Vorbis (`.ogg`) files into `assets/audio/sfx/` and verifies every output with `pygame.mixer.Sound`:
+- **DSP Engine:** Supports ADSR/exponential/swell/arch envelopes, exponential pitch sweeps & drops, band-limited additive oscillators & 2-op FM, white/pink/brown noise & sparse crackle, RBJ biquad filters (`lowpass`, `highpass`, `bandpass`, `peak`, and swept cutoffs), soft-clipping, bit-crushing, DC blocking, and peak normalization (`PEAK_TARGET = 0.85`). Uses `numpy` when available with a pure-Python `math` fallback.
+- **Presets & Manifest:** Provides 17 synthesis archetypes (`slash`, `whoosh`, `hit_flesh`, `hit_armor`, `explosion`, `footstep`, `pickup`, `level_up`, `ui_select`, `warp`, `arcane`, `boss_roar`, `glint`, `hiss`, `rumble`, `rustle`, `splash`) and `SOUND_RECIPES` covering all 17 engine SFX files.
+- **CLI Usage:**
+  - `python generate_sfx.py` — Auto-fill all missing `.ogg` references across the codebase and manifest.
+  - `python generate_sfx.py --list-missing` — Report missing `.ogg` references and their source lines.
+  - `python generate_sfx.py --preset <name> --name <stem> --seed <N> --variants <K>` — Audition seeded variations into `assets/audio/sfx/variants/`.
