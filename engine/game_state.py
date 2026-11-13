@@ -14,7 +14,7 @@ from constants import (
     PLAYER_MAX_HP, FLASK_MAX_CHARGES,
     SCREEN_WIDTH, SCREEN_HEIGHT,
     TILE_SIZE, CAMERA_LERP_SPEED,
-    INPUT_MODE_KEYBOARD
+    INPUT_MODE_KEYBOARD, BOSS_COMBAT_TRACKS
 )
 from engine.player import Player, PlayerStateEnum
 from engine.physics import check_aabb_collision
@@ -594,7 +594,15 @@ class GameState:
             # --- Phase 1 & 4: Host World Events ---
             self._update_world_events(dt)
             
-        self.weather_manager.update(dt, self.player, self.world, audio_manager=audio_manager)
+        boss_combat_active = (
+            getattr(self.player, 'active_track_name', '') in BOSS_COMBAT_TRACKS
+            or self.weather_manager.bleed_state == "BOSS_PHASE"
+        )
+        self.weather_manager.update(
+            dt, self.player, self.world, audio_manager=audio_manager, boss_combat_active=boss_combat_active
+        )
+        if audio_manager and hasattr(audio_manager, 'update_rain_audio'):
+            audio_manager.update_rain_audio(self.weather_manager.rain_audio_intensity)
 
         # Close Respite instantly if it is getting rained on
         if getattr(self, 'active_respite', None):

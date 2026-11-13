@@ -816,6 +816,24 @@ def preset_splash(rng: random.Random, p: Dict):
     return mix(*layers)
 
 
+def preset_rain(rng: random.Random, p: Dict):
+    """Heavy rainfall loop: layered brown/pink/white noise with droplet patter and crossfade."""
+    n = n_samples(p["duration"] + p["loop_fade"])
+    downpour = normalize(biquad(brown_noise(n, rng), "lowpass", p["body_lp_hz"], q=0.9, order=2))
+    sheet = normalize(biquad(pink_noise(n, rng), "bandpass", p["mid_bp_hz"], p["mid_q"]))
+    gust = lfo(n, p["gust_hz"], p["gust_depth"])
+    sheet = multiply(sheet, gust)
+    hiss = normalize(biquad(white_noise(n, rng), "bandpass", p["high_bp_hz"], 0.9))
+    patter = normalize(biquad(crackle(n, rng, p["patter_rate_hz"], 0.0025), "bandpass", p["patter_bp_hz"], 1.5))
+    bed = mix(
+        (downpour, p["body_level"]),
+        (sheet, p["mid_level"]),
+        (hiss, p["high_level"]),
+        (patter, p["patter_level"]),
+    )
+    return make_loopable(bed, p["loop_fade"])
+
+
 PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
     "slash": (preset_slash, {
         "duration": 0.32, "sweep_start_hz": 700.0, "sweep_end_hz": 5200.0, "sweep_q": 1.4, "peak_pos": 0.35,
@@ -897,6 +915,12 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "bubble_low_hz": 350.0, "bubble_high_hz": 1300.0, "bubble_level": 0.45, "slosh_level": 0.0,
         "thump_level": 0.0, "tink": False, "tink_time": 0.3, "tink_level": 0.5,
     }, "Wet burst + bubbles (optional slosh/thump/glass tink)"),
+    "rain": (preset_rain, {
+        "duration": 3.2, "loop_fade": 0.35, "body_lp_hz": 480.0, "body_level": 0.65,
+        "mid_bp_hz": 1350.0, "mid_q": 0.75, "mid_level": 0.7, "gust_hz": 0.65, "gust_depth": 0.16,
+        "high_bp_hz": 4200.0, "high_level": 0.3, "patter_rate_hz": 65.0, "patter_bp_hz": 2800.0,
+        "patter_level": 0.25, "loopable": True, "peak": 0.72,
+    }, "Seamless looping heavy rainfall with droplet patter"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -917,6 +941,7 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "combat_parry.ogg": ("hit_armor", {"duration": 0.9, "ring_hz": 1420.0, "ring_decay": 0.32, "ring_level": 1.0,
                                        "thud_level": 0.3}),
     "player_hurt_rain.ogg": ("hiss", {}),
+    "rain_loop.ogg": ("rain", {}),
     "bleed_start.ogg": ("rumble", {}),
     "respite_rest.ogg": ("level_up", {"duration": 2.0, "root_hz": 392.0, "warm": True, "exhale": True,
                                       "note_decay": 0.7}),

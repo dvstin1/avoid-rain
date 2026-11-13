@@ -7,13 +7,19 @@ import os
 import math
 import random
 import pygame
-from constants import SFX_FULL_VOLUME_DIST, SFX_MIN_VOLUME_DIST, SFX_MIN_VOLUME
+from constants import SFX_FULL_VOLUME_DIST, SFX_MIN_VOLUME_DIST, SFX_MIN_VOLUME, RAIN_LOOP_SFX
 
 class AudioManager:
     """Manages music and sound effect playback with smooth transitions."""
     def __init__(self):
         pygame.mixer.init()
         pygame.mixer.set_num_channels(32)
+        self.rain_channel = None
+        try:
+            pygame.mixer.set_reserved(1)
+            self.rain_channel = pygame.mixer.Channel(0)
+        except Exception:
+            self.rain_channel = None
         self.music_dir = os.path.join("assets", "audio", "music")
         self.sfx_dir = os.path.join("assets", "audio", "sfx")
 
@@ -132,6 +138,39 @@ class AudioManager:
                     except Exception:
                         pass
                 self.active_move_sounds.pop(enemy_id, None)
+
+    def update_rain_audio(self, intensity: float, paused: bool = False):
+        """Play or adjust the looping ambient rain channel based on intensity and pause state."""
+        if not self.rain_channel:
+            return
+        effective_vol = 0.0 if paused else max(0.0, min(1.0, float(intensity))) * self.volume
+        if effective_vol <= 0.001:
+            try:
+                if self.rain_channel.get_busy():
+                    self.rain_channel.stop()
+            except Exception:
+                pass
+            return
+
+        sound = self.sfx_cache.get(RAIN_LOOP_SFX)
+        if not sound:
+            path = os.path.join(self.sfx_dir, RAIN_LOOP_SFX)
+            if os.path.exists(path):
+                try:
+                    sound = pygame.mixer.Sound(path)
+                    self.sfx_cache[RAIN_LOOP_SFX] = sound
+                except Exception as exc:
+                    print(f"[AUDIO] Error loading rain SFX {RAIN_LOOP_SFX}: {exc}")
+                    return
+            else:
+                return
+
+        try:
+            if not self.rain_channel.get_busy():
+                self.rain_channel.play(sound, loops=-1)
+            self.rain_channel.set_volume(effective_vol)
+        except Exception as exc:
+            print(f"[AUDIO] Error updating rain loop: {exc}")
 
     def _get_pitch_variant(self, sfx_name, base_sound, pitch_jitter):
         """Return a cached pitch-shifted Sound variant when numpy/sndarray is available."""

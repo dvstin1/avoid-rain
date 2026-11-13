@@ -3,9 +3,13 @@ Weather System: The Bleed (The Redacting Circle).
 Handles the spatial contraction logic and exposure damage.
 Supports multiple boss phases (Night 1, Night 2) and The Dilution.
 """
+import math
 from constants import (
-    TILE_SIZE, WEATHER_WAIT_DURATION, WEATHER_SHRINK_DURATION, 
-    TILE_STRUCTURE, TILE_RESPITE
+    TILE_SIZE, WEATHER_WAIT_DURATION, WEATHER_SHRINK_DURATION,
+    TILE_STRUCTURE, TILE_RESPITE,
+    RAIN_AUDIO_WARNING_BUFFER, RAIN_AUDIO_APPROACH_MAX,
+    RAIN_AUDIO_INSIDE_MIN, RAIN_AUDIO_INSIDE_MAX,
+    RAIN_AUDIO_INSIDE_RAMP_DIST, RAIN_AUDIO_BOSS_FADE_DURATION,
 )
 
 class WeatherManager:
@@ -31,6 +35,8 @@ class WeatherManager:
         self.active_safe_radius = 620.0 * TILE_SIZE 
         self.target_radius = self.active_safe_radius
         self.damage_enabled = True
+        self.rain_audio_intensity = 0.0
+        self.rain_boss_fade = 1.0
 
     def set_boss_coords_list(self, coords_list):
         """Update the list of potential boss centers."""
@@ -53,7 +59,51 @@ class WeatherManager:
             return None
         return self.boss_coords_list[self.current_boss_idx]
 
-    def update(self, dt, player, world, audio_manager=None):
+    def compute_target_rain_intensity(self, player_x, player_y, world=None):
+        """Return distance-based target rain audio intensity in [0.0, 1.0]."""
+        w_name = getattr(world, 'name', '') if world is not None else ''
+        if w_name in ("sanctuary", "final_boss", "night_boss_arena"):
+            return 0.0
+        if self.bleed_state in ("DILUTION", "APPENDIX"):
+            return 0.0
+        if not self.boss_coords_list or self.current_boss_idx >= len(self.boss_coords_list):
+            return 0.0
+
+        coords = self.boss_coords_list[self.current_boss_idx]
+        bcx, bcy = coords['x'] * TILE_SIZE, coords['y'] * TILE_SIZE
+        dist = math.hypot(player_x - bcx, player_y - bcy)
+        signed_dist = dist - self.active_safe_radius
+
+        if signed_dist <= -RAIN_AUDIO_WARNING_BUFFER:
+            return 0.0
+        if signed_dist <= 0.0:
+            frac = (signed_dist + RAIN_AUDIO_WARNING_BUFFER) / RAIN_AUDIO_WARNING_BUFFER
+            return (frac ** 1.5) * RAIN_AUDIO_APPROACH_MAX
+
+        depth = min(1.0, signed_dist / RAIN_AUDIO_INSIDE_RAMP_DIST)
+        return RAIN_AUDIO_INSIDE_MIN + depth * (RAIN_AUDIO_INSIDE_MAX - RAIN_AUDIO_INSIDE_MIN)
+
+    def update_rain_intensity(self, dt, player, world, boss_combat_active=False):
+        """Update rain_audio_intensity with boss-music fade-out and Sanctuary muting."""
+        if getattr(world, 'name', '') == "sanctuary" or player is None:
+            self.rain_audio_intensity = 0.0
+            self.rain_boss_fade = 1.0
+            return 0.0
+
+        fade_step = dt / RAIN_AUDIO_BOSS_FADE_DURATION if RAIN_AUDIO_BOSS_FADE_DURATION > 0 else 1.0
+        if boss_combat_active:
+            self.rain_boss_fade = max(0.0, self.rain_boss_fade - fade_step)
+        else:
+            self.rain_boss_fade = min(1.0, self.rain_boss_fade + fade_step)
+
+        px, py = player.get_center()
+        target = self.compute_target_rain_intensity(px, py, world)
+        self.rain_audio_intensity = max(0.0, min(1.0, target * self.rain_boss_fade))
+        return self.rain_audio_intensity
+
+    def update(self, dt, player, world, audio_manager=None, boss_combat_active=False):
+        self.update_rain_intensity(dt, player, world, boss_combat_active=boss_combat_active)
+
         # Hub Isolation Rule: Weather system completely freezes in the Sanctuary
         if getattr(world, 'name', '') == "sanctuary":
             return

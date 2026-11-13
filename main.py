@@ -434,8 +434,10 @@ def main():
                 if ratchet_reset: state.input_ratchet_latched = False
                 
                 if pause_menu.is_open():
+                    audio.update_rain_audio(0.0, paused=True)
                     renderer.draw_pause_menu(pause_menu)
                     if pause_menu.should_quit():
+                        audio.update_rain_audio(0.0, paused=True)
                         try: state.save_stats(wait=True)
                         except Exception: pass
                         pause_menu.clear_quit(); pause_menu.close(); in_title = True
