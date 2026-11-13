@@ -11,11 +11,18 @@ import sys
 # Add project root to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from constants import get_generated_world_path, POOL_MONTHLY_REPORT, POOL_CORRIDOR, POOL_SPECIAL_EDITION
+from constants import (
+    get_generated_world_path,
+    BIOME_SEGMENT_POOLS,
+    POOL_MONTHLY_REPORT,
+    POOL_CORRIDOR,
+)
+
 
 class WorldGenerator:
-    """Handles the data-driven generation of the macro-world layout."""
-    def __init__(self, world_id="macro_generated"):
+    """Handles the data-driven generation of a single-biome macro-world layout."""
+
+    def __init__(self, world_id="macro_generated", biome=None):
         self.world_id = world_id
         self.total_size = 440
         self.sockets = []
@@ -23,10 +30,17 @@ class WorldGenerator:
         self.spawn_y = 0
         self.boss_coords_list = []
 
-        # Asset pools (Strictly mapped by size)
+        available_biomes = list(BIOME_SEGMENT_POOLS.keys())
+        if biome and biome in BIOME_SEGMENT_POOLS:
+            self.biome = biome
+        else:
+            self.biome = random.choice(available_biomes)
+
+        biome_pool = BIOME_SEGMENT_POOLS.get(self.biome, {})
+        # Asset pools strictly scoped to the selected cohesive biome
         self.asset_pools = {
-            "120x120": list(POOL_MONTHLY_REPORT),
-            "40x40": list(POOL_CORRIDOR)
+            "120x120": list(biome_pool.get("rooms", POOL_MONTHLY_REPORT)),
+            "40x40": list(biome_pool.get("corridors", POOL_CORRIDOR)),
         }
 
     def generate_layout(self):
@@ -109,8 +123,10 @@ class WorldGenerator:
             self.boss_coords_list.append({"x": bx, "y": by})
 
         
-        # 5. The Pool Backfill Pass (Balanced biome deck ensures full biome variety each run)
+        # 5. The Pool Backfill Pass (Single cohesive biome deck across all sockets)
         room_deck = []
+        corridor_deck = []
+        fallback_room = f"maps/{self.biome}.json"
         for s in self.sockets:
             if s["active_plug"] is None:
                 is_large = "120x120" in s["tags"]
@@ -118,20 +134,26 @@ class WorldGenerator:
                     if not room_deck and filtered_120:
                         room_deck = list(filtered_120)
                         random.shuffle(room_deck)
-                    if random.random() < 0.1 and POOL_SPECIAL_EDITION:
-                        s["active_plug"] = random.choice(POOL_SPECIAL_EDITION)
-                    elif room_deck:
+                    if room_deck:
                         s["active_plug"] = room_deck.pop()
+                    elif os.path.exists(fallback_room):
+                        s["active_plug"] = fallback_room
                     else:
                         s["active_plug"] = "maps/smallcave.json"
                 else:
-                    s["active_plug"] = random.choice(filtered_40) if filtered_40 else "maps/smallcave.json"
+                    if not corridor_deck and filtered_40:
+                        corridor_deck = list(filtered_40)
+                        random.shuffle(corridor_deck)
+                    if corridor_deck:
+                        s["active_plug"] = corridor_deck.pop()
+                    else:
+                        s["active_plug"] = "maps/smallcave.json"
 
     def export_world(self, filename=None):
-        """Exports the layout as a macro-world JSON file."""
+        """Exports the layout as a single-biome macro-world JSON file."""
         if filename is None:
             filename = get_generated_world_path()
-            
+
         module_sockets = []
         for s in self.sockets:
             module_sockets.append({
@@ -139,11 +161,12 @@ class WorldGenerator:
                 "bounds": s["bounds"],
                 "active_plug": s["active_plug"]
             })
-        
+
         base_grid = [" " * self.total_size for _ in range(self.total_size)]
-        
+
         data = {
             "map_id": self.world_id,
+            "biome": self.biome,
             "dimensions": {"width": self.total_size, "height": self.total_size},
             "legend": {"#": "WALL_STONE", " ": "FLOOR_CLEAN", ".": "FLOOR_CLEAN"},
             "grid": base_grid,

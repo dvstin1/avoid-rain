@@ -894,6 +894,20 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
   - Added 7 new unit tests covering verticality asset generation, elevation tiers, staircase connections, auto-shading/auto-facing rules, and JSON/LevelLoader compatibility.
   - Verified 100% green test suite across all 242 unit tests in `pytest`, `pylint` rating 9.96/10, and line lengths <= 120 characters.
 
+## [ARCHIVED] Single-Biome World Stitching & Per-Biome Segment Pools - November 2026
+- **Per-Biome Multi-Segment Pools (`generate_maps.py`, `maps/segments/`):**
+  - Added `frozen_peaks` and full 5-biome macro-world support (`windy_ridge`, `pastoral_valley`, `swamp_mire`, `frozen_peaks`, `tech_tower`).
+  - Implemented `carve_segment_connectors()`, `generate_biome_segment()`, and `generate_biome_segment_pools()` producing distinct `120x120` room segments and `40x40` corridor segments with aligned 6-tile cardinal doorway connectors, BFS reachability, 2.5D verticality layers, and balanced enemy density.
+  - Added `--generate-pools` and `--segments-per-biome` CLI flags and generated 40 initial segment files (`4` rooms + `4` corridors per biome) into `maps/segments/<biome>/`.
+- **Single-Biome World Assembly (`constants.py`, `engine/world_generator.py`, `docs/modular_system.md`):**
+  - Registered `BIOME_SEGMENT_POOLS` in `constants.py` mapping each active biome to its room and corridor segment pools.
+  - Refactored `WorldGenerator` to select one cohesive biome per run and backfill every `120x120` and `40x40` socket exclusively from that biome's segment decks, eliminating cross-biome mid-map transitions.
+  - Updated `docs/modular_system.md` Sections 5 and 6 to document the per-biome segment pool and single-biome stitching pipeline.
+- **Verification (`tests/test_generate_maps.py`, `tests/test_macro_map.py`):**
+  - Added 4 new unit tests verifying cardinal connector alignment, pool generation, on-disk pool completeness, and single-biome world stitching across all 5 active biomes.
+  - Verified 100% green test suite across all 246 unit tests in `pytest` and `pylint` rating >= 8.0 (9.74/10).
+
+
 
 
 

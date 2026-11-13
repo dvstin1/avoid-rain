@@ -10,11 +10,14 @@ import os
 import tempfile
 import pytest
 
+from constants import BIOME_SEGMENT_POOLS
 from engine.world import LevelLoader
 from generate_maps import (
     generate_organic_biome,
     generate_architectural_biome,
     generate_procedural_map,
+    generate_biome_segment,
+    generate_biome_segment_pools,
     render_map_preview,
     find_spawn_point,
     apply_verticality_post_pass,
@@ -317,3 +320,66 @@ def test_verticality_serialization_and_engine_compatibility(temp_dir):
     grid, _, _, player_start, _, _, _ = LevelLoader.load_json_map(out_path)
     assert len(grid) == 36
     assert player_start is not None
+
+
+def test_biome_segment_connector_alignment():
+    """Verifies generated segments have aligned, mutually reachable N/S/E/W doorway connectors."""
+    for biome in ("swamp_mire", "tech_tower"):
+        seg = generate_biome_segment(biome=biome, width=40, height=40, variant_index=1, seed=505)
+        mid = 20
+        connectors = [(mid, 0), (mid, 39), (0, mid), (39, mid)]
+        for cx, cy in connectors:
+            assert seg.grid[cy][cx] != "#", f"Connector ({cx},{cy}) blocked in {biome}"
+            assert seg.elevation_grid[cy][cx] == ELEVATION_LOWER
+
+        # Verify all 4 cardinal connectors are mutually reachable via BFS
+        visited = set()
+        queue = [connectors[0]]
+        visited.add(connectors[0])
+        while queue:
+            qx, qy = queue.pop(0)
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                nx, ny = qx + dx, qy + dy
+                if 0 <= nx < 40 and 0 <= ny < 40 and seg.grid[ny][nx] != "#" and (nx, ny) not in visited:
+                    visited.add((nx, ny))
+                    queue.append((nx, ny))
+        for conn in connectors:
+            assert conn in visited, f"Connector {conn} unreachable from North connector in {biome}"
+
+
+def test_generate_biome_segment_pools(temp_dir):
+    """Verifies batch generation of multi-segment room and corridor pools per biome."""
+    manifest = generate_biome_segment_pools(
+        biomes=("swamp_mire", "tech_tower"),
+        segments_per_biome=2,
+        output_dir=temp_dir,
+        base_seed=2000,
+    )
+    assert set(manifest.keys()) == {"swamp_mire", "tech_tower"}
+    for biome, pools in manifest.items():
+        assert len(pools["rooms"]) == 2
+        assert len(pools["corridors"]) == 2
+        for path in pools["rooms"]:
+            assert os.path.exists(path)
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            assert data["dimensions"] == {"width": 120, "height": 120}
+            assert data["biome"] == biome
+        for path in pools["corridors"]:
+            assert os.path.exists(path)
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            assert data["dimensions"] == {"width": 40, "height": 40}
+            assert data["biome"] == biome
+
+
+def test_registered_segment_pools_on_disk():
+    """Verifies all registered BIOME_SEGMENT_POOLS files exist on disk with valid dimensions."""
+    assert len(BIOME_SEGMENT_POOLS) >= 5
+    for biome, pools in BIOME_SEGMENT_POOLS.items():
+        assert len(pools["rooms"]) >= 4, f"Expected >= 4 room segments for {biome}"
+        assert len(pools["corridors"]) >= 4, f"Expected >= 4 corridor segments for {biome}"
+        for path in pools["rooms"]:
+            assert os.path.exists(path), f"Missing room segment: {path}"
+        for path in pools["corridors"]:
+            assert os.path.exists(path), f"Missing corridor segment: {path}"

@@ -164,11 +164,18 @@ SYMBOL_COLOR_MAP: Dict[str, Tuple[int, int, int]] = {
 
 # Biome Classification Sets
 ORGANIC_BIOMES: Set[str] = {
-    "swamp_mire", "swamp", "wilds", "windy_ridge", "pastoral_valley", "forest", "mire_causeway"
+    "swamp_mire", "swamp", "wilds", "windy_ridge", "pastoral_valley",
+    "forest", "mire_causeway", "frozen_peaks",
 }
 ARCHITECTURAL_BIOMES: Set[str] = {
     "ruins", "sanctuary", "the_colophon", "tech_tower", "chambers", "gantry_bridge", "crypt"
 }
+ACTIVE_WORLD_BIOMES: Tuple[str, ...] = (
+    "windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower"
+)
+SEGMENTS_DIR = os.path.join(MAPS_DIR, "segments")
+DEFAULT_SEGMENTS_PER_BIOME = 4
+CONNECTOR_HALF_WIDTH = 3
 
 # Procedural Tuning Parameters
 ORGANIC_CA_INIT_WALL_CHANCE = 0.45
@@ -505,9 +512,9 @@ def generate_organic_biome(
             grid[ly][lx] = SYMBOL_LORE
             entities[f"{lx},{ly}"] = {"fragment_id": f"{active_biome}_chronicle", "name": "Weathered Parchment"}
 
-        # Scatter themed organic enemies
+        # Scatter themed organic enemies (balanced density for UDP sync & pacing)
         enemy_types = [SYMBOL_ENEMY_SLUG, SYMBOL_ENEMY_BAT, SYMBOL_ENEMY_FLUTTER, SYMBOL_ENEMY_SMEAR]
-        num_enemies = max(3, (width * height) // 130)
+        num_enemies = min(20, max(4, (width * height) // 750))
         for _ in range(num_enemies):
             if open_floors:
                 ex, ey = open_floors.pop()
@@ -701,7 +708,7 @@ def generate_architectural_biome(
         grid[my][mx] = SYMBOL_MINIBOSS_M1
 
     arch_enemies = [SYMBOL_ENEMY_SENTRY, SYMBOL_ENEMY_BINDLING, SYMBOL_ENEMY_BAT, SYMBOL_ENEMY_SLUG]
-    num_enemies = max(3, (width * height) // 140)
+    num_enemies = min(20, max(4, (width * height) // 750))
     for _ in range(num_enemies):
         if open_floors:
             ex, ey = open_floors.pop()
@@ -1051,7 +1058,7 @@ def generate_map(
     normalized_biome = biome.lower().strip()
     is_organic = (
         normalized_biome in ORGANIC_BIOMES
-        or any(term in normalized_biome for term in ("swamp", "wild", "pastor", "ridge"))
+        or any(term in normalized_biome for term in ("swamp", "wild", "pastor", "ridge", "frozen"))
     )
     if is_organic:
         return generate_organic_biome(width, height, normalized_biome, seed)
@@ -1060,6 +1067,121 @@ def generate_map(
 
 # Convenient alias
 generate_procedural_map = generate_map
+
+
+def carve_segment_connectors(
+    grid: List[List[str]],
+    half_width: int = CONNECTOR_HALF_WIDTH,
+) -> List[Tuple[int, int]]:
+    """Opens aligned cardinal doorway connectors on N/S/E/W edges for seamless module stitching."""
+    h = len(grid)
+    w = len(grid[0]) if h > 0 else 0
+    mid_x = w // 2
+    mid_y = h // 2
+    depth = min(4, max(2, min(w, h) // 10))
+
+    # North & South centered connectors
+    for y in range(depth):
+        for x in range(max(1, mid_x - half_width), min(w - 1, mid_x + half_width)):
+            grid[y][x] = SYMBOL_FLOOR
+            grid[h - 1 - y][x] = SYMBOL_FLOOR
+
+    # West & East centered connectors
+    for x in range(depth):
+        for y in range(max(1, mid_y - half_width), min(h - 1, mid_y + half_width)):
+            grid[y][x] = SYMBOL_FLOOR
+            grid[y][w - 1 - x] = SYMBOL_FLOOR
+
+    return [
+        (mid_x, 1),
+        (mid_x, h - 2),
+        (1, mid_y),
+        (w - 2, mid_y),
+    ]
+
+
+def generate_biome_segment(
+    biome: str,
+    width: int,
+    height: int,
+    variant_index: int = 1,
+    seed: Optional[int] = None,
+) -> GeneratedMap:
+    """Generates a stitchable biome module segment with aligned connectors and 2.5D verticality."""
+    rng = random.Random(seed)
+    gen_map = generate_map(biome=biome, width=width, height=height, seed=seed)
+    grid = gen_map.grid
+
+    # Remove standalone map-level spawn/warp markers from modular world segments
+    for y in range(height):
+        for x in range(width):
+            if grid[y][x] in (SYMBOL_PLAYER, SYMBOL_WARP):
+                grid[y][x] = SYMBOL_FLOOR
+
+    connectors = carve_segment_connectors(grid)
+    validate_and_carve_connectivity(grid, rng, mandatory_coords=connectors)
+
+    # Recompute elevation & verticality layers cleanly after carving connectors
+    if gen_map.biome in ARCHITECTURAL_BIOMES or "tech" in gen_map.biome:
+        margin = max(4, min(width, height) // 4)
+        elevation_grid, stairs = build_elevation_grid(
+            grid, terrace_rect=(margin, margin, width - 2 * margin, height - 2 * margin)
+        )
+    else:
+        elevation_grid, stairs = build_elevation_grid(
+            grid, terrace_center=(width // 2, height // 2), terrace_radius=max(4, min(width, height) // 6)
+        )
+
+    # Ensure connector doorway thresholds remain on ELEVATION_LOWER for flat stitching
+    for cx, cy in connectors:
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                nx, ny = cx + dx, cy + dy
+                if 0 <= nx < width and 0 <= ny < height:
+                    elevation_grid[ny][nx] = ELEVATION_LOWER
+
+    gen_map.elevation_grid = elevation_grid
+    gen_map.verticality_layers = apply_verticality_post_pass(grid, elevation_grid, stairs)
+
+    seg_kind = "room" if width >= 120 else "corridor"
+    gen_map.map_id = f"{gen_map.biome}_{seg_kind}_{variant_index}"
+    return gen_map
+
+
+def generate_biome_segment_pools(
+    biomes: Tuple[str, ...] = ACTIVE_WORLD_BIOMES,
+    segments_per_biome: int = DEFAULT_SEGMENTS_PER_BIOME,
+    output_dir: str = SEGMENTS_DIR,
+    base_seed: int = 1000,
+    render_previews: bool = False,
+) -> Dict[str, Dict[str, List[str]]]:
+    """Generates multi-segment room (120x120) and corridor (40x40) pools for each active biome."""
+    manifest: Dict[str, Dict[str, List[str]]] = {}
+    for b_idx, biome in enumerate(biomes):
+        biome_dir = os.path.join(output_dir, biome)
+        os.makedirs(biome_dir, exist_ok=True)
+        rooms: List[str] = []
+        corridors: List[str] = []
+
+        for v_idx in range(1, segments_per_biome + 1):
+            room_seed = base_seed + b_idx * 100 + v_idx * 2
+            room_map = generate_biome_segment(biome, 120, 120, variant_index=v_idx, seed=room_seed)
+            room_path = os.path.join(biome_dir, f"{biome}_room_{v_idx}.json")
+            room_map.save(room_path, file_format="json")
+            rooms.append(room_path)
+
+            corr_seed = base_seed + b_idx * 100 + v_idx * 2 + 1
+            corr_map = generate_biome_segment(biome, 40, 40, variant_index=v_idx, seed=corr_seed)
+            corr_path = os.path.join(biome_dir, f"{biome}_corridor_{v_idx}.json")
+            corr_map.save(corr_path, file_format="json")
+            corridors.append(corr_path)
+
+            if render_previews:
+                render_map_preview(room_map, os.path.join(PREVIEWS_DIR, f"{room_map.map_id}_preview.png"))
+                render_map_preview(corr_map, os.path.join(PREVIEWS_DIR, f"{corr_map.map_id}_preview.png"))
+
+        manifest[biome] = {"rooms": rooms, "corridors": corridors}
+    return manifest
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -1120,6 +1242,17 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="List available biomes and their procedural generation classification.",
     )
+    parser.add_argument(
+        "--generate-pools",
+        action="store_true",
+        help="Generate multi-segment 120x120 and 40x40 pools for all active world biomes into maps/segments/.",
+    )
+    parser.add_argument(
+        "--segments-per-biome",
+        type=int,
+        default=DEFAULT_SEGMENTS_PER_BIOME,
+        help="Number of room/corridor segments to generate per biome with --generate-pools (default: 4).",
+    )
     return parser.parse_args()
 
 
@@ -1138,6 +1271,21 @@ def main() -> None:
         return
 
     base_seed = args.seed if args.seed is not None else random.randint(1000, 99999)
+
+    if args.generate_pools:
+        print("==================================================")
+        print(" Avoid Rain - Per-Biome Segment Pool Generator")
+        print("==================================================")
+        manifest = generate_biome_segment_pools(
+            segments_per_biome=args.segments_per_biome,
+            base_seed=base_seed,
+            render_previews=args.preview,
+        )
+        for biome, pools in manifest.items():
+            print(f"  [+] {biome:<16} -> {len(pools['rooms'])} rooms (120x120), "
+                  f"{len(pools['corridors'])} corridors (40x40)")
+        print("Segment pool generation complete.")
+        return
 
     print("==================================================")
     print(" Avoid Rain - Procedural Map Generator")

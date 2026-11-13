@@ -292,6 +292,15 @@ POOL_CORRIDOR = [
     "maps/mire_causeway.json"
 ]
 
+# Per-Biome Modular Segment Pools (Single-Biome World Stitching)
+BIOME_SEGMENT_POOLS = {
+    biome: {
+        "rooms": [f"maps/segments/{biome}/{biome}_room_{i}.json" for i in range(1, 5)],
+        "corridors": [f"maps/segments/{biome}/{biome}_corridor_{i}.json" for i in range(1, 5)],
+    }
+    for biome in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")
+}
+
 # Weather System: The Bleed (Shrinking Circle)
 # Measurements in pixels
 WEATHER_MAX_RADIUS = 10000.0
