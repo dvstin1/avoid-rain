@@ -42,6 +42,8 @@
 - **`docs/backlog.md`**: Development roadmap and future feature proposals.
 - **`docs/testing.md`**: Unit testing standards and headless execution.
 - **`docs/CHANGELOG.md`**: Archive of completed features and deliverables.
+- **`.gemini/skills/doc-audit/SKILL.md`**: Local skill for auditing and aligning repository documentation against the codebase.
+- **`.gemini/skills/prompt-review/SKILL.md`**: Local read-only skill for pre-flight auditing of proposed Builder prompts against the codebase and docs.
 
 <!-- SINGLE ACTIVE PLACEHOLDER SECTION -->
 

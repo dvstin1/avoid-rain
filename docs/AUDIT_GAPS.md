@@ -14,7 +14,7 @@ A comprehensive documentation audit was executed across the entire repository, s
   `backlog.md`, `testing.md`, `CHANGELOG.md`).
 - **13 Extended Lore Notes** in `docs/extended-notes/`.
 - **16 UI & Enemy HTML Mocks** in `docs/extended-notes/enemies/` and `docs/extended-notes/title-screen/`.
-- **Central Hub**: `AGENTS.md` and `.gemini/skills/doc-audit/SKILL.md`.
+- **Central Hub**: `AGENTS.md`, `.gemini/skills/doc-audit/SKILL.md`, and `.gemini/skills/prompt-review/SKILL.md`.
 
 ### Health & Alignment Score
 - **Link Integrity:** 100% (all relative markdown links resolve to valid targets).
