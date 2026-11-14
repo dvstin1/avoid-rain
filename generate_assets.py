@@ -77,6 +77,25 @@ DEFAULT_BOSS_DAIS_PATH = os.path.join("assets", "graphics", "boss_dais_tile.png"
 DEFAULT_BOSS_PILLAR_PATH = os.path.join("assets", "graphics", "boss_pillar_tile.png")
 DEFAULT_BOSS_ABYSS_RIM_PATH = os.path.join("assets", "graphics", "boss_abyss_rim.png")
 
+# Legacy Prop & Landmark Asset Paths
+DEFAULT_WELLSPRING_PATH = os.path.join("assets", "graphics", "wellspring.png")
+DEFAULT_LOTUS_FRAME_PATH = os.path.join("assets", "graphics", "lotus_frame.png")
+DEFAULT_BENCH_PATH = os.path.join("assets", "graphics", "bench.png")
+DEFAULT_HEAVY_BOOKCASE_PATH = os.path.join("assets", "graphics", "heavy_bookcase.png")
+DEFAULT_INK_URN_PATH = os.path.join("assets", "graphics", "ink_urn.png")
+DEFAULT_INKWELL_PUDDLE_PATH = os.path.join("assets", "graphics", "inkwell_puddle.png")
+DEFAULT_CANDELABRA_PATH = os.path.join("assets", "graphics", "candelabra.png")
+DEFAULT_TREE_STRUCTURE_PATH = os.path.join("assets", "graphics", "tree_structure.png")
+
+# Act 1 / Un-Empowered Base Enemy & Boss Asset Paths
+DEFAULT_BAT_PATH = os.path.join("assets", "graphics", "bat.png")
+DEFAULT_FLUTTER_PATH = os.path.join("assets", "graphics", "flutter.png")
+DEFAULT_BINDLING_PATH = os.path.join("assets", "graphics", "bindling.png")
+DEFAULT_SMEAR_PATH = os.path.join("assets", "graphics", "smear.png")
+DEFAULT_MINIBOSS_PATH = os.path.join("assets", "graphics", "miniboss.png")
+DEFAULT_NIGHT_BOSS_PATH = os.path.join("assets", "graphics", "night_boss.png")
+DEFAULT_FINAL_AUTHOR_PATH = os.path.join("assets", "graphics", "final_author.png")
+
 # Canonical Dimensions
 TILE_WIDTH = 40
 TILE_HEIGHT = 40
@@ -2175,6 +2194,393 @@ def generate_chronicler(
     return surface
 
 
+def generate_wellspring(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 ornate stone/ink ritual basin with a glowing cyan runic water core."""
+    if rng is None:
+        rng = _asset_rng(DEFAULT_ASSET_SEED, "wellspring")
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+    # Outer shadow & carved slate rim
+    pygame.draw.rect(surface, (18, 20, 28, 180), (2, 3, width - 3, height - 3), border_radius=6)
+    pygame.draw.rect(surface, (58, 64, 78, 255), (2, 2, width - 4, height - 4), border_radius=6)
+    pygame.draw.rect(surface, (86, 94, 112, 255), (3, 3, width - 6, height - 6), 1, border_radius=5)
+    # Corner tarnished-brass clasps
+    for cx, cy in ((4, 4), (width - 8, 4), (4, height - 8), (width - 8, height - 8)):
+        pygame.draw.rect(surface, (148, 122, 68, 255), (cx, cy, 4, 4))
+    # Deep basin recess & luminous cyan runic water core
+    pygame.draw.rect(surface, (14, 34, 62, 255), (6, 6, width - 12, height - 12), border_radius=4)
+    pygame.draw.rect(surface, (28, 92, 138, 255), (8, 8, width - 16, height - 16), border_radius=3)
+    for _ in range(14):
+        rx = rng.randint(9, width - 11)
+        ry = rng.randint(9, height - 11)
+        col = (110, 235, 255, 220) if rng.random() < 0.55 else (48, 168, 210, 200)
+        surface.set_at((rx, ry), col)
+    # Central runic diamond
+    mid_x, mid_y = width // 2, height // 2
+    pygame.draw.polygon(
+        surface,
+        (165, 250, 255, 230),
+        [(mid_x, mid_y - 6), (mid_x + 6, mid_y), (mid_x, mid_y + 6), (mid_x - 6, mid_y)],
+        1,
+    )
+    return surface
+
+
+def generate_lotus_frame(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 dark indigo/obsidian carved frame with cyan-magenta filigree petals."""
+    if rng is None:
+        rng = _asset_rng(DEFAULT_ASSET_SEED, "lotus_frame")
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+    # Obsidian-indigo carved base
+    pygame.draw.rect(surface, (26, 30, 56, 255), (1, 1, width - 2, height - 2), border_radius=4)
+    pygame.draw.rect(surface, (44, 54, 96, 255), (2, 2, width - 4, height - 4), 2, border_radius=4)
+    pygame.draw.rect(surface, (16, 18, 34, 255), (7, 7, width - 14, height - 14), border_radius=3)
+    # Corner cyan-magenta filigree petals
+    mid_x, mid_y = width // 2, height // 2
+    petal_cols = [(0, 220, 245, 230), (220, 75, 185, 230)]
+    for idx, (px, py) in enumerate(((mid_x, 5), (width - 6, mid_y), (mid_x, height - 6), (5, mid_y))):
+        col = petal_cols[idx % 2]
+        pygame.draw.circle(surface, col, (px, py), 3)
+        surface.set_at((px, py), (235, 250, 255, 255))
+    # Inner filigree ring & subtle stone grit
+    pygame.draw.circle(surface, (74, 156, 210, 200), (mid_x, mid_y), 7, 1)
+    pygame.draw.circle(surface, (205, 80, 175, 220), (mid_x, mid_y), 3)
+    for _ in range(10):
+        gx, gy = rng.randint(3, width - 4), rng.randint(3, height - 4)
+        if gx < 7 or gx > width - 8 or gy < 7 or gy > height - 8:
+            surface.set_at((gx, gy), (62, 74, 122, 220))
+    return surface
+
+
+def generate_bench(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 weathered dark-oak reading bench with iron brackets."""
+    if rng is None:
+        rng = _asset_rng(DEFAULT_ASSET_SEED, "bench")
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+    # Soft floor shadow
+    pygame.draw.ellipse(surface, (12, 10, 14, 130), (3, height - 11, width - 6, 8))
+    # Iron legs & side brackets
+    for lx in (5, width - 10):
+        pygame.draw.rect(surface, (36, 38, 46, 255), (lx, 12, 5, height - 16))
+        pygame.draw.rect(surface, (78, 82, 94, 255), (lx + 1, 13, 2, height - 18))
+    # Backrest & seat planks in weathered dark oak
+    pygame.draw.rect(surface, (62, 38, 22, 255), (4, 8, width - 8, 9), border_radius=2)
+    pygame.draw.rect(surface, (108, 70, 40, 255), (4, 9, width - 8, 3))
+    pygame.draw.rect(surface, (78, 48, 26, 255), (3, 19, width - 6, 11), border_radius=2)
+    pygame.draw.rect(surface, (124, 84, 48, 255), (4, 19, width - 8, 3))
+    pygame.draw.line(surface, (42, 24, 14, 255), (4, 24), (width - 5, 24), 1)
+    # Iron rivets & wood grain flecks
+    for rx in (7, width - 8):
+        surface.set_at((rx, 12), (160, 165, 178, 255))
+        surface.set_at((rx, 21), (160, 165, 178, 255))
+    for _ in range(12):
+        gx = rng.randint(5, width - 6)
+        gy = rng.choice([11, 13, 21, 26])
+        surface.set_at((gx, gy), (52, 30, 18, 220))
+    return surface
+
+
+def generate_heavy_bookcase(
+    width: int = TILE_WIDTH * 2,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate an 80x40 double-wide tall timber-and-iron archive shelf packed with tomes."""
+    if rng is None:
+        rng = _asset_rng(DEFAULT_ASSET_SEED, "heavy_bookcase")
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+    # Outer dark mahogany frame & top cornice
+    pygame.draw.rect(surface, (34, 22, 16, 255), (0, 0, width, height), border_radius=3)
+    pygame.draw.rect(surface, (68, 44, 30, 255), (1, 1, width - 2, height - 2), border_radius=2)
+    pygame.draw.rect(surface, (128, 92, 56, 255), (1, 1, width - 2, 4))
+    # Recessed shelf interiors
+    pygame.draw.rect(surface, (24, 16, 12, 255), (4, 7, width - 8, height // 2 - 8))
+    pygame.draw.rect(surface, (24, 16, 12, 255), (4, height // 2 + 2, width - 8, height // 2 - 6))
+    # Iron corner rivets & vertical divider
+    pygame.draw.rect(surface, (46, 48, 56, 255), (width // 2 - 2, 5, 4, height - 7))
+    for rx in (2, width - 4, width // 2 - 1):
+        surface.set_at((rx, 2), (145, 150, 164, 255))
+        surface.set_at((rx, height - 3), (145, 150, 164, 255))
+    # Crooked leather & parchment tomes on both shelves
+    spine_palette = [
+        (132, 48, 44, 255),
+        (56, 98, 128, 255),
+        (168, 144, 96, 255),
+        (92, 58, 108, 255),
+        (68, 104, 72, 255),
+        (146, 98, 52, 255),
+    ]
+    for shelf_y, shelf_h in ((7, height // 2 - 8), (height // 2 + 2, height // 2 - 6)):
+        bx = 5
+        while bx < width - 9:
+            if bx in range(width // 2 - 4, width // 2 + 3):
+                bx += 3
+                continue
+            bw = rng.randint(4, 6)
+            bh = max(6, shelf_h - rng.randint(0, 4))
+            col = rng.choice(spine_palette)
+            by = shelf_y + (shelf_h - bh)
+            pygame.draw.rect(surface, col, (bx, by, bw, bh))
+            pygame.draw.line(surface, (220, 205, 175, 160), (bx + 1, by + 2), (bx + bw - 2, by + 2), 1)
+            bx += bw + rng.randint(1, 2)
+    return surface
+
+
+def generate_ink_urn(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 cracked obsidian/ceramic amphora overflowing with black-violet ink."""
+    if rng is None:
+        rng = _asset_rng(DEFAULT_ASSET_SEED, "ink_urn")
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+    # Base ink spill puddle
+    pygame.draw.ellipse(surface, (18, 10, 28, 210), (7, height - 11, width - 14, 8))
+    # Ceramic/obsidian amphora body
+    pygame.draw.ellipse(surface, (36, 44, 68, 255), (9, 10, width - 18, height - 15))
+    pygame.draw.ellipse(surface, (58, 74, 110, 255), (10, 11, width - 22, height - 19))
+    pygame.draw.circle(surface, (112, 162, 215, 210), (cx - 4, cy), 3)
+    # Tarnished brass neck & rim
+    pygame.draw.rect(surface, (158, 134, 82, 255), (12, 5, width - 24, 6), border_radius=2)
+    pygame.draw.ellipse(surface, (20, 12, 34, 255), (13, 6, width - 26, 3))
+    # Crack & overflowing glossy black-violet ink drips
+    pygame.draw.line(surface, (14, 10, 22, 255), (cx + 2, 13), (cx + 5, 22), 1)
+    pygame.draw.line(surface, (14, 10, 22, 255), (cx + 5, 22), (cx + 3, 28), 1)
+    for dx, dh in ((-3, 12), (1, 16), (4, 10)):
+        pygame.draw.rect(surface, (28, 12, 46, 255), (cx + dx, 8, 2, dh))
+        if rng.random() < 0.7:
+            surface.set_at((cx + dx, 8 + dh // 2), (145, 72, 195, 230))
+    return surface
+
+
+def generate_inkwell_puddle(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 glossy dark ink pool with specular sheen highlights."""
+    if rng is None:
+        rng = _asset_rng(DEFAULT_ASSET_SEED, "inkwell_puddle")
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+    # Irregular outer ink lobes
+    pygame.draw.circle(surface, (14, 8, 22, 235), (cx, cy), width // 2 - 2)
+    pygame.draw.circle(surface, (28, 14, 46, 240), (cx - 4, cy - 2), width // 3 + 1)
+    pygame.draw.circle(surface, (28, 14, 46, 240), (cx + 5, cy + 3), width // 3)
+    pygame.draw.circle(surface, (18, 8, 30, 245), (cx, cy), width // 3 - 1)
+    # Specular violet-slate sheen arcs and droplets
+    pygame.draw.arc(surface, (132, 72, 172, 190), (cx - 10, cy - 9, 18, 14), 0.5, 2.4, 1)
+    for _ in range(8):
+        sx = rng.randint(cx - 10, cx + 10)
+        sy = rng.randint(cy - 10, cy + 10)
+        surface.set_at((sx, sy), (168, 110, 212, 200))
+    return surface
+
+
+def generate_candelabra(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 wrought-iron multi-arm stand with flickering amber tallow candles."""
+    if rng is None:
+        rng = _asset_rng(DEFAULT_ASSET_SEED, "candelabra")
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+    cx = width // 2
+    # Shadow & tripod wrought-iron base
+    pygame.draw.ellipse(surface, (12, 10, 14, 140), (cx - 10, height - 8, 20, 6))
+    pygame.draw.line(surface, (42, 44, 52, 255), (cx, height - 8), (cx - 8, height - 4), 2)
+    pygame.draw.line(surface, (42, 44, 52, 255), (cx, height - 8), (cx + 8, height - 4), 2)
+    pygame.draw.rect(surface, (52, 54, 64, 255), (cx - 2, 13, 4, height - 19))
+    # Cross-arms
+    pygame.draw.rect(surface, (58, 60, 72, 255), (cx - 9, 17, 18, 2))
+    for arm_x in (cx - 8, cx + 8):
+        pygame.draw.rect(surface, (58, 60, 72, 255), (arm_x - 1, 13, 2, 5))
+    # Three tallow candles & warm amber/gold flames
+    candle_positions = ((cx - 8, 9), (cx, 6), (cx + 8, 9))
+    for kx, ky in candle_positions:
+        pygame.draw.rect(surface, (226, 214, 184, 255), (kx - 1, ky + 3, 3, 5))
+        pygame.draw.circle(surface, (255, 175, 42, 220), (kx, ky + 1), 2)
+        surface.set_at((kx, ky), (255, 245, 175, 255))
+        if rng.random() < 0.5:
+            surface.set_at((kx, ky + 4), (242, 232, 208, 255))
+    return surface
+
+
+def generate_tree_structure(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 twisted dark-wood literary/forest tree sprite for default biomes."""
+    if rng is None:
+        rng = _asset_rng(DEFAULT_ASSET_SEED, "tree_structure")
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2 - 4
+    # Ground shadow & gnarled bark trunk/roots
+    pygame.draw.ellipse(surface, (14, 18, 16, 150), (cx - 12, height - 11, 24, 8))
+    pygame.draw.rect(surface, (46, 30, 20, 255), (cx - 5, height - 18, 10, 12), border_radius=2)
+    pygame.draw.line(surface, (68, 44, 28, 255), (cx - 4, height - 8), (cx - 9, height - 5), 2)
+    pygame.draw.line(surface, (68, 44, 28, 255), (cx + 4, height - 8), (cx + 9, height - 5), 2)
+    # Layered dark-forest canopy with muted moss/sage highlights
+    pygame.draw.circle(surface, (20, 38, 28, 255), (cx, cy + 1), width // 2 - 2)
+    pygame.draw.circle(surface, (34, 72, 46, 255), (cx - 2, cy), width // 2 - 5)
+    pygame.draw.circle(surface, (54, 108, 64, 255), (cx - 3, cy - 3), width // 3)
+    for _ in range(28):
+        lx = rng.randint(6, width - 7)
+        ly = rng.randint(4, cy + 8)
+        if math.hypot(lx - cx, ly - cy) <= width // 2 - 4:
+            col = (98, 148, 86, 230) if rng.random() < 0.45 else (26, 48, 34, 230)
+            surface.set_at((lx, ly), col)
+    return surface
+
+
+def generate_base_enemy_sprite(
+    kind: str,
+    width: int = 40,
+    height: int = 40,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate muted ink/parchment/brass Act 1 base sprites for enemies and bosses."""
+    if rng is None:
+        rng = _asset_rng(DEFAULT_ASSET_SEED, kind)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    if kind == "bat":
+        # Charcoal body & tattered parchment-vellum wings
+        wing_col = (158, 142, 114, 255)
+        wing_edge = (64, 54, 46, 255)
+        pygame.draw.polygon(surf, wing_col, [(cx, cy), (3, cy - 8), (6, cy + 6), (cx - 4, cy + 3)])
+        pygame.draw.polygon(surf, wing_col, [(cx, cy), (width - 4, cy - 8), (width - 7, cy + 6), (cx + 4, cy + 3)])
+        pygame.draw.line(surf, wing_edge, (cx, cy), (3, cy - 8), 2)
+        pygame.draw.line(surf, wing_edge, (cx, cy), (width - 4, cy - 8), 2)
+        pygame.draw.circle(surf, (44, 42, 48, 255), (cx, cy), max(6, width // 5))
+        pygame.draw.polygon(surf, (44, 42, 48, 255), [(cx - 5, cy - 4), (cx - 3, cy - 11), (cx - 1, cy - 4)])
+        pygame.draw.polygon(surf, (44, 42, 48, 255), [(cx + 1, cy - 4), (cx + 3, cy - 11), (cx + 5, cy - 4)])
+        surf.set_at((cx - 2, cy - 1), (225, 185, 95, 255))
+        surf.set_at((cx + 2, cy - 1), (225, 185, 95, 255))
+        surf.set_at((cx - 2, cy + 3), (235, 228, 210, 255))
+        surf.set_at((cx + 2, cy + 3), (235, 228, 210, 255))
+        return surf
+
+    if kind == "flutter":
+        # Loose aged-parchment manuscript page with charcoal script lines & wax seal
+        page_poly = [(8, 8), (width - 10, 6), (width - 6, height - 10), (10, height - 7)]
+        pygame.draw.polygon(surf, (198, 184, 152, 255), page_poly)
+        pygame.draw.polygon(surf, (88, 76, 58, 255), page_poly, 1)
+        for ly in range(12, height - 12, 4):
+            pygame.draw.line(surf, (56, 50, 46, 220), (12, ly), (width - 12 - rng.randint(0, 5), ly), 1)
+        pygame.draw.circle(surf, (148, 46, 46, 255), (cx + 4, cy + 4), 3)
+        surf.set_at((7, 14), (48, 44, 52, 220))
+        surf.set_at((width - 7, height - 14), (48, 44, 52, 220))
+        return surf
+
+    if kind == "bindling":
+        # Stitched leather-and-twine book-construct crawler
+        pygame.draw.rect(surf, (88, 58, 42, 255), (6, 6, width - 12, height - 12), border_radius=5)
+        pygame.draw.rect(surf, (54, 34, 24, 255), (8, 7, width - 16, 10), border_radius=3)
+        pygame.draw.line(surf, (206, 192, 162, 255), (10, 18), (width - 11, height - 10), 2)
+        pygame.draw.line(surf, (206, 192, 162, 255), (width - 11, 18), (10, height - 10), 2)
+        pygame.draw.rect(surf, (158, 134, 78, 255), (6, cy - 2, 3, 5))
+        pygame.draw.rect(surf, (158, 134, 78, 255), (width - 9, cy - 2, 3, 5))
+        pygame.draw.circle(surf, (218, 206, 178, 255), (cx - 1, cy + 2), 2)
+        return surf
+
+    if kind == "smear":
+        # Amorphous wet-ink blot creature in charcoal-indigo with glossy highlights
+        pygame.draw.circle(surf, (24, 22, 34, 245), (cx, cy), width // 3)
+        for ang in (0.4, 1.9, 3.5, 5.1):
+            lx = cx + int(math.cos(ang) * (width * 0.22))
+            ly = cy + int(math.sin(ang) * (height * 0.22))
+            pygame.draw.circle(surf, (32, 28, 46, 240), (lx, ly), max(4, width // 5))
+        pygame.draw.circle(surf, (130, 195, 210, 245), (cx, cy + 2), 4)
+        pygame.draw.arc(surf, (112, 106, 138, 190), (cx - 9, cy - 9, 16, 12), 0.6, 2.5, 1)
+        return surf
+
+    if kind == "miniboss":
+        # Armored ink-warden knight with heavy tome-plate pauldrons & tarnished brass trim
+        pygame.draw.circle(surf, (62, 66, 78, 255), (8, cy - 4), 8)
+        pygame.draw.circle(surf, (62, 66, 78, 255), (width - 8, cy - 4), 8)
+        pygame.draw.rect(surf, (44, 46, 56, 255), (7, 5, width - 14, height - 10), border_radius=6)
+        pygame.draw.rect(surf, (148, 124, 74, 255), (8, 5, width - 16, 3))
+        pygame.draw.rect(surf, (18, 20, 26, 255), (11, 12, width - 22, 6), border_radius=2)
+        pygame.draw.circle(surf, (232, 196, 108, 255), (cx - 3, 15), 2)
+        pygame.draw.circle(surf, (232, 196, 108, 255), (cx + 3, 15), 2)
+        return surf
+
+    if kind == "night_boss":
+        # 64x64 towering hooded archival reaper in nocturnal ink robes
+        pygame.draw.polygon(
+            surf,
+            (28, 26, 36, 255),
+            [(cx, 6), (width - 10, height - 6), (cx, height - 2), (10, height - 6)],
+        )
+        pygame.draw.polygon(
+            surf,
+            (168, 152, 118, 235),
+            [(cx - 9, 24), (cx - 4, 24), (cx - 8, height - 10), (cx - 13, height - 12)],
+        )
+        pygame.draw.polygon(
+            surf,
+            (168, 152, 118, 235),
+            [(cx + 4, 24), (cx + 9, 24), (cx + 13, height - 12), (cx + 8, height - 10)],
+        )
+        pygame.draw.ellipse(surf, (44, 42, 56, 255), (cx - 12, 8, 24, 20))
+        pygame.draw.ellipse(surf, (14, 14, 20, 255), (cx - 8, 13, 16, 12))
+        pygame.draw.circle(surf, (158, 218, 232, 255), (cx - 3, 18), 2)
+        pygame.draw.circle(surf, (158, 218, 232, 255), (cx + 3, 18), 2)
+        pygame.draw.rect(surf, (148, 122, 68, 255), (cx - 14, 24, 5, 4))
+        pygame.draw.rect(surf, (148, 122, 68, 255), (cx + 9, 24, 5, 4))
+        return surf
+
+    # final_author (80x80): Sovereign quill-crowned ink arbiter in gilded-parchment vestments
+    pygame.draw.polygon(
+        surf,
+        (36, 34, 44, 255),
+        [(cx, 18), (width - 10, height - 6), (cx, height - 3), (10, height - 6)],
+    )
+    pygame.draw.polygon(
+        surf,
+        (194, 174, 124, 255),
+        [(cx - 22, 28), (cx + 22, 28), (cx + 14, height - 12), (cx - 14, height - 12)],
+    )
+    pygame.draw.polygon(
+        surf,
+        (154, 126, 66, 255),
+        [(cx - 20, 28), (cx + 20, 28), (cx + 12, 40), (cx - 12, 40)],
+    )
+    # Quill-crowned helm
+    for qx in (cx - 10, cx, cx + 10):
+        pygame.draw.polygon(surf, (226, 212, 168, 255), [(qx, 4), (qx - 3, 18), (qx + 3, 18)])
+    pygame.draw.ellipse(surf, (16, 14, 22, 255), (cx - 11, 14, 22, 16))
+    pygame.draw.circle(surf, (245, 216, 122, 255), (cx - 4, 21), 2)
+    pygame.draw.circle(surf, (245, 216, 122, 255), (cx + 4, 21), 2)
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -2208,6 +2614,21 @@ def generate_all_assets(
     boss_dais_path: str = DEFAULT_BOSS_DAIS_PATH,
     boss_pillar_path: str = DEFAULT_BOSS_PILLAR_PATH,
     boss_abyss_rim_path: str = DEFAULT_BOSS_ABYSS_RIM_PATH,
+    wellspring_path: str = DEFAULT_WELLSPRING_PATH,
+    lotus_frame_path: str = DEFAULT_LOTUS_FRAME_PATH,
+    bench_path: str = DEFAULT_BENCH_PATH,
+    heavy_bookcase_path: str = DEFAULT_HEAVY_BOOKCASE_PATH,
+    ink_urn_path: str = DEFAULT_INK_URN_PATH,
+    inkwell_puddle_path: str = DEFAULT_INKWELL_PUDDLE_PATH,
+    candelabra_path: str = DEFAULT_CANDELABRA_PATH,
+    tree_structure_path: str = DEFAULT_TREE_STRUCTURE_PATH,
+    bat_path: str = DEFAULT_BAT_PATH,
+    flutter_path: str = DEFAULT_FLUTTER_PATH,
+    bindling_path: str = DEFAULT_BINDLING_PATH,
+    smear_path: str = DEFAULT_SMEAR_PATH,
+    miniboss_path: str = DEFAULT_MINIBOSS_PATH,
+    night_boss_path: str = DEFAULT_NIGHT_BOSS_PATH,
+    final_author_path: str = DEFAULT_FINAL_AUTHOR_PATH,
     seed: int = DEFAULT_ASSET_SEED,
     stats_out: Dict[str, int] | None = None,
 ) -> Dict[str, str]:
@@ -2348,6 +2769,46 @@ def generate_all_assets(
     for key, kind, w, h in empowered_specs:
         out_path = os.path.join("assets", "graphics", f"{key}.png")
         surf = generate_empowered_enemy_sprite(kind, w, h, rng=_rng(key))
+        _emit(key, out_path, surf)
+
+    # Pipeline 12: Legacy Props & Landmarks
+    legacy_prop_specs = [
+        ("wellspring", wellspring_path, generate_wellspring(TILE_WIDTH, TILE_HEIGHT, rng=_rng("wellspring"))),
+        ("lotus_frame", lotus_frame_path, generate_lotus_frame(TILE_WIDTH, TILE_HEIGHT, rng=_rng("lotus_frame"))),
+        ("bench", bench_path, generate_bench(TILE_WIDTH, TILE_HEIGHT, rng=_rng("bench"))),
+        (
+            "heavy_bookcase",
+            heavy_bookcase_path,
+            generate_heavy_bookcase(TILE_WIDTH * 2, TILE_HEIGHT, rng=_rng("heavy_bookcase")),
+        ),
+        ("ink_urn", ink_urn_path, generate_ink_urn(TILE_WIDTH, TILE_HEIGHT, rng=_rng("ink_urn"))),
+        (
+            "inkwell_puddle",
+            inkwell_puddle_path,
+            generate_inkwell_puddle(TILE_WIDTH, TILE_HEIGHT, rng=_rng("inkwell_puddle")),
+        ),
+        ("candelabra", candelabra_path, generate_candelabra(TILE_WIDTH, TILE_HEIGHT, rng=_rng("candelabra"))),
+        (
+            "tree_structure",
+            tree_structure_path,
+            generate_tree_structure(TILE_WIDTH, TILE_HEIGHT, rng=_rng("tree_structure")),
+        ),
+    ]
+    for key, out_path, surf in legacy_prop_specs:
+        _emit(key, out_path, surf)
+
+    # Pipeline 13: Act 1 / Un-Empowered Base Enemies & Bosses
+    base_enemy_specs = [
+        ("bat", bat_path, "bat", 40, 40),
+        ("flutter", flutter_path, "flutter", 40, 40),
+        ("bindling", bindling_path, "bindling", 40, 40),
+        ("smear", smear_path, "smear", 40, 40),
+        ("miniboss", miniboss_path, "miniboss", 40, 40),
+        ("night_boss", night_boss_path, "night_boss", 64, 64),
+        ("final_author", final_author_path, "final_author", 80, 80),
+    ]
+    for key, out_path, kind, w, h in base_enemy_specs:
+        surf = generate_base_enemy_sprite(kind, w, h, rng=_rng(key))
         _emit(key, out_path, surf)
 
     if stats_out is not None:
@@ -2524,7 +2985,14 @@ def main() -> None:
     written = generate_all_assets(stats_out=gen_stats)
     for name, path in written.items():
         size_kb = os.path.getsize(path) / 1024.0 if os.path.exists(path) else 0.0
-        print(f"  [+] {name:<18} -> {path} ({size_kb:.1f} KB, {TILE_WIDTH}x{TILE_HEIGHT})")
+        dims = f"{TILE_WIDTH}x{TILE_HEIGHT}"
+        if os.path.exists(path):
+            try:
+                w_px, h_px = pygame.image.load(path).get_size()
+                dims = f"{w_px}x{h_px}"
+            except pygame.error:
+                pass
+        print(f"  [+] {name:<18} -> {path} ({size_kb:.1f} KB, {dims})")
 
     print(
         f"All assets processed: {gen_stats.get('updated', 0)} updated, "

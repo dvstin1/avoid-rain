@@ -401,6 +401,24 @@ def test_generate_all_assets_includes_verticality():
             cliff_edge_path=os.path.join(tmpdir, "cliff_edge.png"),
             staircase_path=os.path.join(tmpdir, "staircase_tile.png"),
             pit_rim_path=os.path.join(tmpdir, "pit_rim.png"),
+            boss_dais_path=os.path.join(tmpdir, "boss_dais_tile.png"),
+            boss_pillar_path=os.path.join(tmpdir, "boss_pillar_tile.png"),
+            boss_abyss_rim_path=os.path.join(tmpdir, "boss_abyss_rim.png"),
+            wellspring_path=os.path.join(tmpdir, "wellspring.png"),
+            lotus_frame_path=os.path.join(tmpdir, "lotus_frame.png"),
+            bench_path=os.path.join(tmpdir, "bench.png"),
+            heavy_bookcase_path=os.path.join(tmpdir, "heavy_bookcase.png"),
+            ink_urn_path=os.path.join(tmpdir, "ink_urn.png"),
+            inkwell_puddle_path=os.path.join(tmpdir, "inkwell_puddle.png"),
+            candelabra_path=os.path.join(tmpdir, "candelabra.png"),
+            tree_structure_path=os.path.join(tmpdir, "tree_structure.png"),
+            bat_path=os.path.join(tmpdir, "bat.png"),
+            flutter_path=os.path.join(tmpdir, "flutter.png"),
+            bindling_path=os.path.join(tmpdir, "bindling.png"),
+            smear_path=os.path.join(tmpdir, "smear.png"),
+            miniboss_path=os.path.join(tmpdir, "miniboss.png"),
+            night_boss_path=os.path.join(tmpdir, "night_boss.png"),
+            final_author_path=os.path.join(tmpdir, "final_author.png"),
             seed=42,
         )
         for key in (
@@ -458,6 +476,24 @@ def test_respite_and_chronicler_sprites():
             cliff_edge_path=os.path.join(tmpdir, "cliff_edge.png"),
             staircase_path=os.path.join(tmpdir, "staircase_tile.png"),
             pit_rim_path=os.path.join(tmpdir, "pit_rim.png"),
+            boss_dais_path=os.path.join(tmpdir, "boss_dais_tile.png"),
+            boss_pillar_path=os.path.join(tmpdir, "boss_pillar_tile.png"),
+            boss_abyss_rim_path=os.path.join(tmpdir, "boss_abyss_rim.png"),
+            wellspring_path=os.path.join(tmpdir, "wellspring.png"),
+            lotus_frame_path=os.path.join(tmpdir, "lotus_frame.png"),
+            bench_path=os.path.join(tmpdir, "bench.png"),
+            heavy_bookcase_path=os.path.join(tmpdir, "heavy_bookcase.png"),
+            ink_urn_path=os.path.join(tmpdir, "ink_urn.png"),
+            inkwell_puddle_path=os.path.join(tmpdir, "inkwell_puddle.png"),
+            candelabra_path=os.path.join(tmpdir, "candelabra.png"),
+            tree_structure_path=os.path.join(tmpdir, "tree_structure.png"),
+            bat_path=os.path.join(tmpdir, "bat.png"),
+            flutter_path=os.path.join(tmpdir, "flutter.png"),
+            bindling_path=os.path.join(tmpdir, "bindling.png"),
+            smear_path=os.path.join(tmpdir, "smear.png"),
+            miniboss_path=os.path.join(tmpdir, "miniboss.png"),
+            night_boss_path=os.path.join(tmpdir, "night_boss.png"),
+            final_author_path=os.path.join(tmpdir, "final_author.png"),
             seed=42,
         )
         for key in ("respite", "respite_corrupted", "chronicler"):
@@ -521,10 +557,46 @@ def test_generate_all_assets_is_idempotent_on_second_run(tmp_path):
         "boss_dais_path": str(tmp_path / "boss_dais_tile.png"),
         "boss_pillar_path": str(tmp_path / "boss_pillar_tile.png"),
         "boss_abyss_rim_path": str(tmp_path / "boss_abyss_rim.png"),
+        "wellspring_path": str(tmp_path / "wellspring.png"),
+        "lotus_frame_path": str(tmp_path / "lotus_frame.png"),
+        "bench_path": str(tmp_path / "bench.png"),
+        "heavy_bookcase_path": str(tmp_path / "heavy_bookcase.png"),
+        "ink_urn_path": str(tmp_path / "ink_urn.png"),
+        "inkwell_puddle_path": str(tmp_path / "inkwell_puddle.png"),
+        "candelabra_path": str(tmp_path / "candelabra.png"),
+        "tree_structure_path": str(tmp_path / "tree_structure.png"),
+        "bat_path": str(tmp_path / "bat.png"),
+        "flutter_path": str(tmp_path / "flutter.png"),
+        "bindling_path": str(tmp_path / "bindling.png"),
+        "smear_path": str(tmp_path / "smear.png"),
+        "miniboss_path": str(tmp_path / "miniboss.png"),
+        "night_boss_path": str(tmp_path / "night_boss.png"),
+        "final_author_path": str(tmp_path / "final_author.png"),
     }
     stats1 = {}
     paths = generate_assets.generate_all_assets(**kwargs, stats_out=stats1)
     assert stats1["updated"] > 0
+
+    expected_sizes = {
+        "wellspring": (40, 40),
+        "lotus_frame": (40, 40),
+        "bench": (40, 40),
+        "heavy_bookcase": (80, 40),
+        "ink_urn": (40, 40),
+        "inkwell_puddle": (40, 40),
+        "candelabra": (40, 40),
+        "tree_structure": (40, 40),
+        "bat": (40, 40),
+        "flutter": (40, 40),
+        "bindling": (40, 40),
+        "smear": (40, 40),
+        "miniboss": (40, 40),
+        "night_boss": (64, 64),
+        "final_author": (80, 80),
+    }
+    for key, expected_size in expected_sizes.items():
+        assert os.path.exists(paths[key])
+        assert pygame.image.load(paths[key]).get_size() == expected_size
 
     mtimes_before = {k: os.stat(p).st_mtime_ns for k, p in paths.items()}
 

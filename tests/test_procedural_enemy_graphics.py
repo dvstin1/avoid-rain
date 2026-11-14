@@ -3,7 +3,16 @@
 import pygame
 import constants
 from rendering.renderer import Renderer
-from engine.enemy import BatEnemy, FlutterEnemy, BindlingEnemy, SmearEnemy, Miniboss, SentryEnemy
+from engine.enemy import (
+    BatEnemy,
+    FlutterEnemy,
+    BindlingEnemy,
+    SmearEnemy,
+    Miniboss,
+    NightBoss,
+    FinalAuthor,
+    SentryEnemy,
+)
 from engine.actor import Actor, ActorState
 from engine.player import Player, PlayerStateEnum
 from engine.maps import create_world
@@ -57,28 +66,47 @@ def _create_headless_renderer(monkeypatch, recorded_draws):
 
 
 def test_procedural_enemies_render_distinct_shapes(monkeypatch):
-    """Verify Bat, Flutter, Bindling, Smear, and Miniboss render procedural geometric shapes."""
+    """Verify Act 1 base enemy PNGs and Act 2 empowered PNGs render cleanly with distinct sprites."""
     recorded = []
     renderer = _create_headless_renderer(monkeypatch, recorded)
 
-    enemies = [
-        (BatEnemy(100, 100), constants.COLOR_BAT_BODY),
-        (FlutterEnemy(150, 100), constants.COLOR_FLUTTER_BODY),
-        (BindlingEnemy(200, 100), constants.COLOR_BINDLING_PARCHMENT),
-        (SmearEnemy(250, 100), constants.COLOR_SMEAR_BLOB),
-        (Miniboss(300, 100), constants.COLOR_BOSS_ARMOR),
+    act1_expected = [
+        (BatEnemy(100, 100), "bat.png", (40, 40)),
+        (FlutterEnemy(150, 100), "flutter.png", (40, 40)),
+        (BindlingEnemy(200, 100), "bindling.png", (40, 40)),
+        (SmearEnemy(250, 100), "smear.png", (40, 40)),
+        (Miniboss(300, 100), "miniboss.png", (40, 40)),
+        (NightBoss(350, 100), "night_boss.png", (64, 64)),
+        (FinalAuthor(400, 100), "final_author.png", (80, 80)),
     ]
 
-    for enemy, expected_color in enemies:
-        recorded.clear()
-        renderer.draw_actor_ghost(enemy, 0, 0, None)
-        colors_drawn = [call[1] for call in recorded]
-        assert expected_color in colors_drawn, f"Expected {expected_color} for {enemy.name}"
-        assert len(recorded) >= 4
+    for enemy, expected_key, expected_size in act1_expected:
+        assert expected_key in renderer.image_cache, f"{expected_key} missing from image_cache"
+        assert renderer.image_cache[expected_key].get_size() == expected_size
+        rect = pygame.Rect(int(enemy.x), int(enemy.y), enemy.width, enemy.height)
+        handled = renderer.draw_procedural_enemy(enemy, rect, enemy.get_visual_packet(), (100, 100, 100))
+        assert handled is True
+
+    # Act 2 empowered variants remain distinct from Act 1 base sprites
+    act2_bat = BatEnemy(100, 100)
+    act2_bat.is_empowered = True
+    assert pygame.image.tobytes(renderer.image_cache["bat.png"], "RGBA") != pygame.image.tobytes(
+        renderer.image_cache["bat_empowered.png"], "RGBA"
+    )
+    assert renderer.draw_procedural_enemy(
+        act2_bat, pygame.Rect(100, 100, 40, 40), act2_bat.get_visual_packet(), (100, 100, 100)
+    )
+
+    # Sentry remains procedural in Act 1
+    recorded.clear()
+    sentry = SentryEnemy(450, 100)
+    renderer.draw_actor_ghost(sentry, 0, 0, None)
+    colors_drawn = [call[1] for call in recorded]
+    assert constants.COLOR_SENTRY_CHASSIS in colors_drawn
 
 
 def test_procedural_enemy_telegraph_color_override(monkeypatch):
-    """Verify WIND_UP and STRIKE states override procedural enemy primary colors."""
+    """Verify WIND_UP and STRIKE states draw telegraph highlight borders over enemy sprites."""
     recorded = []
     renderer = _create_headless_renderer(monkeypatch, recorded)
 

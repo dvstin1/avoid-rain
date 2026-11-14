@@ -86,6 +86,23 @@ A standalone, deterministic generator script producing 40x40 dark-fantasy grit-t
   - `ruins_rubble.png`: Broken fluted stone pillar segments and chipped masonry debris.
   - `swamp_flora.png`: Arching marsh reeds and bioluminescent fungal clusters with spore glow halos.
   - `crypt_clutter.png`: Scattered aged parchment scrolls with faded ink text and bleached skull/bone fragments.
+- **Map Landmarks & Interior Props (Transparent Alpha):**
+  - `wellspring.png` (40x40): Carved slate ritual basin with brass corner clasps and glowing cyan runic water core.
+  - `lotus_frame.png` (40x40): Dark indigo/obsidian carved frame with cyan-magenta filigree petals.
+  - `bench.png` (40x40): Weathered dark-oak reading bench with iron brackets.
+  - `heavy_bookcase.png` (80x40): Double-wide timber-and-iron archive shelf packed with crooked leather and parchment tomes.
+  - `ink_urn.png` (40x40): Cracked obsidian/ceramic amphora overflowing with glossy black-violet ink drips.
+  - `inkwell_puddle.png` (40x40): Glossy dark ink pool with subtle specular sheen.
+  - `candelabra.png` (40x40): Wrought-iron multi-arm stand with flickering amber/pale-gold tallow candles.
+  - `tree_structure.png` (40x40): Twisted dark-wood literary/forest tree sprite for default biomes.
+- **Act 1 Base Enemies & Bosses (Transparent Alpha):**
+  - `bat.png` (40x40): Winged ink-vellum bat with tattered parchment membranes.
+  - `flutter.png` (40x40): Animated loose manuscript page with charcoal script lines and crimson wax seal.
+  - `bindling.png` (40x40): Stitched leather-and-twine book-construct crawler.
+  - `smear.png` (40x40): Amorphous wet-ink blot creature with glossy highlights.
+  - `miniboss.png` (40x40): Armored ink-warden knight with heavy tome-plate pauldrons.
+  - `night_boss.png` (64x64): Towering hooded archival reaper in nocturnal ink robes.
+  - `final_author.png` (80x80): Sovereign quill-crowned ink arbiter in gilded-parchment vestments (un-empowered base).
 
 ## 5. Art Blueprint Protocols
 ### 5.1. SVG Generation Rules

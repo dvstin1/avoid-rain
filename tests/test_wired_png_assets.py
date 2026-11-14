@@ -433,4 +433,24 @@ def test_respite_and_chronicler_sprites_cached_and_rendered(monkeypatch):
     assert left_facing_bytes != right_facing_bytes
 
 
+def test_legacy_prop_and_landmark_pngs_cached_with_native_sizes():
+    """Verify all 8 legacy prop/landmark PNGs load into Renderer at native sizes and blit cleanly."""
+    screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+
+    expected_props = {
+        "The Wellspring": ("wellspring.png", (40, 40)),
+        "LotusFrame": ("lotus_frame.png", (40, 40)),
+        "Bench": ("bench.png", (40, 40)),
+        "Heavy Bookcase": ("heavy_bookcase.png", (80, 40)),
+        "Ink Urn": ("ink_urn.png", (40, 40)),
+        "Inkwell Puddle": ("inkwell_puddle.png", (40, 40)),
+        "Candelabra": ("candelabra.png", (40, 40)),
+        "Structure": ("tree_structure.png", (40, 40)),
+    }
+    for prop_key, (filename, expected_size) in expected_props.items():
+        assert prop_key in renderer.prop_cache, f"{prop_key} missing from prop_cache"
+        assert filename in renderer.image_cache, f"{filename} missing from image_cache"
+        assert renderer.prop_cache[prop_key].get_size() == expected_size
+        assert renderer.image_cache[filename].get_size() == expected_size
 

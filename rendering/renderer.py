@@ -50,6 +50,7 @@ class Renderer:
         self._load_barrel_assets()
         self._load_tile_assets()
         self._load_slug_assets()
+        self._load_base_enemy_assets()
         self._load_empowered_enemy_assets()
         self.grass_pools = {}
         self._load_grass_assets()
@@ -112,6 +113,23 @@ class Renderer:
                 nb = min(255, int(c.b * 0.85 + c.g * 0.35 + 28))
                 tinted.set_at((x, y), (nr, ng, nb, c.a))
         return tinted
+
+    def _load_base_enemy_assets(self):
+        """Pre-load Act 1 / un-empowered base enemy and boss PNG sprites at native sizes."""
+        import os
+        base_path = os.path.join("assets", "graphics")
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
+        for kind in ("bat", "flutter", "bindling", "smear", "miniboss", "night_boss", "final_author"):
+            name = f"{kind}.png"
+            path = os.path.join(base_path, name)
+            if os.path.exists(path):
+                try:
+                    img = pygame.image.load(path)
+                    if display_init:
+                        img = img.convert_alpha()
+                    self.image_cache[name] = img
+                except Exception as e:
+                    print(f"[RENDER] Error loading {name}: {e}")
 
     def _load_empowered_enemy_assets(self):
         """Pre-load Act 2 empowered procedural enemy PNG variants."""
@@ -401,26 +419,48 @@ class Renderer:
         ts = constants.TILE_SIZE
         display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None) and pygame.display.get_surface() is not None
 
-        # 1. Structure (Stylized Deciduous Tree)
-        tree = pygame.Surface((ts, ts), pygame.SRCALPHA)
-        cx_t, cy_t = ts // 2, ts // 2 - 4
-        pygame.draw.circle(tree, (22, 44, 28), (cx_t + 2, ts - 6), ts // 3)
-        pygame.draw.rect(tree, (28, 16, 8), (cx_t - 7, ts - 16, 14, 14), border_radius=2)
-        pygame.draw.rect(tree, (92, 54, 28), (cx_t - 5, ts - 15, 10, 12), border_radius=2)
-        pygame.draw.circle(tree, (18, 44, 24), (cx_t, cy_t), ts // 2 - 1)
-        pygame.draw.circle(tree, (38, 126, 62), (cx_t, cy_t + 2), ts // 2 - 3)
-        pygame.draw.circle(tree, (92, 218, 110), (cx_t - 1, cy_t - 2), ts // 2 - 5)
-        pygame.draw.circle(tree, (162, 246, 148), (cx_t - 4, cy_t - 6), ts // 4)
-        self.prop_cache["Structure"] = tree.convert_alpha() if display_init else tree
+        # 1. Structure (Default Biome Tree PNG with procedural fallback)
+        tree_path = os.path.join(base_path, "tree_structure.png")
+        if os.path.exists(tree_path):
+            try:
+                t_img = pygame.image.load(tree_path)
+                if display_init:
+                    t_img = t_img.convert_alpha()
+                self.prop_cache["Structure"] = t_img
+                self.image_cache["tree_structure.png"] = t_img
+            except Exception as e:
+                print(f"[RENDER] Error loading tree_structure.png: {e}")
+        if "Structure" not in self.prop_cache:
+            tree = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            cx_t, cy_t = ts // 2, ts // 2 - 4
+            pygame.draw.circle(tree, (22, 44, 28), (cx_t + 2, ts - 6), ts // 3)
+            pygame.draw.rect(tree, (28, 16, 8), (cx_t - 7, ts - 16, 14, 14), border_radius=2)
+            pygame.draw.rect(tree, (92, 54, 28), (cx_t - 5, ts - 15, 10, 12), border_radius=2)
+            pygame.draw.circle(tree, (18, 44, 24), (cx_t, cy_t), ts // 2 - 1)
+            pygame.draw.circle(tree, (38, 126, 62), (cx_t, cy_t + 2), ts // 2 - 3)
+            pygame.draw.circle(tree, (92, 218, 110), (cx_t - 1, cy_t - 2), ts // 2 - 5)
+            pygame.draw.circle(tree, (162, 246, 148), (cx_t - 4, cy_t - 6), ts // 4)
+            self.prop_cache["Structure"] = tree.convert_alpha() if display_init else tree
 
-        # 2. Inkwell Puddle (Recessed Tar / Poison Swamp Pool)
-        puddle = pygame.Surface((ts, ts), pygame.SRCALPHA)
-        pcx, pcy = ts // 2, ts // 2
-        pygame.draw.circle(puddle, (16, 8, 24), (pcx, pcy), ts // 2 - 1)
-        pygame.draw.circle(puddle, (58, 26, 82), (pcx - 4, pcy - 2), ts // 3 + 2)
-        pygame.draw.circle(puddle, (58, 26, 82), (pcx + 5, pcy + 3), ts // 3 + 1)
-        pygame.draw.circle(puddle, (28, 12, 42), (pcx, pcy), ts // 3)
-        self.prop_cache["Inkwell Puddle"] = puddle.convert_alpha() if display_init else puddle
+        # 2. Inkwell Puddle (PNG with procedural fallback)
+        puddle_path = os.path.join(base_path, "inkwell_puddle.png")
+        if os.path.exists(puddle_path):
+            try:
+                p_img = pygame.image.load(puddle_path)
+                if display_init:
+                    p_img = p_img.convert_alpha()
+                self.prop_cache["Inkwell Puddle"] = p_img
+                self.image_cache["inkwell_puddle.png"] = p_img
+            except Exception as e:
+                print(f"[RENDER] Error loading inkwell_puddle.png: {e}")
+        if "Inkwell Puddle" not in self.prop_cache:
+            puddle = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pcx, pcy = ts // 2, ts // 2
+            pygame.draw.circle(puddle, (16, 8, 24), (pcx, pcy), ts // 2 - 1)
+            pygame.draw.circle(puddle, (58, 26, 82), (pcx - 4, pcy - 2), ts // 3 + 2)
+            pygame.draw.circle(puddle, (58, 26, 82), (pcx + 5, pcy + 3), ts // 3 + 1)
+            pygame.draw.circle(puddle, (28, 12, 42), (pcx, pcy), ts // 3)
+            self.prop_cache["Inkwell Puddle"] = puddle.convert_alpha() if display_init else puddle
 
         # 3. Rock (Rock Cluster PNG Asset with procedural fallback)
         rock_name = "rock_cluster.png"
@@ -441,26 +481,64 @@ class Renderer:
             pygame.draw.line(rock, (220, 245, 255), (10, 12), (ts // 2, 8), 2)
             self.prop_cache["Rock"] = rock.convert_alpha() if display_init else rock
 
-        # 4. Heavy Bookcase (80x40)
-        bw, bh = ts * 2, ts
-        bk = pygame.Surface((bw, bh), pygame.SRCALPHA)
-        pygame.draw.rect(bk, (68, 46, 34), (0, 0, bw, bh), border_radius=3)
-        pygame.draw.rect(bk, (140, 105, 65), (0, 0, bw, 5))
-        pygame.draw.line(bk, (30, 20, 14), (2, bh // 2), (bw - 2, bh // 2), 2)
-        for sx_off in range(6, bw - 6, 8):
-            col = (0, 210, 240) if (sx_off // 8) % 2 == 0 else (225, 75, 175)
-            pygame.draw.rect(bk, col, (sx_off, 8, 5, bh // 2 - 10))
-        self.prop_cache["Heavy Bookcase"] = bk.convert_alpha() if display_init else bk
+        # 4. Heavy Bookcase (Native 80x40 PNG with procedural fallback)
+        bk_path = os.path.join(base_path, "heavy_bookcase.png")
+        if os.path.exists(bk_path):
+            try:
+                bk_img = pygame.image.load(bk_path)
+                if display_init:
+                    bk_img = bk_img.convert_alpha()
+                self.prop_cache["Heavy Bookcase"] = bk_img
+                self.image_cache["heavy_bookcase.png"] = bk_img
+            except Exception as e:
+                print(f"[RENDER] Error loading heavy_bookcase.png: {e}")
+        if "Heavy Bookcase" not in self.prop_cache:
+            bw, bh = ts * 2, ts
+            bk = pygame.Surface((bw, bh), pygame.SRCALPHA)
+            pygame.draw.rect(bk, (68, 46, 34), (0, 0, bw, bh), border_radius=3)
+            pygame.draw.rect(bk, (140, 105, 65), (0, 0, bw, 5))
+            pygame.draw.line(bk, (30, 20, 14), (2, bh // 2), (bw - 2, bh // 2), 2)
+            for sx_off in range(6, bw - 6, 8):
+                col = (0, 210, 240) if (sx_off // 8) % 2 == 0 else (225, 75, 175)
+                pygame.draw.rect(bk, col, (sx_off, 8, 5, bh // 2 - 10))
+            self.prop_cache["Heavy Bookcase"] = bk.convert_alpha() if display_init else bk
 
-        # 5. Ink Urn (40x40)
-        urn = pygame.Surface((ts, ts), pygame.SRCALPHA)
-        pygame.draw.circle(urn, (52, 74, 112), (ts // 2, ts // 2 + 3), ts // 2 - 4)
-        pygame.draw.circle(urn, (110, 175, 230), (ts // 2 - 4, ts // 2), 4)
-        pygame.draw.rect(urn, (190, 165, 105), (8, 4, ts - 16, 6), border_radius=2)
-        pygame.draw.circle(urn, (0, 240, 255), (ts // 2, 7), 3)
-        self.prop_cache["Ink Urn"] = urn.convert_alpha() if display_init else urn
+        # 5. Ink Urn (40x40 PNG with procedural fallback)
+        urn_path = os.path.join(base_path, "ink_urn.png")
+        if os.path.exists(urn_path):
+            try:
+                u_img = pygame.image.load(urn_path)
+                if display_init:
+                    u_img = u_img.convert_alpha()
+                self.prop_cache["Ink Urn"] = u_img
+                self.image_cache["ink_urn.png"] = u_img
+            except Exception as e:
+                print(f"[RENDER] Error loading ink_urn.png: {e}")
+        if "Ink Urn" not in self.prop_cache:
+            urn = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.circle(urn, (52, 74, 112), (ts // 2, ts // 2 + 3), ts // 2 - 4)
+            pygame.draw.circle(urn, (110, 175, 230), (ts // 2 - 4, ts // 2), 4)
+            pygame.draw.rect(urn, (190, 165, 105), (8, 4, ts - 16, 6), border_radius=2)
+            pygame.draw.circle(urn, (0, 240, 255), (ts // 2, 7), 3)
+            self.prop_cache["Ink Urn"] = urn.convert_alpha() if display_init else urn
 
-        # 6. Candelabra Glow Halo (60x60)
+        # 6. Candelabra Glow Halo (60x60) & Legacy Landmark PNGs
+        for lp_file, lp_key in (
+            ("wellspring.png", "The Wellspring"),
+            ("lotus_frame.png", "LotusFrame"),
+            ("bench.png", "Bench"),
+            ("candelabra.png", "Candelabra"),
+        ):
+            lp_path = os.path.join(base_path, lp_file)
+            if os.path.exists(lp_path):
+                try:
+                    lp_img = pygame.image.load(lp_path)
+                    if display_init:
+                        lp_img = lp_img.convert_alpha()
+                    self.prop_cache[lp_key] = lp_img
+                    self.image_cache[lp_file] = lp_img
+                except Exception as e:
+                    print(f"[RENDER] Error loading {lp_file}: {e}")
         glow_r = 30
         glow = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
         pygame.draw.circle(glow, (255, 190, 40, 60), (glow_r, glow_r), glow_r)
@@ -597,9 +675,23 @@ class Renderer:
         self.screen.blit(prompt_surf, blit_pos)
 
     def draw_wellspring(self, wellspring, offset_x, offset_y):
-        """Draw the Wellspring fountain with animated water lines."""
+        """Draw the Wellspring fountain sprite with subtle animated runic shimmer."""
         ox, oy, ow, oh = wellspring.rect
         screen_x, screen_y = ox - offset_x, oy - offset_y
+        ws_surf = self.prop_cache.get("The Wellspring")
+        if ws_surf is not None:
+            if ws_surf.get_size() != (int(ow), int(oh)) and ow > 0 and oh > 0:
+                ws_surf = pygame.transform.scale(ws_surf, (int(ow), int(oh)))
+            self.screen.blit(ws_surf, (int(screen_x), int(screen_y)))
+            try:
+                ticks = pygame.time.get_ticks()
+                shimmer_x = int(screen_x + 8 + ((ticks * 0.015) % max(4, int(ow) - 20)))
+                shimmer_y = int(screen_y + int(oh) // 2 + math.sin(ticks * 0.005) * 3)
+                pygame.draw.line(self.screen, constants.COLOR_CYAN, (shimmer_x, shimmer_y), (shimmer_x + 6, shimmer_y), 1)
+            except Exception:
+                pass
+            return
+
         basin_rect = pygame.Rect(screen_x, screen_y, ow, oh)
         pygame.draw.rect(self.screen, constants.COLOR_BLUE, basin_rect)
         pygame.draw.rect(self.screen, constants.COLOR_WHITE, basin_rect, 2)
@@ -1534,7 +1626,11 @@ class Renderer:
             return
         self._draw_biome_floor_fx((biome, pal), coords, dr, s_idx)
         if tile == constants.TILE_LOTUS_FRAME:
-            pygame.draw.rect(self.screen, (36, 48, 86), dr, border_radius=4)
+            lotus_surf = self.prop_cache.get("LotusFrame")
+            if lotus_surf is not None:
+                self.screen.blit(lotus_surf, (int(dr[0]), int(dr[1])))
+            else:
+                pygame.draw.rect(self.screen, (36, 48, 86), dr, border_radius=4)
             pulse_col = (0, 240, 255) if int(time.time() * 4 + x + y) % 2 == 0 else (235, 70, 195)
             pygame.draw.rect(self.screen, pulse_col, (dr[0] + 4, dr[1] + 4, dr[2] - 8, dr[3] - 8), 2, border_radius=3)
 
@@ -1645,7 +1741,11 @@ class Renderer:
                 if tile != constants.TILE_WALL and (tx * 19 + ty * 31) % 29 == 0:
                     self._draw_biome_floor_fx((biome, pal), (tx, ty, w, h), dr, s_idx, now=now)
                 if tile == constants.TILE_LOTUS_FRAME:
-                    pygame.draw.rect(self.screen, (36, 48, 86), dr, border_radius=4)
+                    lotus_surf = self.prop_cache.get("LotusFrame")
+                    if lotus_surf is not None:
+                        self.screen.blit(lotus_surf, (int(dr[0]), int(dr[1])))
+                    else:
+                        pygame.draw.rect(self.screen, (36, 48, 86), dr, border_radius=4)
                     pulse_col = (0, 240, 255) if int(now * 4 + tx + ty) % 2 == 0 else (235, 70, 195)
                     pygame.draw.rect(
                         self.screen, pulse_col, (dr[0] + 4, dr[1] + 4, dr[2] - 8, dr[3] - 8), 2, border_radius=3
@@ -1845,18 +1945,26 @@ class Renderer:
                 ripple = int(((math.sin(now * 4.5 + obj.x) + 1.0) * 0.5) * (pw // 3 - 3)) + 3
                 pygame.draw.circle(self.screen, (165, 68, 198), (pcx, pcy), ripple, 1)
             elif obj.name == "Candelabra":
-                stand = (sx_o + obj.width // 2 - 3, sy_o + 10, 6, obj.height - 10)
-                pygame.draw.rect(self.screen, constants.COLOR_DARK_GREY, stand)
-                pygame.draw.rect(self.screen, constants.COLOR_BLACK, stand, 1)
                 glow_surf = prop_cache.get("CandelabraGlow")
                 if glow_surf is not None:
                     self.screen.blit(glow_surf, (int(sx_o + obj.width // 2 - 32), int(sy_o + 5 - 32)))
-                pygame.draw.rect(
-                    self.screen, constants.COLOR_CANDLE_AMBER, (sx_o + obj.width // 2 - 2, sy_o + 4, 4, 6)
-                )
+                cand_surf = prop_cache.get("Candelabra")
+                if cand_surf is not None:
+                    self.screen.blit(cand_surf, (int(sx_o), int(sy_o)))
+                else:
+                    stand = (sx_o + obj.width // 2 - 3, sy_o + 10, 6, obj.height - 10)
+                    pygame.draw.rect(self.screen, constants.COLOR_DARK_GREY, stand)
+                    pygame.draw.rect(self.screen, constants.COLOR_BLACK, stand, 1)
+                    pygame.draw.rect(
+                        self.screen, constants.COLOR_CANDLE_AMBER, (sx_o + obj.width // 2 - 2, sy_o + 4, 4, 6)
+                    )
             elif obj.name == "Bench":
-                pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, obj.width, obj.height))
-                pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, obj.width, 2))
+                bench_surf = prop_cache.get("Bench")
+                if bench_surf is not None:
+                    self.screen.blit(bench_surf, (int(sx_o), int(sy_o)))
+                else:
+                    pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, obj.width, obj.height))
+                    pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, obj.width, 2))
             elif obj.name == "Rock":
                 obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
                 rdx = ((int(obj.x) * 11 + int(obj.y) * 23) % 9) - 4
@@ -2237,6 +2345,32 @@ class Renderer:
                 if emp_surf.get_size() != (w, h) and w > 0 and h > 0:
                     emp_surf = pygame.transform.scale(emp_surf, (w, h))
                 self.screen.blit(emp_surf, draw_rect.topleft)
+                if is_telegraph:
+                    pygame.draw.rect(self.screen, state_color, draw_rect, 2)
+                return True
+        else:
+            base_key = None
+            if "bat" in actor_tag:
+                base_key = "bat.png"
+            elif "flutter" in actor_tag:
+                base_key = "flutter.png"
+            elif "bindling" in actor_tag:
+                base_key = "bindling.png"
+            elif "smear" in actor_tag:
+                base_key = "smear.png"
+            elif "author" in actor_tag:
+                base_key = "final_author.png"
+            elif "night boss" in actor_tag or "night_boss" in actor_tag:
+                base_key = "night_boss.png"
+            elif any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss")):
+                base_key = "miniboss.png"
+            base_surf = self.image_cache.get(base_key) if base_key else None
+            if base_surf is not None:
+                if base_surf.get_size() != (w, h) and w > 0 and h > 0:
+                    base_surf = pygame.transform.scale(base_surf, (w, h))
+                if fx < 0:
+                    base_surf = pygame.transform.flip(base_surf, True, False)
+                self.screen.blit(base_surf, draw_rect.topleft)
                 if is_telegraph:
                     pygame.draw.rect(self.screen, state_color, draw_rect, 2)
                 return True
