@@ -40,6 +40,15 @@ def test_renderer_shows_saved_indicator(monkeypatch):
     monkeypatch.setattr(pygame.draw, 'circle', lambda *a, **k: None)
     monkeypatch.setattr(pygame.draw, 'line', lambda *a, **k: None)
 
+    from rendering.bitmap_font import BitmapFont
+    orig_render = BitmapFont.render
+
+    def spy_bitmap_render(self, text, antialias, color):
+        recorded.append(str(text))
+        return orig_render(self, text, antialias, color)
+
+    monkeypatch.setattr(BitmapFont, 'render', spy_bitmap_render)
+
     renderer = Renderer(dummy)
     renderer.render(state)
 

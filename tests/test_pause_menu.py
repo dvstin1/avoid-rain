@@ -144,6 +144,15 @@ def test_renderer_gates_debug_text_until_enabled(monkeypatch):
     monkeypatch.setattr(pygame.draw, 'circle', lambda *a, **k: None)
     monkeypatch.setattr(pygame.draw, 'line', lambda *a, **k: None)
 
+    from rendering.bitmap_font import BitmapFont
+    orig_render = BitmapFont.render
+
+    def spy_bitmap_render(self, text, antialias, color):
+        rendered_strings.append(str(text))
+        return orig_render(self, text, antialias, color)
+
+    monkeypatch.setattr(BitmapFont, 'render', spy_bitmap_render)
+
     renderer = Renderer(DummyScreen())
     audio = DummyAudio()
 

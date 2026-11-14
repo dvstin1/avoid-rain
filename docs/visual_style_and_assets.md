@@ -104,6 +104,14 @@ A standalone, deterministic generator script producing 40x40 dark-fantasy grit-t
   - `night_boss.png` (64x64): Towering hooded archival reaper in nocturnal ink robes.
   - `final_author.png` (80x80): Sovereign quill-crowned ink arbiter in gilded-parchment vestments (un-empowered base).
 
+### 4.4. Procedural Bitmap Font Pipeline (`generate_fonts.py` & `rendering/bitmap_font.py`)
+Replaces generic system fonts (`pygame.font.SysFont`) with deterministic white-on-transparent (`RGBA`) glyph sprite sheets and JSON metric sidecars under `assets/fonts/`, wrapped at runtime by `BitmapFont`:
+- **`ink_sans` (`assets/fonts/ink_sans.png` + `.json`, base height `12px`):** Proportional pixel font scaled `1x` (`12px`, `slot_font`), `2x` (`24px`, `font`), and `3x` (`36px`, `large_font`).
+- **`ink_mono` (`assets/fonts/ink_mono.png` + `.json`, base height `14px`):** Fixed-cell `8x14` monospace glyph sheet (`1x` `14px`) for `small_font`, `hud_font`, and `glyph_font`.
+- **`manuscript_serif` (`assets/fonts/manuscript_serif.png` + `.json`, base height `18px`):** Calligraphic ink-serif display font scaled `3x` (`54px`, `title_font`) and `4x` (`72px`, `bloom_font`).
+- **Coverage & Fallback:** Covers all 95 printable ASCII glyphs (`32..126`), normalizes common Unicode punctuation (`—`, `–`, `’`, `‘`, `“`, `”`, `…`), and falls back gracefully on unknown non-ASCII characters.
+- **CLI Specimen Sheet:** `python3 generate_fonts.py --specimen [output_path]` renders a contact sheet of all 95 ASCII glyphs and `1x`/`2x`/`3x` sample lines without modifying `assets/`.
+
 ## 5. Art Blueprint Protocols
 ### 5.1. SVG Generation Rules
 - **One per Query:** The agent must output exactly ONE XML SVG block per user query to manage token budget.

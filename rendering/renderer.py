@@ -13,6 +13,7 @@ import pygame
 import constants
 from engine.player import PlayerStateEnum
 from engine.camera import Camera
+from rendering.bitmap_font import load_font_or_sysfont
 from ui.menu import draw_respite_menu, draw_chronicle_biome_menu
 from ui.lobby_menu import draw_lobby_menu
 
@@ -20,14 +21,18 @@ class Renderer:
     """Coordinates rendering of the game state."""
     def __init__(self, screen):
         self.screen = screen
-        self.font = pygame.font.SysFont("Arial", 24)
-        self.small_font = pygame.font.SysFont("Arial", 14)
-        self.large_font = pygame.font.SysFont("Arial", 32)
-        self.hud_font = pygame.font.SysFont("Arial", 14, bold=True)
-        self.slot_font = pygame.font.SysFont("Arial", 12)
-        self.glyph_font = pygame.font.SysFont("Courier New", constants.GLYPH_FONT_SIZE, bold=True)
-        self.bloom_font = pygame.font.SysFont("Times New Roman", 72, bold=True, italic=True)
-        self.title_font = pygame.font.SysFont("Georgia", 54, bold=True)
+        self.font = load_font_or_sysfont("ink_sans", 2, "Arial", 24)
+        self.small_font = load_font_or_sysfont("ink_mono", 1, "Arial", 14)
+        self.large_font = load_font_or_sysfont("ink_sans", 3, "Arial", 32)
+        self.hud_font = load_font_or_sysfont("ink_mono", 1, "Arial", 14, bold=True)
+        self.slot_font = load_font_or_sysfont("ink_sans", 1, "Arial", 12)
+        self.glyph_font = load_font_or_sysfont(
+            "ink_mono", 1, "Courier New", constants.GLYPH_FONT_SIZE, bold=True
+        )
+        self.bloom_font = load_font_or_sysfont(
+            "manuscript_serif", 4, "Times New Roman", 72, bold=True, italic=True
+        )
+        self.title_font = load_font_or_sysfont("manuscript_serif", 3, "Georgia", 54, bold=True)
         
         # Image Cache
         self.image_cache = {}
@@ -3704,7 +3709,7 @@ class Renderer:
 
         # Audio Debug OSD (Title Screen - gated behind debug_text_enabled)
         if debug_on:
-            debug_font = pygame.font.SysFont("Arial", 14, bold=True)
+            debug_font = self.hud_font
             debug_text = "[DEBUG_AUDIO: Playing title_theme.ogg]"
             debug_surf = debug_font.render(debug_text, True, constants.COLOR_WHITE)
             self.screen.blit(debug_surf, (sw // 2 - debug_surf.get_width() // 2, 5))
