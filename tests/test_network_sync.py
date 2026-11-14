@@ -196,6 +196,7 @@ def test_network_integration_host_and_client_combat():
     client_state.player.x, client_state.player.y = test_enemy.x, test_enemy.y
     
     # Allow multiple heartbeats to sync Client position to Host
+    client_peer_id = client_state.network_manager.peer_id
     client_found_on_host = False
     for _ in range(20):
         # Force position in EVERY frame to fight physics/walls
@@ -203,8 +204,8 @@ def test_network_integration_host_and_client_combat():
         client_state.update(0.1, {'attack': False, 'move': (0,0)})
         host_state.update(0.1, {'attack': False, 'move': (0,0)})
         time.sleep(0.05)
-        if "TestClient" in host_state.network_manager.remote_players:
-            p = host_state.network_manager.remote_players["TestClient"]
+        if client_peer_id in host_state.network_manager.remote_players:
+            p = host_state.network_manager.remote_players[client_peer_id]
             # High tolerance for network rounding/sync lag
             if abs(p["x"] - test_enemy.x) < 45: 
                 client_found_on_host = True
@@ -229,7 +230,7 @@ def test_network_integration_host_and_client_combat():
         host_state.update(0.1, {'attack': False, 'move': (0,0)})
         client_state.update(0.1, {'attack': False, 'move': (0,0)})
         time.sleep(0.05)
-        if host_state.network_manager.remote_players["TestClient"]["hp"] < 100:
+        if host_state.network_manager.remote_players[client_peer_id]["hp"] < 100:
             found_host_side_damage = True
         if client_state.player.hp < initial_client_hp:
             break
@@ -299,8 +300,195 @@ def test_network_integration_host_and_client_combat():
     host_state.update(0.1, {'attack': False, 'move': (0,0)})
     
     # Check connected_peers (more reliable than remote_players which might have ghosts)
-    assert "127.0.0.1" not in host_state.network_manager.connected_peers, \
+    assert client_peer_id not in host_state.network_manager.connected_peers, \
         "Host still thinks Client is connected via connected_peers."
     
+    host_state.network_manager.stop_network()
+    client_state.network_manager.stop_network()
     # Success if it reaches here!
     print("[TEST] Success!")
+
+
+def test_duplicate_default_player_name_peers_on_localhost():
+    """Two clients on 127.0.0.1 sharing DEFAULT_PLAYER_NAME connect and sync without colliding."""
+    from constants import DEFAULT_PLAYER_NAME
+
+    host_state = GameState(auto_load=False)
+    host_state.network_manager.port = 51100
+    host_state.network_manager.tcp_port = 51101
+    host_state.network_manager.host_udp_port = 51102
+    host_state.network_manager.local_udp_port = 51102
+    host_state.network_manager.identity = DEFAULT_PLAYER_NAME
+    host_state.network_manager.start_hosting()
+
+    client_1 = GameState(auto_load=False)
+    client_1.network_manager.port = 61100
+    client_1.network_manager.tcp_port = 51101
+    client_1.network_manager.host_udp_port = 51102
+    client_1.network_manager.local_udp_port = 61102
+    client_1.network_manager.identity = DEFAULT_PLAYER_NAME
+
+    client_2 = GameState(auto_load=False)
+    client_2.network_manager.port = 61110
+    client_2.network_manager.tcp_port = 51101
+    client_2.network_manager.host_udp_port = 51102
+    client_2.network_manager.local_udp_port = 61112
+    client_2.network_manager.identity = DEFAULT_PLAYER_NAME
+
+    try:
+        time.sleep(0.05)
+        assert client_1.network_manager.connect_to_host("127.0.0.1") is True
+        assert client_2.network_manager.connect_to_host("127.0.0.1") is True
+
+        peer_1 = client_1.network_manager.peer_id
+        peer_2 = client_2.network_manager.peer_id
+        assert peer_1 != peer_2
+        assert peer_1 != host_state.network_manager.peer_id
+        assert peer_1 in host_state.network_manager.connected_peers
+        assert peer_2 in host_state.network_manager.connected_peers
+
+        client_1.player.x, client_1.player.y = 680.0, 280.0
+        client_2.player.x, client_2.player.y = 760.0, 280.0
+
+        for _ in range(15):
+            host_state.update(0.016, {"move": (0, 0)})
+            client_1.update(0.016, {"move": (0, 0)})
+            client_2.update(0.016, {"move": (0, 0)})
+            time.sleep(0.03)
+
+        assert peer_1 in host_state.network_manager.remote_players
+        assert peer_2 in host_state.network_manager.remote_players
+        assert abs(host_state.network_manager.remote_players[peer_1]["x"] - client_1.player.x) < 1.0
+        assert abs(host_state.network_manager.remote_players[peer_2]["x"] - client_2.player.x) < 1.0
+
+        # Both clients should also see the Host and each other even though all 3 share DEFAULT_PLAYER_NAME
+        assert host_state.network_manager.peer_id in client_1.network_manager.remote_players
+        assert peer_2 in client_1.network_manager.remote_players
+        assert host_state.network_manager.peer_id in client_2.network_manager.remote_players
+        assert peer_1 in client_2.network_manager.remote_players
+    finally:
+        client_1.network_manager.stop_network()
+        client_2.network_manager.stop_network()
+        host_state.network_manager.stop_network()
+
+
+def test_large_framed_tcp_payload_and_map_request():
+    """Large TCP payloads (>16KB) transfer cleanly across framed TCP helpers and request_map()."""
+    import socket
+    from engine.network_manager import _send_framed_json, _recv_framed_json
+
+    left_sock, right_sock = socket.socketpair()
+    try:
+        large_payload = {
+            "type": "MAP_RESPONSE",
+            "tiles": ["#" * 256 for _ in range(200)],  # > 50 KB
+            "metadata": {"act": 1, "seed": 42},
+        }
+        _send_framed_json(left_sock, large_payload)
+        decoded = _recv_framed_json(right_sock)
+        assert decoded == large_payload
+    finally:
+        left_sock.close()
+        right_sock.close()
+
+    host_state = GameState(auto_load=False)
+    host_state.network_manager.port = 51200
+    host_state.network_manager.tcp_port = 51201
+    host_state.network_manager.host_udp_port = 51202
+    host_state.network_manager.local_udp_port = 51202
+    large_map = {
+        "name": "large_test_map",
+        "width": 120,
+        "height": 120,
+        "padding": "X" * 32768,  # > 32 KB payload
+    }
+    host_state.network_manager.host_map_provider = lambda: large_map
+    host_state.network_manager.start_hosting()
+
+    client_state = GameState(auto_load=False)
+    client_state.network_manager.port = 61200
+    client_state.network_manager.tcp_port = 51201
+    client_state.network_manager.host_udp_port = 51202
+    client_state.network_manager.local_udp_port = 61202
+
+    try:
+        time.sleep(0.05)
+        assert client_state.network_manager.connect_to_host("127.0.0.1") is True
+        fetched = client_state.network_manager.request_map()
+        assert fetched is not None
+        assert fetched.get("name") == "large_test_map"
+        assert len(fetched.get("padding", "")) == 32768
+    finally:
+        client_state.network_manager.stop_network()
+        host_state.network_manager.stop_network()
+
+
+def test_main_thread_inbox_drain_and_offline_disconnect_event():
+    """Queued UDP snapshots and disconnect events apply on the main thread even after timeout sets OFFLINE."""
+    state = GameState(auto_load=False)
+    try:
+        state.network_manager.network_mode = "CLIENT"
+        state.network_manager.server_address = "127.0.0.1"
+
+        # Enqueue a remote state snapshot without calling drain_network_events yet
+        remote_peer_id = "peer_abc12345"
+        state.network_manager.enqueue_inbound(
+            "REMOTE_STATE",
+            (
+                ("127.0.0.1", 55557),
+                {
+                    "peer_id": remote_peer_id,
+                    "identity": "RemoteHost",
+                    "is_host": True,
+                    "x": 300.0,
+                    "y": 400.0,
+                    "hp": 85.0,
+                },
+            ),
+        )
+        # Before drain_network_events(), remote_players must NOT be mutated
+        assert remote_peer_id not in state.network_manager.remote_players
+
+        state.drain_network_events()
+        assert remote_peer_id in state.network_manager.remote_players
+        assert state.network_manager.remote_players[remote_peer_id]["hp"] == 85.0
+
+        # Simulate background UDP timeout setting network_mode = "OFFLINE" and queuing HOST_DISCONNECT
+        state.world.name = "macro_world"
+        state.network_manager.network_mode = "OFFLINE"
+        state.network_manager.enqueue_inbound("HOST_DISCONNECT", None)
+
+        # Calling update() while already OFFLINE must still drain HOST_DISCONNECT and return to sanctuary
+        state.update(0.016, {"move": (0, 0)})
+        assert state.world.name == "sanctuary"
+    finally:
+        state.network_manager.stop_network()
+
+
+def test_outbound_reliable_events_enqueue_non_blocking():
+    """Outbound reliable TCP events enqueue immediately on the main thread without opening sockets."""
+    state = GameState(auto_load=False)
+    try:
+        state.network_manager.network_mode = "CLIENT"
+        state.network_manager.server_address = "127.0.0.1"
+        state.network_manager.is_connected = False
+        # Do not start worker threads so we can inspect _outbound_queue directly
+        state.network_manager.send_damage_event("enemy", 7, 25)
+        state.network_manager.send_heal_event(40)
+        state.network_manager.send_respite_event("REST", 0, {"max_hp": 100})
+        state.network_manager.send_full_state({"hp": 90, "max_hp": 100})
+
+        queued = []
+        while not state.network_manager._outbound_queue.empty():
+            _host_addr, _tcp_port, payload = state.network_manager._outbound_queue.get_nowait()
+            queued.append(payload)
+
+        assert [msg["type"] for msg in queued] == [
+            "DAMAGE_EVENT",
+            "HEAL_EVENT",
+            "RESPITE_ACTION",
+            "UPDATE_FULL_STATE",
+        ]
+        assert all(msg["peer_id"] == state.network_manager.peer_id for msg in queued)
+    finally:
+        state.network_manager.stop_network()

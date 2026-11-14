@@ -49,8 +49,9 @@ def test_client_respite_rest_sync():
     client_state.player.hp = 10.0
     client_state.player.flask_charges = 0
     
-    host_state.network_manager.remote_players["Client"] = {
-        "identity": "Client", "x": 0, "y": 0, "hp": 10.0, "flask_charges": 0
+    client_peer_id = client_state.network_manager.peer_id
+    host_state.network_manager.remote_players[client_peer_id] = {
+        "peer_id": client_peer_id, "identity": "Client", "x": 0, "y": 0, "hp": 10.0, "flask_charges": 0
     }
     
     # Kill some enemies on Host
@@ -74,7 +75,7 @@ def test_client_respite_rest_sync():
         client_state.update(0.1, {'move': (0,0)})
         time.sleep(0.02)
         
-    host_hp_on_host_authoritative = host_state.network_manager.remote_players["Client"]["hp"]
+    host_hp_on_host_authoritative = host_state.network_manager.remote_players[client_peer_id]["hp"]
     host_enemies_alive = any(e.hp > 0 for e in host_state.enemies)
 
     host_state.network_manager.stop_network()
@@ -110,12 +111,13 @@ def test_client_respite_upgrade_sync():
     client_state.stats.data["lifetime_stats"]["pages_collected"] = 1000
     
     # Initial sync
-    host_state.network_manager.remote_players["Client"] = {
-        "identity": "Client", "x": 0, "y": 0, "hp": 100.0
+    client_peer_id = client_state.network_manager.peer_id
+    host_state.network_manager.remote_players[client_peer_id] = {
+        "peer_id": client_peer_id, "identity": "Client", "x": 0, "y": 0, "hp": 100.0
     }
     
     # Pre-cache client state on Host so Host knows max_hp
-    host_state.cached_client_states["Client"] = client_state.get_full_player_state()
+    host_state.cached_client_states[("Client", client_peer_id)] = client_state.get_full_player_state()
     
     # 3. Client Upgrades Fortification (+10 Max HP)
     respite = Respite((0,0), (40,40))
@@ -133,7 +135,7 @@ def test_client_respite_upgrade_sync():
         client_state.update(0.1, {'move': (0,0)})
         time.sleep(0.02)
         
-    host_hp_on_host = host_state.network_manager.remote_players["Client"]["hp"]
+    host_hp_on_host = host_state.network_manager.remote_players[client_peer_id]["hp"]
 
     host_state.network_manager.stop_network()
     client_state.network_manager.stop_network()

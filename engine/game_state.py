@@ -221,7 +221,10 @@ class GameState:
             # Broadcast the Host's view of all remote players AND themselves (authoritative HP)
             state["session_players"] = [
                 {
+                    "peer_id": self.network_manager.peer_id,
                     "identity": self.network_manager.identity,
+                    "addr": "127.0.0.1",
+                    "is_host": True,
                     "hp": self.player.hp,
                     "x": self.player.x,
                     "y": self.player.y,
@@ -230,10 +233,13 @@ class GameState:
                     "dash_seq": self.local_dash_seq,
                 }
             ]
-            for p in self.network_manager.remote_players.values():
+            for peer_key, p in self.network_manager.remote_players.items():
                 state["session_players"].append(
                     {
+                        "peer_id": p.get("peer_id", peer_key),
                         "identity": p["identity"],
+                        "addr": p.get("addr", ""),
+                        "is_host": bool(p.get("is_host", False)),
                         "hp": p["hp"],
                         "x": p["x"],
                         "y": p["y"],
@@ -245,18 +251,64 @@ class GameState:
             
         return state
 
+    def _resolve_remote_player_key(self, peer_or_id, identity=None):
+        """Resolves a peer_id or legacy identity key inside remote_players."""
+        if peer_or_id and peer_or_id in self.network_manager.remote_players:
+            return peer_or_id
+        if identity and identity in self.network_manager.remote_players:
+            return identity
+        target_identity = identity or peer_or_id
+        if target_identity:
+            for k, p_data in self.network_manager.remote_players.items():
+                if p_data.get("identity") == target_identity:
+                    return k
+        return None
+
+    def _get_cached_client_state(self, peer_or_id, identity=None):
+        """Looks up cached client state by (identity, peer_id) with fallback to identity."""
+        if identity and peer_or_id and (identity, peer_or_id) in self.cached_client_states:
+            return self.cached_client_states[(identity, peer_or_id)]
+        if peer_or_id and peer_or_id in self.cached_client_states:
+            return self.cached_client_states[peer_or_id]
+        if identity and identity in self.cached_client_states:
+            return self.cached_client_states[identity]
+        for key, val in self.cached_client_states.items():
+            if isinstance(key, tuple) and len(key) == 2 and key[1] == peer_or_id:
+                return val
+        return {}
+
     def apply_remote_state(self, addr, data):
         """Phase 2 & 4: Handles incoming remote player state data."""
-        # Record remote player state for ghost rendering
+        addr_ip = addr[0] if isinstance(addr, tuple) else str(addr)
         identity = data.get("identity", "Unknown")
-        if identity == self.network_manager.identity:
-            # This is our own data bouncing back
-            pass
-        else:
-            # Rule: Host is authoritative for HP. 
+        peer_id = data.get("peer_id")
+        peer_key = peer_id or identity
+        is_self = (
+            (peer_id == self.network_manager.peer_id)
+            if peer_id
+            else (identity == self.network_manager.identity)
+        )
+        if not is_self:
+            if (
+                peer_id
+                and peer_key not in self.network_manager.remote_players
+                and identity in self.network_manager.remote_players
+            ):
+                legacy_entry = self.network_manager.remote_players[identity]
+                if not legacy_entry.get("peer_id") or legacy_entry.get("peer_id") == peer_id:
+                    self.network_manager.remote_players[peer_key] = (
+                        self.network_manager.remote_players.pop(identity)
+                    )
+
+            is_host_peer = bool(
+                data.get("is_host", addr_ip == self.network_manager.server_address)
+            )
+            # Rule: Host is authoritative for HP.
             # If we are the Host, we only update remote player coordinates, not their HP.
             if self.network_manager.network_mode == "HOST":
-                current = self.network_manager.remote_players.get(identity, {"hp": float(data.get("hp", 0))})
+                current = self.network_manager.remote_players.get(
+                    peer_key, {"hp": float(data.get("hp", 0))}
+                )
                 rx = float(data.get("x", 0))
                 ry = float(data.get("y", 0))
                 swing_seq = int(data.get("swing_seq", 0))
@@ -271,23 +323,29 @@ class GameState:
                     self.pending_remote_sfx.append(("sword_hit.ogg", rx, ry))
                 if dash_seq > prev_dash:
                     self.pending_remote_sfx.append(("player_dash.ogg", rx, ry))
-                self.network_manager.remote_players[identity] = {
+                self.network_manager.remote_players[peer_key] = {
+                    "peer_id": peer_key,
                     "identity": identity,
+                    "addr": addr_ip,
+                    "is_host": False,
                     "x": rx,
                     "y": ry,
-                    "hp": current["hp"], # Authoritative Host-side HP
+                    "hp": current["hp"],  # Authoritative Host-side HP
                     "swing_seq": swing_seq,
                     "hit_seq": hit_seq,
                     "dash_seq": dash_seq,
-                    "time": time.time()
+                    "time": time.time(),
                 }
             else:
-                self.network_manager.remote_players[identity] = {
+                self.network_manager.remote_players[peer_key] = {
+                    "peer_id": peer_key,
                     "identity": identity,
+                    "addr": addr_ip,
+                    "is_host": is_host_peer,
                     "x": float(data.get("x", 0)),
                     "y": float(data.get("y", 0)),
                     "hp": float(data.get("hp", 0)),
-                    "time": time.time()
+                    "time": time.time(),
                 }
 
         # Phase 4: Host-Authoritative Overrides (Client only)
@@ -295,17 +353,31 @@ class GameState:
             # 1. Weather
             w_data = data.get("weather")
             if w_data:
-                self.weather_manager.active_safe_radius = float(w_data.get("radius", self.weather_manager.active_safe_radius))
-                self.weather_manager.bleed_state = w_data.get("state", self.weather_manager.bleed_state)
-                self.weather_manager.current_boss_idx = int(w_data.get("boss_idx", self.weather_manager.current_boss_idx))
-            
+                self.weather_manager.active_safe_radius = float(
+                    w_data.get("radius", self.weather_manager.active_safe_radius)
+                )
+                self.weather_manager.bleed_state = w_data.get(
+                    "state", self.weather_manager.bleed_state
+                )
+                self.weather_manager.current_boss_idx = int(
+                    w_data.get("boss_idx", self.weather_manager.current_boss_idx)
+                )
+
             # 2. Session Players (Authoritative HP from Host)
             session_players = data.get("session_players", [])
             for p_info in session_players:
                 p_identity = p_info.get("identity")
-                # Update our own health if the host sent it
-                if p_identity == self.network_manager.identity:
-                    self.player.hp = float(p_info.get("hp", self.player.hp))
+                p_peer_id = p_info.get("peer_id")
+                p_key = p_peer_id or p_identity
+                is_local_player = (
+                    (p_peer_id == self.network_manager.peer_id)
+                    if p_peer_id
+                    else (p_identity == self.network_manager.identity)
+                )
+                # Update our own health if the host sent it (unless already dying/dead locally)
+                if is_local_player:
+                    if self.player.hp > 0 and self.death_timer <= 0:
+                        self.player.hp = float(p_info.get("hp", self.player.hp))
                 else:
                     # Update other scholars for ghost rendering and combat audio cues
                     rx = float(p_info.get("x", 0))
@@ -313,7 +385,7 @@ class GameState:
                     swing_seq = int(p_info.get("swing_seq", 0))
                     hit_seq = int(p_info.get("hit_seq", 0))
                     dash_seq = int(p_info.get("dash_seq", 0))
-                    prev_seqs = self._remote_combat_seqs.get(p_identity, (0, 0, 0))
+                    prev_seqs = self._remote_combat_seqs.get(p_key, (0, 0, 0))
                     prev_swing, prev_hit = prev_seqs[0], prev_seqs[1]
                     prev_dash = prev_seqs[2] if len(prev_seqs) > 2 else 0
                     if swing_seq > prev_swing:
@@ -322,13 +394,21 @@ class GameState:
                         self.pending_remote_sfx.append(("sword_hit.ogg", rx, ry))
                     if dash_seq > prev_dash:
                         self.pending_remote_sfx.append(("player_dash.ogg", rx, ry))
-                    self._remote_combat_seqs[p_identity] = (swing_seq, hit_seq, dash_seq)
-                    self.network_manager.remote_players[p_identity] = {
+                    self._remote_combat_seqs[p_key] = (swing_seq, hit_seq, dash_seq)
+                    is_p_host = bool(p_info.get("is_host", False))
+                    p_addr = p_info.get(
+                        "addr",
+                        self.network_manager.server_address if is_p_host else "",
+                    )
+                    self.network_manager.remote_players[p_key] = {
+                        "peer_id": p_key,
                         "identity": p_identity,
+                        "addr": p_addr,
+                        "is_host": is_p_host,
                         "x": rx,
                         "y": ry,
                         "hp": float(p_info.get("hp", 0)),
-                        "time": time.time()
+                        "time": time.time(),
                     }
             
             # 3. Enemies
@@ -498,8 +578,19 @@ class GameState:
             return payload
         return None
 
-    def host_restorer_callback(self, identity, ip): return self.cached_client_states.get(identity)
-    def host_cacher_callback(self, identity, ip, data): self.cached_client_states[identity] = data
+    def host_restorer_callback(self, identity, ip, peer_id=None):
+        """Looks up cached client state by (identity, peer_id) with fallback to identity."""
+        del ip
+        if peer_id and (identity, peer_id) in self.cached_client_states:
+            return self.cached_client_states[(identity, peer_id)]
+        return self.cached_client_states.get(identity)
+
+    def host_cacher_callback(self, identity, ip, data, peer_id=None):
+        """Caches full client state under both (identity, peer_id) and identity fallback."""
+        del ip
+        if peer_id:
+            self.cached_client_states[(identity, peer_id)] = data
+        self.cached_client_states[identity] = data
 
     def apply_restored_state(self, data):
         if not self.player or not data: return
@@ -524,6 +615,95 @@ class GameState:
         """Phase 4: Queues respite events (REST, UPGRADE) sent by remote clients."""
         self.pending_remote_respite_actions.append((identity, action_type, marked_idx, data))
 
+    def _process_pending_remote_actions(self):
+        """Consumes queued Host-side remote combat/heal/respite events on the main thread."""
+        is_client = self.network_manager.network_mode == "CLIENT"
+        if is_client:
+            return
+
+        if self.pending_remote_damage:
+            for target_type, target_id, amount in self.pending_remote_damage:
+                if target_type == "enemy":
+                    for e in self.enemies:
+                        if getattr(e, "network_id", -1) == target_id:
+                            e.take_damage(amount)
+                            self.damage_numbers.append(
+                                {
+                                    "val": amount,
+                                    "pos": (e.x + 10, e.y - 20),
+                                    "time": 1.0,
+                                    "color": (255, 255, 0),
+                                }
+                            )
+                            break
+                elif target_type == "prop" and self.world:
+                    for obj in list(self.world.interactables):
+                        if getattr(obj, "id", None) == target_id:
+                            obj.take_damage(amount)
+                            if obj.is_dead():
+                                try:
+                                    if hasattr(obj, "id") and obj.id:
+                                        self.destroyed_prop_ids.add(obj.id)
+                                    self.world.interactables.remove(obj)
+                                    self.fading_entities.append(
+                                        {
+                                            "obj": obj,
+                                            "time": 0.16 if obj.name == "Barrel" else 0.1,
+                                        }
+                                    )
+                                    from engine.loot import roll_drop
+
+                                    roll_drop(4, (obj.x, obj.y), self)
+                                except (ValueError, AttributeError):
+                                    pass
+                            break
+            self.pending_remote_damage.clear()
+
+        if self.pending_remote_heals:
+            for peer_or_id, amount in self.pending_remote_heals:
+                resolved_key = self._resolve_remote_player_key(peer_or_id)
+                if resolved_key and resolved_key in self.network_manager.remote_players:
+                    p_data = self.network_manager.remote_players[resolved_key]
+                    p_identity = p_data.get("identity", resolved_key)
+                    cached = self._get_cached_client_state(resolved_key, p_identity)
+                    m_hp = float(cached.get("max_hp", 100.0))
+                    p_data["hp"] = min(m_hp, p_data["hp"] + amount)
+            self.pending_remote_heals.clear()
+
+        if self.pending_remote_respite_actions:
+            from engine.world import Respite
+
+            for peer_or_id, action_type, _marked_idx, data in self.pending_remote_respite_actions:
+                anchor = (
+                    next(
+                        (obj for obj in self.world.interactables if isinstance(obj, Respite)),
+                        None,
+                    )
+                    if self.world
+                    else None
+                )
+                resolved_key = self._resolve_remote_player_key(peer_or_id)
+                if resolved_key and resolved_key in self.network_manager.remote_players:
+                    p_data = self.network_manager.remote_players[resolved_key]
+                    p_identity = p_data.get("identity", resolved_key)
+                    cached = self._get_cached_client_state(resolved_key, p_identity)
+                    data_dict = data if isinstance(data, dict) else {}
+                    m_hp = float(data_dict.get("max_hp", cached.get("max_hp", 100.0)))
+
+                    if action_type == "REST":
+                        p_data["hp"] = m_hp
+                        if anchor:
+                            anchor.execute_rest(self)
+                    elif action_type == "UPGRADE":
+                        p_data["hp"] = m_hp
+            self.pending_remote_respite_actions.clear()
+
+    def drain_network_events(self):
+        """Drains thread-safe network inbox events and applies remote actions on the main thread."""
+        if hasattr(self, "network_manager") and self.network_manager:
+            self.network_manager.process_inbound_events()
+        self._process_pending_remote_actions()
+
     def get_full_player_state(self):
         if not self.player: return {}
         return {
@@ -538,6 +718,7 @@ class GameState:
         if self.player is None: return
         
         self.audio_manager = audio_manager
+        self.drain_network_events()
 
         # 0. Advance Cinematic Warp Controller (if present)
         if hasattr(self, 'warp_controller') and self.warp_controller:
@@ -564,8 +745,7 @@ class GameState:
             if self.full_state_sync_timer >= 10.0:
                 self.full_state_sync_timer = 0.0
                 full_state = self.get_full_player_state()
-                import threading
-                threading.Thread(target=self.network_manager.send_full_state, args=(full_state,), daemon=True).start()
+                self.network_manager.send_full_state(full_state)
 
         if ratchet_reset: self.input_ratchet_latched = False
         if self.input_debounce_timer > 0: self.input_debounce_timer -= dt
@@ -815,57 +995,8 @@ class GameState:
             self._last_attack_facing = self.player.facing
         self._player_was_attacking = player_is_attacking
         
-        # 0. Process queued remote damage (Host Only)
-        if not is_client and self.pending_remote_damage:
-            for target_type, target_id, amount in self.pending_remote_damage:
-                if target_type == "enemy":
-                    for e in self.enemies:
-                        if getattr(e, 'network_id', -1) == target_id:
-                            e.take_damage(amount)
-                            self.damage_numbers.append({'val': amount, 'pos': (e.x + 10, e.y - 20), 'time': 1.0, 'color': (255, 255, 0)})
-                            break
-                elif target_type == "prop":
-                    for obj in list(self.world.interactables):
-                        if getattr(obj, 'id', None) == target_id:
-                            obj.take_damage(amount)
-                            if obj.is_dead():
-                                try:
-                                    if hasattr(obj, 'id') and obj.id:
-                                        self.destroyed_prop_ids.add(obj.id)
-                                    self.world.interactables.remove(obj)
-                                    self.fading_entities.append({'obj': obj, 'time': 0.16 if obj.name == "Barrel" else 0.1})
-                                    from engine.loot import roll_drop
-                                    roll_drop(4, (obj.x, obj.y), self)
-                                except Exception: pass
-                            break
-            self.pending_remote_damage.clear()
-            
-        if not is_client and self.pending_remote_heals:
-            for identity, amount in self.pending_remote_heals:
-                if identity in self.network_manager.remote_players:
-                    p_data = self.network_manager.remote_players[identity]
-                    # Attempt to find max_hp in cached states
-                    cached = self.cached_client_states.get(identity, {})
-                    m_hp = float(cached.get("max_hp", 100.0))
-                    p_data["hp"] = min(m_hp, p_data["hp"] + amount)
-            self.pending_remote_heals.clear()
-            
-        if not is_client and self.pending_remote_respite_actions:
-            for identity, action_type, marked_idx, data in self.pending_remote_respite_actions:
-                from engine.world import Respite
-                anchor = next((obj for obj in self.world.interactables if isinstance(obj, Respite)), None)
-                
-                if identity in self.network_manager.remote_players:
-                    p_data = self.network_manager.remote_players[identity]
-                    cached = self.cached_client_states.get(identity, {})
-                    m_hp = float(data.get("max_hp", cached.get("max_hp", 100.0)))
-                    
-                    if action_type == "REST":
-                        p_data["hp"] = m_hp
-                        if anchor: anchor.execute_rest(self)
-                    elif action_type == "UPGRADE":
-                        p_data["hp"] = m_hp 
-            self.pending_remote_respite_actions.clear()
+        # 0. Process queued remote damage, heals, and respite actions (Host Only)
+        self._process_pending_remote_actions()
 
         # 1. Local Attacks
         if self.player.state == PlayerStateEnum.ATTACKING:
@@ -1050,7 +1181,7 @@ class GameState:
                 
             if self.network_manager.network_mode == "CLIENT":
                 full_state = self.get_full_player_state()
-                threading.Thread(target=self.network_manager.send_full_state, args=(full_state,), daemon=True).start()
+                self.network_manager.send_full_state(full_state)
 
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
         walls = self.world.get_nearby_walls(player_rect)

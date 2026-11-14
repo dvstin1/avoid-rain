@@ -160,13 +160,16 @@ The engine supports local Wi-Fi co-op sessions using an Authoritative Host / Mir
 
 ### 1. Phased Architecture & Implementation Status
 - **Phase 1: Local Presence & Identity [IMPLEMENTED]**
-  - Configurable `player_name` and background UDP broadcast socket loop announcing server hosting across the LAN subnet without manual IP input.
+  - Configurable human-readable `player_name` (`identity`) paired with a unique per-session `peer_id` (`uuid.uuid4().hex[:12]`) so multiple scholars sharing `DEFAULT_PLAYER_NAME` or connecting from `127.0.0.1` never collide in `connected_peers`, `remote_players`, or `session_players`.
+  - Background UDP broadcast socket loop announcing JSON `{peer_id, identity}` payloads across the LAN subnet without manual IP input (with plain-text fallback and display-name mapping in `found_hosts[ip]`).
 - **Phase 2: Lobby Registration & Connection Handshake [IMPLEMENTED]**
-  - Visual Lobby Menu discovering hosts; TCP socket handshake verifying connection state.
+  - Visual Lobby Menu discovering hosts; length-prefixed TCP socket handshake verifying connection state and stopping background discovery threads upon connection.
 - **Phase 3: Ghost Client State Replication [IMPLEMENTED]**
-  - Renders non-local client players as text-tagged coordinate clones with position and velocity interpolation.
-- **Phase 4: Authoritative Simulation Sync [IMPLEMENTED]**
-  - Routes client action commands (attacks, healing, respite triggers, barrel hits) to the host for primary state resolution. Socket reuse handling for `TIME_WAIT` teardowns.
+  - Renders non-local client players as text-tagged coordinate clones with host/client color differentiation driven by peer metadata (`is_host` / `addr`).
+- **Phase 4: Authoritative Simulation Sync & Thread-Safe Framing [IMPLEMENTED]**
+  - **4-Byte Big-Endian TCP Framing:** All TCP control messages (`HANDSHAKE`, `MAP_REQUEST` / `MAP_RESPONSE`, `UPDATE_FULL_STATE`, `DAMAGE_EVENT`, `HEAL_EVENT`, `RESPITE_ACTION`) use `_send_framed_json()` and `_recv_framed_json()` (`!I` header + exact payload loop, bounded by `MAX_TCP_FRAME_BYTES`) so multi-hundred-kilobyte map payloads never truncate at single-`recv()` boundaries.
+  - **Non-Blocking Outbound Reliable Queue:** Client action commands (`send_damage_event`, `send_heal_event`, `send_respite_event`, `send_full_state`) enqueue onto a bounded thread-safe `_outbound_queue` drained by a background TCP worker thread (`_tcp_outbox_loop`) so the 60 FPS main loop never stalls on socket I/O.
+  - **Main-Thread Inbox Queue (`drain_network_events`):** Background UDP and TCP listener threads never mutate `GameState`, `World`, `Player`, `WeatherManager`, or entity lists directly. Instead, they push events into a lock-protected `_inbound_queue` drained once per frame at the top of `GameState.update()` via `GameState.drain_network_events()` (including `HOST_DISCONNECT` cleanup after timeout transitions to `OFFLINE`).
 
 ## 15. Layered Visual System (Ghost Indicators)
 A decoupled animation architecture that translates internal state flags into composable visual "intents."

@@ -2793,9 +2793,14 @@ class Renderer:
             # Draw Ghost Circle (Cyan for Host, Magenta for Clients)
             # Logic: If I am HOST, then others are CLIENTS (Magenta). 
             # If I am CLIENT, then the one at server_address is HOST (Cyan).
-            color = (255, 0, 255) # Default Magenta (Client)
-            if state.network_manager.network_mode == "CLIENT" and addr == state.network_manager.server_address:
-                color = constants.COLOR_CYAN # Host
+            color = (255, 0, 255)  # Default Magenta (Client)
+            is_host_ghost = bool(
+                data.get("is_host")
+                or data.get("addr") == state.network_manager.server_address
+                or addr == state.network_manager.server_address
+            )
+            if state.network_manager.network_mode == "CLIENT" and is_host_ghost:
+                color = constants.COLOR_CYAN  # Host
             
             pygame.draw.circle(self.screen, color, (int(rx + 16), int(ry + 16)), 12)
             pygame.draw.circle(self.screen, constants.COLOR_WHITE, (int(rx + 16), int(ry + 16)), 12, 1)
@@ -3521,9 +3526,14 @@ class Renderer:
             if "x" not in data or "y" not in data: continue
             rx, ry = float(data["x"]) + 16, float(data["y"]) + 16
             if vpx <= rx <= vpx + vpw and vpy <= ry <= vpy + vph:
-                dot_color = (255, 0, 255) # Magenta for Client
-                if state.network_manager.network_mode == "CLIENT" and addr == state.network_manager.server_address:
-                    dot_color = constants.COLOR_CYAN # Host
+                dot_color = (255, 0, 255)  # Magenta for Client
+                is_host_dot = bool(
+                    data.get("is_host")
+                    or data.get("addr") == state.network_manager.server_address
+                    or addr == state.network_manager.server_address
+                )
+                if state.network_manager.network_mode == "CLIENT" and is_host_dot:
+                    dot_color = constants.COLOR_CYAN  # Host
                 pygame.draw.circle(minimap_surface, dot_color, (int((rx - vpx) * sx), int((ry - vpy) * sy)), 3)
 
         # Enemies: Red Dot

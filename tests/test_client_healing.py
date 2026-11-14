@@ -47,8 +47,9 @@ def test_client_healing_bug():
     # Force sync to Host
     # In real game, Host is authoritative for HP.
     # We need to make sure Host knows Client's initial state if it doesn't already.
-    host_state.network_manager.remote_players["Client"] = {
-        "identity": "Client", "x": 0, "y": 0, "hp": 50.0, "flask_charges": 3
+    client_peer_id = client_state.network_manager.peer_id
+    host_state.network_manager.remote_players[client_peer_id] = {
+        "peer_id": client_peer_id, "identity": "Client", "x": 0, "y": 0, "hp": 50.0, "flask_charges": 3
     }
     
     # 3. Simulate Multi-frame Heal Input (Gamepad holding button)
@@ -77,11 +78,11 @@ def test_client_healing_bug():
         client_state.update(0.1, {'move': (0,0)})
         time.sleep(0.02)
         
-    print(f"[TEST] Host view of Client HP: {host_state.network_manager.remote_players['Client']['hp']}")
+    print(f"[TEST] Host view of Client HP: {host_state.network_manager.remote_players[client_peer_id]['hp']}")
     print(f"[TEST] Client HP after sync: {client_state.player.hp}")
     
     # Verify exact values
-    assert host_state.network_manager.remote_players["Client"]["hp"] == 90.0, "Host failed to update authoritative HP for Client heal."
+    assert host_state.network_manager.remote_players[client_peer_id]["hp"] == 90.0, "Host failed to update authoritative HP for Client heal."
     assert client_state.player.hp == 90.0, "Client HP was overwritten by stale Host data."
 
     host_state.network_manager.stop_network()
