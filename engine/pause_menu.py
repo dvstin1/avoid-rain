@@ -75,7 +75,10 @@ class PauseMenu(MenuBase):
 
     def set_waiting_scholars(self, count: int) -> None:
         """Update waiting scholar count and dynamically toggle Return to Sanctuary visibility."""
-        self.waiting_scholars = max(0, int(count))
+        new_count = max(0, int(count))
+        if new_count == self.waiting_scholars:
+            return
+        self.waiting_scholars = new_count
         self.set_return_to_sanctuary_visible(self.waiting_scholars > 0)
 
     def set_return_to_sanctuary_visible(self, visible: bool) -> None:

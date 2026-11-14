@@ -24,32 +24,56 @@ def get_sword_hitbox(player_center, facing):
     half_angle = SWORD_ARC_RADIANS / 2.0
     reach = SWORD_REACH
 
-    points = [(cx, cy)]
+    min_x = max_x = cx
+    min_y = max_y = cy
     num_samples = 9
+    step = (2.0 * half_angle) / (num_samples - 1)
+    start_angle = base_angle - half_angle
     for i in range(num_samples):
-        theta = (base_angle - half_angle) + (2.0 * half_angle) * (i / (num_samples - 1))
-        points.append((cx + reach * math.cos(theta), cy + reach * math.sin(theta)))
+        theta = start_angle + step * i
+        px = cx + reach * math.cos(theta)
+        py = cy + reach * math.sin(theta)
+        if px < min_x:
+            min_x = px
+        elif px > max_x:
+            max_x = px
+        if py < min_y:
+            min_y = py
+        elif py > max_y:
+            max_y = py
 
     for card_ang in (0.0, math.pi / 2.0, math.pi, -math.pi / 2.0):
         diff = (card_ang - base_angle + math.pi) % (2.0 * math.pi) - math.pi
         if abs(diff) <= half_angle:
-            points.append((cx + reach * math.cos(card_ang), cy + reach * math.sin(card_ang)))
-
-    min_x = min(p[0] for p in points)
-    max_x = max(p[0] for p in points)
-    min_y = min(p[1] for p in points)
-    max_y = max(p[1] for p in points)
+            px = cx + reach * math.cos(card_ang)
+            py = cy + reach * math.sin(card_ang)
+            if px < min_x:
+                min_x = px
+            elif px > max_x:
+                max_x = px
+            if py < min_y:
+                min_y = py
+            elif py > max_y:
+                max_y = py
 
     return (int(round(min_x)), int(round(min_y)), int(round(max_x - min_x)), int(round(max_y - min_y)))
 
 
-def check_sword_hit(player_center, facing, target_rect, reach=SWORD_REACH, arc_radians=SWORD_ARC_RADIANS):
+def check_sword_hit(
+    player_center, facing, target_rect, reach=SWORD_REACH, arc_radians=SWORD_ARC_RADIANS, hitbox=None
+):
     """
     Checks if a target rectangle intersects the player's active sword attack.
     Matches the visual crescent slash arc (120-degree sweep, ~64px reach)
     and supports all cardinal and diagonal directions accurately.
     """
     cx, cy = player_center
+    rx, ry, rw, rh = target_rect
+
+    # 0. Ultra-fast reach AABB rejection before any trigonometry
+    if rx > cx + reach or rx + rw < cx - reach or ry > cy + reach or ry + rh < cy - reach:
+        return False
+
     fx, fy = facing
     mag = math.hypot(fx, fy)
     if mag == 0:
@@ -58,11 +82,10 @@ def check_sword_hit(player_center, facing, target_rect, reach=SWORD_REACH, arc_r
         fx, fy = fx / mag, fy / mag
 
     # 1. Fast AABB rejection using attack bounding box
-    hitbox = get_sword_hitbox(player_center, facing)
-    if not check_aabb_collision(hitbox, target_rect):
+    if hitbox is None and reach == SWORD_REACH and arc_radians == SWORD_ARC_RADIANS:
+        hitbox = get_sword_hitbox(player_center, (fx, fy))
+    if hitbox is not None and not check_aabb_collision(hitbox, target_rect):
         return False
-
-    rx, ry, rw, rh = target_rect
 
     # 2. Point-blank check: target contains or touches player center
     if rx <= cx <= rx + rw and ry <= cy <= ry + rh:

@@ -73,6 +73,8 @@ class GameState:
         world_w = len(self.world.grid[0]) * TILE_SIZE
         world_h = len(self.world.grid) * TILE_SIZE
         self.camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT, world_w, world_h, lerp_speed=CAMERA_LERP_SPEED)
+        if self.player:
+            self.camera.instant_center(self.player.get_center())
         self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
         
         # Environmental Sync State (Legacy access for Renderer)
@@ -1197,7 +1199,9 @@ class GameState:
         # 1. Local Attacks
         if self.player.state == PlayerStateEnum.ATTACKING:
             from engine.combat import get_sword_hitbox, check_sword_hit
-            hitbox = get_sword_hitbox(self.player.get_center(), self.player.facing)
+            player_center = self.player.get_center()
+            player_facing = self.player.facing
+            hitbox = get_sword_hitbox(player_center, player_facing)
             active_weapon = self.player.get_active_weapon()
             bonus_atk = getattr(self.player, 'stats', {}).get('attack_modifier', 0)
             from constants import (
@@ -1210,13 +1214,13 @@ class GameState:
             # Enemies
             for enemy in list(self.enemies):
                 try:
-                    e_rect = enemy.get_rect()
                     net_id = getattr(enemy, 'network_id', id(enemy))
-                    
-                    if (
-                        check_sword_hit(self.player.get_center(), self.player.facing, e_rect)
-                        and net_id not in self.player.hit_entities_this_attack
-                    ):
+                    if net_id in self.player.hit_entities_this_attack:
+                        continue
+                    e_rect = enemy.get_rect()
+                    if not check_aabb_collision(hitbox, e_rect):
+                        continue
+                    if check_sword_hit(player_center, player_facing, e_rect, hitbox=hitbox):
                         # Rule: Hit once per attack swing
                         self.player.hit_entities_this_attack.add(net_id)
                         
@@ -1249,12 +1253,14 @@ class GameState:
 
             # Props
             for obj in list(self.world.interactables):
+                if not getattr(obj, 'is_breakable', False):
+                    continue
                 p_id = getattr(obj, 'id', id(obj))
-                if (
-                    getattr(obj, 'is_breakable', False)
-                    and check_sword_hit(self.player.get_center(), self.player.facing, obj.rect)
-                    and p_id not in self.player.hit_props_this_attack
-                ):
+                if p_id in self.player.hit_props_this_attack:
+                    continue
+                if not check_aabb_collision(hitbox, obj.rect):
+                    continue
+                if check_sword_hit(player_center, player_facing, obj.rect, hitbox=hitbox):
                     self.player.hit_props_this_attack.add(p_id)
                     
                     obj.take_damage(damage)
@@ -2018,6 +2024,7 @@ class GameState:
         if self.stats:
             self.debug_text_enabled = bool(self.stats.data.get("debug_text_enabled", False))
             self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
+            self.online_mode = bool(self.stats.data.get("online_mode", getattr(self, "online_mode", True)))
             if hasattr(self, 'network_manager'):
                 self.network_manager.identity = self.stats.data.get("player_name", self.network_manager.identity)
 
@@ -2072,8 +2079,8 @@ class GameState:
             self.active_respite = None
             self.chronicle_dialog = None
             
-            # Auto-Host Rule: Start hosting if resuming outside Sanctuary
-            if world_name not in ("sanctuary", ""):
+            # Auto-Host Rule: Start hosting if resuming outside Sanctuary in Online mode
+            if world_name not in ("sanctuary", "") and getattr(self, "online_mode", True):
                 if hasattr(self, 'network_manager'):
                     if self.network_manager.network_mode == "OFFLINE":
                         self.network_manager.start_hosting()

@@ -214,16 +214,18 @@ class BindlingEnemy(Enemy):
         """Rule: Ink-Affinity. Heals if touching a Margin wall."""
         from constants import BINDLING_HEAL_RATE, BINDLING_MAX_HP
         
-        # Check nearby walls
-        walls = state.world.get_nearby_walls(self.get_rect())
-        near_wall = False
-        for wall in walls:
-            if check_aabb_collision(self.get_rect(), wall):
-                near_wall = True
-                break
-        
-        if near_wall:
-            self.hp = min(BINDLING_MAX_HP, self.hp + BINDLING_HEAL_RATE * dt)
+        if self.hp < BINDLING_MAX_HP:
+            # Check nearby walls only when damaged
+            my_rect = self.get_rect()
+            walls = state.world.get_nearby_walls(my_rect)
+            near_wall = False
+            for wall in walls:
+                if check_aabb_collision(my_rect, wall):
+                    near_wall = True
+                    break
+            
+            if near_wall:
+                self.hp = min(BINDLING_MAX_HP, self.hp + BINDLING_HEAL_RATE * dt)
 
         super().update(dt, state)
 

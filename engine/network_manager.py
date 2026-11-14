@@ -132,6 +132,8 @@ class NetworkManager:
 
     def drain_inbound(self) -> List[Tuple[str, Any]]:
         """Atomically drain and return all queued inbound network events."""
+        if not self._inbound_queue:
+            return []
         with self._lock:
             items = list(self._inbound_queue)
             self._inbound_queue.clear()
@@ -195,6 +197,8 @@ class NetworkManager:
 
     def process_inbound_events(self) -> int:
         """Process all queued inbound events on the calling (main) thread."""
+        if not self._inbound_queue:
+            return 0
         events = self.drain_inbound()
         for event_type, payload in events:
             self._dispatch_inbound_event(event_type, payload)

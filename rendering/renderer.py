@@ -4,6 +4,7 @@
 # pylint: disable=attribute-defined-outside-init,broad-exception-caught,multiple-statements
 # pylint: disable=unused-variable
 
+import functools
 import math
 import random
 import time
@@ -38,6 +39,9 @@ class Renderer:
         self.prop_cache = {}
         self._chunk_cache = {}
         self._chunk_world_key = None
+        self._compiled_sockets_key = None
+        self._compiled_sockets = ()
+        self._tile_biome_cache = {}
         self._weather_overlay = None
         self._weather_overlay_dirty = False
         self._hud_surf = None
@@ -346,7 +350,8 @@ class Renderer:
 
     def _resolve_tile_biome(self, state, tx, ty):
         """Determine the biome key for tile coordinates (tx, ty)."""
-        w_name = getattr(state.world, "name", "sanctuary").lower()
+        world = getattr(state, "world", None)
+        w_name = getattr(world, "name", "sanctuary").lower()
 
         if w_name == "sanctuary":
             return "sanctuary"
@@ -357,28 +362,53 @@ class Renderer:
         if any(k in w_name for k in ("ruins", "final_boss", "boss")):
             return "tech_tower"
 
-        resolved = None
-        for sock in getattr(state.world, "module_sockets", []):
-            b = sock.get("bounds", {})
-            bx, by, bw, bh = b.get("x", 0), b.get("y", 0), b.get("width", 0), b.get("height", 0)
-            if bx <= tx < bx + bw and by <= ty < by + bh:
+        sockets = getattr(world, "module_sockets", None) or ()
+        sock_key = (id(world), id(sockets), len(sockets), w_name)
+        if getattr(self, "_compiled_sockets_key", None) != sock_key:
+            compiled = []
+            for sock in sockets:
+                b = sock.get("bounds", {})
+                bx = int(b.get("x", 0))
+                by = int(b.get("y", 0))
+                bw = int(b.get("width", 0))
+                bh = int(b.get("height", 0))
                 plug = sock.get("active_plug", "").lower()
                 if "pastoral" in plug or "valley" in plug or "meadow" in plug:
-                    resolved = "pastoral_valley"
+                    b_res = "pastoral_valley"
                 elif "swamp" in plug or "mire" in plug:
-                    resolved = "swamp_mire"
+                    b_res = "swamp_mire"
                 elif "frozen" in plug or "peak" in plug:
-                    resolved = "frozen_peaks"
+                    b_res = "frozen_peaks"
                 elif any(k in plug for k in ("tech", "tower", "gantry", "ruins", "boss")):
-                    resolved = "tech_tower"
+                    b_res = "tech_tower"
                 else:
-                    resolved = "windy_ridge"
+                    b_res = "windy_ridge"
+                compiled.append((bx, by, bx + bw, by + bh, b_res))
+            self._compiled_sockets = tuple(compiled)
+            self._compiled_sockets_key = sock_key
+            self._tile_biome_cache = {}
+
+        cache = getattr(self, "_tile_biome_cache", None)
+        if cache is not None:
+            cached = cache.get((tx, ty))
+            if cached is not None:
+                return cached
+
+        resolved = None
+        for bx0, by0, bx1, by1, b_res in self._compiled_sockets:
+            if bx0 <= tx < bx1 and by0 <= ty < by1:
+                resolved = b_res
                 break
 
-        if resolved:
-            return resolved
-        sector = ((tx // 40) + (ty // 40)) % 5
-        return ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")[sector]
+        if not resolved:
+            sector = ((tx // 40) + (ty // 40)) % 5
+            resolved = ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")[sector]
+
+        if cache is not None:
+            if len(cache) > 65536:
+                cache.clear()
+            cache[(tx, ty)] = resolved
+        return resolved
 
     def _load_grass_assets(self):
         """Pre-load grass assets and generate lightweight procedural grass tuft surfaces in RAM."""
@@ -880,6 +910,7 @@ class Renderer:
             self.screen.blit(overlay, (0, 0))
 
     @staticmethod
+    @functools.lru_cache(maxsize=65536)
     def _raw_stratum_at(x, y):
         """Evaluate the base low-frequency spatial terrain wave at (x, y)."""
         wave = (
@@ -3252,29 +3283,30 @@ class Renderer:
         self.screen.blit(hud_surf, (hud_x, hud_y))
 
         net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "STANDALONE")
-        waiting_for_run = getattr(state, "waiting_for_host_run", False) or (
-            net_mode == "CLIENT"
-            and getattr(state, "in_sanctuary", False)
-            and getattr(state, "host_in_run", False)
-        )
-        waiting_scholars = int(getattr(state, "waiting_scholars", 0))
-        if waiting_for_run:
-            banner_text = "Waiting for current run to finish..."
-            banner_surf = self.font.render(banner_text, True, constants.COLOR_SELECTION)
-            banner_rect = banner_surf.get_rect(center=(self.screen.get_width() // 2, 34))
-            bg_rect = banner_rect.inflate(24, 12)
-            pygame.draw.rect(self.screen, (15, 18, 26), bg_rect, border_radius=6)
-            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, bg_rect, 2, border_radius=6)
-            self.screen.blit(banner_surf, banner_rect)
-        elif waiting_scholars > 0 and net_mode in ("HOST", "CLIENT"):
-            noun = "Scholar" if waiting_scholars == 1 else "Scholars"
-            banner_text = f"{waiting_scholars} {noun} waiting in Sanctuary"
-            banner_surf = self.small_font.render(banner_text, True, constants.COLOR_SELECTION)
-            banner_rect = banner_surf.get_rect(topright=(self.screen.get_width() - 20, 16))
-            bg_rect = banner_rect.inflate(16, 10)
-            pygame.draw.rect(self.screen, (15, 18, 26), bg_rect, border_radius=4)
-            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, bg_rect, 1, border_radius=4)
-            self.screen.blit(banner_surf, banner_rect)
+        if net_mode in ("HOST", "CLIENT") or getattr(state, "waiting_for_host_run", False):
+            waiting_for_run = getattr(state, "waiting_for_host_run", False) or (
+                net_mode == "CLIENT"
+                and getattr(state, "in_sanctuary", False)
+                and getattr(state, "host_in_run", False)
+            )
+            waiting_scholars = int(getattr(state, "waiting_scholars", 0))
+            if waiting_for_run:
+                banner_text = "Waiting for current run to finish..."
+                banner_surf = self.font.render(banner_text, True, constants.COLOR_SELECTION)
+                banner_rect = banner_surf.get_rect(center=(self.screen.get_width() // 2, 34))
+                bg_rect = banner_rect.inflate(24, 12)
+                pygame.draw.rect(self.screen, (15, 18, 26), bg_rect, border_radius=6)
+                pygame.draw.rect(self.screen, constants.COLOR_SELECTION, bg_rect, 2, border_radius=6)
+                self.screen.blit(banner_surf, banner_rect)
+            elif waiting_scholars > 0 and net_mode in ("HOST", "CLIENT"):
+                noun = "Scholar" if waiting_scholars == 1 else "Scholars"
+                banner_text = f"{waiting_scholars} {noun} waiting in Sanctuary"
+                banner_surf = self.small_font.render(banner_text, True, constants.COLOR_SELECTION)
+                banner_rect = banner_surf.get_rect(topright=(self.screen.get_width() - 20, 16))
+                bg_rect = banner_rect.inflate(16, 10)
+                pygame.draw.rect(self.screen, (15, 18, 26), bg_rect, border_radius=4)
+                pygame.draw.rect(self.screen, constants.COLOR_SELECTION, bg_rect, 1, border_radius=4)
+                self.screen.blit(banner_surf, banner_rect)
 
         # --- EXPANDED INSPECT VIEW ---
         if getattr(state, 'inspect_active', False):

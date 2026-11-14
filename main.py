@@ -287,11 +287,11 @@ def main():
     clock = pygame.time.Clock()
     renderer = Renderer(screen)
 
-    provisional_state = GameState(stats=None, auto_load=False)
+    provisional_state = None
     try:
         state = GameState(stats=None, stats_path=None, auto_load=True)
     except Exception:
-        state = provisional_state
+        state = GameState(stats=None, auto_load=False)
 
     def shutdown_handler():
         try:
@@ -406,7 +406,9 @@ def main():
                         continue
                     if selected == 'Quit': running = False
             else:
-                pause_menu.set_waiting_scholars(getattr(state, "waiting_scholars", 0))
+                waiting_cnt = getattr(state, "waiting_scholars", 0)
+                if waiting_cnt != pause_menu.waiting_scholars:
+                    pause_menu.set_waiting_scholars(waiting_cnt)
                 ev_res = handle_game_events(state, pause_menu=pause_menu, audio_manager=audio)
                 running, attack, flask, dash, swap, inspect, mouse_click, ratchet_reset = ev_res
                 if ratchet_reset: state.input_ratchet_latched = False
@@ -452,8 +454,6 @@ def main():
                     
                     state.update(dt, actions, audio_manager=audio)
                     audio.update(dt, state.player.active_track_name)
-                    try: autosave.update(dt, state)
-                    except Exception: pass
                     renderer.render(state, audio_manager=audio)
 
     except Exception as exc:
