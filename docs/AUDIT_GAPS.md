@@ -60,13 +60,21 @@ core technical documentation prior to this audit:
   - *Code:* Synthesizes `rain_loop.ogg` (distance-attenuated storm loop), `player_dash.ogg`, `chronicle_open.ogg`,
     and `storm_intro.ogg` for the Title-to-Sanctuary storm transition.
   - *Remediation:* Wired into `engine/weather.py`, `engine/game_state.py`, `engine/title_menu.py`, and `engine/audio.py`.
-- [X] **Comprehensive Entity & Symbol Registry (`constants.py`, `tools/edit_map.py`):**
-  - *Code:* `TILE_KEY` defines 27 symbols (following removal of the deprecated Sanctuary Attunement Altar `'a'` and
-    `.txt` sanctuary variants) including `B` (Barrel), `S` (Bench), `K` (Obstacle/Clutter), `T` (Structure), `g`/`G`
-    (Grass/Thicket), `M` (Lotus Frame), `L` (Lore), `F` (Wellspring), `R` (Respite), `C` (Chronicler), and enemies
-    `A`, `Z`, `f`, `b`, `s`, `Y`, `E`, `2`, `3`.
-  - *Remediation:* Synchronized Section 2 in `docs/visual_style_and_assets.md` and `maps/sanctuary.json` as the sole
-    canonical Sanctuary map.
+- [X] **Comprehensive Entity & Symbol Registry (`constants.py`, `tools/edit_map.py`, `engine/enemy.py`):**
+  - *Code:* `TILE_KEY` defines 38 entries (29 tile/entity/enemy/boss symbols following removal of `'a'` and addition
+    of `'w'` Punctuation Wolf, plus 9 patrol markers `'1'`–`'9'`), including `B` (Barrel), `S` (Bench),
+    `K` (Obstacle/Clutter), `T` (Structure), `g`/`G` (Grass/Thicket), `M` (Lotus Frame), `L` (Lore), `F` (Wellspring),
+    `R` (Respite), `C` (Chronicler), and enemies `A`, `Z`, `f`, `b`, `s`, `Y`, `w`, `E`, `2`, `3`, `!`.
+  - *Remediation:* Synchronized Section 2 in `docs/visual_style_and_assets.md`, `tools/edit_map.py`, `generate_maps.py`
+    segment pools (`windy_ridge`, `pastoral_valley`), and `maps/sanctuary.json` as the sole canonical Sanctuary map.
+- [X] **Punctuation Wolf Enemy (`engine/enemy.py`, `generate_assets.py`, `generate_sfx.py`):**
+  - *Code:* Implemented `PunctuationWolfEnemy` (`'w'`) with pack-flanking chase AI, pounce telegraph/lunge, Act 2
+    escalation (`punctuation_wolf_empowered.png`), and `wolf_telegraph.ogg` / `wolf_attack.ogg` audio cues.
+  - *Remediation:* Documented in `docs/visual_style_and_assets.md` Section 2 and spawned in `windy_ridge`/`pastoral_valley` segments.
+- [X] **Save Schema Preferences & Revision Guard (`engine/stats.py`, `docs/persistence.md`):**
+  - *Code:* `save_data.json` persists `engine_revision`, `player_name`, `debug_text_enabled`, `screen_shake_enabled`,
+    and `last_run_result`.
+  - *Remediation:* Synced Section 3 schema in `docs/persistence.md`.
 - [X] **Pause Menu Accessibility & Debug Toggles (`engine/pause_menu.py`, `engine/stats.py`):**
   - *Code:* `PauseMenu` exposes `Debug Text: ON/OFF` and `Screen Shake: ON/OFF` (`screen_shake_enabled`), persisted
     in `save_data.json` and gating camera/combat shake impulses.

@@ -25,6 +25,11 @@ The persistent JSON document differentiates between permanent lifetime metrics a
 
 ```json
 {
+  "engine_revision": 2,
+  "player_name": "Scholar",
+  "debug_text_enabled": false,
+  "screen_shake_enabled": true,
+  "last_run_result": "INIT",
   "lifetime_stats": {
     "runs_started": 12,
     "wins_chapters_cleared": 2,
