@@ -70,6 +70,8 @@ Interacting with an unlocked Respite forces a structural reset across the active
 ### The Strict Economy of Review
 Edification cannot be accumulated casually or incrementally while standing in a zone of safety. A reader must completely clear their mind and open the manuscript anew to process deeper meaning. Therefore, a Level Up sequence can only be performed immediately following a fresh complete world reset (Resting) within the current interaction. Once a point of edification is gained, the connection to the First Edition becomes unstable, requiring the player to commit to another Rest cycle to unblock further progression. To progress, you must accept the burden of an altered world—re-invoking the very common threats you previously cleared.
 
+> **Future Proposal Cross-Link:** The proposed **Marginalia Event Engine** (`docs/backlog.md`, Section 10) adheres strictly to these laws: events never grant direct Edification outside Respite Rest, weapon-roll rewards follow **The Full-Cradle Rule**, Torn Page rewards/penalties use the single active run pool, and triggered `map_anchor` events stay consumed across Respite Rests for the remainder of the Act.
+
 ### Redaction In perpetuity (Miniboss Permanence)
 Minibosses represent corrupted, highly unique critical passages within the world's text. Because they drop powerful anomalous equipment variants and premium page bundles, their defeat represents a permanent, irreversible redaction of that threat from the active run. They cannot be re-summoned or farmed, preventing any artificial duplication of the world's highest-tier rewards.
 

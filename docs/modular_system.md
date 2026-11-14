@@ -101,6 +101,8 @@ When the Chronicle gateway is confirmed:
 5. Loop through remaining 40x40 slots, popping from a shuffled deck of the selected biome's corridor segments (`maps/segments/<biome>/<biome>_corridor_*.json`).
 6. Upon defeating the Act 2 Night Boss, players warp into the standalone 72x72 Final Boss Arena (`maps/night_boss_arena.json`).
 
+> **Future Proposal Cross-Link:** Sub-arena `"map_anchor"` encounters in the proposed **Marginalia Event Engine** (`docs/backlog.md`, Section 10) extend this warp model with a `ReturnAnchor(map_path, x, y)` stack so the party can warp into a compact pocket arena and return to the exact overworld coordinates via an Exit Ladder.
+
 ## 7. Macro Matrix Canvas Space & Boss Entity Definitions
 
 ### 1. Border Boundary Clamping (Zero-Wall Mapping)
