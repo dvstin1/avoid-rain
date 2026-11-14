@@ -38,6 +38,7 @@ class BitmapFont:
         metrics_path: str,
         scale: int = 1,
         bold: bool = False,
+        letter_spacing: int = 0,
         fallback_font_name: str = "Arial",
         fallback_size: Optional[int] = None,
     ) -> None:
@@ -45,6 +46,7 @@ class BitmapFont:
         self.metrics_path = str(metrics_path)
         self.scale = max(1, int(scale))
         self.bold = bool(bold)
+        self.letter_spacing = int(letter_spacing)
         self.fallback_font_name = fallback_font_name
 
         with open(self.metrics_path, "r", encoding="utf-8") as handle:
@@ -103,17 +105,17 @@ class BitmapFont:
         """Return the scaled horizontal advance width in pixels for a single character."""
         g = self.glyphs.get(ch)
         if g is not None:
-            return int(g["advance"]) * self.scale
+            return max(1, int(g["advance"]) * self.scale + self.letter_spacing)
         sysfont = self._get_sysfont_fallback()
         if sysfont is not None:
             try:
-                return int(sysfont.size(ch)[0])
+                return max(1, int(sysfont.size(ch)[0]) + self.letter_spacing)
             except pygame.error:
                 pass
         q_meta = self.glyphs.get("?")
         if q_meta is not None:
-            return int(q_meta["advance"]) * self.scale
-        return self.default_advance * self.scale
+            return max(1, int(q_meta["advance"]) * self.scale + self.letter_spacing)
+        return max(1, self.default_advance * self.scale + self.letter_spacing)
 
     def size(self, text: str) -> Tuple[int, int]:
         """Compute exact pixel (width, height) for text using atlas glyph advances."""
@@ -155,14 +157,14 @@ class BitmapFont:
                     surf.blit(g_surf, (cursor_x + x_off, y_off))
                     if self.bold:
                         surf.blit(g_surf, (cursor_x + x_off + 1, y_off))
-                cursor_x += int(g_meta["advance"]) * self.scale
+                cursor_x += self._char_advance(ch)
             else:
                 sysfont = self._get_sysfont_fallback()
                 if sysfont is not None:
                     try:
                         fb_surf = sysfont.render(ch, True, (255, 255, 255))
                         surf.blit(fb_surf, (cursor_x, 0))
-                        cursor_x += fb_surf.get_width()
+                        cursor_x += max(1, fb_surf.get_width() + self.letter_spacing)
                         continue
                     except pygame.error:
                         pass
@@ -189,6 +191,7 @@ def load_font_or_sysfont(
     sysfont_size: int,
     bold: bool = False,
     italic: bool = False,
+    letter_spacing: int = 0,
     fonts_dir: str = os.path.join("assets", "fonts"),
 ):
     """Load BitmapFont from fonts_dir, falling back gracefully to pygame.font.SysFont."""
@@ -201,6 +204,7 @@ def load_font_or_sysfont(
                 metrics_path,
                 scale=scale,
                 bold=bold,
+                letter_spacing=letter_spacing,
                 fallback_font_name=sysfont_name,
                 fallback_size=sysfont_size,
             )

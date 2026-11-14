@@ -22,9 +22,9 @@ class Renderer:
     def __init__(self, screen):
         self.screen = screen
         self.font = load_font_or_sysfont("ink_sans", 2, "Arial", 24)
-        self.small_font = load_font_or_sysfont("ink_mono", 1, "Arial", 14)
+        self.small_font = load_font_or_sysfont("ink_mono", 1, "Arial", 14, letter_spacing=-1)
         self.large_font = load_font_or_sysfont("ink_sans", 3, "Arial", 32)
-        self.hud_font = load_font_or_sysfont("ink_mono", 1, "Arial", 14, bold=True)
+        self.hud_font = load_font_or_sysfont("ink_mono", 1, "Arial", 14, bold=True, letter_spacing=-1)
         self.slot_font = load_font_or_sysfont("ink_sans", 1, "Arial", 12)
         self.glyph_font = load_font_or_sysfont(
             "ink_mono", 1, "Courier New", constants.GLYPH_FONT_SIZE, bold=True

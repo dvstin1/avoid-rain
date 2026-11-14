@@ -106,7 +106,34 @@ def test_renderer_wires_bitmap_fonts_and_falls_back(tmp_path):
     assert renderer.small_font.get_height() == 14
     assert renderer.title_font.get_height() == 54
     assert renderer.bloom_font.get_height() == 72
+    assert renderer.small_font.letter_spacing == -1
+    assert renderer.hud_font.letter_spacing == -1
+    assert renderer.slot_font.letter_spacing == 0
 
     missing_dir = tmp_path / "no_fonts"
     fallback = load_font_or_sysfont("ink_sans", 2, "Arial", 24, fonts_dir=str(missing_dir))
     assert isinstance(fallback, pygame.font.Font)
+
+
+def test_bitmap_font_letter_spacing_and_minimum_clamp(tmp_path):
+    """Verify letter_spacing affects size() and render().get_width() identically and clamps >= 1px."""
+    fonts_dir = tmp_path / "fonts"
+    generate_fonts.generate_all_fonts(fonts_dir=str(fonts_dir))
+
+    sample = "HP: 85/100"
+    bf_default = BitmapFont(str(fonts_dir / "ink_mono.png"), str(fonts_dir / "ink_mono.json"), scale=1)
+    bf_tight = BitmapFont(
+        str(fonts_dir / "ink_mono.png"), str(fonts_dir / "ink_mono.json"), scale=1, letter_spacing=-1
+    )
+    bf_clamped = BitmapFont(
+        str(fonts_dir / "ink_mono.png"), str(fonts_dir / "ink_mono.json"), scale=1, letter_spacing=-99
+    )
+
+    w_def, _ = bf_default.size(sample)
+    w_tight, _ = bf_tight.size(sample)
+    assert w_tight == w_def - len(sample)
+    assert bf_tight.render(sample, True, (255, 255, 255)).get_width() == w_tight
+
+    w_clamp, _ = bf_clamped.size(sample)
+    assert w_clamp == len(sample)
+    assert bf_clamped.render(sample, True, (255, 255, 255)).get_width() == len(sample)
