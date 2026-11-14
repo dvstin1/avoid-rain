@@ -149,3 +149,35 @@ Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.
   1. **Deterministic Roster Retention:** Clients retain the latest `session_players` `peer_id` roster across the disconnect frame so all survivors agree deterministically on promotion order.
   2. **Sanctuary Regroup:** All surviving Clients warp back to **Sanctuary** (cleaning up active run state via `on_enter_sanctuary()`).
   3. **Lexicographic `peer_id` Promotion:** The surviving Client with the lexicographically lowest `peer_id` automatically promotes itself to **Host** (`start_hosting()`), while any other surviving Clients reconnect to the newly promoted Host in Sanctuary within one discovery cycle.
+
+## 12. 5-Act Unbound Chronicle Progression & Expanded Biomes [PROPOSED]
+
+> **STATUS:** `[PROPOSED]` (Not Yet Implemented). Expands the current 2-Act (`current_act in (1, 2)`) run loop into a 5-Act chapter draft across a 7-biome roster with Act-keyed segment pools. All new mechanics, biomes, and progression fields below are `[PROPOSED]`.
+
+### 12.1. 5-Act Run Structure & "Unbound Chronicle" Biome Draft (`[PROPOSED]`)
+- **5-Act Loop (`current_act: 1..5`, `[PROPOSED]`):** Expand the core run loop from 2 Acts to **5 Acts (Nights 1–5)** (`[PROPOSED]`), framed in lore as binding and arranging the **Unbound Chronicle** (five surviving chapter folios) in Sanctuary before stepping into the rain.
+- **Pre-Run Biome Draft & Ordering (`run_biomes: list[str]` of length 5, `[PROPOSED]`):**
+  - Before launching a run via `WarpPortal` (extending `GameState.open_chronicle_biome_dialog()` or a proposed Sanctuary lectern/folio draft UI), the player—or the **Host** in Seamless LAN Co-op—selects and orders **5 distinct biomes** from the expanded 7-biome pool to assign one biome to each Act (**Act 1 through Act 5**).
+- **Act Saturation / Escalation Matrix (Acts 1–5, `[PROPOSED]`):**
+  - Each Act rank (`1..5`) progressively increases rain/ink saturation, scaling:
+    - **Enemy Tiers:** Act 1–2 base castes escalating into Act 3–5 empowered and ink-saturated variants.
+    - **Landmark & Hazard Intensity:** Biome-specific environmental hazards, storm contraction pressure, and interactive landmark behaviors.
+    - **Torn Page & Cradle Rewards:** Higher Acts yield increased Torn Page rewards within the single active run pool (which still resets to `0` upon returning to Sanctuary per `docs/world_and_lore.md`) and higher-tier rare weapon rolls that strictly obey the two-slot **Full-Cradle Rule** (dropping an **Anomalous Weapon** only when both cradle slots are already occupied).
+  - Because every biome behaves and rewards differently at Act 1 vs. Act 5, drafting and ordering the 5 chapter folios becomes a primary strategic and replayability decision.
+
+### 12.2. Expanded 7-Biome Pool (`[PROPOSED]`)
+Expand the existing 5-biome roster (`windy_ridge`, `pastoral_valley`, `swamp_mire`, `frozen_peaks`, `tech_tower`) to **7 biomes** (`[PROPOSED]`) so every 5-Act run drafts 5 of 7 biomes in a player-chosen sequence:
+1. **Sunken Glass & Salt Flats (*The Vitreous Basin*, `vitreous_basin`, `[PROPOSED]`):**
+   - Crystalline salt crusts, reflective/refractive glass flats, and high-exposure rain plains where higher Acts (`3..5`) intensify storm glare, fracture brittle glass terrain into hazards, and guard high-value rare drops (respecting the Full-Cradle Rule).
+2. **Overgrown Terracotta & Moss Ruins (*The Sunlit Aqueducts*, `sunlit_aqueducts`, `[PROPOSED]`):**
+   - Sun-bleached stone channels, moss-choked viaducts, and terraced ruin chokepoints where higher Acts (`3..5`) flood aqueduct channels, awaken overgrown/empowered defenders, and unseal elevated shrine caches.
+- **Per-Biome Implementation & LAN Sync Scope (`[PROPOSED]`):**
+  - Deterministic sprite/tile generation (`generate_assets.py` via `_rng("<key>")` and `write_surface_if_changed()`), runtime segment pool generation (`generate_maps.py --generate-pools` -> `maps/segments/<biome>/`, registered in `BIOME_SEGMENT_POOLS`), `tools/edit_map.py` (`MASTER_TOOL_REGISTRY`) palette parity, and biome-specific enemy pairings will be scoped per biome as each is built out.
+  - Host-driven 5-Act `run_biomes` (`len == 5`), `current_act` (`1..5`), and framed TCP `MAP_RESPONSE` (or per-Act transition sync) replication in `engine/network_manager.py` will generalize the existing 2-Act LAN map synchronization.
+
+### 12.3. Act-Keyed Map Segments & Incremental Backfill Architecture (`[PROPOSED]`)
+- **Act-Keyed Segment Pools (`(biome_id, act_number)`, `[PROPOSED]`):**
+  - Replace identical Act 1 / Act 2 map reuse with **Act-keyed map segments and layouts** (`BIOME_ACT_SEGMENT_POOLS[(biome_id, act_number)]`, `[PROPOSED]`) so higher Acts feature distinct room geometry, chokepoints, environmental hazards, and secret vaults—not merely enemy stat multipliers.
+- **Lower-Act Fallback Rule (`[PROPOSED]`):**
+  - The level loader/generator (`engine/modular_builder.py` / `generate_maps.py`) will resolve `(biome_id, act_number)` by falling back to the **highest authored lower-Act segment pool** (`act_number - 1` down to `1`, and then `BIOME_SEGMENT_POOLS[biome_id]`) whenever bespoke Act `N` segments have not yet been authored for that biome.
+  - This guarantees every 5-Act permutation is playable immediately while allowing individual `(biome_id, act_number)` slices and signature mechanics to be authored and backfilled incrementally one at a time.
