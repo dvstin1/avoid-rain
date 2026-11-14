@@ -27,6 +27,7 @@ The persistent JSON document differentiates between permanent lifetime metrics a
 {
   "engine_revision": 2,
   "player_name": "Scholar",
+  "online_mode": true,
   "debug_text_enabled": false,
   "screen_shake_enabled": true,
   "last_run_result": "INIT",

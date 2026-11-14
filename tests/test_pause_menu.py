@@ -248,3 +248,24 @@ def test_pause_menu_syncs_screen_shake_after_hydration(tmp_path, monkeypatch):
     assert "Screen Shake: OFF" in pm.get_options()
 
 
+def test_pause_menu_waiting_scholars_return_to_sanctuary():
+    """Verify PauseMenu surfaces Return to Sanctuary when waiting_scholars > 0."""
+    called = []
+    pm = PauseMenu(on_return_to_sanctuary=lambda: called.append(True))
+    assert "Return to Sanctuary" not in pm.get_options()
+
+    pm.set_waiting_scholars(2)
+    assert "Return to Sanctuary" in pm.get_options()
+    pm.open()
+    pm.navigate('down')
+    assert pm.get_selected() == "Return to Sanctuary"
+    pm.confirm()
+    assert pm.should_return_to_sanctuary() is True
+    assert called == [True]
+
+    pm.clear_return_to_sanctuary()
+    assert pm.should_return_to_sanctuary() is False
+    pm.set_waiting_scholars(0)
+    assert "Return to Sanctuary" not in pm.get_options()
+
+

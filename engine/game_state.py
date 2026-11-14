@@ -50,6 +50,7 @@ class GameState:
 
         # 2. Statistics tracker: prefer injected tracker; otherwise optionally auto-load
         self.stats = stats
+        self.stats_path = stats_path
         if self.stats is None and auto_load:
             try:
                 if stats_path is not None:
@@ -158,6 +159,9 @@ class GameState:
         self.network_manager.local_state_provider = self.get_local_state
         self.network_manager.remote_state_handler = self.apply_remote_state
         self.network_manager.on_disconnect_callback = self.on_network_disconnect
+        self.network_manager.host_status_provider = self._get_host_status_payload
+        self.network_manager.on_handshake_accepted = self._on_handshake_accepted
+        self.network_manager.host_return_sanctuary_handler = self.return_party_to_sanctuary
         
         # Phase 3 Callbacks
         self.network_manager.host_map_provider = self.get_host_map_payload
@@ -173,15 +177,160 @@ class GameState:
         self.pending_remote_damage = [] # Thread-safe queue for TCP damage events
         self.pending_remote_heals = [] # Thread-safe queue for TCP heal events
         self.pending_remote_respite_actions = [] # Thread-safe queue for TCP respite events
-        
-        # Start searching for hosts if in Sanctuary
-        if getattr(self.world, 'name', '') == "sanctuary":
+
+        # Seamless LAN Co-op state
+        self.online_mode = bool(self.stats.data.get("online_mode", True)) if self.stats else True
+        self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
+        self.host_in_run = not self.in_sanctuary
+        self.waiting_scholars = 0
+        self.waiting_for_host_run = False
+        self._last_host_in_run = False
+        self._seen_host_in_sanctuary = self.in_sanctuary
+
+    def _get_host_status_payload(self):
+        """Return Host run status and waiting scholar count for TCP HANDSHAKE responses."""
+        self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
+        if self.network_manager.network_mode == "HOST":
+            self.host_in_run = not self.in_sanctuary
+        waiting = 0
+        if self.host_in_run:
+            for p_info in self.network_manager.remote_players.values():
+                if p_info.get("in_sanctuary", False):
+                    waiting += 1
+        self.waiting_scholars = waiting
+        return {
+            "host_in_run": bool(self.host_in_run),
+            "waiting_scholars": int(self.waiting_scholars),
+        }
+
+    def _on_handshake_accepted(self, response):
+        """Initialize Client staging state from the Host's TCP HANDSHAKE response."""
+        host_in_run = bool(response.get("host_in_run", False))
+        self.host_in_run = host_in_run
+        self._last_host_in_run = host_in_run
+        self.waiting_scholars = int(response.get("waiting_scholars", 0))
+        self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
+        if host_in_run and self.in_sanctuary:
+            self.waiting_for_host_run = True
+            self._seen_host_in_sanctuary = False
+            self.waiting_scholars = max(1, self.waiting_scholars)
+        else:
+            self.waiting_for_host_run = False
+            self._seen_host_in_sanctuary = True
+
+    def set_online_mode(self, enabled: bool, save: bool = True) -> None:
+        """Toggle Online/Offline LAN mode and persist preference."""
+        self.online_mode = bool(enabled)
+        if self.stats is not None:
+            self.stats.data["online_mode"] = self.online_mode
+            if save:
+                self.save_stats(wait=True)
+        if not self.online_mode and hasattr(self, "network_manager"):
+            self.network_manager.stop_network()
+
+    def start_seamless_lan(self, probe_duration: float = 1.6, background: bool = False):
+        """Probe LAN_PORT in Online mode: auto-join existing Host in Sanctuary or auto-promote to Host."""
+        if not getattr(self, "online_mode", True):
+            self.network_manager.stop_network()
+            return "OFFLINE"
+
+        world_name = getattr(self.world, "name", "sanctuary")
+        if world_name != "sanctuary":
+            self.in_sanctuary = False
+            self.host_in_run = True
+            self.network_manager.start_hosting()
+            return "HOST"
+
+        def _probe_and_connect():
+            self.in_sanctuary = True
             self.network_manager.start_searching()
+            deadline = time.time() + max(0.05, float(probe_duration))
+            discovered_ip = None
+            while time.time() < deadline:
+                with self.network_manager._lock:
+                    hosts = dict(self.network_manager.found_hosts)
+                if hosts:
+                    # Prefer lowest peer_id if multiple hosts were heard
+                    peers = dict(getattr(self.network_manager, "found_host_peers", {}))
+                    if peers:
+                        discovered_ip = min(hosts.keys(), key=lambda ip: peers.get(ip, "~"))
+                    else:
+                        discovered_ip = next(iter(hosts.keys()))
+                    break
+                time.sleep(0.05)
+
+            if discovered_ip and self.network_manager.connect_to_host(discovered_ip):
+                full_state = self.get_full_player_state()
+                self.network_manager.send_full_state(full_state)
+                return "CLIENT"
+
+            self.host_in_run = False
+            self.waiting_for_host_run = False
+            self.network_manager.start_hosting()
+            return "HOST"
+
+        if background:
+            import threading
+            threading.Thread(target=_probe_and_connect, name="SeamlessLANProbe", daemon=True).start()
+            return None
+        return _probe_and_connect()
+
+    def join_host_active_run(self) -> bool:
+        """Fetch the Host's active run map and warp the Sanctuary Client into the run alongside the Host."""
+        if self.network_manager.network_mode != "CLIENT":
+            return False
+        if not self.fetch_host_map():
+            return False
+        self.in_sanctuary = False
+        self.waiting_for_host_run = False
+        if self.player and getattr(self.world, "player_start", None):
+            self.player.x = float(self.world.player_start[0])
+            self.player.y = float(self.world.player_start[1])
+            self.player.is_exposed = False
+        if hasattr(self, "weather_manager"):
+            self.weather_manager.reset(boss_coords_list=getattr(self.world, "boss_coords_list", None))
+        if hasattr(self, "camera") and getattr(self.world, "grid", None):
+            self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
+            self.camera.world_h = len(self.world.grid) * TILE_SIZE
+            if self.player:
+                self.camera.instant_center(self.player.get_center())
+        return True
+
+    def _warp_local_to_sanctuary(self) -> None:
+        """Warp the local player instance back into Sanctuary and run purification while keeping LAN active."""
+        from engine.maps import create_world
+        self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
+        self.in_sanctuary = True
+        self.waiting_for_host_run = False
+        if self.player and getattr(self.world, "player_start", None):
+            self.player.x = float(self.world.player_start[0])
+            self.player.y = float(self.world.player_start[1])
+        if hasattr(self, "camera") and getattr(self.world, "grid", None):
+            self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
+            self.camera.world_h = len(self.world.grid) * TILE_SIZE
+            if self.player:
+                self.camera.instant_center(self.player.get_center())
+        self.enemies = []
+        self.loot = []
+        self.on_enter_sanctuary()
+
+    def return_party_to_sanctuary(self) -> None:
+        """Return the active run party to Sanctuary to regroup with Waiting Scholars while preserving LAN."""
+        if self.network_manager.network_mode == "CLIENT":
+            self.network_manager.send_return_to_sanctuary_event()
+            self._warp_local_to_sanctuary()
+            return
+        self.host_in_run = False
+        self.in_sanctuary = True
+        self.waiting_scholars = 0
+        self.waiting_for_host_run = False
+        self._warp_local_to_sanctuary()
 
     def get_local_state(self):
         """Phase 2 & 4: Returns the local player state for network sync."""
         if not self.player: return {"x": 0, "y": 0, "hp": 0}
         
+        self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
         state = {
             "x": round(self.player.x, 1),
             "y": round(self.player.y, 1),
@@ -189,10 +338,20 @@ class GameState:
             "swing_seq": self.local_swing_seq,
             "hit_seq": self.local_hit_seq,
             "dash_seq": self.local_dash_seq,
+            "in_sanctuary": bool(self.in_sanctuary),
         }
         
         # Phase 4: Host Authority Sync
         if self.network_manager.network_mode == "HOST":
+            self.host_in_run = not self.in_sanctuary
+            waiting_count = 0
+            if self.host_in_run:
+                for p_val in self.network_manager.remote_players.values():
+                    if p_val.get("in_sanctuary", False):
+                        waiting_count += 1
+            self.waiting_scholars = waiting_count
+            state["host_in_run"] = bool(self.host_in_run)
+            state["waiting_scholars"] = int(self.waiting_scholars)
             state["weather"] = {
                 "radius": round(self.weather_manager.active_safe_radius, 1),
                 "state": self.weather_manager.bleed_state,
@@ -231,6 +390,7 @@ class GameState:
                     "swing_seq": self.local_swing_seq,
                     "hit_seq": self.local_hit_seq,
                     "dash_seq": self.local_dash_seq,
+                    "in_sanctuary": bool(self.in_sanctuary),
                 }
             ]
             for peer_key, p in self.network_manager.remote_players.items():
@@ -246,6 +406,7 @@ class GameState:
                         "swing_seq": p.get("swing_seq", 0),
                         "hit_seq": p.get("hit_seq", 0),
                         "dash_seq": p.get("dash_seq", 0),
+                        "in_sanctuary": bool(p.get("in_sanctuary", False)),
                     }
                 )
             
@@ -334,8 +495,17 @@ class GameState:
                     "swing_seq": swing_seq,
                     "hit_seq": hit_seq,
                     "dash_seq": dash_seq,
+                    "in_sanctuary": bool(data.get("in_sanctuary", False)),
                     "time": time.time(),
                 }
+                self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
+                self.host_in_run = not self.in_sanctuary
+                if self.host_in_run:
+                    self.waiting_scholars = sum(
+                        1 for rp in self.network_manager.remote_players.values() if rp.get("in_sanctuary", False)
+                    )
+                else:
+                    self.waiting_scholars = 0
             else:
                 self.network_manager.remote_players[peer_key] = {
                     "peer_id": peer_key,
@@ -345,11 +515,31 @@ class GameState:
                     "x": float(data.get("x", 0)),
                     "y": float(data.get("y", 0)),
                     "hp": float(data.get("hp", 0)),
+                    "in_sanctuary": bool(data.get("in_sanctuary", False)),
                     "time": time.time(),
                 }
 
         # Phase 4: Host-Authoritative Overrides (Client only)
         if self.network_manager.network_mode == "CLIENT":
+            self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
+            if "waiting_scholars" in data:
+                self.waiting_scholars = int(data.get("waiting_scholars", 0))
+            if "host_in_run" in data:
+                incoming_host_in_run = bool(data.get("host_in_run", False))
+                prev_host_in_run = self._last_host_in_run
+                self.host_in_run = incoming_host_in_run
+                self._last_host_in_run = incoming_host_in_run
+                if not incoming_host_in_run:
+                    self._seen_host_in_sanctuary = True
+                    self.waiting_for_host_run = False
+                    if prev_host_in_run and not self.in_sanctuary:
+                        self._warp_local_to_sanctuary()
+                        return
+                else:
+                    if not prev_host_in_run and self._seen_host_in_sanctuary and self.in_sanctuary:
+                        self.join_host_active_run()
+                    elif self.in_sanctuary:
+                        self.waiting_for_host_run = True
             # 1. Weather
             w_data = data.get("weather")
             if w_data:
@@ -408,8 +598,12 @@ class GameState:
                         "x": rx,
                         "y": ry,
                         "hp": float(p_info.get("hp", 0)),
+                        "in_sanctuary": bool(p_info.get("in_sanctuary", False)),
                         "time": time.time(),
                     }
+
+            if self.in_sanctuary and self.waiting_for_host_run:
+                return
             
             # 3. Enemies
             e_data_list = data.get("enemies", [])
@@ -561,6 +755,8 @@ class GameState:
             self.world.module_sockets = module_sockets
             
             self.enemies = self.world.enemies
+            self.in_sanctuary = False
+            self.waiting_for_host_run = False
             return True
         return False
 
@@ -1610,6 +1806,11 @@ class GameState:
             json.dump(self.act1_world_data, f)
 
         self._load_generated_world_from_path(path, "generated_world", reset_progress=True)
+        self.in_sanctuary = False
+        self.host_in_run = True
+        self.waiting_for_host_run = False
+        if getattr(self, "online_mode", True) and self.network_manager.network_mode == "OFFLINE":
+            self.network_manager.start_hosting()
         if self.stats:
             self.stats.data["active_session_in_progress"] = True
         self.trigger_bloom("ACT I: THE FIRST DRAFT", priority=2)
@@ -1699,19 +1900,11 @@ class GameState:
         
         self.player.hp = float(self.player.max_hp)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
-        
-        # Network Rule: If we just returned from a draft (world), clear session.
-        # But if we just joined from the lobby (is_connected), keep it!
-        if hasattr(self, 'network_manager'):
-            mode = self.network_manager.network_mode
-            if mode in ("HOST", "CLIENT"):
-                # Only stop if we weren't already in the hub or just connected
-                # Check active_session_in_progress as a proxy for "was in a run"
-                if self.stats and self.stats.data.get("active_session_in_progress"):
-                    self.network_manager.stop_network()
-                    self.network_manager.start_searching()
-            elif mode == "OFFLINE":
-                self.network_manager.start_searching()
+        self.in_sanctuary = True
+        self.waiting_for_host_run = False
+        if hasattr(self, "network_manager") and self.network_manager.network_mode != "CLIENT":
+            self.host_in_run = False
+            self.waiting_scholars = 0
         
         # Purification: Clear run state and persistent world changes when entering Hub
         self.world_debris = []
@@ -1741,8 +1934,23 @@ class GameState:
     def on_network_disconnect(self):
         print("[NETWORK] Connection lost. Warping to Sanctuary.")
         self.trigger_bloom("CONNECTION LOST", priority=2)
+        survivors = list(getattr(self.network_manager, "last_survivor_peer_ids", []))
+        if self.network_manager.peer_id not in survivors:
+            survivors.append(self.network_manager.peer_id)
+        survivors = sorted(set(survivors))
+        survivor_addrs = dict(getattr(self.network_manager, "last_survivor_addrs", {}))
+        was_connected = bool(getattr(self.network_manager, "_ever_connected", False))
+        last_server_addr = self.network_manager.server_address
+
+        if self.network_manager.network_mode != "OFFLINE":
+            self.network_manager.stop_network(clear_inbox=False)
+
         from engine.maps import create_world
         self.world = create_world("sanctuary")
+        self.in_sanctuary = True
+        self.host_in_run = False
+        self.waiting_for_host_run = False
+        self.waiting_scholars = 0
         # Phase 4: Sync camera bounds
         if hasattr(self, 'camera'):
             self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
@@ -1751,6 +1959,32 @@ class GameState:
         
         self.on_enter_sanctuary()
         self.respawn_player()
+
+        # Disruptive Host Promotion: lowest peer_id survivor auto-hosts; others reconnect
+        if getattr(self, "online_mode", True) and was_connected and survivors:
+            lowest_peer_id = survivors[0]
+            if self.network_manager.peer_id == lowest_peer_id:
+                print(f"[NETWORK] Promoting self ({self.network_manager.peer_id}) to HOST in Sanctuary.")
+                self.network_manager.start_hosting()
+            else:
+                target_ip = survivor_addrs.get(lowest_peer_id) or last_server_addr or "127.0.0.1"
+                print(
+                    f"[NETWORK] Waiting for promoted Host {lowest_peer_id} at {target_ip} "
+                    f"(self={self.network_manager.peer_id})."
+                )
+                import threading
+
+                def _reconnect_to_promoted():
+                    deadline = time.time() + 3.0
+                    while time.time() < deadline:
+                        if self.network_manager.connect_to_host(target_ip):
+                            self.network_manager.send_full_state(self.get_full_player_state())
+                            return
+                        time.sleep(0.1)
+
+                threading.Thread(
+                    target=_reconnect_to_promoted, name="NetReconnectPromotedHost", daemon=True
+                ).start()
 
     def deallocate(self):
         self.player = self.world = None
@@ -1979,6 +2213,7 @@ class GameState:
         from constants import ENGINE_REVISION
         self.stats.data["engine_revision"] = ENGINE_REVISION
         self.stats.is_revision_compatible = True
+        self.stats.data["online_mode"] = bool(getattr(self, "online_mode", True))
         self.stats.data["debug_text_enabled"] = bool(getattr(self, "debug_text_enabled", False))
         self.stats.data["screen_shake_enabled"] = bool(getattr(self, "screen_shake_enabled", True))
         
@@ -1991,7 +2226,8 @@ class GameState:
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
 
-        try: self._save_queue.put_nowait({"stats": self.stats.data, "path": path})
+        resolved_path = path if path is not None else getattr(self, "stats_path", None)
+        try: self._save_queue.put_nowait({"stats": self.stats.data, "path": resolved_path})
         except queue.Full: pass
         if wait: self._save_queue.join()
 

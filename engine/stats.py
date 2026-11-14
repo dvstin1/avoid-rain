@@ -50,6 +50,7 @@ class StatisticsTracker:
             self.data: Dict[str, Any] = {
                 "engine_revision": ENGINE_REVISION,
                 "player_name": "Scholar",
+                "online_mode": True,
                 "debug_text_enabled": False,
                 "screen_shake_enabled": True,
                 "active_session_in_progress": False,
@@ -80,6 +81,8 @@ class StatisticsTracker:
                     self.data["active_session_in_progress"] = False
             if "last_run_result" not in self.data:
                 self.data["last_run_result"] = "INIT"
+            if "online_mode" not in self.data:
+                self.data["online_mode"] = True
             if "debug_text_enabled" not in self.data:
                 self.data["debug_text_enabled"] = False
             if "screen_shake_enabled" not in self.data:

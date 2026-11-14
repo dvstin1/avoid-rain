@@ -2,7 +2,7 @@ import pytest
 from engine.title_menu import TitleMenu
 
 def test_navigation_and_confirm():
-    # Options: ["New Draft", "Join Game", "Controls", "Quit"] (has_save=False)
+    # Options: ["New Draft", "Mode: Online", "Controls", "Quit"] (has_save=False)
     tm = TitleMenu(has_save=False)
     assert tm.get_selected_index() == 0
     tm.navigate('down')

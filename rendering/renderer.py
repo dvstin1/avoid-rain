@@ -15,7 +15,6 @@ from engine.player import PlayerStateEnum
 from engine.camera import Camera
 from rendering.bitmap_font import load_font_or_sysfont
 from ui.menu import draw_respite_menu, draw_chronicle_biome_menu
-from ui.lobby_menu import draw_lobby_menu
 
 class Renderer:
     """Coordinates rendering of the game state."""
@@ -3252,6 +3251,31 @@ class Renderer:
         hud_y = self.screen.get_height() - constants.HUD_PANEL_H - 10
         self.screen.blit(hud_surf, (hud_x, hud_y))
 
+        net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "STANDALONE")
+        waiting_for_run = getattr(state, "waiting_for_host_run", False) or (
+            net_mode == "CLIENT"
+            and getattr(state, "in_sanctuary", False)
+            and getattr(state, "host_in_run", False)
+        )
+        waiting_scholars = int(getattr(state, "waiting_scholars", 0))
+        if waiting_for_run:
+            banner_text = "Waiting for current run to finish..."
+            banner_surf = self.font.render(banner_text, True, constants.COLOR_SELECTION)
+            banner_rect = banner_surf.get_rect(center=(self.screen.get_width() // 2, 34))
+            bg_rect = banner_rect.inflate(24, 12)
+            pygame.draw.rect(self.screen, (15, 18, 26), bg_rect, border_radius=6)
+            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, bg_rect, 2, border_radius=6)
+            self.screen.blit(banner_surf, banner_rect)
+        elif waiting_scholars > 0 and net_mode in ("HOST", "CLIENT"):
+            noun = "Scholar" if waiting_scholars == 1 else "Scholars"
+            banner_text = f"{waiting_scholars} {noun} waiting in Sanctuary"
+            banner_surf = self.small_font.render(banner_text, True, constants.COLOR_SELECTION)
+            banner_rect = banner_surf.get_rect(topright=(self.screen.get_width() - 20, 16))
+            bg_rect = banner_rect.inflate(16, 10)
+            pygame.draw.rect(self.screen, (15, 18, 26), bg_rect, border_radius=4)
+            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, bg_rect, 1, border_radius=4)
+            self.screen.blit(banner_surf, banner_rect)
+
         # --- EXPANDED INSPECT VIEW ---
         if getattr(state, 'inspect_active', False):
             tip_w = 200
@@ -3687,6 +3711,19 @@ class Renderer:
             surf = self.font.render(opt, True, col)
             self.screen.blit(surf, surf.get_rect(center=(sw//2, 340 + idx * 40)))
 
+        if state and getattr(menu_state, 'name', '') == 'MAIN':
+            net_mgr = getattr(state, "network_manager", None)
+            identity = getattr(net_mgr, "identity", "Scholar") if net_mgr else "Scholar"
+            name_y = 340 + len(opts) * 40 + 16
+            if getattr(state, "lobby_editing_name", False):
+                name_str = f"Editing Name: {identity}_  [ENTER] Save"
+                name_col = constants.COLOR_SELECTION
+            else:
+                name_str = f"Scholar Name: {identity}  [N] Change Name"
+                name_col = (180, 195, 215)
+            name_surf = self.small_font.render(name_str, True, name_col)
+            self.screen.blit(name_surf, name_surf.get_rect(center=(sw // 2, name_y)))
+
         if menu_state == TitleMenuState.CONFIRM_NEW_GAME:
             overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 200))
@@ -3700,8 +3737,6 @@ class Renderer:
             w_surf = self.font.render("This will permanently remove old progress.", True, constants.COLOR_RED)
             self.screen.blit(m_surf, m_surf.get_rect(center=self.screen.get_rect().center))
             self.screen.blit(w_surf, w_surf.get_rect(center=(sw//2, sh//2 + 30)))
-        elif menu_state == TitleMenuState.LOBBY and state:
-            draw_lobby_menu(self.screen, self.font, state)
         elif getattr(menu_state, 'name', '') == 'CONTROLS':
             self.draw_controls_overlay(True)
         # Engine Revision & Outdated Save Indicator on Title Screen

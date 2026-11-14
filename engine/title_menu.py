@@ -20,21 +20,21 @@ class TitleMenuState(Enum):
     MAIN = auto()
     CONFIRM_NEW_GAME = auto()
     CONTROLS = auto()
-    LOBBY = auto()
+
 
 class TitleMenu(MenuBase):
-    """Manage title screen menu state and confirmation flag.
+    """Manage title screen menu state, Online/Offline mode toggle, and confirmation flag.
 
     The menu adjusts options depending on whether save data exists.
-    If has_save is False (default): options = ["New Draft", "Join Game", "Controls", "Quit"]
-    If has_save is True: options = ["New Draft", "Continue", "Join Game", "Controls", "Quit"] with
+    If has_save is False (default): options = ["New Draft", "Mode: Online", "Controls", "Quit"]
+    If has_save is True: options = ["New Draft", "Continue", "Mode: Online", "Controls", "Quit"] with
     "Continue" selected by default.
     """
 
-    def __init__(self, has_save: bool = False) -> None:
+    def __init__(self, has_save: bool = False, online_mode: bool = True) -> None:
         self._has_save = bool(has_save)
-        options = ["New Draft", "Join Game", "Controls", "Quit"] if not self._has_save else ["New Draft", "Continue", "Join Game", "Controls", "Quit"]
-        super().__init__(options)
+        self.online_mode = bool(online_mode)
+        super().__init__(self._build_options())
         # Set default selection: when a save exists, default to Continue
         if self._has_save:
             # index 1 = Continue
@@ -42,18 +42,34 @@ class TitleMenu(MenuBase):
         self._confirmed = False
         self.state = TitleMenuState.MAIN
 
+    def _build_options(self) -> list[str]:
+        """Return title menu options reflecting save presence and Online/Offline mode."""
+        mode_label = f"Mode: {'Online' if self.online_mode else 'Offline'}"
+        if not self._has_save:
+            return ["New Draft", mode_label, "Controls", "Quit"]
+        return ["New Draft", "Continue", mode_label, "Controls", "Quit"]
+
     def set_has_save(self, has_save: bool) -> None:
         """Update menu options based on presence of save data.
 
         Calling this will reset the options list and selection appropriately.
         """
-        # Update internal state and options without dunder __init__ call
         self._has_save = bool(has_save)
-        self._options = ["New Draft", "Join Game", "Controls", "Quit"] if not self._has_save else ["New Draft", "Continue", "Join Game", "Controls", "Quit"]
+        self._options = self._build_options()
         if self._has_save:
             self._selected = 1
         else:
             self._selected = 0
+
+    def set_online_mode(self, online_mode: bool) -> None:
+        """Synchronize the Online/Offline mode state and update its option label."""
+        self.online_mode = bool(online_mode)
+        self._options = self._build_options()
+
+    def toggle_online_mode(self) -> bool:
+        """Toggle between Online and Offline modes and return the new boolean value."""
+        self.set_online_mode(not self.online_mode)
+        return self.online_mode
 
     def confirm(self) -> None:
         """Mark that the current selection was confirmed."""

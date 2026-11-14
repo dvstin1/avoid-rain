@@ -118,37 +118,37 @@ Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.
 | **The Relentless Censor** | `"global_pursuit"` | 40s hunt by a `persistent_pursuit` hunter following player breadcrumbs | Act 1 Censor hunter | Act 2 Empowered Censor hunter | **Slay:** +4 / +6 Torn Pages, full Flask refill, Full-Cradle weapon roll. **Survive 40s:** partial Torn Pages + heal | Taking a redaction/lethal hit triggers a recoverable setback (Flask drain / temporary debuff) and banishes the hunter |
 | **The Unblotted Margin** | `"local"` | **Rare Zero-Risk Boon (~12–15% weight of triggered events).** No enemies, no timer, no failure state | *"A Clear Footnote"*: Full HP, full Flasks, **+2 Torn Pages** | *"The Author's Grace"*: Full HP, full Flasks, **+3 Torn Pages**, + 25s **"Pristine Ink"** damage-block shield | Instant boon | None |
 
-## 11. Seamless LAN Co-op Lifecycle [PROPOSED]
+## 11. Seamless LAN Co-op Lifecycle [DONE]
 
-> **STATUS:** `[PROPOSED]` (Not Yet Implemented). Builds on the implemented Phase 1–4 LAN transport layer (`peer_id`, 4-byte length-prefixed TCP framing, non-blocking `_outbound_queue`, and main-thread `drain_network_events()` in `docs/architecture.md` Section 14.1) while keeping Section 5's completed stabilization milestones intact.
+> **STATUS:** `[DONE]`. Implements Seamless LAN Co-op on top of the Phase 1–4 LAN transport layer (`peer_id`, 4-byte length-prefixed TCP framing, non-blocking `_outbound_queue`, and main-thread `drain_network_events()` in `docs/architecture.md` Section 14) while keeping Section 5's completed stabilization milestones intact.
 
-### 11.1. Title Screen Online/Offline Mode & Name Editing (`[PROPOSED]`)
-- **Replace Manual Lobby Flow:** Remove the manual "Join Game" lobby flow (`TitleMenuState.LOBBY` / `ui/lobby_menu.py`) and replace it with an **Online / Offline** mode toggle (`online_mode: bool`, `(proposed)`) on the Title Screen, defaulting to **Online**.
-- **Title Screen Name Editing:** Relocate `[N] Change Name` / `player_name` editing onto the Title Screen when `TitleMenuState.LOBBY` is removed so players can still customize their display `identity` before entering Sanctuary.
+### 11.1. Title Screen Online/Offline Mode & Name Editing (`[DONE]`)
+- **Replace Manual Lobby Flow:** Replaced the manual "Join Game" lobby flow (`TitleMenuState.LOBBY` / `ui/lobby_menu.py`) with an **Online / Offline** mode toggle (`online_mode: bool`, persisted in `save_data.json`) on the Title Screen, defaulting to **Online**.
+- **Title Screen Name Editing:** Relocated `[N] Change Name` / `player_name` editing onto the Title Screen so players can customize their display `identity` before entering Sanctuary.
 - **Offline Mode:** Runs purely locally with zero UDP/TCP sockets active (`network_mode == "OFFLINE"`).
-- **Online Mode (Single Active LAN Session):** Assumes at most one shared co-op session per local network. Upon entering Sanctuary in Online mode, the client probes `LAN_PORT` (`55555`) for existing host broadcasts (~1.5–2.0s window):
-  - **Active Host Discovered:** Automatically connect as a **Client** via framed TCP `HANDSHAKE` and spawn directly into **Sanctuary** alongside connected peers.
-  - **No Host Discovered:** Automatically promote self to **Host** (`start_hosting()`) and begin broadcasting on `LAN_PORT` (`55555`) immediately from Sanctuary.
-  - **Continue / Saved Mid-Run Resume:** Resuming a saved mid-run via **Continue** (`GameState.hydrate_from_disk()`) in Online mode resumes directly as **Host** (`host_in_run = True`, `(proposed)`), treating any subsequently connecting peers as Waiting Scholars in Sanctuary.
-- **Simultaneous Boot Tie-Breaker (`[PROPOSED]`):** An active Host keeps a lightweight `LAN_PORT` (`55555`) listener (or periodic probe) active so if two Hosts detect each other's UDP broadcasts on the same LAN, the instance with the lexicographically higher `peer_id` yields, stops hosting, and connects as a Client to the lower-`peer_id` Host.
+- **Online Mode (Single Active LAN Session):** Assumes at most one shared co-op session per local network. Upon entering Sanctuary in Online mode (`GameState.start_seamless_lan()`), the client probes `LAN_PORT` (`55555`) for existing host broadcasts (~1.6s window):
+  - **Active Host Discovered:** Automatically connects as a **Client** via framed TCP `HANDSHAKE` and spawns directly into **Sanctuary** alongside connected peers.
+  - **No Host Discovered:** Automatically promotes self to **Host** (`start_hosting()`) and begins broadcasting on `LAN_PORT` (`55555`) immediately from Sanctuary.
+  - **Continue / Saved Mid-Run Resume:** Resuming a saved mid-run via **Continue** (`GameState.hydrate_from_disk()`) in Online mode resumes directly as **Host** (`host_in_run = True`), treating any subsequently connecting peers as Waiting Scholars in Sanctuary.
+- **Simultaneous Boot Tie-Breaker (`[DONE]`):** An active Host keeps a lightweight `LAN_PORT` (`55555`) listener active so if two Hosts detect each other's UDP broadcasts on the same LAN, the instance with the lexicographically higher `peer_id` yields (`_yield_host_to()`), stops hosting, and connects as a Client to the lower-`peer_id` Host.
 
-### 11.2. Sanctuary Staging, Group Run Launch & Waiting Scholars (`[PROPOSED]`)
+### 11.2. Sanctuary Staging, Group Run Launch & Waiting Scholars (`[DONE]`)
 - **Sanctuary-Only Spawning & Session Persistence:**
-  - Newly connecting Clients always spawn into **Sanctuary** (`in_sanctuary: bool`, `(proposed)`), never mid-run into an active macro-world instance.
+  - Newly connecting Clients always spawn into **Sanctuary** (`in_sanctuary: bool`), never mid-run into an active macro-world instance.
   - Returning to Sanctuary in Online mode (`GameState.on_enter_sanctuary()`) preserves the active Host/Client LAN session rather than calling `stop_network()`.
 - **Group Run Launch:**
-  - When the Host triggers the `WarpPortal` in Sanctuary to start a run, all players currently present in Sanctuary warp into the run together (receiving the Host's framed `MAP_RESPONSE` and initial Act 1 world state).
+  - When the Host triggers the `WarpPortal` in Sanctuary to start a run, all players currently present in Sanctuary warp into the run together (`GameState.join_host_active_run()`, receiving the Host's framed `MAP_RESPONSE` and initial Act 1 world state).
 - **Mid-Run Joiners ("Waiting Scholars"):**
-  - Host `HANDSHAKE` responses and 20Hz UDP snapshots replicate `host_in_run: bool` `(proposed)` and `waiting_scholars: int` `(proposed)`.
-  - When `host_in_run` is `True`, newly joining Clients remain in Sanctuary (suppressing `fetch_host_map()` until the Host's party returns and starts a new `WarpPortal` run) and display a HUD banner: *"Waiting for current run to finish..."*.
+  - Host `HANDSHAKE` responses and 20Hz UDP snapshots replicate `host_in_run: bool` and `waiting_scholars: int`.
+  - When `host_in_run` is `True`, newly joining Clients remain in Sanctuary (`waiting_for_host_run = True`, suppressing `fetch_host_map()` until the Host's party returns and starts a new `WarpPortal` run) and display a HUD banner: *"Waiting for current run to finish..."*.
   - Active players out in the run see a live HUD indicator showing the count of waiting players (e.g., *"1 Scholar waiting in Sanctuary"* / *"N Scholars waiting in Sanctuary"*).
-  - **Pause Menu Regroup Option (`"Return to Sanctuary"`, `(proposed)`):** Whenever `waiting_scholars > 0` `(proposed)`, `PauseMenu` surfaces a **"Return to Sanctuary"** `(proposed)` option so the active party can cleanly abandon the current run—running standard `on_enter_sanctuary()` purification (resetting Torn Pages, run gear, and modifiers) while keeping the Online LAN session alive—and regroup in Sanctuary with the waiting players.
+  - **Pause Menu Regroup Option (`"Return to Sanctuary"`):** Whenever `waiting_scholars > 0`, `PauseMenu` surfaces a **"Return to Sanctuary"** option (`GameState.return_party_to_sanctuary()`) so the active party can cleanly abandon the current run—running standard `on_enter_sanctuary()` purification (resetting Torn Pages, run gear, and modifiers) while keeping the Online LAN session alive—and regroup in Sanctuary with the waiting players.
 
-### 11.3. Disruptive Host Promotion on Disconnect (`[PROPOSED]`)
+### 11.3. Disruptive Host Promotion on Disconnect (`[DONE]`)
 - If the Host disconnects or times out (`HOST_DISCONNECT`), surviving Clients do not get kicked to the title screen:
-  1. **Deterministic Roster Retention:** Clients retain the latest `session_players` `peer_id` roster across the disconnect frame so all survivors agree deterministically on promotion order.
+  1. **Deterministic Roster Retention:** Clients retain the latest `session_players` `peer_id` roster (`last_survivor_peer_ids`) across the disconnect frame so all survivors agree deterministically on promotion order.
   2. **Sanctuary Regroup:** All surviving Clients warp back to **Sanctuary** (cleaning up active run state via `on_enter_sanctuary()`).
-  3. **Lexicographic `peer_id` Promotion:** The surviving Client with the lexicographically lowest `peer_id` automatically promotes itself to **Host** (`start_hosting()`), while any other surviving Clients reconnect to the newly promoted Host in Sanctuary within one discovery cycle.
+  3. **Lexicographic `peer_id` Promotion:** The surviving Client with the lexicographically lowest `peer_id` automatically promotes itself to **Host** (`start_hosting()`), while any other surviving Clients reconnect to the newly promoted Host in Sanctuary.
 
 ## 12. 5-Act Unbound Chronicle Progression & Expanded Biomes [PROPOSED]
 

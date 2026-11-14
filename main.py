@@ -35,23 +35,10 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
 
         if event.type == pygame.JOYBUTTONDOWN:
             if event.button == 0: # Cross/A
-                if title_menu.state == TitleMenuState.LOBBY:
-                    # Trigger Lobby Connection
-                    hosts = list(state.network_manager.found_hosts.items())
-                    if hosts:
-                        sel = getattr(state, 'lobby_selection_idx', 0)
-                        if sel < len(hosts):
-                            addr, _ = hosts[sel]
-                            if state.network_manager.connect_to_host(addr):
-                                title_menu.confirm()
-                else:
-                    title_menu.confirm() 
+                title_menu.confirm()
             if event.button == 1: # Circle/B (Cancel)
                 if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
                     title_menu.state = TitleMenuState.MAIN
-                elif title_menu.state == TitleMenuState.LOBBY:
-                    title_menu.state = TitleMenuState.MAIN
-                    state.network_manager.stop_network()
                 elif getattr(title_menu.state, 'name', '') == 'CONTROLS':
                     title_menu.state = TitleMenuState.MAIN
         
@@ -70,47 +57,36 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
                     return True, True, False
                 return True, True, False
 
-            if title_menu.state == TitleMenuState.LOBBY:
-                if getattr(state, 'lobby_editing_name', False):
-                    if event.key == pygame.K_RETURN:
-                        state.lobby_editing_name = False
-                        # Save and sync identity
-                        if state.stats:
-                            state.stats.data["player_name"] = state.network_manager.identity
-                            state.save_stats(wait=True)
-                        print(f"[NETWORK] Identity updated to: {state.network_manager.identity}")
-                        return True, True, False
-                    if event.key == pygame.K_BACKSPACE:
-                        state.network_manager.identity = state.network_manager.identity[:-1]
-                        return True, True, False
-                    if event.unicode and event.unicode.isprintable() and len(state.network_manager.identity) < 15:
-                        state.network_manager.identity += event.unicode
-                        return True, True, False
+            if getattr(state, 'lobby_editing_name', False):
+                if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
+                    state.lobby_editing_name = False
+                    if not state.network_manager.identity.strip():
+                        state.network_manager.identity = "Scholar"
+                    if state.stats:
+                        state.stats.data["player_name"] = state.network_manager.identity
+                        state.save_stats(wait=True)
+                    print(f"[NETWORK] Identity updated to: {state.network_manager.identity}")
                     return True, True, False
+                if event.key == pygame.K_BACKSPACE:
+                    state.network_manager.identity = state.network_manager.identity[:-1]
+                    return True, True, False
+                if event.unicode and event.unicode.isprintable() and len(state.network_manager.identity) < 15:
+                    state.network_manager.identity += event.unicode
+                    return True, True, False
+                return True, True, False
 
-                if event.key == pygame.K_ESCAPE:
-                    title_menu.state = TitleMenuState.MAIN
-                    state.network_manager.stop_network()
-                    return True, True, False
-                if event.key == pygame.K_n:
-                    state.lobby_editing_name = True
-                    return True, True, False
-                if event.key in (pygame.K_SPACE, pygame.K_RETURN):
-                    hosts = list(state.network_manager.found_hosts.items())
-                    if hosts:
-                        sel = getattr(state, 'lobby_selection_idx', 0)
-                        if sel < len(hosts):
-                            addr, _ = hosts[sel]
-                            if state.network_manager.connect_to_host(addr):
-                                title_menu.confirm()
-                    return True, True, False
+            if title_menu.state == TitleMenuState.MAIN and event.key == pygame.K_n:
+                state.lobby_editing_name = True
+                return True, True, False
 
             if event.key == pygame.K_ESCAPE:
                 return False, False, False
             if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                 title_menu.confirm()
 
-    # --- Unified Navigation Polling (Title / Lobby) ---
+    # --- Unified Navigation Polling (Title) ---
+    if getattr(state, 'lobby_editing_name', False):
+        return True, True, False
     move_dir = get_movement_actions(state)
     ratchet_reset = False
     
@@ -130,18 +106,12 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
         # Process Navigation if not latched and not on cooldown
         if not state.input_ratchet_latched and state.menu_nav_cooldown <= 0:
             if move_dir[1] > 0.6: # Down
-                if title_menu.state == TitleMenuState.LOBBY:
-                    state.lobby_selection_idx = getattr(state, 'lobby_selection_idx', 0) + 1
-                else:
-                    title_menu.navigate('down')
+                title_menu.navigate('down')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
                 if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
             elif move_dir[1] < -0.6: # Up
-                if title_menu.state == TitleMenuState.LOBBY:
-                    state.lobby_selection_idx = max(0, getattr(state, 'lobby_selection_idx', 0) - 1)
-                else:
-                    title_menu.navigate('up')
+                title_menu.navigate('up')
                 state.input_ratchet_latched = True
                 state.menu_nav_cooldown = 0.2
                 if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
@@ -356,7 +326,10 @@ def main():
     # [Initialization] Detect existing compatible save file to enable 'Continue'
     from engine.title_menu import TitleMenu, TitleMenuState, TitleTransition, TitleTransitionPhase
     from engine.stats import StatisticsTracker
-    title_menu = TitleMenu(has_save=StatisticsTracker.has_compatible_save())
+    title_menu = TitleMenu(
+        has_save=StatisticsTracker.has_compatible_save(),
+        online_mode=getattr(state, "online_mode", True),
+    )
     title_transition = TitleTransition()
     
     in_title = True
@@ -387,22 +360,16 @@ def main():
                     if completed:
                         mode = title_transition.mode
                         title_transition.reset()
-                        if mode == "join_lobby":
-                            state.reset_to_new_game()
-                            renderer.invalidate_static_world()
-                            if state.network_manager.network_mode == "CLIENT":
-                                full_state = state.get_full_player_state()
-                                import threading
-                                threading.Thread(target=state.network_manager.send_full_state, args=(full_state,), daemon=True).start()
-                            title_menu.state = TitleMenuState.MAIN
-                        elif mode == "continue":
+                        if mode == "continue":
                             state.hydrate_from_disk()
                             renderer.invalidate_static_world()
+                            state.start_seamless_lan(background=True)
                         elif mode == "new_draft":
                             state.reset_to_new_game()
                             state.save_stats(wait=True)
                             renderer.invalidate_static_world()
                             title_menu.state = TitleMenuState.MAIN
+                            state.start_seamless_lan(background=True)
                         pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
                         pause_menu.set_screen_shake_enabled(getattr(state, "screen_shake_enabled", True))
                         in_title = False
@@ -418,13 +385,9 @@ def main():
                     title_menu.clear_confirm()
                     audio.play_sfx("menu_confirm.ogg")
                     
-                    if selected == 'Join Game':
-                        if title_menu.state == TitleMenuState.MAIN:
-                            title_menu.state = TitleMenuState.LOBBY
-                            if not state.network_manager.is_connected:
-                                state.network_manager.start_searching()
-                        elif title_menu.state == TitleMenuState.LOBBY:
-                            title_transition.start("join_lobby")
+                    if selected.startswith('Mode:'):
+                        new_mode = title_menu.toggle_online_mode()
+                        state.set_online_mode(new_mode, save=True)
                         continue
                         
                     if selected == 'Continue':
@@ -443,6 +406,7 @@ def main():
                         continue
                     if selected == 'Quit': running = False
             else:
+                pause_menu.set_waiting_scholars(getattr(state, "waiting_scholars", 0))
                 ev_res = handle_game_events(state, pause_menu=pause_menu, audio_manager=audio)
                 running, attack, flask, dash, swap, inspect, mouse_click, ratchet_reset = ev_res
                 if ratchet_reset: state.input_ratchet_latched = False
@@ -450,6 +414,12 @@ def main():
                 if pause_menu.is_open():
                     audio.update_rain_audio(0.0, paused=True)
                     renderer.draw_pause_menu(pause_menu)
+                    if pause_menu.should_return_to_sanctuary():
+                        pause_menu.clear_return_to_sanctuary()
+                        pause_menu.close()
+                        state.return_party_to_sanctuary()
+                        renderer.invalidate_static_world()
+                        continue
                     if pause_menu.should_quit():
                         audio.update_rain_audio(0.0, paused=True)
                         try: state.save_stats(wait=True)

@@ -115,10 +115,16 @@ class WarpPortal(GameObject):
 
             # Sanctuary Reset Rule: Enforce absolute state purification
             if self.target_name == "sanctuary":
+                game_state.in_sanctuary = True
+                game_state.host_in_run = False
+                game_state.waiting_for_host_run = False
                 game_state.on_enter_sanctuary()
             else:
-                # Auto-Host Rule: Start hosting when entering the macro-world (if not already connected)
-                if hasattr(game_state, 'network_manager'):
+                game_state.in_sanctuary = False
+                if hasattr(game_state, "network_manager") and game_state.network_manager.network_mode != "CLIENT":
+                    game_state.host_in_run = True
+                # Auto-Host Rule: Start hosting when entering the macro-world in Online mode
+                if hasattr(game_state, 'network_manager') and getattr(game_state, 'online_mode', True):
                     if game_state.network_manager.network_mode == "OFFLINE":
                         game_state.network_manager.start_hosting()
                 

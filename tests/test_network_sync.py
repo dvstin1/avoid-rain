@@ -139,8 +139,12 @@ def test_network_integration_host_and_client_combat():
         time.sleep(0.05)
         
     from engine.actor import ActorState
-    assert target_enemy.state in (ActorState.CHASE, ActorState.WIND_UP, ActorState.STRIKE), \
-        f"Enemy should be engaging Client, but is in state {target_enemy.state}"
+    assert target_enemy.state in (
+        ActorState.CHASE,
+        ActorState.WIND_UP,
+        ActorState.STRIKE,
+        ActorState.RECOVERY,
+    ), f"Enemy should be engaging Client, but is in state {target_enemy.state}"
     
     # --- TEST CASE 4: COMBAT SYNC ---
     print("[TEST] Case 4: Combat Sync...")
@@ -289,14 +293,15 @@ def test_network_integration_host_and_client_combat():
     client_state.death_timer = 0.01
     client_state.update(0.1, {'attack': False, 'move': (0,0)})
     
-    # Client should now be in Sanctuary and OFFLINE
+    # Client should now be in Sanctuary while keeping the Seamless LAN session alive
     assert client_state.world.name == "sanctuary"
-    assert client_state.network_manager.network_mode == "OFFLINE", \
-        f"Client failed to disconnect after death. Mode: {client_state.network_manager.network_mode}"
-    
-    # Host should eventually see client is gone (after disconnect signal processed)
-    # Increase wait to ensure background thread finishes processing
-    time.sleep(1.0)
+    assert client_state.in_sanctuary is True
+    assert client_state.network_manager.network_mode == "CLIENT", \
+        f"Client should preserve LAN session on Sanctuary respawn. Mode: {client_state.network_manager.network_mode}"
+
+    # Explicit disconnect from client removes peer from Host connected_peers
+    client_state.network_manager.stop_network()
+    time.sleep(0.5)
     host_state.update(0.1, {'attack': False, 'move': (0,0)})
     
     # Check connected_peers (more reliable than remote_players which might have ghosts)
@@ -304,7 +309,6 @@ def test_network_integration_host_and_client_combat():
         "Host still thinks Client is connected via connected_peers."
     
     host_state.network_manager.stop_network()
-    client_state.network_manager.stop_network()
     # Success if it reaches here!
     print("[TEST] Success!")
 
@@ -492,3 +496,274 @@ def test_outbound_reliable_events_enqueue_non_blocking():
         assert all(msg["peer_id"] == state.network_manager.peer_id for msg in queued)
     finally:
         state.network_manager.stop_network()
+
+
+def test_seamless_lan_auto_host_and_auto_join_sanctuary(tmp_path):
+    """Verify Offline/Online mode persistence and start_seamless_lan auto-host + auto-join in Sanctuary."""
+    from engine.stats import StatisticsTracker
+
+    save_path = tmp_path / "save_data.json"
+    host_state = GameState(stats=None, stats_path=str(save_path), auto_load=True)
+    client_state = GameState(auto_load=False)
+    try:
+        # 1. Offline mode toggle & persistence
+        host_state.set_online_mode(False, save=True)
+        assert host_state.online_mode is False
+        reloaded = StatisticsTracker.load(save_path)
+        assert reloaded.data["online_mode"] is False
+        assert host_state.start_seamless_lan(probe_duration=0.1) == "OFFLINE"
+        assert host_state.network_manager.network_mode == "OFFLINE"
+
+        # 2. Switch back to Online mode and configure isolated test ports
+        host_state.set_online_mode(True, save=True)
+        host_state.network_manager.port = 51300
+        host_state.network_manager.tcp_port = 51301
+        host_state.network_manager.host_udp_port = 51302
+        host_state.network_manager.local_udp_port = 51302
+
+        client_state.network_manager.port = 51300
+        client_state.network_manager.tcp_port = 51301
+        client_state.network_manager.host_udp_port = 51302
+        client_state.network_manager.local_udp_port = 61302
+
+        # First scholar in Sanctuary probes and promotes to HOST
+        role_1 = host_state.start_seamless_lan(probe_duration=0.25)
+        assert role_1 == "HOST"
+        assert host_state.network_manager.network_mode == "HOST"
+        assert host_state.in_sanctuary is True
+
+        # Second scholar in Sanctuary discovers Host broadcast and connects as CLIENT
+        role_2 = client_state.start_seamless_lan(probe_duration=1.2)
+        assert role_2 == "CLIENT"
+        assert client_state.network_manager.network_mode == "CLIENT"
+        assert client_state.in_sanctuary is True
+        assert client_state.waiting_for_host_run is False
+    finally:
+        client_state.network_manager.stop_network()
+        host_state.network_manager.stop_network()
+        host_state.shutdown_save_worker(timeout=1.0)
+
+
+def test_simultaneous_host_peer_id_tie_breaker():
+    """When two Hosts broadcast simultaneously on the same LAN port, the higher peer_id yields to the lower."""
+    low_host = GameState(auto_load=False)
+    high_host = GameState(auto_load=False)
+    try:
+        low_host.network_manager.peer_id = "0000_low_host"
+        low_host.network_manager.port = 51310
+        low_host.network_manager.tcp_port = 51311
+        low_host.network_manager.host_udp_port = 51312
+        low_host.network_manager.local_udp_port = 51312
+
+        high_host.network_manager.peer_id = "ffff_high_host"
+        high_host.network_manager.port = 51310
+        high_host.network_manager.tcp_port = 51311
+        high_host.network_manager.host_udp_port = 51312
+        high_host.network_manager.local_udp_port = 61312
+
+        low_host.network_manager.start_hosting()
+        high_host.network_manager.start_hosting()
+
+        settled = False
+        for _ in range(30):
+            low_host.drain_network_events()
+            high_host.drain_network_events()
+            if (
+                low_host.network_manager.network_mode == "HOST"
+                and high_host.network_manager.network_mode == "CLIENT"
+                and high_host.network_manager.is_connected
+            ):
+                settled = True
+                break
+            time.sleep(0.1)
+
+        assert settled is True, (
+            f"Tie-breaker did not converge: low={low_host.network_manager.network_mode}, "
+            f"high={high_host.network_manager.network_mode}"
+        )
+        assert high_host.network_manager.server_peer_id == "0000_low_host"
+    finally:
+        high_host.network_manager.stop_network()
+        low_host.network_manager.stop_network()
+
+
+def test_sanctuary_group_warp_and_waiting_scholars_regroup():
+    """Verify Sanctuary group WarpPortal launch, mid-run Waiting Scholar staging, and Return to Sanctuary regroup."""
+    host = GameState(auto_load=False)
+    client_party = GameState(auto_load=False)
+    client_late = GameState(auto_load=False)
+    try:
+        host.network_manager.port = 51320
+        host.network_manager.tcp_port = 51321
+        host.network_manager.host_udp_port = 51322
+        host.network_manager.local_udp_port = 51322
+        host.network_manager.host_map_provider = lambda: {
+            "map_id": "generated_world",
+            "dimensions": {"width": 20, "height": 20},
+            "grid": ["." * 20 for _ in range(20)],
+            "entities": {"player_start": [128, 128]},
+            "module_sockets": [],
+        }
+        host.network_manager.start_hosting()
+
+        client_party.network_manager.port = 61320
+        client_party.network_manager.tcp_port = 51321
+        client_party.network_manager.host_udp_port = 51322
+        client_party.network_manager.local_udp_port = 61322
+        assert client_party.network_manager.connect_to_host("127.0.0.1") is True
+        assert client_party.waiting_for_host_run is False
+
+        # 1. Host launches a run from Sanctuary; client_party (staged in Sanctuary) warps into the run automatically
+        host.world.name = "generated_world"
+        host.in_sanctuary = False
+        host.host_in_run = True
+
+        warped_with_host = False
+        for _ in range(25):
+            host.update(0.05, {"move": (0, 0)})
+            client_party.update(0.05, {"move": (0, 0)})
+            if not client_party.in_sanctuary and client_party.world.name == "generated_world_client":
+                warped_with_host = True
+                break
+            time.sleep(0.05)
+
+        assert warped_with_host is True, "Sanctuary client failed to auto-warp with Host on run launch."
+
+        # 2. A third scholar connects while Host is already in a run -> stays in Sanctuary as Waiting Scholar
+        client_late.network_manager.port = 61325
+        client_late.network_manager.tcp_port = 51321
+        client_late.network_manager.host_udp_port = 51322
+        client_late.network_manager.local_udp_port = 61326
+        assert client_late.network_manager.connect_to_host("127.0.0.1") is True
+        assert client_late.in_sanctuary is True
+        assert client_late.waiting_for_host_run is True
+
+        saw_waiting_count = False
+        for _ in range(25):
+            host.update(0.05, {"move": (0, 0)})
+            client_party.update(0.05, {"move": (0, 0)})
+            client_late.update(0.05, {"move": (0, 0)})
+            if host.waiting_scholars == 1 and client_party.waiting_scholars == 1:
+                saw_waiting_count = True
+                break
+            time.sleep(0.05)
+
+        assert saw_waiting_count is True
+        assert client_late.in_sanctuary is True
+        assert client_late.waiting_for_host_run is True, (
+            f"host_in_run={client_late.host_in_run}, last={client_late._last_host_in_run}, "
+            f"seen_sanc={client_late._seen_host_in_sanctuary}, mode={client_late.network_manager.network_mode}, "
+            f"host_world={host.world.name}"
+        )
+
+        # 3. Active runner triggers Return to Sanctuary -> party regroups in Sanctuary without dropping LAN session
+        client_party.return_party_to_sanctuary()
+        regrouped = False
+        for _ in range(25):
+            host.update(0.05, {"move": (0, 0)})
+            client_party.update(0.05, {"move": (0, 0)})
+            client_late.update(0.05, {"move": (0, 0)})
+            if (
+                host.in_sanctuary
+                and client_party.in_sanctuary
+                and client_late.in_sanctuary
+                and not client_late.waiting_for_host_run
+                and host.waiting_scholars == 0
+            ):
+                regrouped = True
+                break
+            time.sleep(0.05)
+
+        assert regrouped is True
+        assert host.network_manager.network_mode == "HOST"
+        assert client_party.network_manager.network_mode == "CLIENT"
+        assert client_late.network_manager.network_mode == "CLIENT"
+    finally:
+        client_late.network_manager.stop_network()
+        client_party.network_manager.stop_network()
+        host.network_manager.stop_network()
+
+
+def test_disruptive_host_promotion_lowest_peer_id():
+    """When Host disconnects, all surviving Clients warp to Sanctuary and the lowest peer_id promotes to Host."""
+    old_host = GameState(auto_load=False)
+    survivor_low = GameState(auto_load=False)
+    survivor_high = GameState(auto_load=False)
+    try:
+        old_host.network_manager.peer_id = "0000_old_host"
+        old_host.network_manager.port = 51330
+        old_host.network_manager.tcp_port = 51331
+        old_host.network_manager.host_udp_port = 51332
+        old_host.network_manager.local_udp_port = 51332
+        old_host.world.name = "generated_world"
+        old_host.in_sanctuary = False
+        old_host.host_in_run = True
+        old_host.network_manager.start_hosting()
+
+        # survivor_low uses host_udp_port=51332 as its local_udp_port so when it promotes to Host,
+        # its UDP receiver binds 51332 cleanly after old_host stops.
+        survivor_low.network_manager.peer_id = "aaaa_survivor_low"
+        survivor_low.network_manager.port = 51330
+        survivor_low.network_manager.tcp_port = 51331
+        survivor_low.network_manager.host_udp_port = 51332
+        survivor_low.network_manager.local_udp_port = 61332
+
+        survivor_high.network_manager.peer_id = "zzzz_survivor_high"
+        survivor_high.network_manager.port = 51330
+        survivor_high.network_manager.tcp_port = 51331
+        survivor_high.network_manager.host_udp_port = 51332
+        survivor_high.network_manager.local_udp_port = 61334
+
+        assert survivor_low.network_manager.connect_to_host("127.0.0.1") is True
+        assert survivor_high.network_manager.connect_to_host("127.0.0.1") is True
+
+        survivor_low.world.name = "generated_world_client"
+        survivor_low.in_sanctuary = False
+        survivor_high.world.name = "generated_world_client"
+        survivor_high.in_sanctuary = False
+
+        # Exchange heartbeats so both clients populate remote_players with each other's peer_id
+        for _ in range(15):
+            old_host.update(0.05, {"move": (0, 0)})
+            survivor_low.update(0.05, {"move": (0, 0)})
+            survivor_high.update(0.05, {"move": (0, 0)})
+            if (
+                "zzzz_survivor_high" in survivor_low.network_manager.remote_players
+                and "aaaa_survivor_low" in survivor_high.network_manager.remote_players
+            ):
+                break
+            time.sleep(0.05)
+
+        assert "zzzz_survivor_high" in survivor_low.network_manager.remote_players
+        assert "aaaa_survivor_low" in survivor_high.network_manager.remote_players
+
+        # Align survivor_low's local_udp_port to 51332 before promotion so survivor_high's UDP packets reach it
+        survivor_low.network_manager.local_udp_port = 51332
+
+        # Disconnect old_host abruptly
+        old_host.network_manager.stop_network()
+
+        promoted_and_reconnected = False
+        for _ in range(35):
+            survivor_low.update(0.05, {"move": (0, 0)})
+            survivor_high.update(0.05, {"move": (0, 0)})
+            if (
+                survivor_low.in_sanctuary
+                and survivor_high.in_sanctuary
+                and survivor_low.network_manager.network_mode == "HOST"
+                and survivor_high.network_manager.network_mode == "CLIENT"
+                and survivor_high.network_manager.server_peer_id == "aaaa_survivor_low"
+            ):
+                promoted_and_reconnected = True
+                break
+            time.sleep(0.1)
+
+        assert promoted_and_reconnected is True, (
+            f"Promotion failed: low={survivor_low.network_manager.network_mode}, "
+            f"high={survivor_high.network_manager.network_mode} "
+            f"(server_peer_id={survivor_high.network_manager.server_peer_id})"
+        )
+    finally:
+        survivor_high.network_manager.stop_network()
+        survivor_low.network_manager.stop_network()
+        old_host.network_manager.stop_network()

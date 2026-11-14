@@ -82,6 +82,7 @@ class NetworkManager:
 
         self._lock = threading.Lock()
         self.found_hosts: Dict[str, str] = {}  # {ip_address: display_identity}
+        self.found_host_peers: Dict[str, str] = {}  # {ip_address: peer_id}
         self.connected_peers: Dict[str, Dict[str, Any]] = {}  # {peer_id: {...}}
         self.server_address: Optional[str] = None
         self.server_peer_id: Optional[str] = None
@@ -89,6 +90,12 @@ class NetworkManager:
 
         # Keyed by peer_id (with identity fallback for legacy/synthetic tests)
         self.remote_players: Dict[str, Dict[str, Any]] = {}
+
+        # Survivor tracking across HOST_DISCONNECT for Host Promotion
+        self.last_survivor_peer_ids: List[str] = []
+        self.last_survivor_addrs: Dict[str, str] = {}
+        self._ever_connected: bool = False
+        self._yielding_host: bool = False
 
         # Thread-safe inbound event queue (drained on main thread via GameState.drain_network_events)
         self._inbound_queue: Deque[Tuple[str, Any]] = deque()
@@ -100,6 +107,8 @@ class NetworkManager:
         self.local_state_provider: Optional[Callable[..., Any]] = None
         self.remote_state_handler: Optional[Callable[..., Any]] = None
         self.on_disconnect_callback: Optional[Callable[..., Any]] = None
+        self.host_status_provider: Optional[Callable[[], Dict[str, Any]]] = None
+        self.on_handshake_accepted: Optional[Callable[[Dict[str, Any]], None]] = None
 
         self.host_map_provider: Optional[Callable[..., Any]] = None
         self.host_client_state_restorer: Optional[Callable[..., Any]] = None
@@ -107,10 +116,12 @@ class NetworkManager:
         self.host_damage_handler: Optional[Callable[..., Any]] = None
         self.host_heal_handler: Optional[Callable[..., Any]] = None
         self.host_respite_handler: Optional[Callable[..., Any]] = None
+        self.host_return_sanctuary_handler: Optional[Callable[..., Any]] = None
         self.client_restored_state_handler: Optional[Callable[..., Any]] = None
 
         self.stop_event = threading.Event()
         self._scanner_stop_event = threading.Event()
+        self._tcp_ready = threading.Event()
         self._scanner_thread: Optional[threading.Thread] = None
         self.threads: List[threading.Thread] = []
 
@@ -133,17 +144,32 @@ class NetworkManager:
                 self.remote_state_handler(payload[0], payload[1])
         elif event_type == "PEER_JOIN":
             peer_id, identity = payload
-            for r_key, r_entry in list(self.remote_players.items()):
-                if (
-                    r_entry.get("identity") == identity
-                    and r_entry.get("peer_id")
-                    and r_entry.get("peer_id") != peer_id
-                ):
-                    self.remote_players.pop(r_key, None)
+            if identity and identity != DEFAULT_PLAYER_NAME:
+                for r_key, r_entry in list(self.remote_players.items()):
+                    if (
+                        r_entry.get("identity") == identity
+                        and r_entry.get("peer_id")
+                        and r_entry.get("peer_id") != peer_id
+                    ):
+                        self.remote_players.pop(r_key, None)
         elif event_type == "PEER_DISCONNECT":
             self.remote_players.pop(payload[0], None)
             self.remote_players.pop(payload[1], None)
         elif event_type in ("HOST_DISCONNECT", "DISCONNECT"):
+            survivors = {self.peer_id}
+            addrs: Dict[str, str] = {}
+            for r_key, r_entry in list(self.remote_players.items()):
+                if r_entry.get("is_host"):
+                    continue
+                if self.server_peer_id and r_key == self.server_peer_id:
+                    continue
+                p_id = str(r_entry.get("peer_id") or r_key)
+                if p_id:
+                    survivors.add(p_id)
+                    if r_entry.get("addr"):
+                        addrs[p_id] = str(r_entry["addr"])
+            self.last_survivor_peer_ids = sorted(survivors)
+            self.last_survivor_addrs = addrs
             self.remote_players.clear()
             if self.on_disconnect_callback:
                 self.on_disconnect_callback()
@@ -163,6 +189,9 @@ class NetworkManager:
         elif event_type == "RESPITE_ACTION":
             if self.host_respite_handler:
                 self.host_respite_handler(*payload)
+        elif event_type == "RETURN_TO_SANCTUARY":
+            if self.host_return_sanctuary_handler:
+                self.host_return_sanctuary_handler()
 
     def process_inbound_events(self) -> int:
         """Process all queued inbound events on the calling (main) thread."""
@@ -178,9 +207,15 @@ class NetworkManager:
         self.stop_network()
 
         self.is_hosting = True
+        self.is_connected = True
+        self._ever_connected = True
+        self._yielding_host = False
         self.network_mode = "HOST"
         self.stop_event = threading.Event()
         stop_signal = self.stop_event
+        self._scanner_stop_event = threading.Event()
+        scanner_stop = self._scanner_stop_event
+        self._tcp_ready = threading.Event()
 
         t_discovery = threading.Thread(
             target=self._broadcast_loop, args=(stop_signal,), name="NetBroadcaster", daemon=True
@@ -188,11 +223,19 @@ class NetworkManager:
         t_discovery.start()
         self.threads.append(t_discovery)
 
+        t_scanner = threading.Thread(
+            target=self._scanner_loop, args=(scanner_stop,), name="NetHostTieScanner", daemon=True
+        )
+        t_scanner.start()
+        self._scanner_thread = t_scanner
+        self.threads.append(t_scanner)
+
         t_handshake = threading.Thread(
             target=self._tcp_server_loop, args=(stop_signal,), name="NetTCPServer", daemon=True
         )
         t_handshake.start()
         self.threads.append(t_handshake)
+        self._tcp_ready.wait(timeout=0.5)
 
         t_udp_recv = threading.Thread(
             target=self._udp_receive_loop, args=(stop_signal,), name="NetUDPReceiver", daemon=True
@@ -239,6 +282,7 @@ class NetworkManager:
         self.network_mode = "OFFLINE"
         with self._lock:
             self.found_hosts = {}
+            self.found_host_peers = {}
             self.connected_peers = {}
             if clear_inbox:
                 self._inbound_queue.clear()
@@ -380,6 +424,7 @@ class NetworkManager:
                 self.server_peer_id = response.get("peer_id")
                 self.server_last_seen = time.time()
                 self.is_connected = True
+                self._ever_connected = True
                 self.network_mode = "CLIENT"
                 self.is_searching = False
 
@@ -387,6 +432,12 @@ class NetworkManager:
                 if restored and self.client_restored_state_handler:
                     print("[NETWORK] Received RESTORED STATE from host.")
                     self.client_restored_state_handler(restored)
+
+                if self.on_handshake_accepted:
+                    try:
+                        self.on_handshake_accepted(response)
+                    except (TypeError, ValueError, KeyError, RuntimeError):
+                        pass
 
                 self.stop_event = threading.Event()
                 stop_signal = self.stop_event
@@ -494,6 +545,30 @@ class NetworkManager:
         }
         self._enqueue_reliable_tcp(payload)
 
+    def send_return_to_sanctuary_event(self) -> None:
+        """Notify Host that a Client requested a party return to Sanctuary."""
+        if self.network_mode != "CLIENT" or not self.server_address:
+            return
+        payload = {
+            "type": "RETURN_TO_SANCTUARY",
+            "peer_id": self.peer_id,
+            "identity": self.identity,
+        }
+        self._enqueue_reliable_tcp(payload)
+
+    def _yield_host_to(self, target_ip: str, other_peer_id: str) -> None:
+        """Step down from HOST mode and connect as CLIENT to a lower-peer_id Host."""
+        with self._lock:
+            if self._yielding_host or self.network_mode != "HOST":
+                return
+            self._yielding_host = True
+        print(
+            f"[NETWORK] Tie-breaker: yielding HOST (peer_id={self.peer_id}) "
+            f"to lower peer_id={other_peer_id} at {target_ip}"
+        )
+        self.stop_network(clear_inbox=False)
+        self.connect_to_host(target_ip)
+
     # --- Thread Loops ---
 
     def _broadcast_loop(self, stop_signal: threading.Event) -> None:
@@ -506,7 +581,15 @@ class NetworkManager:
                     sock.sendto(payload, ("<broadcast>", self.port))
                 except OSError as exc:
                     logger.debug("UDP broadcast send failed: %s", exc)
-                for _ in range(20):
+                for _ in range(4):
+                    lo_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    try:
+                        lo_sock.sendto(payload, ("127.0.0.1", self.port))
+                    except OSError:
+                        pass
+                    finally:
+                        lo_sock.close()
+                for _ in range(4):
                     if stop_signal.is_set():
                         break
                     time.sleep(0.1)
@@ -528,20 +611,41 @@ class NetworkManager:
                 logger.debug("UDP scanner bind failed on port %s: %s", self.port, exc)
                 return
 
-            sock.settimeout(0.5)
+            sock.settimeout(0.25)
             while not stop_signal.is_set():
                 try:
                     data, addr = sock.recvfrom(1024)
                     raw_text = data.decode("utf-8", errors="replace")
                     host_name = raw_text
+                    host_peer_id = ""
                     try:
                         parsed = json.loads(raw_text)
-                        if isinstance(parsed, dict) and "identity" in parsed:
-                            host_name = str(parsed["identity"])
+                        if isinstance(parsed, dict):
+                            if "identity" in parsed:
+                                host_name = str(parsed["identity"])
+                            if "peer_id" in parsed:
+                                host_peer_id = str(parsed["peer_id"])
                     except (json.JSONDecodeError, ValueError):
                         pass
+
+                    if host_peer_id and host_peer_id == self.peer_id:
+                        continue
+
+                    if self.network_mode == "HOST" and host_peer_id and host_peer_id != self.peer_id:
+                        if self.peer_id > host_peer_id and not self._yielding_host:
+                            threading.Thread(
+                                target=self._yield_host_to,
+                                args=(addr[0], host_peer_id),
+                                name="NetHostTieYield",
+                                daemon=True,
+                            ).start()
+                            return
+                        continue
+
                     with self._lock:
                         self.found_hosts[addr[0]] = host_name
+                        if host_peer_id:
+                            self.found_host_peers[addr[0]] = host_peer_id
                 except socket.timeout:
                     continue
                 except OSError as exc:
@@ -576,6 +680,8 @@ class NetworkManager:
 
             sock.listen(8)
             sock.settimeout(0.5)
+            if hasattr(self, "_tcp_ready") and self._tcp_ready is not None:
+                self._tcp_ready.set()
 
             while not stop_signal.is_set():
                 try:
@@ -630,6 +736,13 @@ class NetworkManager:
                     "identity": self.identity,
                     "restored_state": restored,
                 }
+                if self.host_status_provider:
+                    try:
+                        status_extra = self.host_status_provider()
+                        if isinstance(status_extra, dict):
+                            response.update(status_extra)
+                    except (TypeError, ValueError, KeyError, RuntimeError):
+                        pass
                 _send_framed_json(conn, response)
 
             elif m_type == "MAP_REQUEST":
@@ -657,6 +770,9 @@ class NetworkManager:
                 self.enqueue_inbound(
                     "RESPITE_ACTION", (peer_id, msg.get("action"), msg.get("marked_idx"), msg.get("data"))
                 )
+
+            elif m_type == "RETURN_TO_SANCTUARY":
+                self.enqueue_inbound("RETURN_TO_SANCTUARY", peer_id)
 
         except (OSError, socket.timeout, json.JSONDecodeError, ValueError, struct.error) as exc:
             logger.debug("TCP request error from %s: %s", addr, exc)
