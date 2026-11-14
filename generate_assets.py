@@ -28,8 +28,12 @@ palettes to simulate natural, worn materials:
 import math
 import os
 import random
+import zlib
+from pathlib import Path
 from typing import Dict, List, Set, Tuple
 import pygame
+
+DEFAULT_ASSET_SEED = 42
 
 # ==============================================================================
 # CONFIGURABLE PARAMETERS & PALETTES
@@ -2204,164 +2208,132 @@ def generate_all_assets(
     boss_dais_path: str = DEFAULT_BOSS_DAIS_PATH,
     boss_pillar_path: str = DEFAULT_BOSS_PILLAR_PATH,
     boss_abyss_rim_path: str = DEFAULT_BOSS_ABYSS_RIM_PATH,
-    seed: int = None,
+    seed: int = DEFAULT_ASSET_SEED,
+    stats_out: Dict[str, int] | None = None,
 ) -> Dict[str, str]:
-    """Generate all procedural assets and save them to disk.
+    """Generate all procedural assets and save them to disk when pixel content changes.
 
-    Returns a dictionary mapping asset names to their written file paths.
+    Returns a dictionary mapping asset names to their output file paths.
     """
-    rng = random.Random(seed) if seed is not None else random.Random()
-    results = {}
+    base_seed = DEFAULT_ASSET_SEED if seed is None else seed
+    results: Dict[str, str] = {}
+    updated_count = 0
+    unchanged_count = 0
 
-    # 1. Dirt / Floor Tile (100% opaque)
-    _ensure_directory(floor_path)
-    floor_surf = generate_floor_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(floor_surf, floor_path)
-    results["floor_tile"] = floor_path
+    def _emit(key: str, out_path: str, surf: pygame.Surface) -> None:
+        nonlocal updated_count, unchanged_count
+        if write_surface_if_changed(surf, out_path):
+            updated_count += 1
+        else:
+            unchanged_count += 1
+        results[key] = out_path
 
-    # 2. Wall Tile Variants
-    # 2a. Standard masonry
-    _ensure_directory(wall_path)
-    wall_std_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng, variant="standard")
-    pygame.image.save(wall_std_surf, wall_path)
-    results["wall_tile"] = wall_path
+    def _rng(key: str) -> random.Random:
+        return _asset_rng(base_seed, key)
 
-    # 2b. Cracked / weathered masonry
-    _ensure_directory(wall_cracked_path)
-    wall_cracked_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng, variant="cracked")
-    pygame.image.save(wall_cracked_surf, wall_cracked_path)
-    results["wall_tile_cracked"] = wall_cracked_path
-
-    # 2c. Moss-creeping mortar
-    _ensure_directory(wall_mossy_path)
-    wall_mossy_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng, variant="mossy")
-    pygame.image.save(wall_mossy_surf, wall_mossy_path)
-    results["wall_tile_mossy"] = wall_mossy_path
-
-    # 2d. Spiderwebs & pockmarks
-    _ensure_directory(wall_webbed_path)
-    wall_webbed_surf = generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng, variant="webbed")
-    pygame.image.save(wall_webbed_surf, wall_webbed_path)
-    results["wall_tile_webbed"] = wall_webbed_path
-
-    # 3. Swamp / Natural Biome Surfaces (100% opaque)
-    # 3a. Murky swamp water
-    _ensure_directory(swamp_water_path)
-    swamp_water_surf = generate_swamp_water_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(swamp_water_surf, swamp_water_path)
-    results["swamp_water"] = swamp_water_path
-
-    # 3b. Muddy trampled turf
-    _ensure_directory(mud_turf_path)
-    mud_turf_surf = generate_mud_turf_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(mud_turf_surf, mud_turf_path)
-    results["mud_turf"] = mud_turf_path
-
-    # 3c. Wet peat bank
-    _ensure_directory(peat_bank_path)
-    peat_bank_surf = generate_peat_bank_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(peat_bank_surf, peat_bank_path)
-    results["peat_bank"] = peat_bank_path
-
-    # 3d. Organic swamp wall embankment
-    _ensure_directory(swamp_wall_path)
-    swamp_wall_surf = generate_swamp_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(swamp_wall_surf, swamp_wall_path)
-    results["swamp_wall"] = swamp_wall_path
-
-    # 4. Moss / Overgrowth Patch
-    _ensure_directory(grass_path)
-    grass_surf = generate_grass_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(grass_surf, grass_path)
-    results["grass_natural"] = grass_path
-
-    # 5. Rock Cluster
-    _ensure_directory(rock_path)
-    rock_surf = generate_rock_cluster(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(rock_surf, rock_path)
-    results["rock_cluster"] = rock_path
-
-    # 6. Sanctuary Chronicle Tome, Respite Plinths & Chronicler
-    _ensure_directory(chronicle_path)
-    chronicle_surf = generate_chronicle(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(chronicle_surf, chronicle_path)
-    results["chronicle"] = chronicle_path
-
-    _ensure_directory(respite_path)
-    respite_surf = generate_respite(TILE_WIDTH, TILE_HEIGHT, rng=rng, corrupted=False)
-    pygame.image.save(respite_surf, respite_path)
-    results["respite"] = respite_path
-
-    _ensure_directory(respite_corrupted_path)
-    respite_corr_surf = generate_respite(TILE_WIDTH, TILE_HEIGHT, rng=rng, corrupted=True)
-    pygame.image.save(respite_corr_surf, respite_corrupted_path)
-    results["respite_corrupted"] = respite_corrupted_path
-
-    _ensure_directory(chronicler_path)
-    chronicler_surf = generate_chronicler(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(chronicler_surf, chronicler_path)
-    results["chronicler"] = chronicler_path
-
-    # 7. Reference-Driven Swamp Props
-    # 7a. Bulbous fleshy toadstool / giant fungi
-    _ensure_directory(swamp_fungus_path)
-    swamp_fungus_surf = generate_swamp_fungus(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(swamp_fungus_surf, swamp_fungus_path)
-    results["swamp_fungus"] = swamp_fungus_path
-
-    # 7b. Raised organic gas vent / hive mound
-    _ensure_directory(swamp_vent_path)
-    swamp_vent_surf = generate_swamp_gas_vent(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(swamp_vent_surf, swamp_vent_path)
-    results["swamp_gas_vent"] = swamp_vent_path
-
-    # 7c. Skeletal thorns & briars
-    _ensure_directory(swamp_thorns_path)
-    swamp_thorns_surf = generate_swamp_thorns(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(swamp_thorns_surf, swamp_thorns_path)
-    results["swamp_thorns"] = swamp_thorns_path
-
-    # 8. Environmental Biome Clutter
-    # 8a. Broken stone pillars / rubble piles
-    _ensure_directory(ruins_rubble_path)
-    ruins_rubble_surf = generate_ruins_rubble(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(ruins_rubble_surf, ruins_rubble_path)
-    results["ruins_rubble"] = ruins_rubble_path
-
-    # 8b. Glowing fungal clusters or reeds
-    _ensure_directory(swamp_flora_path)
-    swamp_flora_surf = generate_swamp_flora(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(swamp_flora_surf, swamp_flora_path)
-    results["swamp_flora"] = swamp_flora_path
-
-    # 8c. Scattered ancient scrolls / bone piles
-    _ensure_directory(crypt_clutter_path)
-    crypt_clutter_surf = generate_crypt_clutter(TILE_WIDTH, TILE_HEIGHT, rng=rng)
-    pygame.image.save(crypt_clutter_surf, crypt_clutter_path)
-    results["crypt_clutter"] = crypt_clutter_path
+    # 1-8. Core Tiles, Swamp Surfaces, Sanctuary Props, Swamp Props, and Biome Clutter
+    core_specs = [
+        ("floor_tile", floor_path, generate_floor_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("floor_tile"))),
+        (
+            "wall_tile",
+            wall_path,
+            generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("wall_tile"), variant="standard"),
+        ),
+        (
+            "wall_tile_cracked",
+            wall_cracked_path,
+            generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("wall_tile_cracked"), variant="cracked"),
+        ),
+        (
+            "wall_tile_mossy",
+            wall_mossy_path,
+            generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("wall_tile_mossy"), variant="mossy"),
+        ),
+        (
+            "wall_tile_webbed",
+            wall_webbed_path,
+            generate_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("wall_tile_webbed"), variant="webbed"),
+        ),
+        ("swamp_water", swamp_water_path, generate_swamp_water_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_water"))),
+        ("mud_turf", mud_turf_path, generate_mud_turf_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("mud_turf"))),
+        ("peat_bank", peat_bank_path, generate_peat_bank_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("peat_bank"))),
+        ("swamp_wall", swamp_wall_path, generate_swamp_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_wall"))),
+        ("grass_natural", grass_path, generate_grass_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("grass_natural"))),
+        ("rock_cluster", rock_path, generate_rock_cluster(TILE_WIDTH, TILE_HEIGHT, rng=_rng("rock_cluster"))),
+        ("chronicle", chronicle_path, generate_chronicle(TILE_WIDTH, TILE_HEIGHT, rng=_rng("chronicle"))),
+        ("respite", respite_path, generate_respite(TILE_WIDTH, TILE_HEIGHT, rng=_rng("respite"), corrupted=False)),
+        (
+            "respite_corrupted",
+            respite_corrupted_path,
+            generate_respite(TILE_WIDTH, TILE_HEIGHT, rng=_rng("respite_corrupted"), corrupted=True),
+        ),
+        ("chronicler", chronicler_path, generate_chronicler(TILE_WIDTH, TILE_HEIGHT, rng=_rng("chronicler"))),
+        ("swamp_fungus", swamp_fungus_path, generate_swamp_fungus(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_fungus"))),
+        (
+            "swamp_gas_vent",
+            swamp_vent_path,
+            generate_swamp_gas_vent(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_gas_vent")),
+        ),
+        ("swamp_thorns", swamp_thorns_path, generate_swamp_thorns(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_thorns"))),
+        ("ruins_rubble", ruins_rubble_path, generate_ruins_rubble(TILE_WIDTH, TILE_HEIGHT, rng=_rng("ruins_rubble"))),
+        ("swamp_flora", swamp_flora_path, generate_swamp_flora(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_flora"))),
+        (
+            "crypt_clutter",
+            crypt_clutter_path,
+            generate_crypt_clutter(TILE_WIDTH, TILE_HEIGHT, rng=_rng("crypt_clutter")),
+        ),
+    ]
+    for key, out_path, surf in core_specs:
+        _emit(key, out_path, surf)
 
     # 9. 2.5D Verticality & Elevation Assets
     verticality_specs = [
-        ("wall_top_cap", wall_top_cap_path, generate_wall_top_cap(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
-        ("wall_front_face", wall_front_face_path, generate_wall_front_face(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
-        ("shadow_south", shadow_south_path, generate_floor_shadow_overlay(TILE_WIDTH, TILE_HEIGHT, "south", rng=rng)),
-        ("shadow_east", shadow_east_path, generate_floor_shadow_overlay(TILE_WIDTH, TILE_HEIGHT, "east", rng=rng)),
+        ("wall_top_cap", wall_top_cap_path, generate_wall_top_cap(TILE_WIDTH, TILE_HEIGHT, rng=_rng("wall_top_cap"))),
+        (
+            "wall_front_face",
+            wall_front_face_path,
+            generate_wall_front_face(TILE_WIDTH, TILE_HEIGHT, rng=_rng("wall_front_face")),
+        ),
+        (
+            "shadow_south",
+            shadow_south_path,
+            generate_floor_shadow_overlay(TILE_WIDTH, TILE_HEIGHT, "south", rng=_rng("shadow_south")),
+        ),
+        (
+            "shadow_east",
+            shadow_east_path,
+            generate_floor_shadow_overlay(TILE_WIDTH, TILE_HEIGHT, "east", rng=_rng("shadow_east")),
+        ),
         (
             "shadow_corner",
             shadow_corner_path,
-            generate_floor_shadow_overlay(TILE_WIDTH, TILE_HEIGHT, "corner", rng=rng),
+            generate_floor_shadow_overlay(TILE_WIDTH, TILE_HEIGHT, "corner", rng=_rng("shadow_corner")),
         ),
-        ("cliff_edge", cliff_edge_path, generate_cliff_edge_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
-        ("staircase_tile", staircase_path, generate_staircase_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
-        ("pit_rim", pit_rim_path, generate_pit_rim_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
-        ("boss_dais_tile", boss_dais_path, generate_boss_dais_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
-        ("boss_pillar_tile", boss_pillar_path, generate_boss_pillar_tile(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
-        ("boss_abyss_rim", boss_abyss_rim_path, generate_boss_abyss_rim(TILE_WIDTH, TILE_HEIGHT, rng=rng)),
+        ("cliff_edge", cliff_edge_path, generate_cliff_edge_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("cliff_edge"))),
+        (
+            "staircase_tile",
+            staircase_path,
+            generate_staircase_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("staircase_tile")),
+        ),
+        ("pit_rim", pit_rim_path, generate_pit_rim_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("pit_rim"))),
+        (
+            "boss_dais_tile",
+            boss_dais_path,
+            generate_boss_dais_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("boss_dais_tile")),
+        ),
+        (
+            "boss_pillar_tile",
+            boss_pillar_path,
+            generate_boss_pillar_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("boss_pillar_tile")),
+        ),
+        (
+            "boss_abyss_rim",
+            boss_abyss_rim_path,
+            generate_boss_abyss_rim(TILE_WIDTH, TILE_HEIGHT, rng=_rng("boss_abyss_rim")),
+        ),
     ]
     for key, out_path, surf in verticality_specs:
-        _ensure_directory(out_path)
-        pygame.image.save(surf, out_path)
-        results[key] = out_path
+        _emit(key, out_path, surf)
 
     # Pipeline 11: Act 2 Empowered / Corrupted Procedural Enemy Variants
     empowered_specs = [
@@ -2375,11 +2347,12 @@ def generate_all_assets(
     ]
     for key, kind, w, h in empowered_specs:
         out_path = os.path.join("assets", "graphics", f"{key}.png")
-        _ensure_directory(out_path)
-        surf = generate_empowered_enemy_sprite(kind, w, h, rng=rng)
-        pygame.image.save(surf, out_path)
-        results[key] = out_path
+        surf = generate_empowered_enemy_sprite(kind, w, h, rng=_rng(key))
+        _emit(key, out_path, surf)
 
+    if stats_out is not None:
+        stats_out["updated"] = updated_count
+        stats_out["unchanged"] = unchanged_count
     return results
 
 
@@ -2504,6 +2477,37 @@ def generate_punctuation_wolf_empowered(
     return generate_empowered_enemy_sprite("punctuation_wolf", width, height, rng=rng)
 
 
+def _asset_rng(base_seed: int, key: str) -> random.Random:
+    """Return a deterministic per-asset Random instance independent of call order."""
+    digest = zlib.crc32(f"{base_seed}:{key}".encode("utf-8"))
+    return random.Random(digest)
+
+
+def _surface_pixel_signature(surface: pygame.Surface) -> tuple[bool, bytes]:
+    """Return (has_alpha, raw_bytes) using RGB for opaque surfaces and RGBA for alpha surfaces."""
+    has_alpha = bool(surface.get_flags() & pygame.SRCALPHA) or surface.get_masks()[3] != 0
+    fmt = "RGBA" if has_alpha else "RGB"
+    return has_alpha, pygame.image.tobytes(surface, fmt)
+
+
+def write_surface_if_changed(surface: pygame.Surface, output_path: str | Path) -> bool:
+    """Save surface to output_path only if missing or pixels changed. Returns True if written."""
+    target = str(output_path)
+    if os.path.exists(target):
+        try:
+            existing = pygame.image.load(target)
+            if (
+                existing.get_size() == surface.get_size()
+                and _surface_pixel_signature(existing) == _surface_pixel_signature(surface)
+            ):
+                return False
+        except pygame.error:
+            pass
+    _ensure_directory(target)
+    pygame.image.save(surface, target)
+    return True
+
+
 def main() -> None:
     """CLI entry point for procedural asset generation."""
     if "SDL_VIDEODRIVER" not in os.environ and not pygame.display.get_init():
@@ -2516,12 +2520,16 @@ def main() -> None:
     print("==================================================")
     print("Generating dark-fantasy grit pixel art assets...")
 
-    written = generate_all_assets()
+    gen_stats: Dict[str, int] = {}
+    written = generate_all_assets(stats_out=gen_stats)
     for name, path in written.items():
         size_kb = os.path.getsize(path) / 1024.0 if os.path.exists(path) else 0.0
         print(f"  [+] {name:<18} -> {path} ({size_kb:.1f} KB, {TILE_WIDTH}x{TILE_HEIGHT})")
 
-    print("All assets successfully generated.")
+    print(
+        f"All assets processed: {gen_stats.get('updated', 0)} updated, "
+        f"{gen_stats.get('unchanged', 0)} unchanged."
+    )
 
 
 if __name__ == "__main__":

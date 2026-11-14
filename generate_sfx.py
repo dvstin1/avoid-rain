@@ -1139,6 +1139,49 @@ def export_ogg(signal, path: str, quality: int = OGG_QUALITY) -> str:
     return encoder
 
 
+def _decode_ogg_pcm16(path: str) -> Optional[bytes]:
+    """Decode an .ogg file to raw 16-bit mono PCM bytes for content comparison."""
+    if _soundfile is not None:
+        try:
+            pcm, _ = _soundfile.read(path, dtype="int16", always_2d=False)
+            return pcm.tobytes()
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+    if shutil.which("ffmpeg"):
+        try:
+            res = subprocess.run(
+                [
+                    "ffmpeg", "-hide_banner", "-loglevel", "error", "-i", path,
+                    "-f", "s16le", "-ac", str(CHANNELS), "-ar", str(SAMPLE_RATE), "-",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            return res.stdout
+        except subprocess.SubprocessError:
+            pass
+    return None
+
+
+def export_ogg_if_changed(signal, path: str, quality: float = 4.5) -> Tuple[str, bool]:
+    """Encode signal to .ogg and overwrite path only when PCM waveform differs. Returns (encoder, written)."""
+    if not os.path.exists(path):
+        return export_ogg(signal, path, quality=quality), True
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_ogg = os.path.join(tmp_dir, "candidate.ogg")
+        encoder = export_ogg(signal, tmp_ogg, quality=quality)
+        with open(path, "rb") as f_old, open(tmp_ogg, "rb") as f_new:
+            if f_old.read() == f_new.read():
+                return encoder, False
+        old_pcm = _decode_ogg_pcm16(path)
+        new_pcm = _decode_ogg_pcm16(tmp_ogg)
+        if old_pcm is not None and new_pcm is not None and old_pcm == new_pcm:
+            return encoder, False
+        shutil.move(tmp_ogg, path)
+        return encoder, True
+
+
 def _ensure_mixer() -> None:
     """Initialize pygame.mixer at the engine sample rate, falling back to a dummy driver when headless."""
     import pygame
@@ -1242,7 +1285,10 @@ def generate_sound(name: str, preset: str, overrides: Optional[Dict], seed: int,
         print(f"[SFX] Skipping existing {path} (use --force to overwrite)")
         return None
     signal = render_preset(preset, seed, overrides)
-    encoder = export_ogg(signal, path)
+    encoder, written = export_ogg_if_changed(signal, path)
+    if not written:
+        print(f"[SFX] Unchanged {path} (PCM identical, skipped write)")
+        return None
     length = verify_ogg(path) if verify else len(signal) / SAMPLE_RATE
     status = "verified" if verify else "unverified"
     print(f"[SFX] Wrote {path} (preset={preset}, seed={seed}, {length:.2f}s, {encoder}, {status})")

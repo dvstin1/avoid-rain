@@ -466,4 +466,72 @@ def test_respite_and_chronicler_sprites():
             assert os.path.getsize(paths[key]) > 100
 
 
+def test_write_surface_if_changed_skips_identical_and_writes_modified(tmp_path):
+    """Verify write_surface_if_changed skips identical pixels and overwrites on single-pixel diff."""
+    out_file = tmp_path / "sample.png"
+    surf = pygame.Surface((16, 16), pygame.SRCALPHA)
+    surf.fill((40, 80, 120, 255))
+
+    assert generate_assets.write_surface_if_changed(surf, out_file) is True
+    first_mtime = out_file.stat().st_mtime_ns
+
+    # Second write with identical pixels must return False and preserve mtime
+    assert generate_assets.write_surface_if_changed(surf, out_file) is False
+    assert out_file.stat().st_mtime_ns == first_mtime
+
+    # Changing a single pixel must return True and overwrite the file
+    surf.set_at((0, 0), (255, 0, 0, 255))
+    assert generate_assets.write_surface_if_changed(surf, out_file) is True
+    reloaded = pygame.image.load(str(out_file))
+    assert reloaded.get_at((0, 0))[:3] == (255, 0, 0)
+
+
+def test_generate_all_assets_is_idempotent_on_second_run(tmp_path):
+    """Verify running generate_all_assets twice leaves all PNG mtimes untouched on the second run."""
+    kwargs = {
+        "floor_path": str(tmp_path / "floor.png"),
+        "wall_path": str(tmp_path / "wall.png"),
+        "grass_path": str(tmp_path / "grass.png"),
+        "rock_path": str(tmp_path / "rock.png"),
+        "chronicle_path": str(tmp_path / "chronicle.png"),
+        "respite_path": str(tmp_path / "respite.png"),
+        "respite_corrupted_path": str(tmp_path / "respite_corrupted.png"),
+        "chronicler_path": str(tmp_path / "chronicler.png"),
+        "wall_cracked_path": str(tmp_path / "wall_cracked.png"),
+        "wall_mossy_path": str(tmp_path / "wall_mossy.png"),
+        "wall_webbed_path": str(tmp_path / "wall_webbed.png"),
+        "swamp_water_path": str(tmp_path / "swamp_water.png"),
+        "mud_turf_path": str(tmp_path / "mud_turf.png"),
+        "peat_bank_path": str(tmp_path / "peat_bank.png"),
+        "swamp_wall_path": str(tmp_path / "swamp_wall.png"),
+        "swamp_fungus_path": str(tmp_path / "swamp_fungus.png"),
+        "swamp_vent_path": str(tmp_path / "swamp_vent.png"),
+        "swamp_thorns_path": str(tmp_path / "swamp_thorns.png"),
+        "ruins_rubble_path": str(tmp_path / "ruins_rubble.png"),
+        "swamp_flora_path": str(tmp_path / "swamp_flora.png"),
+        "crypt_clutter_path": str(tmp_path / "crypt_clutter.png"),
+        "wall_top_cap_path": str(tmp_path / "wall_top_cap.png"),
+        "wall_front_face_path": str(tmp_path / "wall_front_face.png"),
+        "shadow_south_path": str(tmp_path / "shadow_south.png"),
+        "shadow_east_path": str(tmp_path / "shadow_east.png"),
+        "shadow_corner_path": str(tmp_path / "shadow_corner.png"),
+        "cliff_edge_path": str(tmp_path / "cliff_edge.png"),
+        "staircase_path": str(tmp_path / "staircase_tile.png"),
+        "pit_rim_path": str(tmp_path / "pit_rim.png"),
+        "boss_dais_path": str(tmp_path / "boss_dais_tile.png"),
+        "boss_pillar_path": str(tmp_path / "boss_pillar_tile.png"),
+        "boss_abyss_rim_path": str(tmp_path / "boss_abyss_rim.png"),
+    }
+    stats1 = {}
+    paths = generate_assets.generate_all_assets(**kwargs, stats_out=stats1)
+    assert stats1["updated"] > 0
+
+    mtimes_before = {k: os.stat(p).st_mtime_ns for k, p in paths.items()}
+
+    stats2 = {}
+    generate_assets.generate_all_assets(**kwargs, stats_out=stats2)
+    assert stats2["updated"] == 0
+    assert stats2["unchanged"] == len(paths)
+    for k, p in paths.items():
+        assert os.stat(p).st_mtime_ns == mtimes_before[k]
 
