@@ -1145,8 +1145,8 @@ def _decode_ogg_pcm16(path: str) -> Optional[bytes]:
         try:
             pcm, _ = _soundfile.read(path, dtype="int16", always_2d=False)
             return pcm.tobytes()
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            print(f"[SFX] Warning: soundfile decode failed for {path}: {exc}", file=sys.stderr)
     if shutil.which("ffmpeg"):
         try:
             res = subprocess.run(
@@ -1158,12 +1158,12 @@ def _decode_ogg_pcm16(path: str) -> Optional[bytes]:
                 capture_output=True,
             )
             return res.stdout
-        except subprocess.SubprocessError:
-            pass
+        except subprocess.SubprocessError as exc:
+            print(f"[SFX] Warning: ffmpeg decode failed for {path}: {exc}", file=sys.stderr)
     return None
 
 
-def export_ogg_if_changed(signal, path: str, quality: float = 4.5) -> Tuple[str, bool]:
+def export_ogg_if_changed(signal, path: str, quality: int = OGG_QUALITY) -> Tuple[str, bool]:
     """Encode signal to .ogg and overwrite path only when PCM waveform differs. Returns (encoder, written)."""
     if not os.path.exists(path):
         return export_ogg(signal, path, quality=quality), True
