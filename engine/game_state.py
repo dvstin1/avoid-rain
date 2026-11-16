@@ -1429,21 +1429,24 @@ class GameState:
         # 1. Swap Button
         swr = HUD_SWAP_BTN_RECT
         if hx + swr[0] <= mx <= hx + swr[0] + swr[2] and hy + swr[1] <= my <= hy + swr[1] + swr[3]:
-             self.player.swap_weapons()
-             return
-             
+            self.player.swap_weapon()
+            if self.network_manager.network_mode == "CLIENT":
+                full_state = self.get_full_player_state()
+                self.network_manager.send_full_state(full_state)
+            return
+
         # 2. Pickup Button
         pkr = HUD_PICKUP_BTN_RECT
         if hx + pkr[0] <= mx <= hx + pkr[0] + pkr[2] and hy + pkr[1] <= my <= hy + pkr[1] + pkr[3]:
-             target = self.player.current_interactable
-             warp_blocked = hasattr(self, 'warp_controller') and self.warp_controller.blocks_input()
-             if target and getattr(target, 'is_interactive', False) and not warp_blocked:
-                 from engine.world import WarpPortal
-                 if isinstance(target, WarpPortal):
-                     self.start_warp(target)
-                 else:
-                     target.execute_interaction(self)
-             return
+            target = self.player.current_interactable
+            warp_blocked = hasattr(self, 'warp_controller') and self.warp_controller.blocks_input()
+            if target and getattr(target, 'is_interactive', False) and not warp_blocked:
+                from engine.world import WarpPortal
+                if isinstance(target, WarpPortal):
+                    self.start_warp(target)
+                else:
+                    target.execute_interaction(self)
+            return
 
     def _update_ui_and_menus(self, dt, actions, attack_pressed, audio_manager):
         # Zone Discovery Bloom

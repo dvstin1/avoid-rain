@@ -111,3 +111,25 @@ def test_sanctuary_reset():
     assert len(state.player.weapons) == 1
     assert state.player.weapons[0]["name"] == "Initial Quill"
     assert state.player.active_weapon_idx == 0
+
+
+def test_hud_swap_button_click():
+    """Verify clicking the HUD Swap Button swaps active_weapon_idx without error."""
+    from constants import SCREEN_HEIGHT, HUD_PANEL_H, HUD_SWAP_BTN_RECT
+
+    state = GameState(auto_load=False)
+    state.player.weapons.append({"name": "Extra Weapon", "damage": 25})
+    assert state.player.active_weapon_idx == 0
+
+    hx = 10
+    hy = SCREEN_HEIGHT - HUD_PANEL_H - 10
+    click_pos = (
+        hx + HUD_SWAP_BTN_RECT[0] + HUD_SWAP_BTN_RECT[2] // 2,
+        hy + HUD_SWAP_BTN_RECT[1] + HUD_SWAP_BTN_RECT[3] // 2,
+    )
+
+    state._handle_hud_interactions({"mouse_click": click_pos})
+    assert state.player.active_weapon_idx == 1
+
+    state._handle_hud_interactions({"mouse_click": click_pos})
+    assert state.player.active_weapon_idx == 0
