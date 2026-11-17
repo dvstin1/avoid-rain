@@ -374,8 +374,10 @@ def test_generate_biome_segment_pools(temp_dir):
 
 
 def test_registered_segment_pools_on_disk():
-    """Verifies all registered BIOME_SEGMENT_POOLS files exist on disk with valid dimensions."""
-    assert len(BIOME_SEGMENT_POOLS) >= 5
+    """Verifies all 7 registered BIOME_SEGMENT_POOLS files exist on disk with valid dimensions."""
+    assert len(BIOME_SEGMENT_POOLS) == 7
+    for required_biome in ("vitreous_basin", "sunlit_aqueducts"):
+        assert required_biome in BIOME_SEGMENT_POOLS
     for biome, pools in BIOME_SEGMENT_POOLS.items():
         assert len(pools["rooms"]) >= 4, f"Expected >= 4 room segments for {biome}"
         assert len(pools["corridors"]) >= 4, f"Expected >= 4 corridor segments for {biome}"
@@ -383,3 +385,22 @@ def test_registered_segment_pools_on_disk():
             assert os.path.exists(path), f"Missing room segment: {path}"
         for path in pools["corridors"]:
             assert os.path.exists(path), f"Missing corridor segment: {path}"
+
+
+def test_pass2_biomes_enemy_pairings_and_editor_palette():
+    """Verifies Pass 2 biome enemy pairings and map editor palette parity with constants.TILE_KEY."""
+    import constants
+    from tools.edit_map import MASTER_TOOL_REGISTRY
+
+    vit_map = generate_procedural_map(biome="vitreous_basin", width=60, height=60, seed=501)
+    vit_chars = {c for row in vit_map.grid for c in row}
+    assert vit_chars & {"Y", "w", "f", "A"}, "Expected vitreous_basin enemy pairing spawns"
+
+    aq_map = generate_procedural_map(biome="sunlit_aqueducts", width=60, height=60, seed=502)
+    aq_chars = {c for row in aq_map.grid for c in row}
+    assert aq_chars & {"b", "Z", "s", "w", "Y"}, "Expected sunlit_aqueducts enemy pairing spawns"
+
+    tool_chars = {entry["char"] for entry in MASTER_TOOL_REGISTRY if "char" in entry}
+    required_chars = {ch for ch in constants.TILE_KEY if ch != " "}
+    missing = required_chars - tool_chars
+    assert not missing, f"MASTER_TOOL_REGISTRY missing TILE_KEY symbols: {missing}"

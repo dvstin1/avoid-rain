@@ -172,7 +172,13 @@ ARCHITECTURAL_BIOMES: Set[str] = {
     "sunlit_aqueducts",
 }
 ACTIVE_WORLD_BIOMES: Tuple[str, ...] = (
-    "windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower"
+    "windy_ridge",
+    "pastoral_valley",
+    "swamp_mire",
+    "frozen_peaks",
+    "tech_tower",
+    "vitreous_basin",
+    "sunlit_aqueducts",
 )
 SEGMENTS_DIR = os.path.join(MAPS_DIR, "segments")
 DEFAULT_SEGMENTS_PER_BIOME = 4
@@ -462,29 +468,44 @@ def generate_organic_biome(
 
     # 5. Natural Stratification: Grass, Thicket, Shallow Water/Puddles
     dist_map = _compute_wall_distances(grid)
+    is_vitreous = active_biome == "vitreous_basin"
     for y in range(1, height - 1):
         for x in range(1, width - 1):
             if grid[y][x] == SYMBOL_FLOOR:
                 dist = dist_map[y][x]
-                if dist == 1 and rng.random() < 0.45:
-                    grid[y][x] = SYMBOL_GRASS
-                elif dist == 2 and rng.random() < 0.25:
-                    grid[y][x] = SYMBOL_GRASS if rng.random() < 0.7 else SYMBOL_THICKET
-                elif dist >= 3 and rng.random() < 0.05:
-                    grid[y][x] = SYMBOL_INK_PUDDLE  # Shallow swamp puddle pocket
+                if is_vitreous:
+                    # Open reflective salt-flat sightlines with shallow glass-brine pockets
+                    if dist >= 3 and rng.random() < 0.08:
+                        grid[y][x] = SYMBOL_INK_PUDDLE
+                    elif dist == 1 and rng.random() < 0.14:
+                        grid[y][x] = SYMBOL_GRASS
+                else:
+                    if dist == 1 and rng.random() < 0.45:
+                        grid[y][x] = SYMBOL_GRASS
+                    elif dist == 2 and rng.random() < 0.25:
+                        grid[y][x] = SYMBOL_GRASS if rng.random() < 0.7 else SYMBOL_THICKET
+                    elif dist >= 3 and rng.random() < 0.05:
+                        grid[y][x] = SYMBOL_INK_PUDDLE  # Shallow swamp puddle pocket
 
     # 6. Smart Edge-Weighted Prop & Clutter Placement
     for y in range(1, height - 1):
         for x in range(1, width - 1):
             if grid[y][x] in (SYMBOL_FLOOR, SYMBOL_GRASS):
                 dist = dist_map[y][x]
-                # High clutter near walls (dist 1-2), keep open clearing centers clear (dist >= 3)
-                if dist == 1 and rng.random() < 0.12:
-                    grid[y][x] = SYMBOL_CLUTTER
-                elif dist == 2 and rng.random() < 0.06:
-                    grid[y][x] = SYMBOL_BARREL if rng.random() < 0.4 else SYMBOL_CLUTTER
-                elif dist >= 4 and rng.random() < 0.015:
-                    grid[y][x] = SYMBOL_STRUCTURE  # Giant fungus or ancient hollow tree
+                if is_vitreous:
+                    # Salt spires & glass-shard cover clusters along basin rims and mid-flats
+                    if dist == 1 and rng.random() < 0.09:
+                        grid[y][x] = SYMBOL_CLUTTER
+                    elif dist >= 3 and rng.random() < 0.025:
+                        grid[y][x] = SYMBOL_CLUTTER
+                else:
+                    # High clutter near walls (dist 1-2), keep open clearing centers clear (dist >= 3)
+                    if dist == 1 and rng.random() < 0.12:
+                        grid[y][x] = SYMBOL_CLUTTER
+                    elif dist == 2 and rng.random() < 0.06:
+                        grid[y][x] = SYMBOL_BARREL if rng.random() < 0.4 else SYMBOL_CLUTTER
+                    elif dist >= 4 and rng.random() < 0.015:
+                        grid[y][x] = SYMBOL_STRUCTURE  # Giant fungus or ancient hollow tree
 
     # 7. Strategic Landmark & Spawner Anchors
     open_floors = [(x, y) for y in range(2, height - 2) for x in range(2, width - 2) if grid[y][x] == SYMBOL_FLOOR]
@@ -514,9 +535,18 @@ def generate_organic_biome(
             entities[f"{lx},{ly}"] = {"fragment_id": f"{active_biome}_chronicle", "name": "Weathered Parchment"}
 
         # Scatter themed organic enemies (balanced density for UDP sync & pacing)
-        enemy_types = [SYMBOL_ENEMY_SLUG, SYMBOL_ENEMY_BAT, SYMBOL_ENEMY_FLUTTER, SYMBOL_ENEMY_SMEAR]
-        if active_biome in ("windy_ridge", "pastoral_valley"):
-            enemy_types.extend([SYMBOL_ENEMY_WOLF, SYMBOL_ENEMY_WOLF])
+        if is_vitreous:
+            enemy_types = [
+                SYMBOL_ENEMY_SENTRY,
+                SYMBOL_ENEMY_WOLF,
+                SYMBOL_ENEMY_WOLF,
+                SYMBOL_ENEMY_FLUTTER,
+                SYMBOL_ENEMY_BAT,
+            ]
+        else:
+            enemy_types = [SYMBOL_ENEMY_SLUG, SYMBOL_ENEMY_BAT, SYMBOL_ENEMY_FLUTTER, SYMBOL_ENEMY_SMEAR]
+            if active_biome in ("windy_ridge", "pastoral_valley"):
+                enemy_types.extend([SYMBOL_ENEMY_WOLF, SYMBOL_ENEMY_WOLF])
         num_enemies = min(20, max(4, (width * height) // 750))
         for _ in range(num_enemies):
             if open_floors:
@@ -667,8 +697,9 @@ def generate_architectural_biome(
     # 7. BFS Connectivity & Tunnel Validation
     validate_and_carve_connectivity(grid, rng, mandatory_coords=[(cx, cy)])
 
-    # 8. Smart Architectural Dressing: Bookcases, Benches, Barrels, Rubble
+    # 8. Smart Architectural Dressing: Bookcases, Benches, Barrels, Rubble / Aqueduct Moss & Channels
     dist_map = _compute_wall_distances(grid)
+    is_aqueduct = active_biome == "sunlit_aqueducts"
     for y in range(1, height - 1):
         for x in range(1, width - 1):
             if grid[y][x] == SYMBOL_FLOOR and (x, y) != (cx, cy):
@@ -677,12 +708,22 @@ def generate_architectural_biome(
                     # Flush against wall
                     n_wall = grid[y - 1][x] == SYMBOL_WALL
                     s_wall = grid[y + 1][x] == SYMBOL_WALL
-                    if (n_wall or s_wall) and rng.random() < 0.08:
-                        grid[y][x] = SYMBOL_BOOKCASE if rng.random() < 0.5 else SYMBOL_BENCH
-                    elif rng.random() < 0.07:
-                        grid[y][x] = SYMBOL_BARREL
-                    elif rng.random() < 0.05:
-                        grid[y][x] = SYMBOL_CLUTTER  # Crumbled masonry / rubble
+                    if is_aqueduct:
+                        if rng.random() < 0.24:
+                            grid[y][x] = SYMBOL_GRASS
+                        elif (n_wall or s_wall) and rng.random() < 0.08:
+                            grid[y][x] = SYMBOL_CLUTTER  # Cracked aqueduct pillar
+                        elif rng.random() < 0.05:
+                            grid[y][x] = SYMBOL_BARREL
+                    else:
+                        if (n_wall or s_wall) and rng.random() < 0.08:
+                            grid[y][x] = SYMBOL_BOOKCASE if rng.random() < 0.5 else SYMBOL_BENCH
+                        elif rng.random() < 0.07:
+                            grid[y][x] = SYMBOL_BARREL
+                        elif rng.random() < 0.05:
+                            grid[y][x] = SYMBOL_CLUTTER  # Crumbled masonry / rubble
+                elif is_aqueduct and dist == 2 and rng.random() < 0.06:
+                    grid[y][x] = SYMBOL_INK_PUDDLE  # Shallow sunlit aqueduct runnel
 
     # 9. Spawners & Key Entrances
     open_floors = [(x, y) for y in range(2, height - 2) for x in range(2, width - 2) if grid[y][x] == SYMBOL_FLOOR]
@@ -710,7 +751,16 @@ def generate_architectural_biome(
         mx, my = open_floors.pop()
         grid[my][mx] = SYMBOL_MINIBOSS_M1
 
-    arch_enemies = [SYMBOL_ENEMY_SENTRY, SYMBOL_ENEMY_BINDLING, SYMBOL_ENEMY_BAT, SYMBOL_ENEMY_SLUG]
+    if is_aqueduct:
+        arch_enemies = [
+            SYMBOL_ENEMY_BINDLING,
+            SYMBOL_ENEMY_SLUG,
+            SYMBOL_ENEMY_SMEAR,
+            SYMBOL_ENEMY_WOLF,
+            SYMBOL_ENEMY_SENTRY,
+        ]
+    else:
+        arch_enemies = [SYMBOL_ENEMY_SENTRY, SYMBOL_ENEMY_BINDLING, SYMBOL_ENEMY_BAT, SYMBOL_ENEMY_SLUG]
     num_enemies = min(20, max(4, (width * height) // 750))
     for _ in range(num_enemies):
         if open_floors:
@@ -1061,7 +1111,7 @@ def generate_map(
     normalized_biome = biome.lower().strip()
     is_organic = (
         normalized_biome in ORGANIC_BIOMES
-        or any(term in normalized_biome for term in ("swamp", "wild", "pastor", "ridge", "frozen"))
+        or any(term in normalized_biome for term in ("swamp", "wild", "pastor", "ridge", "frozen", "vitreous", "basin"))
     )
     if is_organic:
         return generate_organic_biome(width, height, normalized_biome, seed)

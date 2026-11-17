@@ -100,12 +100,54 @@ def test_resolve_segment_pool_lower_act_and_pass2_fallbacks(monkeypatch):
     resolved_a1 = resolve_segment_pool("windy_ridge", 1)
     assert resolved_a1["resolved_act"] == 1
 
-    # Pass 2 biomes without on-disk segments fall back safely to valid base pools
+    # Pass 2 biomes now resolve natively to their on-disk segment pools
     for pass2_biome in ("vitreous_basin", "sunlit_aqueducts"):
         pool = resolve_segment_pool(pass2_biome, 3)
-        assert len(pool["rooms"]) > 0
-        assert len(pool["corridors"]) > 0
-        assert pool["resolved_biome"] in constants.BIOME_SEGMENT_POOLS
+        assert len(pool["rooms"]) >= 4
+        assert len(pool["corridors"]) >= 4
+        assert pool["resolved_biome"] == pass2_biome
+        assert pool["resolved_act"] == 1
+
+
+def test_pass2_biome_assets_and_renderer_integration(tmp_path):
+    """Verify Pass 2 procedural PNGs load in Renderer, sockets resolve, and Act 1-5 empowerment works."""
+    from rendering.renderer import Renderer
+
+    pygame.init()
+    screen = pygame.Surface((640, 360))
+    renderer = Renderer(screen)
+    for prop_key in (
+        "VitreousSaltFloor",
+        "VitreousGlassFlat",
+        "VitreousSaltSpire",
+        "AqueductTerracottaFloor",
+        "AqueductMossWall",
+        "AqueductPillar",
+    ):
+        assert prop_key in renderer.prop_cache, f"Missing Pass 2 asset in Renderer.prop_cache: {prop_key}"
+
+    mock_state = _make_state(tmp_path)
+    mock_state.world.name = "generated_world"
+    mock_state.world.module_sockets = [
+        {
+            "bounds": {"x": 0, "y": 0, "width": 40, "height": 40},
+            "active_plug": "maps/segments/vitreous_basin/vitreous_basin_room_1.json",
+        },
+        {
+            "bounds": {"x": 40, "y": 0, "width": 40, "height": 40},
+            "active_plug": "maps/segments/sunlit_aqueducts/sunlit_aqueducts_room_1.json",
+        },
+    ]
+    assert renderer._resolve_tile_biome(mock_state, 10, 10) == "vitreous_basin"
+    assert renderer._resolve_tile_biome(mock_state, 50, 10) == "sunlit_aqueducts"
+
+    # Act 4 run starting in vitreous_basin / sunlit_aqueducts empowers enemies properly
+    mock_state.start_chronicle_run(
+        ["vitreous_basin", "sunlit_aqueducts", "windy_ridge", "swamp_mire", "tech_tower"]
+    )
+    assert mock_state.transition_to_act(4) is True
+    assert mock_state.empowered_act is True
+    assert all(e.is_empowered for e in mock_state.enemies)
 
 
 def test_5act_progression_saturation_matrix_and_marginalia(tmp_path, monkeypatch):

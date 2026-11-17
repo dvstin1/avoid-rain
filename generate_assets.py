@@ -62,6 +62,14 @@ DEFAULT_RUINS_RUBBLE_PATH = os.path.join("assets", "graphics", "ruins_rubble.png
 DEFAULT_SWAMP_FLORA_PATH = os.path.join("assets", "graphics", "swamp_flora.png")
 DEFAULT_CRYPT_CLUTTER_PATH = os.path.join("assets", "graphics", "crypt_clutter.png")
 
+# Pass 2 Expanded Biome Asset Paths (The Vitreous Basin & The Sunlit Aqueducts)
+DEFAULT_VITREOUS_SALT_FLOOR_PATH = os.path.join("assets", "graphics", "vitreous_salt_floor.png")
+DEFAULT_VITREOUS_GLASS_FLAT_PATH = os.path.join("assets", "graphics", "vitreous_glass_flat.png")
+DEFAULT_VITREOUS_SALT_SPIRE_PATH = os.path.join("assets", "graphics", "vitreous_salt_spire.png")
+DEFAULT_AQUEDUCT_TERRACOTTA_FLOOR_PATH = os.path.join("assets", "graphics", "aqueduct_terracotta_floor.png")
+DEFAULT_AQUEDUCT_MOSS_WALL_PATH = os.path.join("assets", "graphics", "aqueduct_moss_wall.png")
+DEFAULT_AQUEDUCT_PILLAR_PATH = os.path.join("assets", "graphics", "aqueduct_pillar.png")
+
 # 2.5D Verticality & Elevation Asset Paths
 DEFAULT_WALL_TOP_CAP_PATH = os.path.join("assets", "graphics", "wall_top_cap.png")
 DEFAULT_WALL_FRONT_FACE_PATH = os.path.join("assets", "graphics", "wall_front_face.png")
@@ -1601,6 +1609,247 @@ def generate_crypt_clutter(
 
 
 # ==============================================================================
+# GENERATIVE PIPELINE 8B: VITREOUS BASIN & SUNLIT AQUEDUCTS BIOME ASSETS
+# ==============================================================================
+
+def generate_vitreous_salt_floor_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 40x40 crystalline salt-crust floor tile for The Vitreous Basin."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    base_rgb = (164, 206, 222)
+    crest_rgb = (224, 244, 252)
+    seam_rgb = (92, 138, 164)
+
+    for y in range(height):
+        for x in range(width):
+            jit = rng.randint(-6, 6)
+            edge_dist = min(x, y, width - 1 - x, height - 1 - y)
+            shade = -8 if edge_dist == 0 else (-4 if edge_dist == 1 else 0)
+            surface.set_at(
+                (x, y),
+                (_clamp(base_rgb[0] + jit + shade), _clamp(base_rgb[1] + jit + shade), _clamp(base_rgb[2] + jit)),
+            )
+
+    # Polygonal salt-flat crust seams & raised crystalline salt ridges
+    crust_lines = [
+        ((0, 14), (16, 10), (30, 18), (width - 1, 13)),
+        ((12, 0), (16, 10), (14, 28), (19, height - 1)),
+        ((28, 18), (24, 30), (36, height - 1)),
+    ]
+    for poly in crust_lines:
+        for i in range(len(poly) - 1):
+            p1, p2 = poly[i], poly[i + 1]
+            pygame.draw.line(surface, seam_rgb, p1, p2, 1)
+            pygame.draw.line(surface, crest_rgb, (p1[0], max(0, p1[1] - 1)), (p2[0], max(0, p2[1] - 1)), 1)
+
+    for _ in range(24):
+        sx = rng.randint(2, width - 3)
+        sy = rng.randint(2, height - 3)
+        surface.set_at((sx, sy), (244, 253, 255) if rng.random() < 0.65 else (118, 166, 192))
+
+    return surface
+
+
+def generate_vitreous_glass_flat_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 40x40 fractured reflective glass flat tile for The Vitreous Basin."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    base_rgb = (96, 146, 174)
+    for y in range(height):
+        diag_band = int(12 * math.sin((x_band := y) * 0.14))
+        for x in range(width):
+            sheen = 14 if 8 <= (x + x_band) % 24 <= 12 else 0
+            jit = rng.randint(-4, 4)
+            surface.set_at(
+                (x, y),
+                (
+                    _clamp(base_rgb[0] + sheen + jit),
+                    _clamp(base_rgb[1] + sheen + jit + diag_band // 3),
+                    _clamp(base_rgb[2] + sheen + jit + 6),
+                ),
+            )
+
+    # Diagonal specular reflection streaks & sharp crystal fracture web
+    pygame.draw.line(surface, (206, 244, 255), (4, 32), (24, 12), 2)
+    pygame.draw.line(surface, (236, 252, 255), (18, 35), (36, 17), 1)
+    fractures = [
+        ((0, 22), (18, 18), (39, 8)),
+        ((18, 18), (22, 34), (35, 39)),
+        ((18, 18), (10, 3)),
+    ]
+    for path in fractures:
+        for i in range(len(path) - 1):
+            p1, p2 = path[i], path[i + 1]
+            pygame.draw.line(surface, (42, 70, 92), p1, p2, 1)
+            pygame.draw.line(surface, (182, 232, 248), (p1[0] + 1, p1[1]), (p2[0] + 1, p2[1]), 1)
+
+    return surface
+
+
+def generate_vitreous_salt_spire(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 40x40 transparent jagged salt-spire & glass-shard cluster obstacle."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(surface, (28, 52, 72, 125), (4, height - 12, width - 8, 9))
+
+    shards = [
+        ([(8, 32), (12, 14), (18, 31)], (104, 162, 192, 255), (196, 240, 252, 255)),
+        ([(24, 33), (29, 12), (34, 32)], (92, 148, 180, 255), (184, 234, 248, 255)),
+        ([(14, 34), (20, 4), (27, 34)], (134, 194, 218, 255), (242, 254, 255, 255)),
+    ]
+    for poly, body_col, hi_col in shards:
+        pygame.draw.polygon(surface, body_col, poly)
+        apex = poly[1]
+        left_pt = poly[0]
+        pygame.draw.polygon(surface, hi_col, [left_pt, apex, (apex[0] + 1, poly[2][1] - 2)])
+        pygame.draw.polygon(surface, (46, 78, 102, 255), poly, 1)
+
+    for _ in range(10):
+        gx = rng.randint(10, 30)
+        gy = rng.randint(14, 34)
+        if surface.get_at((gx, gy)).a > 120:
+            surface.set_at((gx, gy), (255, 255, 255, 255))
+
+    return surface
+
+
+def generate_aqueduct_terracotta_floor_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 40x40 sun-bleached terracotta flagstone floor tile for The Sunlit Aqueducts."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    mortar_rgb = (92, 54, 38)
+    surface.fill(mortar_rgb)
+
+    slabs = [
+        (1, 1, 18, 18, (186, 126, 86)),
+        (21, 1, 18, 18, (172, 112, 74)),
+        (1, 21, 12, 18, (168, 108, 72)),
+        (15, 21, 24, 18, (194, 134, 92)),
+    ]
+    for sx, sy, sw, sh, tone in slabs:
+        pygame.draw.rect(surface, tone, (sx, sy, sw, sh))
+        for py in range(sy, sy + sh):
+            for px in range(sx, sx + sw):
+                jit = rng.randint(-7, 7)
+                surface.set_at(
+                    (px, py),
+                    (_clamp(tone[0] + jit), _clamp(tone[1] + jit), _clamp(tone[2] + jit)),
+                )
+        pygame.draw.line(surface, (226, 178, 132), (sx, sy), (sx + sw - 1, sy), 1)
+        pygame.draw.line(surface, (124, 72, 48), (sx, sy + sh - 1), (sx + sw - 1, sy + sh - 1), 1)
+
+    # Sun-baked mineral chips & creeping seam moss tufts
+    for mx, my in ((19, 19), (20, 18), (14, 21), (13, 35)):
+        pygame.draw.circle(surface, (84, 168, 86), (mx, my), 2)
+        surface.set_at((mx, max(0, my - 1)), (128, 216, 116))
+
+    return surface
+
+
+def generate_aqueduct_moss_wall_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 40x40 moss-draped stone wall / aqueduct channel tile."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height))
+    mortar_rgb = (54, 32, 24)
+    surface.fill(mortar_rgb)
+
+    # Upper aqueduct cornice & sun-bleached stone courses
+    courses = [(0, 12), (13, 13), (27, 13)]
+    for c_idx, (cy, ch) in enumerate(courses):
+        offset = 10 if c_idx == 1 else 0
+        for bx in range(-offset, width, 20):
+            x0 = max(0, bx + 1)
+            x1 = min(width, bx + 19)
+            if x1 <= x0:
+                continue
+            tone = (188, 132, 90) if c_idx == 0 else (142, 88, 58)
+            for py in range(cy, min(height - 1, cy + ch - 1)):
+                for px in range(x0, x1):
+                    jit = rng.randint(-6, 6)
+                    surface.set_at(
+                        (px, py),
+                        (_clamp(tone[0] + jit), _clamp(tone[1] + jit), _clamp(tone[2] + jit)),
+                    )
+            pygame.draw.line(surface, (232, 184, 136), (x0, cy), (x1 - 1, cy), 1)
+
+    # Recessed aqueduct water trickle channel & trailing sunlit moss clusters
+    pygame.draw.rect(surface, (46, 118, 134), (16, 15, 8, 22))
+    pygame.draw.line(surface, (112, 206, 218), (19, 16), (19, 36), 2)
+    for mx, my, mr in ((7, 11, 4), (11, 14, 3), (30, 10, 4), (32, 16, 3), (26, 26, 3)):
+        pygame.draw.circle(surface, (68, 148, 72), (mx, my), mr)
+        pygame.draw.circle(surface, (124, 214, 110), (mx - 1, my - 1), max(1, mr - 2))
+
+    return surface
+
+
+def generate_aqueduct_pillar(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 40x40 transparent cracked aqueduct pillar / overgrown arch obstacle."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.ellipse(surface, (38, 22, 16, 125), (5, height - 11, width - 10, 9))
+
+    # Stepped terracotta stone plinth & cracked arch crown
+    pygame.draw.rect(surface, (132, 82, 54, 255), (9, 27, 22, 8), border_radius=2)
+    pygame.draw.rect(surface, (176, 118, 82, 255), (12, 11, 16, 18), border_radius=2)
+    pygame.draw.rect(surface, (214, 158, 114, 255), (8, 7, 24, 6), border_radius=2)
+    # Fluting & sunlit bevel
+    for fx in (15, 20, 25):
+        pygame.draw.line(surface, (114, 68, 44, 255), (fx, 13), (fx, 27), 1)
+    pygame.draw.line(surface, (238, 198, 152, 255), (9, 7), (30, 7), 1)
+    # Jagged crack across shaft
+    pygame.draw.lines(surface, (54, 32, 24, 255), False, [(13, 14), (19, 18), (17, 24), (24, 29)], 2)
+    # Overgrown moss drape along cornice and plinth
+    for mx, my, mr in ((10, 9, 4), (14, 12, 3), (27, 26, 4), (11, 29, 3)):
+        pygame.draw.circle(surface, (72, 156, 76, 255), (mx, my), mr)
+        pygame.draw.circle(surface, (132, 222, 118, 255), (mx - 1, my - 1), max(1, mr - 2))
+
+    # Subtle weathered stone speckles
+    for _ in range(8):
+        px = rng.randint(12, 27)
+        py = rng.randint(12, 27)
+        if surface.get_at((px, py)).a > 200:
+            surface.set_at((px, py), (154, 98, 66, 255))
+
+    return surface
+
+
+# ==============================================================================
 # GENERATIVE PIPELINE 9: 2.5D VERTICALITY & ELEVATION ASSETS
 # ==============================================================================
 
@@ -2603,6 +2852,12 @@ def generate_all_assets(
     ruins_rubble_path: str = DEFAULT_RUINS_RUBBLE_PATH,
     swamp_flora_path: str = DEFAULT_SWAMP_FLORA_PATH,
     crypt_clutter_path: str = DEFAULT_CRYPT_CLUTTER_PATH,
+    vitreous_salt_floor_path: str = DEFAULT_VITREOUS_SALT_FLOOR_PATH,
+    vitreous_glass_flat_path: str = DEFAULT_VITREOUS_GLASS_FLAT_PATH,
+    vitreous_salt_spire_path: str = DEFAULT_VITREOUS_SALT_SPIRE_PATH,
+    aqueduct_terracotta_floor_path: str = DEFAULT_AQUEDUCT_TERRACOTTA_FLOOR_PATH,
+    aqueduct_moss_wall_path: str = DEFAULT_AQUEDUCT_MOSS_WALL_PATH,
+    aqueduct_pillar_path: str = DEFAULT_AQUEDUCT_PILLAR_PATH,
     wall_top_cap_path: str = DEFAULT_WALL_TOP_CAP_PATH,
     wall_front_face_path: str = DEFAULT_WALL_FRONT_FACE_PATH,
     shadow_south_path: str = DEFAULT_SHADOW_SOUTH_PATH,
@@ -2702,6 +2957,38 @@ def generate_all_assets(
             "crypt_clutter",
             crypt_clutter_path,
             generate_crypt_clutter(TILE_WIDTH, TILE_HEIGHT, rng=_rng("crypt_clutter")),
+        ),
+        (
+            "vitreous_salt_floor",
+            vitreous_salt_floor_path,
+            generate_vitreous_salt_floor_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("vitreous_salt_floor")),
+        ),
+        (
+            "vitreous_glass_flat",
+            vitreous_glass_flat_path,
+            generate_vitreous_glass_flat_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("vitreous_glass_flat")),
+        ),
+        (
+            "vitreous_salt_spire",
+            vitreous_salt_spire_path,
+            generate_vitreous_salt_spire(TILE_WIDTH, TILE_HEIGHT, rng=_rng("vitreous_salt_spire")),
+        ),
+        (
+            "aqueduct_terracotta_floor",
+            aqueduct_terracotta_floor_path,
+            generate_aqueduct_terracotta_floor_tile(
+                TILE_WIDTH, TILE_HEIGHT, rng=_rng("aqueduct_terracotta_floor")
+            ),
+        ),
+        (
+            "aqueduct_moss_wall",
+            aqueduct_moss_wall_path,
+            generate_aqueduct_moss_wall_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("aqueduct_moss_wall")),
+        ),
+        (
+            "aqueduct_pillar",
+            aqueduct_pillar_path,
+            generate_aqueduct_pillar(TILE_WIDTH, TILE_HEIGHT, rng=_rng("aqueduct_pillar")),
         ),
     ]
     for key, out_path, surf in core_specs:

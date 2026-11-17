@@ -387,6 +387,10 @@ class Renderer:
                     b_res = "swamp_mire"
                 elif "frozen" in plug or "peak" in plug:
                     b_res = "frozen_peaks"
+                elif "vitreous" in plug or "basin" in plug:
+                    b_res = "vitreous_basin"
+                elif "sunlit" in plug or "aqueduct" in plug:
+                    b_res = "sunlit_aqueducts"
                 elif any(k in plug for k in ("tech", "tower", "gantry", "ruins", "boss")):
                     b_res = "tech_tower"
                 else:
@@ -409,8 +413,16 @@ class Renderer:
                 break
 
         if not resolved:
-            sector = ((tx // 40) + (ty // 40)) % 5
-            resolved = ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")[sector]
+            sector = ((tx // 40) + (ty // 40)) % 7
+            resolved = (
+                "windy_ridge",
+                "pastoral_valley",
+                "swamp_mire",
+                "frozen_peaks",
+                "tech_tower",
+                "vitreous_basin",
+                "sunlit_aqueducts",
+            )[sector]
 
         if cache is not None:
             if len(cache) > 65536:
@@ -632,11 +644,17 @@ class Renderer:
             pygame.draw.line(thorns, (180, 175, 185), (24, 18), (30, 26), 2)
             self.prop_cache["SwampThorns"] = thorns.convert_alpha() if display_init else thorns
 
-        # 9. Environmental Biome Clutter: Ruins Rubble, Swamp Flora, and Crypt Clutter
+        # 9. Environmental Biome Clutter: Ruins Rubble, Swamp Flora, Crypt Clutter & Pass 2 Biome Tiles/Props
         clutter_defs = [
             ("ruins_rubble.png", "RuinsRubble"),
             ("swamp_flora.png", "SwampFlora"),
             ("crypt_clutter.png", "CryptClutter"),
+            ("vitreous_salt_floor.png", "VitreousSaltFloor"),
+            ("vitreous_glass_flat.png", "VitreousGlassFlat"),
+            ("vitreous_salt_spire.png", "VitreousSaltSpire"),
+            ("aqueduct_terracotta_floor.png", "AqueductTerracottaFloor"),
+            ("aqueduct_moss_wall.png", "AqueductMossWall"),
+            ("aqueduct_pillar.png", "AqueductPillar"),
         ]
         for c_file, c_key in clutter_defs:
             c_path = os.path.join(base_path, c_file)
@@ -674,6 +692,18 @@ class Renderer:
             pygame.draw.ellipse(crypt, (175, 172, 160), (24, 15, 10, 9))
             pygame.draw.circle(crypt, (64, 58, 54), (27, 19), 2)
             self.prop_cache["CryptClutter"] = crypt.convert_alpha() if display_init else crypt
+
+        if "VitreousSaltSpire" not in self.prop_cache:
+            spire = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.polygon(spire, (134, 194, 218), [(12, 34), (20, 6), (28, 34)])
+            pygame.draw.polygon(spire, (242, 254, 255), [(12, 34), (20, 6), (21, 32)])
+            self.prop_cache["VitreousSaltSpire"] = spire.convert_alpha() if display_init else spire
+
+        if "AqueductPillar" not in self.prop_cache:
+            pillar = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.rect(pillar, (176, 118, 82), (11, 10, 18, 22), border_radius=2)
+            pygame.draw.circle(pillar, (88, 178, 96), (12, 12), 4)
+            self.prop_cache["AqueductPillar"] = pillar.convert_alpha() if display_init else pillar
 
     def draw_warp(self, warp, offset_x, offset_y):
         """Draw the Warp Point as 'The Chronicle' gilded magical tome on a lectern."""
@@ -983,6 +1013,18 @@ class Renderer:
             pulse_x = sx + 6 + int(((now * 28.0 + x * 7 + y * 5) % 24))
             col = pal["wall_glow"] if s_idx == 0 else pal["floor_speck"]
             pygame.draw.line(self.screen, col, (pulse_x, sy + 20), (pulse_x + 5, sy + 20), 2)
+        elif biome == "vitreous_basin":
+            glint = int((math.sin(now * 5.0 + x * 1.2 + y * 0.8) + 1.0) * 2.5) + 2
+            cx, cy = sx + 20, sy + 20
+            pygame.draw.line(self.screen, pal["floor_speck"], (cx - glint, cy - glint), (cx + glint, cy + glint), 1)
+            pygame.draw.circle(self.screen, pal["wall_glow"], (cx, cy), max(1, glint // 2))
+        elif biome == "sunlit_aqueducts":
+            if s_idx == 0:
+                ripple = 2 + int(((math.sin(now * 3.0 + x * 0.7 + y * 0.5) + 1.0) * 0.5) * 5)
+                pygame.draw.circle(self.screen, (132, 224, 236), (sx + 20, sy + 20), ripple, 1)
+            else:
+                sway = int(math.sin(now * 2.8 + x * 0.5 + y * 0.3) * 4)
+                pygame.draw.circle(self.screen, pal["wall_glow"], (sx + 18 + sway, sy + 20), 3)
 
     def _draw_connected_wall_tile(self, target_surf, state, coords, dr, biome_info):
         """Render connected wall plateaus and 2.5D cliff facades with outer-edge-only borders."""
@@ -1118,6 +1160,21 @@ class Renderer:
                 for sx_step in range(off, ts - 4, 9):
                     target_surf.fill(pal["wall_mortar"], (sx + sx_step, sy + 15, 2, 5))
                     target_surf.fill(pal["wall_mortar"], (sx + sx_step + 2, sy + 29, 2, 6))
+            elif biome == "sunlit_aqueducts":
+                aq_wall = getattr(self, "prop_cache", {}).get("AqueductMossWall")
+                if aq_wall is not None:
+                    target_surf.blit(aq_wall, (sx, sy))
+                else:
+                    target_surf.fill(pal["wall_glow"], (sx + 4, sy + 16, ts - 8, 5))
+                    target_surf.fill(pal["wall_mortar"], (sx + ts // 2 - 2, sy + 20, 4, 16))
+            elif biome == "vitreous_basin":
+                pygame.draw.polygon(
+                    target_surf,
+                    pal["wall_hi"],
+                    [(sx + 6, sy + 15), (sx + ts // 2, sy + 28), (sx + ts - 6, sy + 15)],
+                    1,
+                )
+                target_surf.fill(pal["wall_glow"], (sx + ts // 2 - 4, sy + 20, 8, 2))
             else:
                 if (x + y) % 2 == 0:
                     target_surf.fill(pal["wall_top"], (sx + 6, sy + 18, ts - 12, 16))
@@ -1336,6 +1393,45 @@ class Renderer:
                     pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 40, ay + 40), 22, 2)
                     pygame.draw.line(target_surf, pal["floor_speck"], (ax + 16, ay + 40), (ax + 64, ay + 40), 2)
                     pygame.draw.line(target_surf, pal["floor_speck"], (ax + 40, ay + 16), (ax + 40, ay + 64), 2)
+        elif biome == "vitreous_basin":
+            if s_idx == 0:
+                # Reflective fractured glass flat: crystalline refraction seams & mirror highlights
+                pygame.draw.line(target_surf, pal["wall_mortar"], (ax + 8, ay + 12), (ax + 72, ay + 66), 2)
+                pygame.draw.line(target_surf, pal["wall_glow"], (ax + 12, ay + 10), (ax + 70, ay + 62), 1)
+                if pat in (0, 2):
+                    pygame.draw.line(target_surf, pal["floor_speck"], (ax + 14, ay + 58), (ax + 54, ay + 18), 2)
+            elif s_idx == 2:
+                # Raised crystalline salt-crust shelf
+                pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 10, ay + 14, 60, 48))
+                pygame.draw.ellipse(target_surf, pal["floor_speck"], (ax + 18, ay + 20, 40, 24), 1)
+            else:
+                # Sun-bleached salt crust polygon plates
+                pygame.draw.line(target_surf, pal["wall_mortar"], (ax + 6, ay + 38), (ax + 74, ay + 42), 1)
+                pygame.draw.line(target_surf, pal["floor_speck"], (ax + 8, ay + 36), (ax + 74, ay + 40), 1)
+                if pat == 1:
+                    pygame.draw.polygon(
+                        target_surf,
+                        pal["floor_accent"],
+                        [(ax + 40, ay + 16), (ax + 62, ay + 40), (ax + 40, ay + 62)],
+                        1,
+                    )
+        elif biome == "sunlit_aqueducts":
+            if s_idx == 0:
+                # Sunken turquoise aqueduct channel with sun-dappled current bands
+                pygame.draw.rect(target_surf, (64, 144, 158), (ax + 8, ay + 16, 64, 48), border_radius=10)
+                pygame.draw.line(target_surf, (132, 224, 236), (ax + 14, ay + 32), (ax + 64, ay + 32), 2)
+                pygame.draw.line(target_surf, (132, 224, 236), (ax + 20, ay + 50), (ax + 58, ay + 50), 1)
+            elif s_idx == 2:
+                # Lush overgrown moss viaduct bridge
+                pygame.draw.ellipse(target_surf, pal["wall_glow"], (ax + 10, ay + 12, 60, 54))
+                pygame.draw.circle(target_surf, (164, 244, 146), (ax + 28, ay + 28), 6)
+                pygame.draw.circle(target_surf, (164, 244, 146), (ax + 50, ay + 46), 5)
+            else:
+                # Sun-baked terracotta flagstone seams with moss tufts
+                pygame.draw.rect(target_surf, pal["wall_mortar"], (ax + 8, ay + 8, 64, 30), 1, border_radius=3)
+                pygame.draw.rect(target_surf, pal["wall_mortar"], (ax + 12, ay + 42, 56, 30), 1, border_radius=3)
+                if pat in (0, 2):
+                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 40, ay + 40), 5)
         else:
             # windy_ridge: connected highland cobbles, ancient stone rings, and scriptorium inlays
             if s_idx == 0:
@@ -1593,6 +1689,15 @@ class Renderer:
             tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
             v_idx = (x * 7 + y * 13) % len(tier_floors)
             target_surf.blit(tier_floors[v_idx], (sx, sy))
+            if biome == "vitreous_basin":
+                v_key = "VitreousGlassFlat" if s_idx == 0 else "VitreousSaltFloor"
+                v_tile = getattr(self, "prop_cache", {}).get(v_key)
+                if v_tile is not None:
+                    target_surf.blit(v_tile, (sx, sy))
+            elif biome == "sunlit_aqueducts" and s_idx == 1:
+                aq_tile = getattr(self, "prop_cache", {}).get("AqueductTerracottaFloor")
+                if aq_tile is not None:
+                    target_surf.blit(aq_tile, (sx, sy))
 
             # 1. Multi-tile connected patterns (2x2 80x80px & 4x4 160x160px) across same-surface tiles
             self._draw_connected_floor_patterns(target_surf, (biome, pal, s_idx, s_alt), coords, dr)
@@ -1638,6 +1743,10 @@ class Renderer:
                 if biome == "swamp_mire" and "SwampVent" in getattr(self, "prop_cache", {}):
                     vent_surf = self.prop_cache["SwampVent"]
                     target_surf.blit(vent_surf, (sx + rdx, sy + rdy))
+                elif biome == "vitreous_basin" and "VitreousSaltSpire" in getattr(self, "prop_cache", {}):
+                    target_surf.blit(self.prop_cache["VitreousSaltSpire"], (sx + rdx, sy + rdy))
+                elif biome == "sunlit_aqueducts" and "AqueductPillar" in getattr(self, "prop_cache", {}):
+                    target_surf.blit(self.prop_cache["AqueductPillar"], (sx + rdx, sy + rdy))
                 elif (
                     biome in ("tech_tower", "ruins")
                     or "ruins" in w_name
@@ -1902,6 +2011,10 @@ class Renderer:
                         pygame.draw.ellipse(self.screen, (66, 30, 62), (cx_t - 16, cy_t - 8, 32, 22))
                         pygame.draw.circle(self.screen, (142, 172, 44), (cx_t - 6, cy_t - 2), 3)
                         pygame.draw.circle(self.screen, (142, 172, 44), (cx_t + 7, cy_t), 2)
+                elif obj_biome == "vitreous_basin" and "VitreousSaltSpire" in prop_cache:
+                    self.screen.blit(prop_cache["VitreousSaltSpire"], (int(sx_o), int(sy_o)))
+                elif obj_biome == "sunlit_aqueducts" and "AqueductPillar" in prop_cache:
+                    self.screen.blit(prop_cache["AqueductPillar"], (int(sx_o), int(sy_o)))
                 elif (
                     obj_biome in ("tech_tower", "ruins")
                     or "ruins" in w_name
@@ -2039,6 +2152,10 @@ class Renderer:
                         rx, ry = int(sx_o) + rdx, int(sy_o) + rdy
                         pygame.draw.ellipse(self.screen, (66, 30, 62), (rx + 4, ry + 8, ts - 8, ts - 12))
                         pygame.draw.circle(self.screen, (148, 215, 68), (rx + ts // 2, ry + ts // 2), 4)
+                elif obj_biome == "vitreous_basin" and "VitreousSaltSpire" in prop_cache:
+                    self.screen.blit(prop_cache["VitreousSaltSpire"], (int(sx_o) + rdx, int(sy_o) + rdy))
+                elif obj_biome == "sunlit_aqueducts" and "AqueductPillar" in prop_cache:
+                    self.screen.blit(prop_cache["AqueductPillar"], (int(sx_o) + rdx, int(sy_o) + rdy))
                 elif (
                     obj_biome in ("tech_tower", "ruins")
                     or "ruins" in w_name

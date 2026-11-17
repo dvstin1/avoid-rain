@@ -299,13 +299,21 @@ POOL_CORRIDOR = [
     "maps/smallcave.json",
 ]
 
-# Per-Biome Modular Segment Pools (Single-Biome World Stitching — On-Disk Biomes Only)
+# Per-Biome Modular Segment Pools (Single-Biome World Stitching — All 7 Chronicle Biomes)
 BIOME_SEGMENT_POOLS = {
     biome: {
         "rooms": [f"maps/segments/{biome}/{biome}_room_{i}.json" for i in range(1, 5)],
         "corridors": [f"maps/segments/{biome}/{biome}_corridor_{i}.json" for i in range(1, 5)],
     }
-    for biome in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")
+    for biome in (
+        "windy_ridge",
+        "pastoral_valley",
+        "swamp_mire",
+        "frozen_peaks",
+        "tech_tower",
+        "vitreous_basin",
+        "sunlit_aqueducts",
+    )
 }
 
 # Act-Keyed Segment Pools ((biome_id, act_number) -> {"rooms": [...], "corridors": [...]})
@@ -317,11 +325,8 @@ BIOME_ACT_SEGMENT_POOLS = {
     for biome, pool in BIOME_SEGMENT_POOLS.items()
 }
 
-# Pass 2 Segment Fallback Mapping (used when a biome's segment folder is not yet on disk)
-BIOME_FALLBACK_MAP = {
-    "vitreous_basin": "frozen_peaks",
-    "sunlit_aqueducts": "pastoral_valley",
-}
+# Segment Fallback Mapping (reserved for unknown/unauthored future biome aliases)
+BIOME_FALLBACK_MAP = {}
 
 # 5-Act Unbound Chronicle Biome Selection & 7-Biome Roster (Section 12)
 MAX_ACTS = 5

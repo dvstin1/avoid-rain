@@ -150,11 +150,11 @@ Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.
   2. **Sanctuary Regroup:** All surviving Clients warp back to **Sanctuary** (cleaning up active run state via `on_enter_sanctuary()`).
   3. **Lexicographic `peer_id` Promotion:** The surviving Client with the lexicographically lowest `peer_id` automatically promotes itself to **Host** (`start_hosting()`), while any other surviving Clients reconnect to the newly promoted Host in Sanctuary.
 
-## 12. 5-Act Unbound Chronicle Progression & Expanded Biomes [IN PROGRESS / PARTIAL]
+## 12. 5-Act Unbound Chronicle Progression & Expanded Biomes [DONE]
 
-> **STATUS:** `[IN PROGRESS / PARTIAL]` — **Pass 1 Complete** (5-Act `current_act: 1..5` progression, 5-of-7 `CHRONICLE_BIOME_ROSTER` draft & ordering UI, `ACT_SATURATION_MATRIX` scaling, `BIOME_ACT_SEGMENT_POOLS` & `resolve_segment_pool()` lower-Act fallback loader, and 5-Act LAN co-op replication). **Pass 2 Pending** (procedural PNG asset generation and on-disk segment JSONs in `maps/segments/` for `vitreous_basin` and `sunlit_aqueducts`).
+> **STATUS:** `[DONE]` — Pass 1 & Pass 2 complete (5-Act `current_act: 1..5` progression, 5-of-7 `CHRONICLE_BIOME_ROSTER` draft & ordering UI, `ACT_SATURATION_MATRIX` scaling, `BIOME_ACT_SEGMENT_POOLS` & `resolve_segment_pool()` lower-Act fallback loader, 5-Act LAN co-op replication, procedural 40x40 PNG tiles/props, and native on-disk `maps/segments/` pools + `tools/edit_map.py` parity for `vitreous_basin` and `sunlit_aqueducts`).
 
-### 12.1. 5-Act Run Structure & "Unbound Chronicle" Biome Draft (`[IN PROGRESS / PARTIAL — PASS 1 DONE]`)
+### 12.1. 5-Act Run Structure & "Unbound Chronicle" Biome Draft (`[DONE]`)
 - **5-Act Loop (`current_act: 1..5`, `[DONE]`):** Expanded the core run loop from 2 Acts to **5 Acts (Nights 1–5)** (`MAX_ACTS = 5`), framed in lore as binding and arranging the **Unbound Chronicle** (five surviving chapter folios) in Sanctuary before stepping into the rain.
 - **Pre-Run Biome Draft & Ordering (`run_biomes` of length 5, `[DONE]`):**
   - Before launching a run via `WarpPortal` (`GameState.open_chronicle_biome_dialog()` and `ui/menu.py:draw_chronicle_biome_menu`), the player—or the **Host** in Seamless LAN Co-op—selects and orders **5 distinct biomes** from the 7-biome `CHRONICLE_BIOME_ROSTER` to assign one biome to each Act (**Act 1 through Act 5**).
@@ -164,18 +164,18 @@ Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.
     - **Landmark & Hazard Intensity:** Storm exposure `rain_dps` scales from `2.0` (Act 1) to `4.0` (Act 5), and `MarginaliaEventEngine` supports 1 event roll per Act across Acts 1–5.
     - **Torn Page & Cradle Rewards:** Higher Acts yield increased Torn Page rewards (`1.0x` in Act 1 up to `2.0x` in Act 5 via `scale_pages_for_act()`) within the single active run pool (resetting to `0` upon returning to Sanctuary per `docs/world_and_lore.md`) and weapon rolls that strictly obey the two-slot **Full-Cradle Rule**.
 
-### 12.2. Expanded 7-Biome Pool (`[PROPOSED — PASS 2 PENDING]`)
-Registered `vitreous_basin` and `sunlit_aqueducts` in `CHRONICLE_BIOME_ROSTER`, `BIOME_DISPLAY_NAMES`, `BIOME_THEMES`, and `BIOME_PALETTES`; on-disk segment pool JSONs (`maps/segments/<biome>/`) and PNG sprites remain scheduled for **Pass 2**:
-1. **Sunken Glass & Salt Flats (*The Vitreous Basin*, `vitreous_basin`, `[PROPOSED — PASS 2]`):**
-   - Crystalline salt crusts, reflective/refractive glass flats, and high-exposure rain plains where higher Acts (`3..5`) intensify storm glare, fracture brittle glass terrain into hazards, and guard high-value rare drops (respecting the Full-Cradle Rule).
-2. **Overgrown Terracotta & Moss Ruins (*The Sunlit Aqueducts*, `sunlit_aqueducts`, `[PROPOSED — PASS 2]`):**
-   - Sun-bleached stone channels, moss-choked viaducts, and terraced ruin chokepoints where higher Acts (`3..5`) flood aqueduct channels, awaken overgrown/empowered defenders, and unseal elevated shrine caches.
-- **Per-Biome Implementation & LAN Sync Scope:**
-  - Deterministic sprite/tile generation (`generate_assets.py` via `_rng("<key>")` and `write_surface_if_changed()`), runtime segment pool generation (`generate_maps.py --generate-pools` -> `maps/segments/<biome>/`, registered in `BIOME_SEGMENT_POOLS`), `tools/edit_map.py` (`MASTER_TOOL_REGISTRY`) palette parity, and biome-specific enemy pairings will be completed in Pass 2.
+### 12.2. Expanded 7-Biome Pool (`[DONE]`)
+Registered `vitreous_basin` and `sunlit_aqueducts` in `CHRONICLE_BIOME_ROSTER`, `BIOME_DISPLAY_NAMES`, `BIOME_THEMES`, `BIOME_PALETTES`, and `BIOME_SEGMENT_POOLS`, with procedural 40x40 PNGs in `assets/graphics/` and on-disk segment JSONs in `maps/segments/`:
+1. **Sunken Glass & Salt Flats (*The Vitreous Basin*, `vitreous_basin`, `[DONE]`):**
+   - Crystalline salt crusts (`vitreous_salt_floor.png`), fractured reflective glass flats (`vitreous_glass_flat.png`), and jagged salt-spire obstacles (`vitreous_salt_spire.png`), with open-sightline Sentry/Wolf/Flutter/Bat pairings empowering across Acts 1–5.
+2. **Overgrown Terracotta & Moss Ruins (*The Sunlit Aqueducts*, `sunlit_aqueducts`, `[DONE]`):**
+   - Sun-bleached terracotta flagstones (`aqueduct_terracotta_floor.png`), moss-draped stone walls/channels (`aqueduct_moss_wall.png`), and cracked aqueduct pillars (`aqueduct_pillar.png`), with chokepoint Bindling/Slug/Smear/Wolf/Sentry pairings empowering across Acts 1–5.
+- **Per-Biome Implementation & LAN Sync Scope (`[DONE]`):**
+  - Deterministic sprite/tile generation (`generate_assets.py`), runtime segment pool generation (`generate_maps.py --generate-pools` -> `maps/segments/<biome>/`), `Renderer` wiring, and `tools/edit_map.py` (`MASTER_TOOL_REGISTRY`) palette parity are all complete.
   - Host-driven 5-Act `run_biomes` (`len == 5`), `act_worlds` (`1..5`), `current_act` (`1..5`), and framed TCP `MAP_RESPONSE` + 20Hz UDP transition sync are `[DONE]` in `engine/game_state.py`.
 
-### 12.3. Act-Keyed Map Segments & Incremental Backfill Architecture (`[IN PROGRESS / PARTIAL — PASS 1 DONE]`)
+### 12.3. Act-Keyed Map Segments & Incremental Backfill Architecture (`[DONE]`)
 - **Act-Keyed Segment Pools (`(biome_id, act_number)`, `[DONE]`):**
-  - Introduced `BIOME_ACT_SEGMENT_POOLS[(biome_id, act_number)]` in `constants.py` so higher Acts can register distinct room geometry, chokepoints, environmental hazards, and secret vaults.
-- **Lower-Act Fallback Rule (`resolve_segment_pool()`, `[DONE]`):**
-  - `engine/world_generator.py:resolve_segment_pool(biome_id, act_number)` resolves `(biome_id, act_number)` by walking `act_number` down to `1` in `BIOME_ACT_SEGMENT_POOLS`, falling back to `BIOME_SEGMENT_POOLS[biome_id]`, and safely falling back via `BIOME_FALLBACK_MAP` when a Pass 2 biome's segment directory has not yet been generated on disk.
+  - `BIOME_ACT_SEGMENT_POOLS[(biome_id, act_number)]` in `constants.py` allows higher Acts to register bespoke room geometry, chokepoints, environmental hazards, and secret vaults incrementally.
+- **Lower-Act Fallback Loader (`resolve_segment_pool()`, `[DONE]`):**
+  - `engine/world_generator.py:resolve_segment_pool(biome_id, act_number)` resolves `(biome_id, act_number)` by walking `act_number` down to `1` in `BIOME_ACT_SEGMENT_POOLS` and falling back to `BIOME_SEGMENT_POOLS[biome_id]` across all 7 first-class biomes (while future bespoke Act 3–5 segment variants remain an ongoing incremental content track).

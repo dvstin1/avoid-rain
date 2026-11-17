@@ -111,10 +111,10 @@ MASTER_TOOL_REGISTRY = [
     {
         "id": "tile_rock",
         "char": "K",
-        "name": "Rock",
+        "name": "Rock / Biome Obstacle",
         "type": "tile",
         "size": "40x40 px (1x1 tile)",
-        "desc": "Solid environmental rock obstacle."
+        "desc": "Solid biome obstacle (rock, rubble, swamp vent, salt spire, or aqueduct pillar)."
     },
     {
         "id": "tile_warp",
@@ -333,6 +333,14 @@ MASTER_TOOL_REGISTRY = [
         "type": "enemy",
         "size": "64x64 px (~1.6 tiles)",
         "desc": "Elite Forgotten Binder. Teleports closer when player is away."
+    },
+    {
+        "id": "enemy_night_boss",
+        "char": "N",
+        "name": "Night Boss",
+        "type": "enemy",
+        "size": "64x64 px (~1.6 tiles)",
+        "desc": "Chapter Night Boss encounter spawn marker."
     },
     {
         "id": "enemy_final_author",
