@@ -61,20 +61,20 @@ Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.
 ## 9. Expanded Progression & Global Leveling
 - **Capability Thresholds:** Currently, the player's global 'Understanding' level strictly dictates passive damage reduction. In the future, reaching specific total level thresholds (e.g., Level 5, Level 10) should automatically unlock new capabilities or narrative dialogue paths to provide distinct progression milestones.
 
-## 10. Marginalia Event Engine
+## 10. Marginalia Event Engine [DONE]
 
-> **STATUS:** Proposed Architecture (Not Yet Implemented). Designed for headless `engine/` execution, clean `rendering/renderer.py` banner presentation, and deterministic LAN co-op sync via `engine/network_manager.py`.
+> **STATUS:** `[DONE]`. Implemented in `engine/marginalia_events.py`, `engine/weather.py`, `engine/world.py`, `engine/enemy.py`, `engine/game_state.py`, and `rendering/renderer.py`, with headless `engine/` execution, unified top-center `BitmapFont` banner presentation, and 20Hz UDP / framed TCP LAN co-op synchronization.
 
-### 10.1. Core Architectural Contract
+### 10.1. Core Architectural Contract (`[DONE]`)
 - **Canonical Act Terminology & Roll Frequency:** Uses canonical `GameState.current_act` (`1` = Act 1 / Night 1, `2` = Act 2 / Night 2). Rolls a **20% trigger chance once per Act** (maximum **1 event in Act 1** and **1 event in Act 2**—never rolled per `120x120` macro-room segment).
 - **Trigger Window (`WeatherManager.current_step_idx`):** Events may only trigger before the second storm contraction completes:
   - `weather_manager.current_step_idx < 2`
   - `weather_manager.bleed_state not in ("BOSS_PHASE", "DILUTION")`
-- **Weather Lock Contract (Proposed `WeatherManager.paused`):**
-  - Add `paused: bool = False` to `WeatherManager` (`engine/weather.py`).
-  - While `paused = True`, freeze `grace_timer` / step `timer` progression **and** suppress rain exposure damage (`player.is_exposed = False`) so players outside the shrinking boundary are not killed by storm bleed mid-event.
-  - Restore `paused = False` immediately upon event completion, expiration, or failure.
-- **Unified Event Interface & LAN Co-op Sync (`engine/network_manager.py`):**
+- **Weather Lock Contract (`WeatherManager.paused`):**
+  - Added `paused: bool = False` to `WeatherManager` (`engine/weather.py`).
+  - While `paused = True`, freezes `grace_timer` / step `timer` progression **and** suppresses rain exposure damage (`player.is_exposed = False`) so players outside the shrinking boundary are not killed by storm bleed mid-event.
+  - Restores `paused = False` immediately upon event completion, expiration, failure, or Sanctuary return.
+- **Unified Event Interface & LAN Co-op Sync (`engine/marginalia_events.py` & `engine/game_state.py`):**
   - Every event implements a shared headless state contract:
     - `event_id`: Unique string identifier (e.g., `"unbound_folio"`).
     - `act_variant`: `1` or `2` (mirrors `current_act`, driving Act 2 escalation and empowered enemy variants).
@@ -84,27 +84,27 @@ Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.
     - `progress`: Normalized float `0.0..1.0` or `(current, target)` counter tuple.
     - `status`: `"PENDING"` | `"ACTIVE"` | `"COMPLETED"` | `"FAILED"`.
   - `rendering/renderer.py` consumes this single schema to render one unified top-center Marginalia banner (title, act badge, progress bar/counter, and countdown) without per-event UI special cases.
-  - `engine/network_manager.py` serializes this compact event state block from Host to Clients so all players see synchronized timers, objectives, and outcomes.
+  - `GameState` & `NetworkManager` replicate this compact event state block from Host to active runner Clients (excluding Waiting Scholars in Sanctuary) so all active runners see synchronized timers, objectives, and outcomes.
 - **Respite Rest Persistence:**
-  - Resting at a Respite (`R`) resets standard enemies and breakable props per `docs/world_and_lore.md` (*The Fresh View Cycle*), **but triggered/completed `map_anchor` events remain consumed for the rest of that Act** so players cannot farm event rewards via Rest loops.
+  - Resting at a Respite (`R`) resets standard enemies and breakable props per `docs/world_and_lore.md` (*The Fresh View Cycle*), **but triggered/completed `map_anchor` events remain consumed for the rest of that Act** (`MarginaliaEventEngine.on_respite_rest()`) so players cannot farm event rewards via Rest loops.
 - **Economy & Cradle Compliance (`docs/world_and_lore.md`):**
-  - **Single Run Torn Pages Pool:** All Torn Page rewards and setbacks mutate the active run's Torn Pages pool (clamped at `>= 0`).
+  - **Single Run Torn Pages Pool:** All Torn Page rewards and setbacks mutate the active run's Torn Pages pool (clamped at `>= 0` and resetting to `0` on Sanctuary return).
   - **Strict Economy of Review:** Events **never** grant direct Edification level-ups outside of Respite Rest.
-  - **The Full-Cradle Rule:** Weapon-roll rewards check both player weapon slots; if both slots are full, they drop an **Anomalous Weapon**, otherwise they fall back to a standard Weapon or Torn Pages drop.
+  - **The Full-Cradle Rule:** Weapon-roll rewards check both player weapon slots; if both slots are full, they drop an **Anomalous Weapon**, otherwise they fall back to a standard Weapon (`"Refined Quill"`) or Torn Pages drop.
 
-### 10.2. Spatial & Trigger Modes
+### 10.2. Spatial & Trigger Modes (`[DONE]`)
 1. **`"local"` (Dynamic Safe-Zone Overlay):**
    - Spawns a bounded ritual ring, escort path, or encounter zone in a valid safe-zone clearing near the player.
 2. **`"map_anchor"` (Prop & Sub-Arena Warp Triggers):**
-   - **Prop Ambush:** Binds to an existing cluster of Breakable Barrels (`'B'`), converting the cluster into mimic enemies when the first barrel is struck.
-   - **Sub-Arena Pitfall & Exit Ladder (Proposed `ReturnAnchor` Warp Stack in `engine/world.py`):** Stepping onto a disguised map trigger (e.g., a suspicious leaf pile) pushes `ReturnAnchor(map_path, x, y)` onto `GameState`, warps into a compact underground pocket arena while keeping overworld weather `paused = True`, and spawns an **Exit Ladder** warp back to the saved `(x, y)` anchor upon victory.
-   - **LAN Co-op Party Warp Rule:** Because `engine/network_manager.py` replicates a single shared `state.world`, triggering a sub-arena pitfall warps the **entire party** into the pocket arena together and returns the **entire party** together via the Exit Ladder.
+   - **Prop Ambush:** Binds to an existing cluster of Breakable Barrels (`'B'`), converting the cluster into mimic enemies when the first barrel is struck (locally or via Client `DAMAGE_EVENT`).
+   - **Sub-Arena Pitfall & Exit Ladder (`ReturnAnchor` Warp Stack in `engine/world.py` & `GameState`):** Stepping onto a disguised map trigger (`PitfallTrigger`, `"Suspicious Leaf Pile"`) pushes `ReturnAnchor(map_path, x, y)` onto `GameState.return_anchor_stack`, warps into a compact underground pocket arena (`"ink_well_cellar"`) while keeping overworld weather `paused = True`, and spawns an **Exit Ladder** (`ExitLadder`) warp back to the saved `(x, y)` anchor upon victory.
+   - **LAN Co-op Party Warp Rule:** Triggering a sub-arena pitfall warps the **entire active runner party** into the pocket arena together and returns the **entire party** together via the Exit Ladder.
 3. **`"global_pursuit"` (Relentless Map-Wide Hunter):**
-   - Uses a proposed `persistent_pursuit: bool = True` flag on `EnemyBase` (bypassing standard line-of-sight checks and Stanza waypoint leashing).
-   - Tracks a lightweight **player movement breadcrumb trail** with a brief wall-phase fallback if the hunter stalls against geometry.
+   - Uses `persistent_pursuit: bool = True` on `Enemy` (`engine/enemy.py`, bypassing standard line-of-sight checks and Stanza waypoint leashing).
+   - Tracks a lightweight **player movement breadcrumb trail** (`GameState.player_breadcrumbs`) with a brief wall-phase fallback if the hunter stalls against geometry.
    - *Cross-reference:* See Section 4 (**A\* Pathfinding**) for how breadcrumb pursuit serves as an interim/complementary hook until hierarchical A* is implemented.
 
-### 10.3. Full Event Pool Catalog (Act 1 & Act 2 Variants)
+### 10.3. Full Event Pool Catalog (Act 1 & Act 2 Variants) (`[DONE]`)
 
 | Event | Spatial Mode | Mechanic Summary | Act 1 (`current_act == 1`) | Act 2 (`current_act == 2`) | Rewards | Failure Setback |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

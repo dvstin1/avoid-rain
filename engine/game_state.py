@@ -189,6 +189,62 @@ class GameState:
         self._last_host_in_run = False
         self._seen_host_in_sanctuary = self.in_sanctuary
 
+        # Marginalia Event Engine, ReturnAnchor Warp Stack, & Breadcrumb Trail
+        from engine.marginalia_events import MarginaliaEventEngine
+        self.marginalia_engine = MarginaliaEventEngine()
+        self.return_anchor_stack = []
+        self.player_breadcrumbs = []
+        self.ink_mist_vignette_timer = 0.0
+
+    def push_return_anchor(self, map_path, x, y, world_ref=None, enemies_ref=None):
+        """Push a ReturnAnchor onto the warp stack before entering a pocket sub-arena."""
+        from engine.world import ReturnAnchor
+        anchor = ReturnAnchor(map_path, x, y, world_ref=world_ref, enemies_ref=enemies_ref)
+        self.return_anchor_stack.append(anchor)
+        return anchor
+
+    def pop_return_anchor(self):
+        """Pop the top ReturnAnchor and restore the party to the saved overworld coordinates."""
+        if not self.return_anchor_stack:
+            return None
+        anchor = self.return_anchor_stack.pop()
+        if anchor.world_ref is not None:
+            self.world = anchor.world_ref
+            self.enemies = list(anchor.enemies_ref or [])
+        else:
+            from engine.maps import create_world
+            self.world = create_world(anchor.map_path, defeated_ids=self.defeated_miniboss_ids)
+            self.enemies = list(getattr(self.world, "enemies", []))
+        if self.player is not None:
+            self.player.x = float(anchor.x)
+            self.player.y = float(anchor.y)
+            self.player.is_exposed = False
+        if hasattr(self, "camera") and getattr(self.world, "grid", None):
+            self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
+            self.camera.world_h = len(self.world.grid) * TILE_SIZE
+            if self.player:
+                self.camera.instant_center(self.player.get_center())
+        if hasattr(self, "marginalia_engine") and self.marginalia_engine.active_event:
+            self.marginalia_engine.active_event.in_pocket_arena = False
+        if hasattr(self, "weather_manager") and self.weather_manager is not None:
+            self.weather_manager.paused = False
+        return anchor
+
+    def record_player_breadcrumb(self):
+        """Record a player movement breadcrumb for persistent_pursuit hunters."""
+        if not self.player:
+            return
+        from constants import MARGINALIA_BREADCRUMB_MIN_DIST, MARGINALIA_BREADCRUMB_MAX_LEN
+        cx, cy = self.player.get_center()
+        if not self.player_breadcrumbs:
+            self.player_breadcrumbs.append((cx, cy))
+            return
+        lx, ly = self.player_breadcrumbs[-1]
+        if (cx - lx) ** 2 + (cy - ly) ** 2 >= MARGINALIA_BREADCRUMB_MIN_DIST ** 2:
+            self.player_breadcrumbs.append((cx, cy))
+            if len(self.player_breadcrumbs) > MARGINALIA_BREADCRUMB_MAX_LEN:
+                del self.player_breadcrumbs[0]
+
     def _get_host_status_payload(self):
         """Return Host run status and waiting scholar count for TCP HANDSHAKE responses."""
         self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
@@ -357,7 +413,8 @@ class GameState:
             state["weather"] = {
                 "radius": round(self.weather_manager.active_safe_radius, 1),
                 "state": self.weather_manager.bleed_state,
-                "boss_idx": self.weather_manager.current_boss_idx
+                "boss_idx": self.weather_manager.current_boss_idx,
+                "paused": bool(getattr(self.weather_manager, "paused", False)),
             }
             
             state["enemies"] = [
@@ -372,12 +429,20 @@ class GameState:
             ]
             
             # Optimization: Only broadcast dynamic/crucial interactables in high-frequency heartbeat
-            state["interactables"] = [obj.to_dict() for obj in self.world.interactables if obj.name == "Appendix Warp"]
+            dynamic_names = ("Appendix Warp", "Suspicious Leaf Pile", "Exit Ladder", "Ink Seal")
+            state["interactables"] = [
+                obj.to_dict() for obj in self.world.interactables if obj.name in dynamic_names
+            ]
             state["destroyed_props"] = list(self.destroyed_prop_ids)
             state["defeated_miniboss_ids"] = list(self.defeated_miniboss_ids)
             state["current_act"] = self.current_act
             state["act_warp_target"] = self.act_warp_target
             state["empowered_act"] = bool(self.empowered_act)
+            state["marginalia_event"] = (
+                self.marginalia_engine.to_network_dict()
+                if hasattr(self, "marginalia_engine") and self.marginalia_engine
+                else None
+            )
             
             # Broadcast the Host's view of all remote players AND themselves (authoritative HP)
             state["session_players"] = [
@@ -542,9 +607,9 @@ class GameState:
                         self.join_host_active_run()
                     elif self.in_sanctuary:
                         self.waiting_for_host_run = True
-            # 1. Weather
+            # 1. Weather (only for active runner Clients, never Waiting Scholars in Sanctuary)
             w_data = data.get("weather")
-            if w_data:
+            if w_data and not (self.in_sanctuary and self.waiting_for_host_run):
                 self.weather_manager.active_safe_radius = float(
                     w_data.get("radius", self.weather_manager.active_safe_radius)
                 )
@@ -554,6 +619,11 @@ class GameState:
                 self.weather_manager.current_boss_idx = int(
                     w_data.get("boss_idx", self.weather_manager.current_boss_idx)
                 )
+                self.weather_manager.paused = bool(
+                    w_data.get("paused", getattr(self.weather_manager, "paused", False))
+                )
+                if self.weather_manager.paused and self.player:
+                    self.player.is_exposed = False
 
             # 2. Session Players (Authoritative HP from Host)
             session_players = data.get("session_players", [])
@@ -627,6 +697,8 @@ class GameState:
             # 7. Synchronized Two-Act Warp Transitions & Act 2 Escalation Flag
             if "empowered_act" in data:
                 self.empowered_act = bool(data.get("empowered_act", False))
+            if "marginalia_event" in data and hasattr(self, "marginalia_engine"):
+                self.marginalia_engine.apply_network_dict(self, data.get("marginalia_event"))
             remote_warp = data.get("act_warp_target")
             if remote_warp == "act2" and self.current_act == 1 and self.act2_world_data:
                 if not (hasattr(self, 'warp_controller') and self.warp_controller.is_active()):
@@ -672,11 +744,15 @@ class GameState:
                 # We need to map Name back to Class.
                 from engine.enemy import (
                     SlugEnemy, BatEnemy, NightBoss, MinibossM2, MinibossM3, SentryEnemy,
-                    PunctuationWolfEnemy,
+                    PunctuationWolfEnemy, BindlingEnemy, SmearEnemy,
                 )
                 mapping = {
                     "Slug": SlugEnemy, "Bat": BatEnemy, "Night Boss": NightBoss,
-                    "Ink-Stained": MinibossM2, "Forgotten Binder": MinibossM3,
+                    "Ink-Stained": MinibossM2, "Bleeding Scribe": MinibossM2,
+                    "Overwritten Elite": MinibossM2, "Empowered Champion": MinibossM2,
+                    "The Relentless Censor": MinibossM2, "Empowered Relentless Censor": MinibossM2,
+                    "Forgotten Binder": MinibossM3, "Barrel Mimic": SlugEnemy,
+                    "Bindling": BindlingEnemy, "Smear": SmearEnemy,
                     "Techno-Sentry": SentryEnemy, "Punctuation Wolf": PunctuationWolfEnemy,
                 }
                 cls = mapping.get(e_data.get("name"), SlugEnemy)
@@ -691,6 +767,7 @@ class GameState:
         local_ids = [getattr(obj, 'id', id(obj)) for obj in self.world.interactables]
         
         # 1. Update/Remove
+        dynamic_names = ("Appendix Warp", "Loot", "Suspicious Leaf Pile", "Exit Ladder", "Ink Seal")
         for obj in self.world.interactables[:]:
             oid = getattr(obj, 'id', id(obj))
             if oid in remote_objs:
@@ -699,16 +776,31 @@ class GameState:
                 obj.health = o_data.get("hp", 100.0)
             else:
                 # Rule: Only remove if it was likely a dynamic object or destroyed
-                if obj.name in ("Appendix Warp", "Loot"):
+                if obj.name in dynamic_names:
                     self.world.interactables.remove(obj)
 
-        # 2. Spawn New (Appendix Warp is the main one needed)
+        # 2. Spawn New (Appendix Warp & Marginalia dynamic anchors)
         for oid, o_data in remote_objs.items():
             if oid not in local_ids:
-                if o_data["name"] == "Appendix Warp":
+                oname = o_data.get("name", "")
+                if oname == "Appendix Warp":
                     from engine.world import WarpPortal
                     new_obj = WarpPortal("final_boss", 25, 25, (o_data["x"], o_data["y"], 40, 40), name="Appendix Warp")
                     new_obj.id = oid
+                    self.world.interactables.append(new_obj)
+                elif oname == "Suspicious Leaf Pile":
+                    from engine.world import PitfallTrigger
+                    new_obj = PitfallTrigger((o_data["x"], o_data["y"]), anchor_id=str(oid))
+                    self.world.interactables.append(new_obj)
+                elif oname == "Exit Ladder":
+                    from engine.world import ExitLadder
+                    new_obj = ExitLadder((o_data["x"], o_data["y"]))
+                    new_obj.id = oid
+                    self.world.interactables.append(new_obj)
+                elif oname == "Ink Seal":
+                    from engine.world import InkSeal
+                    new_obj = InkSeal((o_data["x"], o_data["y"]), seal_id=str(oid))
+                    new_obj.health = float(o_data.get("hp", 20.0))
                     self.world.interactables.append(new_obj)
 
     def _sync_props_from_host(self, destroyed_ids_list):
@@ -838,6 +930,8 @@ class GameState:
                     for obj in list(self.world.interactables):
                         if getattr(obj, "id", None) == target_id:
                             obj.take_damage(amount)
+                            if hasattr(self, "marginalia_engine") and self.marginalia_engine:
+                                self.marginalia_engine.on_prop_struck(self, obj)
                             if obj.is_dead():
                                 try:
                                     if hasattr(obj, "id") and obj.id:
@@ -1022,6 +1116,8 @@ class GameState:
                 print("[RESPITE] Closed instantly due to rain exposure.")
 
         self.update_combat(dt, attack_pressed, actions, audio_manager)
+        if hasattr(self, "marginalia_engine") and self.marginalia_engine:
+            self.marginalia_engine.update(dt, self)
 
         # 4. SHARED SYSTEMS (Visuals, Movement, UI)
         self._update_shared_world(dt)
@@ -1059,8 +1155,10 @@ class GameState:
         """Host-only logic for boss spawns and environmental transitions."""
         from constants import TILE_SIZE, TILE_STRUCTURE, TILE_RESPITE
         # 0. Weather Damage to Remote Players
-        if self.weather_manager.damage_enabled:
+        if self.weather_manager.damage_enabled and not getattr(self.weather_manager, "paused", False):
             for identity, p_data in self.network_manager.remote_players.items():
+                if p_data.get("in_sanctuary", False):
+                    continue
                 # Estimate center
                 px, py = p_data["x"] + 20, p_data["y"] + 20
                 if not self.weather_manager.is_pos_safe(px, py):
@@ -1264,6 +1362,8 @@ class GameState:
                     self.player.hit_props_this_attack.add(p_id)
                     
                     obj.take_damage(damage)
+                    if not is_client and hasattr(self, "marginalia_engine") and self.marginalia_engine:
+                        self.marginalia_engine.on_prop_struck(self, obj)
                     hit_landed = True
                     prop_cx = obj.rect[0] + obj.rect[2] * 0.5
                     prop_cy = obj.rect[1] + obj.rect[3] * 0.5
@@ -1809,6 +1909,8 @@ class GameState:
         self.empowered_act = False
         self.act_warp_target = None
         self.last_zone_id = None
+        if hasattr(self, "marginalia_engine") and self.marginalia_engine:
+            self.marginalia_engine.reset(self)
 
         path = get_generated_world_path()
         with open(path, 'w', encoding='utf-8') as f:
@@ -1859,6 +1961,12 @@ class GameState:
         self.current_act = 2
         self.act_warp_target = None
         self.last_zone_id = None
+        if hasattr(self, "marginalia_engine") and self.marginalia_engine:
+            self.marginalia_engine.active_event = None
+        self.return_anchor_stack.clear()
+        self.player_breadcrumbs.clear()
+        if hasattr(self, "weather_manager") and self.weather_manager:
+            self.weather_manager.paused = False
         self.trigger_bloom(ACT2_ESCALATION_BANNER, priority=3)
         if getattr(self, 'audio_manager', None):
             self.audio_manager.play_sfx(ACT2_ESCALATION_SFX)
@@ -1928,8 +2036,19 @@ class GameState:
         self.audio_manager = None
         self.pending_remote_sfx.clear()
         self._remote_combat_seqs.clear()
+        if hasattr(self, "marginalia_engine") and self.marginalia_engine:
+            self.marginalia_engine.reset(self)
+        for attr_t in (
+            "storm_immunity_timer",
+            "pristine_ink_shield_timer",
+            "attack_speed_buff_timer",
+            "duel_debuff_timer",
+        ):
+            setattr(self.player, attr_t, 0.0)
 
         if self.stats:
+            if "lifetime_stats" in self.stats.data:
+                self.stats.data["lifetime_stats"]["pages_collected"] = 0
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
 
@@ -2163,6 +2282,8 @@ class GameState:
         self.menu_nav_cooldown = 0.0
         from engine.weather import WeatherManager
         self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
+        if hasattr(self, "marginalia_engine") and self.marginalia_engine:
+            self.marginalia_engine.reset(self)
         self.loot = []
         self.damage_numbers = []
         if hasattr(self, 'glyph_particles'):

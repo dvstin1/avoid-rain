@@ -178,6 +178,82 @@ class WarpPortal(GameObject):
             return
         self.apply_transfer(game_state)
 
+
+class ReturnAnchor:
+    """Saved overworld map coordinate entry for sub-arena pitfall and Exit Ladder returns."""
+
+    def __init__(self, map_path, x, y, world_ref=None, enemies_ref=None):
+        self.map_path = str(map_path)
+        self.x = float(x)
+        self.y = float(y)
+        self.world_ref = world_ref
+        self.enemies_ref = list(enemies_ref) if enemies_ref is not None else None
+
+    def to_dict(self):
+        return {
+            "map_path": self.map_path,
+            "x": round(self.x, 1),
+            "y": round(self.y, 1),
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            data.get("map_path", "generated_world"),
+            data.get("x", 0.0),
+            data.get("y", 0.0),
+        )
+
+
+class ExitLadder(GameObject):
+    """Interactable ladder that returns the party from a pocket sub-arena via ReturnAnchor."""
+
+    def __init__(self, position, dimensions=(TILE_SIZE, TILE_SIZE), name="Exit Ladder"):
+        super().__init__(position, dimensions)
+        self.name = name
+        self.target_name = "return_anchor"
+        self.is_interactive = True
+        self.is_solid = False
+        self.id = f"exit_ladder:{int(position[0])},{int(position[1])}"
+
+    def apply_transfer(self, game_state):
+        if hasattr(game_state, "pop_return_anchor"):
+            return game_state.pop_return_anchor()
+        return None
+
+    def execute_interaction(self, game_state, instant=True):
+        del instant
+        return self.apply_transfer(game_state)
+
+
+class PitfallTrigger(GameObject):
+    """Disguised map anchor (Suspicious Leaf Pile) that warps the party into a pocket arena."""
+
+    def __init__(self, position, dimensions=(TILE_SIZE, TILE_SIZE), anchor_id=None, name="Suspicious Leaf Pile"):
+        super().__init__(position, dimensions)
+        self.name = name
+        self.anchor_id = anchor_id or f"pitfall:{int(position[0])},{int(position[1])}"
+        self.id = self.anchor_id
+        self.is_interactive = True
+        self.is_solid = False
+
+    def execute_interaction(self, game_state):
+        if hasattr(game_state, "marginalia_engine") and game_state.marginalia_engine:
+            return game_state.marginalia_engine.trigger_pitfall_anchor(game_state, self)
+        return False
+
+
+class InkSeal(GameObject):
+    """Breakable ward seal spawned during The Margin Toll event."""
+
+    def __init__(self, position, dimensions=(TILE_SIZE, TILE_SIZE), seal_id=None):
+        super().__init__(position, dimensions)
+        self.name = "Ink Seal"
+        self.id = seal_id or f"ink_seal:{int(position[0])},{int(position[1])}"
+        self.is_breakable = True
+        self.is_solid = True
+        self.health = 20.0
+
 class PatrolPoint(GameObject):
     """Marker symbol for the Stanza system."""
     def __init__(self, position, route_id, symbol_idx, caste_filter=None, wait_min=2.0, wait_max=5.0):
@@ -378,6 +454,8 @@ class Respite(GameObject):
         game_state.enemies = temp_world.enemies
         # Re-link routes after respawn
         LevelLoader.link_actors_to_routes(game_state)
+        if hasattr(game_state, "marginalia_engine") and game_state.marginalia_engine:
+            game_state.marginalia_engine.on_respite_rest(game_state)
         
         print(f"[DEBUG] Rest complete. {len(game_state.enemies)} threats re-manifested.")
         game_state.save_stats(wait=True)

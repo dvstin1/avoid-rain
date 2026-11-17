@@ -64,6 +64,12 @@ class Player:
         # Anomalous weapon state modifiers
         self.negation_timer = 0.0
         self.negation_amount = 0.0
+
+        # Marginalia Event Buff / Debuff Timers
+        self.storm_immunity_timer = 0.0
+        self.pristine_ink_shield_timer = 0.0
+        self.attack_speed_buff_timer = 0.0
+        self.duel_debuff_timer = 0.0
         
         self.flask_latched = False
 
@@ -116,6 +122,16 @@ class Player:
             if self.negation_timer <= 0:
                 self.negation_timer = 0.0
                 self.negation_amount = 0.0
+
+        for attr_t in (
+            "storm_immunity_timer",
+            "pristine_ink_shield_timer",
+            "attack_speed_buff_timer",
+            "duel_debuff_timer",
+        ):
+            val_t = getattr(self, attr_t, 0.0)
+            if val_t > 0.0:
+                setattr(self, attr_t, max(0.0, val_t - dt))
         from constants import DASH_DURATION, DASH_COOLDOWN, DASH_SPEED_MULTIPLIER, BLOCK_SPEED_MULTIPLIER, PARRY_WINDOW
 
         healed = False
@@ -161,6 +177,8 @@ class Player:
         if hasattr(self, 'bind_timer') and self.bind_timer > 0:
             self.bind_timer -= dt
             speed_multiplier *= 0.4 # 60% slow while bound
+        if getattr(self, 'duel_debuff_timer', 0.0) > 0.0:
+            speed_multiplier *= 0.7
 
         # 0. Handle Flask
         if flask_pressed:
@@ -190,7 +208,8 @@ class Player:
         # 2. Check for attack start
         if attack_pressed:
             self.state = PlayerStateEnum.ATTACKING
-            self.attack_timer = SWORD_DURATION
+            atk_mult = 0.65 if getattr(self, 'attack_speed_buff_timer', 0.0) > 0.0 else 1.0
+            self.attack_timer = SWORD_DURATION * atk_mult
             self.vx, self.vy = 0, 0
             self.hit_entities_this_attack.clear()
             self.hit_props_this_attack.clear()
@@ -307,6 +326,10 @@ class Player:
         Includes conditional defensive parsing based on Edification level.
         If bypass_stagger is True, the player's state is not changed.
         """
+        # Pristine Ink Shield (from The Unblotted Margin Act 2) blocks incoming damage
+        if getattr(self, 'pristine_ink_shield_timer', 0.0) > 0.0:
+            return
+
         # Apply temporary damage negation from previous hit
         if getattr(self, 'negation_timer', 0) > 0:
             amount = max(0.0, amount - self.negation_amount)

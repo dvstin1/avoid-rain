@@ -1807,8 +1807,25 @@ class Renderer:
             sx_o, sy_o = obj.x - ox, obj.y - oy
             if sx_o + obj.width < -64 or sx_o > sw + 64 or sy_o + obj.height < -64 or sy_o > sh + 64:
                 continue
-            if hasattr(obj, 'target_name'):
+            if obj.name == "Exit Ladder":
+                lx, ly, lw, lh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                pygame.draw.rect(self.screen, (24, 18, 14), (lx + 4, ly + 2, lw - 8, lh - 4), border_radius=4)
+                pygame.draw.rect(self.screen, (215, 180, 95), (lx + 8, ly + 4, 4, lh - 8))
+                pygame.draw.rect(self.screen, (215, 180, 95), (lx + lw - 12, ly + 4, 4, lh - 8))
+                for rung_y in range(ly + 8, ly + lh - 6, 7):
+                    pygame.draw.line(self.screen, (240, 215, 140), (lx + 10, rung_y), (lx + lw - 10, rung_y), 2)
+            elif hasattr(obj, 'target_name'):
                 self.draw_warp(obj, ox, oy)
+            elif obj.name == "Suspicious Leaf Pile":
+                lx, ly, lw, lh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                pygame.draw.ellipse(self.screen, (48, 34, 22), (lx + 2, ly + 6, lw - 4, lh - 10))
+                pygame.draw.ellipse(self.screen, (112, 78, 36), (lx + 6, ly + 8, lw - 12, lh - 14))
+                pygame.draw.circle(self.screen, (168, 124, 54), (lx + lw // 2 - 4, ly + lh // 2), 4)
+            elif obj.name == "Ink Seal":
+                ix, iy, iw, ih = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                pygame.draw.rect(self.screen, (28, 18, 38), (ix + 4, iy + 4, iw - 8, ih - 8), border_radius=4)
+                pygame.draw.rect(self.screen, (195, 85, 235), (ix + 4, iy + 4, iw - 8, ih - 8), 2, border_radius=4)
+                pygame.draw.circle(self.screen, (240, 185, 255), (ix + iw // 2, iy + ih // 2), 5)
             elif "Respite" in obj.name:
                 if not getattr(obj, 'is_active', True):
                     continue
@@ -2085,6 +2102,7 @@ class Renderer:
             print(f"[RENDER ERROR] Enemy Loop: {e}")
 
         # Local Player Rendering
+        self.draw_marginalia_world_overlays(state, ox, oy)
         self.draw_actor_ghost(state.player, ox, oy, state)
 
         if state.player.state == PlayerStateEnum.ATTACKING:
@@ -2156,6 +2174,104 @@ class Renderer:
 
         if pygame.display.get_init() and pygame.display.get_surface() is not None:
             pygame.display.flip()
+
+    def draw_marginalia_world_overlays(self, state, ox, oy):
+        """Render world-space rings, Footnote Wisp, and ink-mist vignette for Marginalia events."""
+        marg = getattr(state, "marginalia_engine", None)
+        if marg is not None and not getattr(state, "in_sanctuary", False):
+            b_state = marg.get_banner_state()
+            if b_state and b_state.get("status") == "ACTIVE":
+                zc = b_state.get("zone_center")
+                zrad = float(b_state.get("zone_radius") or 0.0)
+                if zc and zrad > 4.0:
+                    sx = int(zc[0] - ox)
+                    sy = int(zc[1] - oy)
+                    ring_col = (215, 180, 95) if b_state.get("act_variant") == 1 else (235, 95, 145)
+                    pygame.draw.circle(self.screen, ring_col, (sx, sy), int(zrad), 2)
+
+                wisp_pos = b_state.get("wisp_pos")
+                wisp_target = b_state.get("wisp_target")
+                if wisp_target:
+                    tx = int(wisp_target[0] - ox)
+                    ty = int(wisp_target[1] - oy)
+                    pygame.draw.circle(self.screen, (120, 235, 255), (tx, ty), 20, 2)
+                if wisp_pos:
+                    wx = int(wisp_pos[0] - ox)
+                    wy = int(wisp_pos[1] - oy)
+                    pygame.draw.circle(self.screen, (200, 245, 255), (wx, wy), 10)
+                    pygame.draw.circle(self.screen, (80, 195, 255), (wx, wy), 14, 2)
+
+        if getattr(state, "ink_mist_vignette_timer", 0.0) > 0.0:
+            sw, sh = self.screen.get_width(), self.screen.get_height()
+            pygame.draw.rect(self.screen, (28, 14, 38), (0, 0, sw, sh), 14)
+
+    def draw_marginalia_banner(self, state):
+        """Render the unified top-center Marginalia HUD banner using BitmapFont."""
+        if getattr(state, "in_sanctuary", False):
+            return
+        marg = getattr(state, "marginalia_engine", None)
+        if marg is None:
+            return
+        b_state = marg.get_banner_state()
+        if not b_state:
+            return
+
+        sw = self.screen.get_width()
+        act_v = int(b_state.get("act_variant", 1))
+        status = str(b_state.get("status", "ACTIVE"))
+        title = str(b_state.get("title", "Marginalia Event"))
+        spatial = str(b_state.get("spatial_mode", "local")).upper().replace("_", " ")
+        time_rem = b_state.get("time_remaining")
+        prog = b_state.get("progress", 0.0)
+
+        border_col = (215, 180, 95)
+        if status == "COMPLETED":
+            border_col = (120, 255, 140)
+        elif status == "FAILED":
+            border_col = (235, 85, 85)
+        elif act_v >= 2:
+            border_col = (215, 115, 245)
+
+        panel_w, panel_h = 420, 62
+        panel_x = (sw - panel_w) // 2
+        panel_y = 12
+        panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+        pygame.draw.rect(self.screen, (18, 15, 22), panel_rect, border_radius=6)
+        pygame.draw.rect(self.screen, border_col, panel_rect, 2, border_radius=6)
+
+        header_str = f"ACT {'II' if act_v >= 2 else 'I'} MARGINALIA [{spatial}] - {status}"
+        header_surf = self.small_font.render(header_str, True, border_col)
+        self.screen.blit(header_surf, (panel_x + 12, panel_y + 6))
+
+        if time_rem is not None and status == "ACTIVE":
+            timer_str = f"{float(time_rem):.1f}s"
+            timer_surf = self.small_font.render(timer_str, True, constants.COLOR_WHITE)
+            self.screen.blit(timer_surf, (panel_rect.right - timer_surf.get_width() - 12, panel_y + 6))
+
+        title_surf = self.hud_font.render(title, True, constants.COLOR_PARCHMENT_WHITE)
+        self.screen.blit(title_surf, (panel_x + 12, panel_y + 22))
+
+        bar_x = panel_x + 12
+        bar_y = panel_y + 44
+        bar_w = panel_w - 24
+        bar_h = 10
+        pygame.draw.rect(self.screen, (38, 32, 44), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+
+        ratio = 0.0
+        counter_str = ""
+        if isinstance(prog, (list, tuple)) and len(prog) == 2:
+            cur_v, max_v = int(prog[0]), max(1, int(prog[1]))
+            ratio = max(0.0, min(1.0, cur_v / float(max_v)))
+            counter_str = f"{cur_v}/{max_v}"
+        else:
+            ratio = max(0.0, min(1.0, float(prog or 0.0)))
+            counter_str = f"{int(round(ratio * 100))}%"
+
+        fill_w = int(bar_w * ratio)
+        if fill_w > 0:
+            pygame.draw.rect(self.screen, border_col, (bar_x, bar_y, fill_w, bar_h), border_radius=3)
+        cnt_surf = self.small_font.render(counter_str, True, constants.COLOR_WHITE)
+        self.screen.blit(cnt_surf, (panel_rect.right - cnt_surf.get_width() - 12, panel_y + 22))
 
     def draw_actor_ghost(self, actor, ox, oy, state):
         """Draws sprites or abstract indicators for an actor based on its visual packet."""
@@ -3307,6 +3423,8 @@ class Renderer:
                 pygame.draw.rect(self.screen, (15, 18, 26), bg_rect, border_radius=4)
                 pygame.draw.rect(self.screen, constants.COLOR_SELECTION, bg_rect, 1, border_radius=4)
                 self.screen.blit(banner_surf, banner_rect)
+
+        self.draw_marginalia_banner(state)
 
         # --- EXPANDED INSPECT VIEW ---
         if getattr(state, 'inspect_active', False):

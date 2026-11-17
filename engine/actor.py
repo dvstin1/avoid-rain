@@ -233,7 +233,8 @@ class Actor:
                 self.active_target = (tx, ty)
 
         # 3. State Transitions based on Target
-        if self.active_target and best_dist_sq <= self.detect_radius**2:
+        in_pursuit = bool(getattr(self, "persistent_pursuit", False))
+        if self.active_target and (in_pursuit or best_dist_sq <= self.detect_radius**2):
             # If close enough and off cooldown, trigger attack sequence
             if best_dist_sq <= (TILE_SIZE * 2)**2 and self.cooldown_timer <= 0:
                 self.state = ActorState.WIND_UP
@@ -347,23 +348,49 @@ class Actor:
         # print(f"[ACTOR] {self.name} reached marker. Waiting {self.wait_timer:.1f}s")
 
     def _update_chase(self, dt, game_state):
-        """Aggressive pursuit logic."""
+        """Aggressive pursuit logic, supporting breadcrumb pursuit and wall-phase fallback."""
         if not self.active_target:
             self.state = ActorState.IDLE
             return
             
         target_cx, target_cy = self.active_target
         cx, cy = self.get_center()
+        in_pursuit = bool(getattr(self, "persistent_pursuit", False))
+        if in_pursuit:
+            breadcrumbs = getattr(game_state, "player_breadcrumbs", None) or []
+            if breadcrumbs and (target_cx - cx) ** 2 + (target_cy - cy) ** 2 > (TILE_SIZE * 3) ** 2:
+                # Choose the furthest breadcrumb along the trail within 6 tiles of the hunter
+                reach_sq = (TILE_SIZE * 6) ** 2
+                for bx, by in reversed(breadcrumbs):
+                    if (bx - cx) ** 2 + (by - cy) ** 2 <= reach_sq:
+                        target_cx, target_cy = bx, by
+                        break
+
         dx, dy = target_cx - cx, target_cy - cy
         dist = math.sqrt(dx*dx + dy*dy)
         
         if dist > 0:
+            prev_x, prev_y = self.x, self.y
             self.vx, self.vy = (dx / dist) * self.speed, (dy / dist) * self.speed
             self.x += self.vx * dt
             self.y += self.vy * dt
             
-            walls = game_state.world.get_nearby_walls(self.get_rect())
-            self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+            phase_timer = getattr(self, "_phase_timer", 0.0)
+            if in_pursuit and phase_timer > 0.0:
+                self._phase_timer = max(0.0, phase_timer - dt)
+            else:
+                walls = game_state.world.get_nearby_walls(self.get_rect())
+                self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+                if in_pursuit:
+                    from constants import MARGINALIA_HUNTER_STALL_TIME, MARGINALIA_HUNTER_PHASE_TIME
+                    moved = math.hypot(self.x - prev_x, self.y - prev_y)
+                    if moved < self.speed * dt * 0.15:
+                        self._stall_timer = getattr(self, "_stall_timer", 0.0) + dt
+                        if self._stall_timer >= MARGINALIA_HUNTER_STALL_TIME:
+                            self._phase_timer = MARGINALIA_HUNTER_PHASE_TIME
+                            self._stall_timer = 0.0
+                    else:
+                        self._stall_timer = 0.0
 
     def _update_idle(self, dt, game_state):
         """Generic idle/wander behavior."""

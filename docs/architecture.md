@@ -207,3 +207,18 @@ Every mobile entity (`Actor`, `Player`) implements `get_visual_packet()`, which 
 ### 2. Composable Rendering
 The `Renderer` consumes these packets to draw **"Ghost Indicators"**—abstract representations that provide full tactical feedback without requiring finalized sprite assets.
 - **Composition Rule:** Postures (squash/stretch) are applied first, followed by the base body color, then overlays and progress bars are layered on top.
+
+## 16. Marginalia Event Engine (`engine/marginalia_events.py`)
+The Marginalia Event Engine coordinates mid-run dynamic encounters, boons, and pocket sub-arenas across Act 1 and Act 2 (`current_act in (1, 2)`).
+
+### 1. Per-Act Roll & Trigger Gating
+- **Roll Frequency:** Rolls a **20% trigger chance once per Act** (`MARGINALIA_TRIGGER_CHANCE = 0.20`, maximum 1 event in Act 1 and 1 event in Act 2).
+- **Storm Contraction Gate:** Events may only roll or activate while `weather_manager.current_step_idx < 2` and `weather_manager.bleed_state not in ("BOSS_PHASE", "DILUTION")`.
+- **Weather Lock (`WeatherManager.paused`):** While an event is `ACTIVE`, `weather_manager.paused` is set to `True`, freezing `grace_timer` and contraction `timer` progression and suppressing rain exposure damage (`player.is_exposed = False`). `paused` is restored to `False` immediately upon event completion, failure, or Sanctuary return.
+
+### 2. Unified State Schema, Spatial Modes & LAN Sync
+- **Shared Event Contract (`MarginaliaEvent`):** Exposes `event_id`, `act_variant` (`1` or `2`), `trigger_mode` (`"auto_safe_zone"` | `"prop_strike"` | `"pitfall_warp"` | `"hunt_timer"`), `spatial_mode` (`"local"` | `"map_anchor"` | `"global_pursuit"`), `time_remaining`, `progress`, and `status` (`"PENDING"` | `"ACTIVE"` | `"COMPLETED"` | `"FAILED"`).
+- **Sub-Arena Pitfall & Return Stack (`ReturnAnchor` / `ExitLadder`):** Stepping onto a disguised `PitfallTrigger` (`"Suspicious Leaf Pile"`) pushes `ReturnAnchor(map_path, x, y)` onto `GameState.return_anchor_stack` and warps the party into `"ink_well_cellar"`. Clearing the cellar spawns an `ExitLadder` that pops the `ReturnAnchor` and returns the party to the saved overworld coordinates.
+- **Breadcrumb Pursuit (`Enemy.persistent_pursuit`):** Global pursuit hunters (`"relentless_censor"`) track `GameState.player_breadcrumbs` with a brief wall-phase fallback if stalled against geometry.
+- **Respite Anti-Farming & Economy Rules:** Consumed `map_anchor` events remain consumed across `Respite.execute_rest()` for the remainder of that Act. All Torn Page rewards/penalties mutate the single active run pool (clamped `>= 0`, resetting to `0` on Sanctuary return), events never grant direct Edification level-ups outside Respite Rest, and weapon rewards obey the two-slot Full-Cradle Rule.
+- **LAN Co-op Replication:** Host serializes `marginalia_event` and `weather.paused` in 20Hz UDP snapshots to active runner Clients (excluding Waiting Scholars in Sanctuary with `in_sanctuary == True`), and Client `DAMAGE_EVENT` barrel strikes trigger `prop_strike` mimic awakenings on the Host.

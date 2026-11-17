@@ -35,6 +35,7 @@ class WeatherManager:
         self.active_safe_radius = 620.0 * TILE_SIZE 
         self.target_radius = self.active_safe_radius
         self.damage_enabled = True
+        self.paused = False
         self.rain_audio_intensity = 0.0
         self.rain_boss_fade = 1.0
 
@@ -106,6 +107,12 @@ class WeatherManager:
 
         # Hub Isolation Rule: Weather system completely freezes in the Sanctuary
         if getattr(world, 'name', '') == "sanctuary":
+            return
+
+        # Marginalia Weather Lock Rule: Freeze timers and suppress exposure damage while paused
+        if getattr(self, 'paused', False):
+            if player is not None:
+                player.is_exposed = False
             return
             
         # Final Boss Arena Isolation: Weather remains dormant until victory
@@ -195,6 +202,8 @@ class WeatherManager:
         is_outside = dist_sq > self.active_safe_radius**2
         
         player.is_exposed = False
+        if getattr(player, 'storm_immunity_timer', 0.0) > 0.0:
+            return
         if is_outside and self.damage_enabled:
             tx, ty = int(px // TILE_SIZE), int(py // TILE_SIZE)
             is_sheltered = False
@@ -235,7 +244,8 @@ class WeatherManager:
             "active_safe_radius": self.active_safe_radius,
             "target_radius": self.target_radius,
             "current_step_idx": self.current_step_idx,
-            "current_boss_idx": self.current_boss_idx
+            "current_boss_idx": self.current_boss_idx,
+            "paused": bool(getattr(self, 'paused', False)),
         }
 
     def from_dict(self, data):
@@ -248,3 +258,4 @@ class WeatherManager:
         self.target_radius = data.get("target_radius", self.target_radius)
         self.current_step_idx = data.get("current_step_idx", self.current_step_idx)
         self.current_boss_idx = data.get("current_boss_idx", 0)
+        self.paused = bool(data.get("paused", False))

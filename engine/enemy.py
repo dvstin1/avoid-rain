@@ -20,6 +20,10 @@ class Enemy(Actor):
         self.is_parryable = False
         self.damage = 0
         self.is_empowered = False
+        self.network_id = -1
+        self.persistent_pursuit = False
+        self._stall_timer = 0.0
+        self._phase_timer = 0.0
 
     def apply_act_scaling(self, hp_multiplier=1.0, damage_multiplier=1.0):
         """Scale enemy max HP, current HP, and attack damage for Act 2+ escalation."""
