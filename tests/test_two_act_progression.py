@@ -37,7 +37,7 @@ def test_chronicle_dialog_two_step_and_debug_toggle(tmp_path):
     opts_step1 = state.get_chronicle_dialog_options()
     assert opts_step1[0]["value"] == "random"
     assert opts_step1[-1]["value"] == "cancel"
-    assert len(opts_step1) == 2 + len(constants.BIOME_SEGMENT_POOLS)
+    assert len(opts_step1) == 2 + len(constants.CHRONICLE_BIOME_ROSTER)
 
     # Select 'swamp_mire' in Step 1
     swamp_idx = next(i for i, o in enumerate(opts_step1) if o["value"] == "swamp_mire")
@@ -99,13 +99,17 @@ def test_dual_world_generation_and_lan_coop_payload(tmp_path, monkeypatch):
     host = _make_headless_state(tmp_path)
     host.start_two_act_run("windy_ridge", "frozen_peaks")
     assert host.current_act == 1
-    assert host.run_biomes == {"act1": "windy_ridge", "act2": "frozen_peaks"}
+    assert host.run_biomes["act1"] == "windy_ridge"
+    assert host.run_biomes["act2"] == "frozen_peaks"
+    assert len(host.run_biomes) == constants.MAX_ACTS
     assert os.path.exists(gen_path)
 
     payload = host.get_host_map_payload()
     assert payload is not None
     assert "act2_world" in payload
-    assert payload["run_biomes"] == {"act1": "windy_ridge", "act2": "frozen_peaks"}
+    assert "act_worlds" in payload
+    assert payload["run_biomes"]["act1"] == "windy_ridge"
+    assert payload["run_biomes"]["act2"] == "frozen_peaks"
 
     # Simulate client fetching host map payload
     client = _make_headless_state(tmp_path)
@@ -115,7 +119,9 @@ def test_dual_world_generation_and_lan_coop_payload(tmp_path, monkeypatch):
 
     assert client.fetch_host_map() is True
     assert client.current_act == 1
-    assert client.run_biomes == {"act1": "windy_ridge", "act2": "frozen_peaks"}
+    assert client.run_biomes["act1"] == "windy_ridge"
+    assert client.run_biomes["act2"] == "frozen_peaks"
+    assert len(client.act_worlds) == constants.MAX_ACTS
     assert client.act2_world_data is not None
     assert len(client.world.grid) > 0
 

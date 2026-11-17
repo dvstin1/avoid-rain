@@ -25,14 +25,17 @@ class Enemy(Actor):
         self._stall_timer = 0.0
         self._phase_timer = 0.0
 
-    def apply_act_scaling(self, hp_multiplier=1.0, damage_multiplier=1.0):
-        """Scale enemy max HP, current HP, and attack damage for Act 2+ escalation."""
+    def apply_act_scaling(self, hp_multiplier=1.0, damage_multiplier=1.0, empowered=None):
+        """Scale enemy max HP, current HP, and attack damage for Act escalation."""
         if hp_multiplier != 1.0:
             self.max_hp = float(self.max_hp) * float(hp_multiplier)
             self.hp = float(self.hp) * float(hp_multiplier)
         if damage_multiplier != 1.0:
             self.damage = float(self.damage) * float(damage_multiplier)
-        self.is_empowered = (hp_multiplier > 1.0 or damage_multiplier > 1.0)
+        if empowered is None:
+            self.is_empowered = (hp_multiplier > 1.0 or damage_multiplier > 1.0)
+        else:
+            self.is_empowered = bool(empowered)
 
 
     def attempt_damage_player(self, state):

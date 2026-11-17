@@ -137,56 +137,72 @@ def draw_respite_menu(screen, font, state):
 
 
 def draw_chronicle_biome_menu(screen, font, state):
-    """Draw the two-step host Chronicle biome-selection modal matching Respite styling."""
+    """Draw the 5-of-7 Unbound Chronicle biome draft modal with theme and Act saturation preview."""
     dialog = getattr(state, 'chronicle_dialog', None)
     if not dialog:
         return
 
     sw, sh = screen.get_width(), screen.get_height()
-    mx, my = 100, 100
+    mx, my = 80, 60
     w, h = sw - mx * 2, sh - my * 2
     x, y = mx, my
 
     panel = pygame.Rect(x, y, w, h)
-    pygame.draw.rect(screen, (10, 10, 30), panel)
-    pygame.draw.rect(screen, constants.COLOR_WHITE, panel, 2)
+    pygame.draw.rect(screen, (14, 12, 22), panel, border_radius=6)
+    pygame.draw.rect(screen, constants.COLOR_WHITE, panel, 2, border_radius=6)
 
-    step = dialog.get("step", 1)
-    title_str = "CHRONICLE: SELECT ACT 1 BIOME" if step == 1 else "CHRONICLE: SELECT ACT 2 BIOME"
+    step = int(dialog.get("step", 1))
+    max_steps = int(dialog.get("max_steps", getattr(constants, "MAX_ACTS", 5)))
+    sat = constants.get_act_saturation(step)
+
+    title_str = f"THE UNBOUND CHRONICLE — SELECT ACT {step} OF {max_steps} FOLIO"
     title = font.render(title_str, True, constants.COLOR_SELECTION)
-    screen.blit(title, (x + 25, y + 20))
+    screen.blit(title, (x + 25, y + 16))
 
-    y_off = 65
-    if step == 2:
-        act1_choice = dialog.get("act1_choice") or "random"
-        act1_label = "Random" if act1_choice == "random" else constants.BIOME_DISPLAY_NAMES.get(
-            act1_choice, act1_choice
-        )
-        sub = font.render(f"Act 1 Biome: {act1_label}", True, constants.COLOR_GREY)
-        screen.blit(sub, (x + 25, y + y_off))
-        y_off += 35
+    sat_surf = font.render(f"Escalation: {sat['label']}", True, (215, 180, 95))
+    screen.blit(sat_surf, (x + 25, y + 46))
 
+    choices = list(dialog.get("choices") or [None] * max_steps)
+    folio_parts = []
+    for idx in range(max_steps):
+        pick = choices[idx] if idx < len(choices) else None
+        if not pick:
+            lbl = "[ ? ]"
+        elif pick == "random":
+            lbl = "Random"
+        else:
+            lbl = constants.BIOME_DISPLAY_NAMES.get(pick, pick)
+        folio_parts.append(f"A{idx + 1}: {lbl}")
+    strip_surf = font.render("  |  ".join(folio_parts), True, constants.COLOR_GREY)
+    screen.blit(strip_surf, (x + 25, y + 76))
+
+    y_off = 114
     options = state.get_chronicle_dialog_options()
     sel_idx = dialog.get("selection", 0)
-    spacing = 36
+    spacing = 34
 
     for idx, opt in enumerate(options):
         focused = idx == sel_idx
         enabled = opt.get("enabled", True)
         label = opt.get("label", "")
+        theme = opt.get("theme", "")
+        picked_act = opt.get("selected_act")
         if not enabled:
-            color = (80, 80, 80)
-            label = f"{label} (Selected for Act 1)"
-        elif focused:
-            color = constants.COLOR_SELECTION
-        elif opt.get("value") in ("cancel", "back"):
-            color = constants.COLOR_GREY
+            color = (85, 85, 95)
+            suffix = f" (Drafted for Act {picked_act})" if picked_act else " (Already Drafted)"
+            row_str = f"{label}{suffix}"
         else:
-            color = constants.COLOR_WHITE
+            if focused:
+                color = constants.COLOR_SELECTION
+            elif opt.get("value") in ("cancel", "back"):
+                color = constants.COLOR_GREY
+            else:
+                color = constants.COLOR_WHITE
+            row_str = f"{label} — {theme}" if theme else label
 
         prefix = "> " if focused else "  "
-        screen.blit(font.render(f"{prefix}{label}", True, color), (x + 40, y + y_off))
+        screen.blit(font.render(f"{prefix}{row_str}", True, color), (x + 35, y + y_off))
         y_off += spacing
 
-    hint = font.render("[UP/DOWN] Navigate   [ENTER/E] Confirm   [ESC] Cancel/Back", True, constants.COLOR_GREY)
-    screen.blit(hint, (x + 25, y + h - 42))
+    hint = font.render("[UP/DOWN] Navigate   [ENTER/E] Bind Folio   [ESC] Cancel/Back", True, constants.COLOR_GREY)
+    screen.blit(hint, (x + 25, y + h - 38))

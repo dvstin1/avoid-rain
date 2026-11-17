@@ -165,10 +165,11 @@ SYMBOL_COLOR_MAP: Dict[str, Tuple[int, int, int]] = {
 # Biome Classification Sets
 ORGANIC_BIOMES: Set[str] = {
     "swamp_mire", "swamp", "wilds", "windy_ridge", "pastoral_valley",
-    "forest", "frozen_peaks",
+    "forest", "frozen_peaks", "vitreous_basin",
 }
 ARCHITECTURAL_BIOMES: Set[str] = {
-    "ruins", "sanctuary", "the_colophon", "tech_tower", "chambers", "crypt"
+    "ruins", "sanctuary", "the_colophon", "tech_tower", "chambers", "crypt",
+    "sunlit_aqueducts",
 }
 ACTIVE_WORLD_BIOMES: Tuple[str, ...] = (
     "windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower"

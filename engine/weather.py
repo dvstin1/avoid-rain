@@ -36,6 +36,7 @@ class WeatherManager:
         self.target_radius = self.active_safe_radius
         self.damage_enabled = True
         self.paused = False
+        self.rain_dps = 2.0
         self.rain_audio_intensity = 0.0
         self.rain_boss_fade = 1.0
 
@@ -214,7 +215,7 @@ class WeatherManager:
             
             if not is_sheltered:
                 player.is_exposed = True
-                damage = 2.0 * dt
+                damage = float(getattr(self, 'rain_dps', 2.0)) * dt
                 player.take_damage(damage, bypass_stagger=True)
 
     def is_boss_spawn_ready(self):
@@ -246,6 +247,7 @@ class WeatherManager:
             "current_step_idx": self.current_step_idx,
             "current_boss_idx": self.current_boss_idx,
             "paused": bool(getattr(self, 'paused', False)),
+            "rain_dps": float(getattr(self, 'rain_dps', 2.0)),
         }
 
     def from_dict(self, data):
@@ -259,3 +261,4 @@ class WeatherManager:
         self.current_step_idx = data.get("current_step_idx", self.current_step_idx)
         self.current_boss_idx = data.get("current_boss_idx", 0)
         self.paused = bool(data.get("paused", False))
+        self.rain_dps = float(data.get("rain_dps", 2.0))

@@ -97,30 +97,36 @@ def roll_drop(source_tier: int, position: tuple, state: any):
     - Reward: Choice of Fates (Stat Choice).
     """
     import random
+    from constants import scale_pages_for_act
     x, y = position
+    act_num = int(getattr(state, "current_act", 1) or 1)
     
     if source_tier == 4:
         # Assuming Barrel for now as they are the only Tier 4 in-game
         if random.random() < 0.15:
             if random.random() < 0.5:
-                state.loot.append(TornPage(x, y, amount=random.randint(1, 3)))
+                amt = scale_pages_for_act(random.randint(1, 3), act_num)
+                state.loot.append(TornPage(x, y, amount=amt))
             else:
                 state.loot.append(HealItem(x, y))
                 
     elif source_tier == 3:
         if random.random() < 0.05:
-            state.loot.append(TornPage(x, y, amount=random.randint(5, 10)))
+            amt = scale_pages_for_act(random.randint(5, 10), act_num)
+            state.loot.append(TornPage(x, y, amount=amt))
             
     elif source_tier == 2:
         # Guaranteed bundle
-        state.loot.append(TornPage(x, y, amount=random.randint(20, 50)))
+        amt = scale_pages_for_act(random.randint(20, 50), act_num)
+        state.loot.append(TornPage(x, y, amount=amt))
         
     elif source_tier == 1:
         # Choice of Fates + Bonus Loot
         state.loot.append(ChoiceOfFates(x, y))
         # 50% chance for a Tier 2 currency bundle as well
         if random.random() < 0.5:
-            state.loot.append(TornPage(x + 20, y, amount=random.randint(20, 50)))
+            amt = scale_pages_for_act(random.randint(20, 50), act_num)
+            state.loot.append(TornPage(x + 20, y, amount=amt))
         # 80% chance for some immediate heals
         if random.random() < 0.8:
             state.loot.append(HealItem(x - 20, y))

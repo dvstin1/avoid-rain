@@ -43,13 +43,31 @@ The persistent JSON document differentiates between permanent lifetime metrics a
   },
   "active_session_in_progress": true,
   "run_state": {
-    "world_name": "macro_generated",
+    "world_name": "generated_world",
+    "current_act": 1,
+    "empowered_act": false,
+    "run_biomes": {
+      "act1": "windy_ridge",
+      "act2": "pastoral_valley",
+      "act3": "swamp_mire",
+      "act4": "frozen_peaks",
+      "act5": "tech_tower"
+    },
+    "act_worlds": {
+      "1": {},
+      "2": {},
+      "3": {},
+      "4": {},
+      "5": {}
+    },
     "player": {
         "x": 144, "y": 288, "hp": 45
     },
     "weather": {
         "bleed_state": "SHRINKING",
-        "active_safe_radius": 12000
+        "active_safe_radius": 12000,
+        "paused": false,
+        "rain_dps": 2.0
     }
   },
   "last_run_result": "DEFEAT"

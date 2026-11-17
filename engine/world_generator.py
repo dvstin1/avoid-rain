@@ -13,31 +13,97 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from constants import (
     get_generated_world_path,
+    BIOME_ACT_SEGMENT_POOLS,
+    BIOME_FALLBACK_MAP,
     BIOME_SEGMENT_POOLS,
+    CHRONICLE_BIOME_ROSTER,
+    MAX_ACTS,
     POOL_MONTHLY_REPORT,
     POOL_CORRIDOR,
 )
 
 
+def _pool_is_usable(pool):
+    """Return True if a segment pool dict has non-empty rooms and corridors lists."""
+    if not isinstance(pool, dict):
+        return False
+    rooms = pool.get("rooms")
+    corridors = pool.get("corridors")
+    return bool(rooms and corridors)
+
+
+def resolve_segment_pool(biome_id, act_number=1):
+    """Resolve (biome_id, act_number) via BIOME_ACT_SEGMENT_POOLS with lower-Act and base-biome fallbacks."""
+    act_num = max(1, int(act_number or 1))
+    b_key = str(biome_id or "windy_ridge")
+
+    # 1. Walk down from act_number to 1 in BIOME_ACT_SEGMENT_POOLS
+    for k in range(act_num, 0, -1):
+        candidate = BIOME_ACT_SEGMENT_POOLS.get((b_key, k))
+        if _pool_is_usable(candidate):
+            return {
+                "rooms": list(candidate["rooms"]),
+                "corridors": list(candidate["corridors"]),
+                "resolved_biome": b_key,
+                "resolved_act": k,
+            }
+
+    # 2. Fall back to unkeyed BIOME_SEGMENT_POOLS[biome_id]
+    base_candidate = BIOME_SEGMENT_POOLS.get(b_key)
+    if _pool_is_usable(base_candidate):
+        return {
+            "rooms": list(base_candidate["rooms"]),
+            "corridors": list(base_candidate["corridors"]),
+            "resolved_biome": b_key,
+            "resolved_act": 1,
+        }
+
+    # 3. Safe fallback when a Pass 2 biome's segment folder hasn't been generated on disk yet
+    fallback_biome = BIOME_FALLBACK_MAP.get(b_key, "windy_ridge")
+    if fallback_biome not in BIOME_SEGMENT_POOLS:
+        fallback_biome = next(iter(BIOME_SEGMENT_POOLS.keys()), "windy_ridge")
+    for k in range(act_num, 0, -1):
+        fb_act = BIOME_ACT_SEGMENT_POOLS.get((fallback_biome, k))
+        if _pool_is_usable(fb_act):
+            return {
+                "rooms": list(fb_act["rooms"]),
+                "corridors": list(fb_act["corridors"]),
+                "resolved_biome": fallback_biome,
+                "resolved_act": k,
+            }
+
+    fb_pool = BIOME_SEGMENT_POOLS.get(fallback_biome, {})
+    return {
+        "rooms": list(fb_pool.get("rooms", POOL_MONTHLY_REPORT)),
+        "corridors": list(fb_pool.get("corridors", POOL_CORRIDOR)),
+        "resolved_biome": fallback_biome,
+        "resolved_act": 1,
+    }
+
+
 class WorldGenerator:
     """Handles the data-driven generation of a single-biome macro-world layout."""
 
-    def __init__(self, world_id="macro_generated", biome=None):
+    def __init__(self, world_id="macro_generated", biome=None, act_number=1):
         self.world_id = world_id
+        self.act_number = max(1, int(act_number or 1))
         self.total_size = 440
         self.sockets = []
         self.spawn_x = 0
         self.spawn_y = 0
         self.boss_coords_list = []
 
+        valid_roster = set(CHRONICLE_BIOME_ROSTER) | set(BIOME_SEGMENT_POOLS.keys())
         available_biomes = list(BIOME_SEGMENT_POOLS.keys())
-        if biome and biome in BIOME_SEGMENT_POOLS:
+        if biome and biome in valid_roster:
             self.biome = biome
         else:
             self.biome = random.choice(available_biomes)
 
-        biome_pool = BIOME_SEGMENT_POOLS.get(self.biome, {})
-        # Asset pools strictly scoped to the selected cohesive biome
+        biome_pool = resolve_segment_pool(self.biome, self.act_number)
+        self.resolved_biome = biome_pool.get("resolved_biome", self.biome)
+        self.resolved_act = biome_pool.get("resolved_act", 1)
+        # Asset pools strictly scoped to the resolved cohesive biome & Act
         self.asset_pools = {
             "120x120": list(biome_pool.get("rooms", POOL_MONTHLY_REPORT)),
             "40x40": list(biome_pool.get("corridors", POOL_CORRIDOR)),
@@ -161,6 +227,7 @@ class WorldGenerator:
         return {
             "map_id": self.world_id,
             "biome": self.biome,
+            "act_number": self.act_number,
             "dimensions": {"width": self.total_size, "height": self.total_size},
             "legend": {"#": "WALL_STONE", " ": "FLOOR_CLEAN", ".": "FLOOR_CLEAN"},
             "grid": base_grid,
@@ -182,16 +249,64 @@ class WorldGenerator:
         print(f"Generated world exported to {filename}")
 
 
-def resolve_run_biomes(act1_choice=None, act2_choice=None):
-    """Resolves Act 1 and Act 2 biomes, guaranteeing Act 1 != Act 2."""
-    all_biomes = list(BIOME_SEGMENT_POOLS.keys())
-    if act1_choice and act1_choice in BIOME_SEGMENT_POOLS:
+def resolve_five_act_biomes(choices=None, roster=None):
+    """Resolve an ordered list of 5 distinct biomes from the 7-biome CHRONICLE_BIOME_ROSTER."""
+    pool = list(roster if roster is not None else CHRONICLE_BIOME_ROSTER)
+    if isinstance(choices, dict):
+        raw_list = [choices.get(f"act{i}") for i in range(1, MAX_ACTS + 1)]
+    elif isinstance(choices, (list, tuple)):
+        raw_list = list(choices)
+    elif choices is None:
+        raw_list = []
+    else:
+        raw_list = [choices]
+
+    while len(raw_list) < MAX_ACTS:
+        raw_list.append("random")
+    raw_list = raw_list[:MAX_ACTS]
+
+    resolved = [None] * MAX_ACTS
+    used = set()
+
+    # Pass 1: Lock explicit valid non-duplicate biome selections first
+    for idx, pick in enumerate(raw_list):
+        if pick and pick != "random" and pick in pool and pick not in used:
+            resolved[idx] = pick
+            used.add(pick)
+
+    # Pass 2: Fill remaining slots ("random", None, or duplicates) with distinct biomes
+    for idx in range(MAX_ACTS):
+        if resolved[idx] is None:
+            remaining = [b for b in pool if b not in used]
+            if not remaining:
+                remaining = list(pool)
+            chosen = random.choice(remaining)
+            resolved[idx] = chosen
+            used.add(chosen)
+
+    return tuple(resolved)
+
+
+def resolve_run_biomes(*choices, count=None, roster=None):
+    """Resolve distinct run biomes (returns 5-tuple for 5-Act drafts, or 2-tuple for legacy 2-arg calls)."""
+    if len(choices) == 1 and isinstance(choices[0], (list, tuple, dict)):
+        return resolve_five_act_biomes(choices[0], roster=roster)
+    if count == MAX_ACTS or len(choices) >= 3 or len(choices) == 0:
+        return resolve_five_act_biomes(list(choices), roster=roster)
+
+    # Legacy 2-argument call compatibility: resolve 2 distinct biomes
+    act1_choice = choices[0] if len(choices) >= 1 else None
+    act2_choice = choices[1] if len(choices) >= 2 else None
+    all_biomes = list(roster if roster is not None else CHRONICLE_BIOME_ROSTER)
+    valid_set = set(all_biomes) | set(BIOME_SEGMENT_POOLS.keys())
+    if act1_choice and act1_choice != "random" and act1_choice in valid_set:
         act1 = act1_choice
     else:
-        act1 = random.choice(all_biomes)
+        act1 = random.choice(list(BIOME_SEGMENT_POOLS.keys()))
 
-    remaining = [b for b in all_biomes if b != act1]
-    if act2_choice and act2_choice in BIOME_SEGMENT_POOLS and act2_choice != act1:
+    candidate_pool = list(BIOME_SEGMENT_POOLS.keys()) if act1 in BIOME_SEGMENT_POOLS else all_biomes
+    remaining = [b for b in candidate_pool if b != act1]
+    if act2_choice and act2_choice != "random" and act2_choice in valid_set and act2_choice != act1:
         act2 = act2_choice
     else:
         act2 = random.choice(remaining) if remaining else act1
@@ -199,28 +314,43 @@ def resolve_run_biomes(act1_choice=None, act2_choice=None):
     return act1, act2
 
 
-def generate_dual_worlds(act1_choice=None, act2_choice=None):
-    """Generates both Act 1 and Act 2 single-biome world maps upfront for a two-act run."""
-    act1_biome, act2_biome = resolve_run_biomes(act1_choice, act2_choice)
+def generate_chronicle_worlds(choices=None):
+    """Generate all 5 Act single-biome world maps upfront for a 5-Act Unbound Chronicle run."""
+    biomes = resolve_five_act_biomes(choices)
+    base_path = get_generated_world_path()
+    act_worlds = {}
+    act_paths = {}
 
-    gen1 = WorldGenerator(world_id="macro_act1", biome=act1_biome)
-    gen1.generate_layout()
-    act1_path = get_generated_world_path()
-    gen1.export_world(act1_path)
+    for act_num in range(1, MAX_ACTS + 1):
+        biome_id = biomes[act_num - 1]
+        gen = WorldGenerator(world_id=f"macro_act{act_num}", biome=biome_id, act_number=act_num)
+        gen.generate_layout()
+        path = base_path if act_num == 1 else base_path.replace(".json", f"_act{act_num}.json")
+        gen.export_world(path)
+        act_worlds[act_num] = gen.to_dict()
+        act_paths[act_num] = path
 
-    gen2 = WorldGenerator(world_id="macro_act2", biome=act2_biome)
-    gen2.generate_layout()
-    act2_path = act1_path.replace(".json", "_act2.json")
-    gen2.export_world(act2_path)
-
+    run_biomes = {f"act{i}": biomes[i - 1] for i in range(1, MAX_ACTS + 1)}
     return {
-        "act1_biome": act1_biome,
-        "act2_biome": act2_biome,
-        "act1_data": gen1.to_dict(),
-        "act2_data": gen2.to_dict(),
-        "act1_path": act1_path,
-        "act2_path": act2_path,
+        "run_biomes": run_biomes,
+        "biomes_list": list(biomes),
+        "act_worlds": act_worlds,
+        "act_paths": act_paths,
+        "act1_biome": biomes[0],
+        "act2_biome": biomes[1],
+        "act1_data": act_worlds[1],
+        "act2_data": act_worlds[2],
+        "act1_path": act_paths[1],
+        "act2_path": act_paths[2],
     }
+
+
+def generate_dual_worlds(act1_choice=None, act2_choice=None, *extra_choices):
+    """Generate upfront Act worlds (supports both 2-arg calls and 5-Act choice sequences)."""
+    if isinstance(act1_choice, (list, tuple, dict)) and act2_choice is None and not extra_choices:
+        return generate_chronicle_worlds(act1_choice)
+    raw = [act1_choice, act2_choice] + list(extra_choices)
+    return generate_chronicle_worlds(raw)
 
 if __name__ == "__main__":
     gen = WorldGenerator()

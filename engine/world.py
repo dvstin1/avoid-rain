@@ -77,18 +77,27 @@ class WarpPortal(GameObject):
             # Universal Reset: Clear visual debris on every map transition
             game_state.world_debris = []
 
-            from constants import ACT2_HP_MULTIPLIER, ACT2_DAMAGE_MULTIPLIER
+            from constants import ACT2_HP_MULTIPLIER, ACT2_DAMAGE_MULTIPLIER, get_act_saturation
+            cur_act = int(getattr(game_state, 'current_act', 0) or 0)
             is_empowered_arena = (
                 self.target_name in ("night_boss_arena", "final_boss")
                 and (
                     getattr(game_state, 'empowered_act', False)
-                    or getattr(game_state, 'current_act', 0) >= 2
+                    or cur_act >= 2
                 )
             )
-            hp_mult = ACT2_HP_MULTIPLIER if is_empowered_arena else 1.0
-            dmg_mult = ACT2_DAMAGE_MULTIPLIER if is_empowered_arena else 1.0
             if is_empowered_arena:
+                if cur_act >= 3:
+                    sat = get_act_saturation(cur_act)
+                    hp_mult = max(ACT2_HP_MULTIPLIER, float(sat["hp_multiplier"]))
+                    dmg_mult = max(ACT2_DAMAGE_MULTIPLIER, float(sat["damage_multiplier"]))
+                else:
+                    hp_mult = ACT2_HP_MULTIPLIER
+                    dmg_mult = ACT2_DAMAGE_MULTIPLIER
                 game_state.empowered_act = True
+            else:
+                hp_mult = 1.0
+                dmg_mult = 1.0
 
             # Phase 3 Intercept: If Client entering macro-world, fetch host map
             is_client = (game_state.network_manager.network_mode == "CLIENT")
@@ -534,6 +543,7 @@ class LevelLoader:
         destroyed_ids=None,
         hp_multiplier=1.0,
         damage_multiplier=1.0,
+        empowered=None,
     ):
         """Loads a JSON map file and parses it, supporting modular stitching."""
         import os
@@ -609,6 +619,7 @@ class LevelLoader:
             map_filename=map_filename,
             hp_multiplier=hp_multiplier,
             damage_multiplier=damage_multiplier,
+            empowered=empowered,
         )
 
         # Apply procedural spawn override if present
@@ -634,6 +645,7 @@ class LevelLoader:
         map_filename=None,
         hp_multiplier=1.0,
         damage_multiplier=1.0,
+        empowered=None,
     ):
         """
         Parses a string array and returns (grid, interactables, warp_tiles, player_start, enemies).
@@ -852,8 +864,10 @@ class LevelLoader:
                         
                         data = entity_data.get((x, y), {})
                         temp_enemy = enemy_cls(pos[0], pos[1], id=enemy_id)
-                        if hp_multiplier != 1.0 or damage_multiplier != 1.0:
-                            temp_enemy.apply_act_scaling(hp_multiplier, damage_multiplier)
+                        if hp_multiplier != 1.0 or damage_multiplier != 1.0 or empowered is not None:
+                            temp_enemy.apply_act_scaling(
+                                hp_multiplier, damage_multiplier, empowered=empowered
+                            )
                         
                         # Phase 4 Network Rule: Assign numeric ID for sync
                         temp_enemy.network_id = get_next_id()

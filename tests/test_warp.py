@@ -20,16 +20,17 @@ def test_warp_interaction_required():
     gs.update(0.016, {'move': (0, 0), 'attack': False})
     assert gs.world.name == "sanctuary"
 
-    # Call update WITH attack: opens two-step Chronicle biome dialog
+    # Call update WITH attack: opens 5-step Unbound Chronicle biome dialog
     gs.update(0.016, {'move': (0, 0), 'attack': True})
     assert gs.chronicle_dialog is not None
     assert gs.chronicle_dialog["step"] == 1
 
-    # Confirm Step 1 (Random) and Step 2 (Random) to initiate cinematic warp
-    gs.update(0.25, {'move': (0, 0), 'attack': False})
-    gs.input_ratchet_latched = False
-    gs.update(0.016, {'move': (0, 0), 'attack': True})
-    assert gs.chronicle_dialog["step"] == 2
+    # Confirm Steps 1..5 (Random) to initiate cinematic warp
+    for next_step in range(2, 6):
+        gs.update(0.25, {'move': (0, 0), 'attack': False})
+        gs.input_ratchet_latched = False
+        gs.update(0.016, {'move': (0, 0), 'attack': True})
+        assert gs.chronicle_dialog["step"] == next_step
     gs.update(0.25, {'move': (0, 0), 'attack': False})
     gs.input_ratchet_latched = False
     gs.update(0.016, {'move': (0, 0), 'attack': True})
@@ -40,6 +41,7 @@ def test_warp_interaction_required():
     while gs.warp_controller.is_active():
         gs.update(0.016, {'move': (0, 0), 'attack': False})
     assert gs.world.name == "generated_world"
+    gs.network_manager.stop_network()
 
 def test_warp_persistence():
     """Verify that warping to sanctuary clears session state."""

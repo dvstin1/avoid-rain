@@ -39,6 +39,7 @@ from constants import (
     MARGINALIA_TRIGGER_CHANCE,
     MARGINALIA_UNBLOTTED_WEIGHT,
     MARGINALIA_VIGNETTE_DURATION,
+    MAX_ACTS,
     TILE_EMPTY,
     TILE_SIZE,
     TILE_WALL,
@@ -182,7 +183,8 @@ class MarginaliaEvent:
     ) -> None:
         meta = MARGINALIA_EVENT_CATALOG.get(event_id, {})
         self.event_id: str = str(event_id)
-        self.act_variant: int = 2 if int(act_variant) >= 2 else 1
+        self.act_number: int = max(1, min(MAX_ACTS, int(act_variant or 1)))
+        self.act_variant: int = 2 if self.act_number >= 2 else 1
         self.trigger_mode: str = trigger_mode or str(meta.get("trigger_mode", "auto_safe_zone"))
         self.spatial_mode: str = spatial_mode or str(meta.get("spatial_mode", "local"))
         self.time_remaining: Optional[float] = (
@@ -229,6 +231,7 @@ class MarginaliaEvent:
             "event_id": self.event_id,
             "title": self.title,
             "act_variant": int(self.act_variant),
+            "act_number": int(self.act_number),
             "trigger_mode": self.trigger_mode,
             "spatial_mode": self.spatial_mode,
             "time_remaining": (
@@ -265,7 +268,7 @@ class MarginaliaEvent:
             progress = float(raw_prog or 0.0)
         ev = cls(
             event_id=str(data.get("event_id", "unbound_folio")),
-            act_variant=int(data.get("act_variant", 1)),
+            act_variant=int(data.get("act_number", data.get("act_variant", 1))),
             trigger_mode=data.get("trigger_mode"),
             spatial_mode=data.get("spatial_mode"),
             time_remaining=data.get("time_remaining"),
@@ -366,9 +369,9 @@ class MarginaliaEventEngine:
         return items[-1][0]
 
     def try_roll_for_act(self, state: Any, force_act: Optional[int] = None) -> Optional[MarginaliaEvent]:
-        """Perform the once-per-Act 20% Marginalia roll if eligible."""
+        """Perform the once-per-Act 20% Marginalia roll if eligible (Acts 1..MAX_ACTS)."""
         act = int(force_act if force_act is not None else (getattr(state, "current_act", 0) or 1))
-        if act not in (1, 2):
+        if not 1 <= act <= MAX_ACTS:
             return None
         if act in self.rolled_acts or act in self.triggered_acts:
             return None
@@ -392,18 +395,18 @@ class MarginaliaEventEngine:
         """Seed a PENDING map_anchor event (Barrel Mimic Cluster or Sunken Margin Pitfall)."""
         if not self.can_trigger_event(state, allow_pending=True):
             return None
-        act = int(act_variant if act_variant is not None else (getattr(state, "current_act", 0) or 1))
-        act = 2 if act >= 2 else 1
-        anchor_id = f"{event_id}:act{act}"
-        if (act, anchor_id) in self.consumed_anchors:
+        act_num = int(act_variant if act_variant is not None else (getattr(state, "current_act", 0) or 1))
+        act_num = max(1, min(MAX_ACTS, act_num))
+        anchor_id = f"{event_id}:act{act_num}"
+        if (act_num, anchor_id) in self.consumed_anchors:
             return None
 
-        ev = MarginaliaEvent(event_id=event_id, act_variant=act, status="PENDING")
+        ev = MarginaliaEvent(event_id=event_id, act_variant=act_num, status="PENDING")
         ev.anchor_id = anchor_id
         px, py = state.player.get_center() if getattr(state, "player", None) else (400.0, 400.0)
 
         if event_id == "barrel_mimic_cluster":
-            total_mimics = 8 if act == 1 else 12
+            total_mimics = 8 if ev.act_variant == 1 else 12
             ev.total_targets = total_mimics
             ev.progress = (0, total_mimics)
             barrels = [
@@ -418,7 +421,7 @@ class MarginaliaEventEngine:
                     b_obj.is_breakable = True
                     b_obj.health = 1.0
                     b_obj.name = "Barrel"
-                    b_obj.id = f"mimic_barrel:{act}:{idx}"
+                    b_obj.id = f"mimic_barrel:{act_num}:{idx}"
                     state.world.interactables.append(b_obj)
                     barrels.append(b_obj)
             for b_obj in barrels[:8]:
@@ -426,7 +429,7 @@ class MarginaliaEventEngine:
         elif event_id == "sunken_margin":
             from engine.world import PitfallTrigger
 
-            total_cellar = 4 if act == 1 else 6
+            total_cellar = 4 if ev.act_variant == 1 else 6
             ev.total_targets = total_cellar
             ev.progress = (0, total_cellar)
             if getattr(state, "world", None) is not None:
@@ -440,7 +443,7 @@ class MarginaliaEventEngine:
                     state.world.interactables.append(trigger)
 
         self.active_event = ev
-        self.triggered_acts.add(act)
+        self.triggered_acts.add(act_num)
         return ev
 
     def start_event(
@@ -450,16 +453,17 @@ class MarginaliaEventEngine:
         act_variant: Optional[int] = None,
         ignore_window: bool = False,
     ) -> Optional[MarginaliaEvent]:
-        """Start any of the 9 Marginalia events in Act 1 or Act 2."""
+        """Start any of the 9 Marginalia events in Acts 1..MAX_ACTS."""
         if not ignore_window and not self.can_trigger_event(state, allow_pending=True):
             return None
 
-        act = int(act_variant if act_variant is not None else (getattr(state, "current_act", 0) or 1))
-        act = 2 if act >= 2 else 1
-        self.rolled_acts.add(act)
-        self.triggered_acts.add(act)
+        act_num = int(act_variant if act_variant is not None else (getattr(state, "current_act", 0) or 1))
+        act_num = max(1, min(MAX_ACTS, act_num))
+        self.rolled_acts.add(act_num)
+        self.triggered_acts.add(act_num)
 
-        ev = MarginaliaEvent(event_id=event_id, act_variant=act, status="ACTIVE")
+        ev = MarginaliaEvent(event_id=event_id, act_variant=act_num, status="ACTIVE")
+        act = ev.act_variant
         px, py = state.player.get_center() if getattr(state, "player", None) else (400.0, 400.0)
         ev.zone_center = (px, py)
         self.active_event = ev
@@ -518,8 +522,8 @@ class MarginaliaEventEngine:
 
         elif event_id == "barrel_mimic_cluster":
             ev.time_remaining = None
-            ev.anchor_id = ev.anchor_id or f"barrel_mimic_cluster:act{act}"
-            self.consumed_anchors.add((act, ev.anchor_id))
+            ev.anchor_id = ev.anchor_id or f"barrel_mimic_cluster:act{ev.act_number}"
+            self.consumed_anchors.add((ev.act_number, ev.anchor_id))
             total_mimics = 8 if act == 1 else 12
             ev.total_targets = total_mimics
             ev.progress = (0, total_mimics)
@@ -527,8 +531,8 @@ class MarginaliaEventEngine:
 
         elif event_id == "sunken_margin":
             ev.time_remaining = None
-            ev.anchor_id = ev.anchor_id or f"sunken_margin:act{act}"
-            self.consumed_anchors.add((act, ev.anchor_id))
+            ev.anchor_id = ev.anchor_id or f"sunken_margin:act{ev.act_number}"
+            self.consumed_anchors.add((ev.act_number, ev.anchor_id))
             total_cellar = 4 if act == 1 else 6
             ev.total_targets = total_cellar
             ev.progress = (0, total_cellar)
@@ -734,7 +738,7 @@ class MarginaliaEventEngine:
             and ev.status == "PENDING"
             and prop_name == "Barrel"
         ):
-            anchor_key = (ev.act_variant, ev.anchor_id or f"barrel_mimic_cluster:act{ev.act_variant}")
+            anchor_key = (ev.act_number, ev.anchor_id or f"barrel_mimic_cluster:act{ev.act_number}")
             if anchor_key in self.consumed_anchors:
                 return False
             if not self.is_within_trigger_window(state):
@@ -778,32 +782,32 @@ class MarginaliaEventEngine:
     def trigger_pitfall_anchor(self, state: Any, trigger_obj: Optional[Any] = None) -> bool:
         """Activate a PENDING sunken_margin pitfall warp into the Ink Well Cellar."""
         ev = self.active_event
-        act = int(getattr(state, "current_act", 0) or 1)
-        act = 2 if act >= 2 else 1
+        act_num = int(getattr(state, "current_act", 0) or (ev.act_number if ev else 1))
+        act_num = max(1, min(MAX_ACTS, act_num))
         anchor_id = (
             getattr(trigger_obj, "anchor_id", None)
             or (ev.anchor_id if ev else None)
-            or f"sunken_margin:act{act}"
+            or f"sunken_margin:act{act_num}"
         )
-        if (act, anchor_id) in self.consumed_anchors:
+        if (act_num, anchor_id) in self.consumed_anchors:
             return False
         if not self.is_within_trigger_window(state):
             return False
 
         if ev is None or ev.event_id != "sunken_margin":
-            ev = MarginaliaEvent(event_id="sunken_margin", act_variant=act, status="PENDING")
+            ev = MarginaliaEvent(event_id="sunken_margin", act_variant=act_num, status="PENDING")
             ev.anchor_id = anchor_id
-            ev.total_targets = 4 if act == 1 else 6
+            ev.total_targets = 4 if ev.act_variant == 1 else 6
             ev.progress = (0, ev.total_targets)
             self.active_event = ev
-            self.rolled_acts.add(act)
-            self.triggered_acts.add(act)
+            self.rolled_acts.add(act_num)
+            self.triggered_acts.add(act_num)
 
         if ev.status != "PENDING":
             return False
 
         ev.status = "ACTIVE"
-        self.consumed_anchors.add((ev.act_variant, anchor_id))
+        self.consumed_anchors.add((ev.act_number, anchor_id))
         if hasattr(state, "weather_manager") and state.weather_manager is not None:
             state.weather_manager.paused = True
         if getattr(state, "player", None) is not None:
@@ -813,14 +817,14 @@ class MarginaliaEventEngine:
 
     def on_respite_rest(self, state: Any) -> None:
         """Enforce anti-farming rule across Respite.execute_rest()."""
-        act = int(getattr(state, "current_act", 0) or 1)
-        act = 2 if act >= 2 else 1
+        act_num = int(getattr(state, "current_act", 0) or 1)
+        act_num = max(1, min(MAX_ACTS, act_num))
         # Remove any pitfall triggers or mimic anchors that were already consumed in this Act
         if getattr(state, "world", None) is not None:
             for obj in list(state.world.interactables):
                 if getattr(obj, "name", "") == "Suspicious Leaf Pile":
-                    aid = getattr(obj, "anchor_id", f"sunken_margin:act{act}")
-                    if (act, aid) in self.consumed_anchors:
+                    aid = getattr(obj, "anchor_id", f"sunken_margin:act{act_num}")
+                    if (act_num, aid) in self.consumed_anchors:
                         state.world.interactables.remove(obj)
 
     def update(self, dt: float, state: Any) -> None:
@@ -851,7 +855,7 @@ class MarginaliaEventEngine:
 
         ev = self.active_event
         if ev is None:
-            if getattr(state, "current_act", 0) in (1, 2):
+            if 1 <= int(getattr(state, "current_act", 0) or 0) <= MAX_ACTS:
                 self.try_roll_for_act(state)
             return
 

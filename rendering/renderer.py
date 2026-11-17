@@ -356,7 +356,15 @@ class Renderer:
         if w_name == "sanctuary":
             return "sanctuary"
 
-        for key in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower"):
+        for key in (
+            "windy_ridge",
+            "pastoral_valley",
+            "swamp_mire",
+            "frozen_peaks",
+            "tech_tower",
+            "vitreous_basin",
+            "sunlit_aqueducts",
+        ):
             if key in w_name:
                 return key
         if any(k in w_name for k in ("ruins", "final_boss", "boss")):

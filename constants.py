@@ -299,7 +299,7 @@ POOL_CORRIDOR = [
     "maps/smallcave.json",
 ]
 
-# Per-Biome Modular Segment Pools (Single-Biome World Stitching)
+# Per-Biome Modular Segment Pools (Single-Biome World Stitching — On-Disk Biomes Only)
 BIOME_SEGMENT_POOLS = {
     biome: {
         "rooms": [f"maps/segments/{biome}/{biome}_room_{i}.json" for i in range(1, 5)],
@@ -308,14 +308,50 @@ BIOME_SEGMENT_POOLS = {
     for biome in ("windy_ridge", "pastoral_valley", "swamp_mire", "frozen_peaks", "tech_tower")
 }
 
-# Chronicle Biome Selection (Host-Driven Two-Act Setup)
+# Act-Keyed Segment Pools ((biome_id, act_number) -> {"rooms": [...], "corridors": [...]})
+BIOME_ACT_SEGMENT_POOLS = {
+    (biome, 1): {
+        "rooms": list(pool["rooms"]),
+        "corridors": list(pool["corridors"]),
+    }
+    for biome, pool in BIOME_SEGMENT_POOLS.items()
+}
+
+# Pass 2 Segment Fallback Mapping (used when a biome's segment folder is not yet on disk)
+BIOME_FALLBACK_MAP = {
+    "vitreous_basin": "frozen_peaks",
+    "sunlit_aqueducts": "pastoral_valley",
+}
+
+# 5-Act Unbound Chronicle Biome Selection & 7-Biome Roster (Section 12)
+MAX_ACTS = 5
 DEBUG_BIOME_SELECT = True
+CHRONICLE_BIOME_ROSTER = (
+    "windy_ridge",
+    "pastoral_valley",
+    "swamp_mire",
+    "frozen_peaks",
+    "tech_tower",
+    "vitreous_basin",
+    "sunlit_aqueducts",
+)
 BIOME_DISPLAY_NAMES = {
     "windy_ridge": "Windy Ridge",
     "pastoral_valley": "Pastoral Valley",
     "swamp_mire": "Swamp Mire",
     "frozen_peaks": "Frozen Peaks",
     "tech_tower": "Tech Tower",
+    "vitreous_basin": "The Vitreous Basin",
+    "sunlit_aqueducts": "The Sunlit Aqueducts",
+}
+BIOME_THEMES = {
+    "windy_ridge": "Highland Scriptorium & Gale Cliffs",
+    "pastoral_valley": "Sun-Drenched Meadow & Tar Sinks",
+    "swamp_mire": "Bruised Hive Peat & Spore Pools",
+    "frozen_peaks": "Rime-Frosted Slate & Mirror Ice",
+    "tech_tower": "Brushed Titanium & Data-Bus Gantries",
+    "vitreous_basin": "Sunken Glass & Refractive Salt Flats",
+    "sunlit_aqueducts": "Overgrown Terracotta & Moss Viaducts",
 }
 
 # Weather System: The Bleed (Shrinking Circle)
@@ -535,6 +571,38 @@ BIOME_PALETTES = {
         "wall_face": (52, 42, 34),
         "wall_mortar": (26, 20, 16),
         "wall_glow": (255, 195, 70)
+    },
+    "vitreous_basin": {
+        "floor_base": (152, 195, 212),
+        "floor_alt": (176, 218, 232),
+        "floor_accent": (228, 248, 255),
+        "floor_speck": (255, 255, 255),
+        "strata": [
+            ((86, 134, 162), (112, 164, 192)),
+            ((152, 195, 212), (176, 218, 232)),
+            ((212, 238, 246), (238, 250, 255))
+        ],
+        "wall_top": (168, 215, 232),
+        "wall_hi": (240, 252, 255),
+        "wall_face": (96, 142, 168),
+        "wall_mortar": (42, 68, 88),
+        "wall_glow": (180, 250, 255)
+    },
+    "sunlit_aqueducts": {
+        "floor_base": (168, 108, 72),
+        "floor_alt": (192, 128, 88),
+        "floor_accent": (88, 178, 96),
+        "floor_speck": (235, 204, 148),
+        "strata": [
+            ((42, 112, 128), (64, 144, 158)),
+            ((168, 108, 72), (192, 128, 88)),
+            ((92, 164, 84), (118, 192, 108))
+        ],
+        "wall_top": (186, 122, 82),
+        "wall_hi": (232, 184, 136),
+        "wall_face": (128, 76, 52),
+        "wall_mortar": (54, 32, 24),
+        "wall_glow": (132, 224, 124)
     }
 }
 
@@ -641,6 +709,79 @@ ACT2_HP_MULTIPLIER = 2.0
 ACT2_DAMAGE_MULTIPLIER = 2.0
 ACT2_ESCALATION_BANNER = "THE STORM DEEPENS — EMPOWERED FOES STIR"
 ACT2_ESCALATION_SFX = "bleed_start.ogg"
+
+# 5-Act Saturation / Escalation Matrix (Nights 1–5, Section 12.1)
+ACT_SATURATION_MATRIX = {
+    1: {
+        "act": 1,
+        "tier": "base",
+        "empowered": False,
+        "hp_multiplier": 1.0,
+        "damage_multiplier": 1.0,
+        "rain_dps": 2.0,
+        "page_yield_multiplier": 1.0,
+        "banner": "ACT I: THE FIRST FOLIO",
+        "label": "Night 1 — Low Saturation (Base Castes, 1.0x Pages)",
+    },
+    2: {
+        "act": 2,
+        "tier": "base",
+        "empowered": False,
+        "hp_multiplier": 1.25,
+        "damage_multiplier": 1.25,
+        "rain_dps": 2.5,
+        "page_yield_multiplier": 1.25,
+        "banner": "ACT II: THE SECOND FOLIO",
+        "label": "Night 2 — Rising Saturation (Base+ Castes, 1.25x Pages)",
+    },
+    3: {
+        "act": 3,
+        "tier": "empowered",
+        "empowered": True,
+        "hp_multiplier": 1.6,
+        "damage_multiplier": 1.6,
+        "rain_dps": 3.0,
+        "page_yield_multiplier": 1.5,
+        "banner": "ACT III: THE SATURATED MARGIN",
+        "label": "Night 3 — High Saturation (Empowered Castes, 1.5x Pages)",
+    },
+    4: {
+        "act": 4,
+        "tier": "empowered",
+        "empowered": True,
+        "hp_multiplier": 2.0,
+        "damage_multiplier": 2.0,
+        "rain_dps": 3.5,
+        "page_yield_multiplier": 1.75,
+        "banner": "ACT IV: THE DEEPENING BLEED",
+        "label": "Night 4 — Severe Saturation (Empowered Castes, 1.75x Pages)",
+    },
+    5: {
+        "act": 5,
+        "tier": "empowered",
+        "empowered": True,
+        "hp_multiplier": 2.5,
+        "damage_multiplier": 2.5,
+        "rain_dps": 4.0,
+        "page_yield_multiplier": 2.0,
+        "banner": "ACT V: THE FINAL FOLIO",
+        "label": "Night 5 — Abyssal Saturation (Saturated Castes, 2.0x Pages)",
+    },
+}
+
+
+def get_act_saturation(act_number: int) -> dict:
+    """Return the Act Saturation / Escalation config for the given Act (clamped to 1..MAX_ACTS)."""
+    clamped = max(1, min(MAX_ACTS, int(act_number or 1)))
+    return dict(ACT_SATURATION_MATRIX[clamped])
+
+
+def scale_pages_for_act(base_pages: int, act_number: int) -> int:
+    """Scale a positive Torn Page reward by the Act's saturation yield multiplier."""
+    if base_pages <= 0:
+        return int(base_pages)
+    mult = float(get_act_saturation(act_number).get("page_yield_multiplier", 1.0))
+    return max(1, int(round(base_pages * mult)))
 
 # Marginalia Event Engine Constants (Section 10)
 MARGINALIA_TRIGGER_CHANCE = 0.20
