@@ -48,16 +48,35 @@ def get_solid_obstacle_tiles(world) -> Set[Tuple[int, int]]:
     grid = getattr(world, "grid", None)
     h = len(grid) if grid else 0
     w = len(grid[0]) if h > 0 else 0
+    cur_len = len(interactables)
     sig = (
         id(interactables),
-        len(interactables),
+        cur_len,
         id(interactables[0]),
         id(interactables[-1]),
         w,
         h,
     )
-    if getattr(world, "_nav_solid_sig", None) == sig:
+    prev_sig = getattr(world, "_nav_solid_sig", None)
+    if prev_sig == sig:
         return getattr(world, "_nav_solid_tiles", set())
+
+    # Fast incremental check when non-solid items (e.g., Inkwell Puddles) are appended
+    if (
+        prev_sig is not None
+        and prev_sig[0] == sig[0]
+        and prev_sig[2] == sig[2]
+        and prev_sig[4] == w
+        and prev_sig[5] == h
+        and cur_len > prev_sig[1]
+    ):
+        prev_len = prev_sig[1]
+        if not any(
+            getattr(obj, "is_solid", False) and getattr(obj, "is_active", True)
+            for obj in interactables[prev_len:]
+        ):
+            world._nav_solid_sig = sig  # pylint: disable=protected-access
+            return getattr(world, "_nav_solid_tiles", set())
 
     blocked: Set[Tuple[int, int]] = set()
     for obj in interactables:

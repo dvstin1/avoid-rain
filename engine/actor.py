@@ -9,7 +9,9 @@ from enum import Enum, auto
 from engine.physics import check_aabb_collision, resolve_wall_collision
 from engine.pathfinding import find_path, has_line_of_sight
 from constants import (
+    ACTOR_ACTIVE_SIMULATION_RADIUS_TILES,
     DAMAGE_NUMBER_LIFETIME,
+    PATHFINDING_LOS_CACHE_INTERVAL,
     PATHFINDING_MAX_RADIUS_TILES,
     PATHFINDING_PATROL_REPATH_INTERVAL,
     PATHFINDING_REPATH_INTERVAL,
@@ -83,51 +85,123 @@ class Actor:
         self.active_target = None # (x, y) target for chasing/attacking
         self._nav_path = []
         self._nav_goal_tile = None
-        self._nav_repath_timer = 0.0
+        jitter_seed = (int(abs(x) * 17 + abs(y) * 31) % 37) / 37.0
+        self._nav_jitter = jitter_seed * 0.35
+        self._nav_repath_timer = self._nav_jitter
+        self._nav_los_clear = False
+        self._nav_los_timer = 0.0
+        self._nav_solid_sig = None
         self._returning_to_patrol = False
         self._patrol_stall_timer = 0.0
+
+    @staticmethod
+    def get_active_runner_positions(game_state):
+        """Return world-space centers of active runners (excluding Sanctuary Waiting Scholars)."""
+        cached = getattr(game_state, "_frame_runner_positions", None)
+        if cached is not None:
+            return cached
+        runners = []
+        player = getattr(game_state, "player", None)
+        if player is not None and hasattr(player, "get_center"):
+            runners.append(player.get_center())
+        in_sanctuary = bool(getattr(game_state, "in_sanctuary", False))
+        net = getattr(game_state, "network_manager", None)
+        for p_data in getattr(net, "remote_players", {}).values():
+            if not in_sanctuary and p_data.get("in_sanctuary", False):
+                continue
+            runners.append((float(p_data.get("x", 0.0)) + 20.0, float(p_data.get("y", 0.0)) + 20.0))
+        return runners
+
+    def is_within_active_simulation(self, game_state):
+        """Return True if actor should run full AI/pathfinding this frame."""
+        if getattr(self, "persistent_pursuit", False):
+            return True
+        if self.name in ("Night Boss", "The Final Author", "The Chronicler") or self.__class__.__name__ in (
+            "NightBoss",
+            "FinalAuthor",
+        ):
+            return True
+        if self.bleed_timer > 0 or self.stagger_timer > 0:
+            return True
+        if self.state in (ActorState.WIND_UP, ActorState.STRIKE, ActorState.RECOVERY, ActorState.CHASE):
+            return True
+
+        runners = self.get_active_runner_positions(game_state)
+        if not runners:
+            return True
+        cx, cy = self.get_center()
+        sim_rad_sq = (ACTOR_ACTIVE_SIMULATION_RADIUS_TILES * TILE_SIZE) ** 2
+        for rx, ry in runners:
+            if (cx - rx) ** 2 + (cy - ry) ** 2 <= sim_rad_sq:
+                return True
+        return False
 
     def _clear_nav_path(self):
         """Reset cached A* waypoints and repath timer."""
         self._nav_path = []
         self._nav_goal_tile = None
         self._nav_repath_timer = 0.0
+        self._nav_los_clear = False
+        self._nav_los_timer = 0.0
 
     def _get_navigation_waypoint(self, dt, game_state, target_x, target_y, repath_interval=PATHFINDING_REPATH_INTERVAL):
         """Return next world-space steering point toward (target_x, target_y) using A* when blocked."""
         self._nav_repath_timer = max(0.0, self._nav_repath_timer - dt)
+        self._nav_los_timer = max(0.0, self._nav_los_timer - dt)
         world = getattr(game_state, "world", None)
         if world is None or not getattr(world, "grid", None):
             return (target_x, target_y)
 
         cx, cy = self.get_center()
-        if has_line_of_sight(world, (cx, cy), (target_x, target_y)):
-            self._clear_nav_path()
-            return (target_x, target_y)
-
-        while self._nav_path:
-            wx, wy = self._nav_path[0]
-            if (wx - cx) ** 2 + (wy - cy) ** 2 <= PATHFINDING_WAYPOINT_REACH_PX ** 2:
-                self._nav_path.pop(0)
-            else:
-                break
-
         goal_tile = (int(target_x // TILE_SIZE), int(target_y // TILE_SIZE))
         goal_moved = (
             self._nav_goal_tile is None
             or abs(goal_tile[0] - self._nav_goal_tile[0]) > 1
             or abs(goal_tile[1] - self._nav_goal_tile[1]) > 1
         )
-        if not self._nav_path or self._nav_repath_timer <= 0.0 or goal_moved:
-            self._nav_path = find_path(world, (cx, cy), (target_x, target_y))
-            self._nav_goal_tile = goal_tile
-            self._nav_repath_timer = repath_interval
-            while self._nav_path:
-                wx, wy = self._nav_path[0]
-                if (wx - cx) ** 2 + (wy - cy) ** 2 <= PATHFINDING_WAYPOINT_REACH_PX ** 2:
-                    self._nav_path.pop(0)
-                else:
-                    break
+        solid_sig = getattr(world, "_nav_solid_sig", None)
+        if solid_sig is not None and solid_sig != self._nav_solid_sig:
+            self._nav_solid_sig = solid_sig
+            self._nav_los_timer = 0.0
+
+        # Fast path 1: Cached clear line-of-sight on current leg
+        if not goal_moved and self._nav_los_clear and self._nav_los_timer > 0.0:
+            return (target_x, target_y)
+
+        # Fast path 2: Active A* waypoint list still valid before repath timer expires
+        while self._nav_path:
+            wx, wy = self._nav_path[0]
+            if (wx - cx) ** 2 + (wy - cy) ** 2 <= PATHFINDING_WAYPOINT_REACH_PX ** 2:
+                self._nav_path.pop(0)
+            else:
+                break
+        if self._nav_path and not goal_moved and self._nav_repath_timer > 0.0:
+            return self._nav_path[0]
+
+        # Re-evaluate LOS / A* only when timer expires or target tile moved
+        if goal_moved or self._nav_los_timer <= 0.0 or self._nav_repath_timer <= 0.0:
+            los_interval = max(PATHFINDING_LOS_CACHE_INTERVAL, repath_interval * 0.5) + self._nav_jitter
+            if has_line_of_sight(world, (cx, cy), (target_x, target_y)):
+                self._nav_solid_sig = getattr(world, "_nav_solid_sig", None)
+                self._nav_goal_tile = goal_tile
+                self._nav_path = []
+                self._nav_los_clear = True
+                self._nav_los_timer = los_interval
+                return (target_x, target_y)
+
+            self._nav_solid_sig = getattr(world, "_nav_solid_sig", None)
+            self._nav_los_clear = False
+            self._nav_los_timer = los_interval
+            if goal_moved or self._nav_repath_timer <= 0.0:
+                self._nav_path = find_path(world, (cx, cy), (target_x, target_y))
+                self._nav_goal_tile = goal_tile
+                self._nav_repath_timer = repath_interval + self._nav_jitter
+                while self._nav_path:
+                    wx, wy = self._nav_path[0]
+                    if (wx - cx) ** 2 + (wy - cy) ** 2 <= PATHFINDING_WAYPOINT_REACH_PX ** 2:
+                        self._nav_path.pop(0)
+                    else:
+                        break
 
         if self._nav_path:
             return self._nav_path[0]
@@ -202,6 +276,11 @@ class Actor:
 
     def update(self, dt, state):
         """Unified state machine update."""
+        if not self.is_within_active_simulation(state):
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
         self.animation_timer += dt
 
         # Bleed ticking (applied even if staggered)
@@ -272,15 +351,8 @@ class Actor:
         if self.state in (ActorState.WIND_UP, ActorState.STRIKE, ActorState.RECOVERY):
             return
 
-        # 1. Identify all potential targets (Local + Remote)
-        targets = []
-        if game_state.player:
-            targets.append(game_state.player.get_center())
-        
-        for p_data in getattr(game_state.network_manager, 'remote_players', {}).values():
-            tx = p_data["x"] + 20 # Center estimate
-            ty = p_data["y"] + 20
-            targets.append((tx, ty))
+        # 1. Identify all potential targets (Local + Remote active runners)
+        targets = self.get_active_runner_positions(game_state)
 
         # 2. Find Nearest Target
         cx, cy = self.get_center()

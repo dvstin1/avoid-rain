@@ -1125,8 +1125,14 @@ class GameState:
 
         # 3. AI & COMBAT
         if not is_client and not (hasattr(self, 'warp_controller') and self.warp_controller.blocks_enemy_updates()):
-            for enemy in self.enemies: enemy.update(dt, self)
-            
+            from engine.actor import Actor
+            self._frame_runner_positions = Actor.get_active_runner_positions(self)
+            try:
+                for enemy in self.enemies:
+                    enemy.update(dt, self)
+            finally:
+                self._frame_runner_positions = None
+
             # --- Phase 1 & 4: Host World Events ---
             self._update_world_events(dt)
             
@@ -2012,6 +2018,8 @@ class GameState:
             self.camera.world_h = len(self.world.grid) * TILE_SIZE
             if self.player:
                 self.camera.instant_center(self.player.get_center())
+
+        LevelLoader.link_actors_to_routes(self)
 
     def start_chronicle_run(self, choices=None):
         """Generate all 5 Act single-biome worlds upfront and enter Act 1."""

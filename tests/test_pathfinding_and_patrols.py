@@ -10,9 +10,24 @@ import json
 import time
 from types import SimpleNamespace
 
-from constants import BIOME_SEGMENT_POOLS, TILE_EMPTY, TILE_SIZE, TILE_WALL
+from constants import (
+    ACTOR_ACTIVE_SIMULATION_RADIUS_TILES,
+    BIOME_SEGMENT_POOLS,
+    TILE_EMPTY,
+    TILE_SIZE,
+    TILE_WALL,
+)
 from engine.actor import ActorState
-from engine.enemy import BatEnemy, FlutterEnemy, PunctuationWolfEnemy, SentryEnemy, SlugEnemy
+from engine.enemy import (
+    BatEnemy,
+    FinalAuthor,
+    FlutterEnemy,
+    NightBoss,
+    PunctuationWolfEnemy,
+    SentryEnemy,
+    SlugEnemy,
+    SmearEnemy,
+)
 from engine.maps import create_world
 from engine.pathfinding import find_path, get_solid_obstacle_tiles, has_line_of_sight
 from engine.player import Player
@@ -287,3 +302,66 @@ def test_generated_segments_have_patrols_and_macro_world_links_routes():
             assert dx < 40 * TILE_SIZE and dy < 40 * TILE_SIZE, (
                 f"Cross-room route collision detected for {enemy.name}: {pts[idx].route_id}"
             )
+
+
+def test_active_simulation_radius_sleep_and_exemptions():
+    """Verify distant actors sleep outside ACTOR_ACTIVE_SIMULATION_RADIUS_TILES while bosses,
+    persistent_pursuit hunters, and active remote runners (excluding Waiting Scholars) work properly."""
+    world = World("sim_cull_test")
+    world.grid = [[TILE_EMPTY for _ in range(160)] for _ in range(160)]
+    state = _make_minimal_state(world, (10 * TILE_SIZE, 10 * TILE_SIZE))
+    state.in_sanctuary = False
+
+    far_px = (10 + ACTOR_ACTIVE_SIMULATION_RADIUS_TILES + 25) * TILE_SIZE
+    far_slug = SlugEnemy(far_px, far_px)
+    far_smear = SmearEnemy(far_px + 40, far_px)
+    far_smear._puddle_timer = 1.5
+    p1 = PatrolPoint((far_px + 120, far_px), route_id="far_r", symbol_idx=1, wait_min=0.0, wait_max=0.0)
+    far_slug.patrol_route = [p1]
+
+    # 1. Distant standard enemies sleep and do not move or drop off-screen puddles
+    assert far_slug.is_within_active_simulation(state) is False
+    assert far_smear.is_within_active_simulation(state) is False
+    initial_inter_count = len(world.interactables)
+    far_slug.update(0.1, state)
+    far_smear.update(0.1, state)
+    assert far_slug.x == far_px
+    assert len(world.interactables) == initial_inter_count
+
+    # 2. A Waiting Scholar in Sanctuary at far_px does NOT wake macro-world enemies
+    state.network_manager.remote_players["waiting_peer"] = {
+        "x": far_px,
+        "y": far_px,
+        "in_sanctuary": True,
+    }
+    assert far_slug.is_within_active_simulation(state) is False
+
+    # 3. An active remote runner in the macro-world at far_px DOES wake nearby enemies
+    state.network_manager.remote_players["active_peer"] = {
+        "x": far_px,
+        "y": far_px,
+        "in_sanctuary": False,
+    }
+    assert far_slug.is_within_active_simulation(state) is True
+    state.network_manager.remote_players.clear()
+
+    # 4. Exemptions: persistent_pursuit hunters and bosses never sleep even when far away
+    far_hunter = SlugEnemy(far_px, far_px)
+    far_hunter.persistent_pursuit = True
+    far_night_boss = NightBoss(far_px, far_px)
+    far_author = FinalAuthor(far_px, far_px)
+    assert far_hunter.is_within_active_simulation(state) is True
+    assert far_night_boss.is_within_active_simulation(state) is True
+    assert far_author.is_within_active_simulation(state) is True
+
+    # 5. Appending a non-solid Inkwell Puddle reuses the cached solid obstacle tile set
+    solid_prop = GameObject((4 * TILE_SIZE, 4 * TILE_SIZE), (TILE_SIZE, TILE_SIZE))
+    solid_prop.is_solid = True
+    world.interactables.append(solid_prop)
+    tiles_before = get_solid_obstacle_tiles(world)
+    puddle = GameObject((5 * TILE_SIZE, 5 * TILE_SIZE), (TILE_SIZE, TILE_SIZE))
+    puddle.is_solid = False
+    puddle.name = "Inkwell Puddle"
+    world.interactables.append(puddle)
+    tiles_after = get_solid_obstacle_tiles(world)
+    assert tiles_after is tiles_before

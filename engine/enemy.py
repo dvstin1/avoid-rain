@@ -437,12 +437,7 @@ class FlutterEnemy(Enemy):
 
     def _update_state_logic(self, dt, state):
         """Override to always CHASE (flee) when player detected."""
-        targets = []
-        if state.player:
-            targets.append(state.player.get_center())
-        remote_data = getattr(state.network_manager, 'remote_players', {})
-        for p_data in remote_data.values():
-            targets.append((p_data["x"] + 20, p_data["y"] + 20))
+        targets = self.get_active_runner_positions(state)
 
         cx, cy = self.get_center()
         best_dist_sq = float('inf')
@@ -500,7 +495,12 @@ class SmearEnemy(Enemy):
         self._puddle_timer = 0.0
 
     def update(self, dt, state):
-        """Custom update to handle periodic puddle drops."""
+        """Custom update to handle periodic puddle drops when within active simulation."""
+        if not self.is_within_active_simulation(state):
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
         # Process puddle timer regardless of stagger
         self._puddle_timer += dt
         from constants import SMEAR_PUDDLE_CHANCE
