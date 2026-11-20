@@ -27,11 +27,11 @@
 - **Chapter Titles:** [DONE] Large typographic overlays (Typographic Bloom) when entering new modular zones and climatic weather transitions.
 
 ## 4. Technical & Navigation (Future Phases)
-- **A* Pathfinding:** Implement a dedicated pathfinding engine to allow Actors (Enemies and NPCs) to navigate around walls and obstacles autonomously.
-    - **Dynamic Calculation:** Instead of simple linear vectors, actors will compute a tile-based route to their next PatrolPoint.
-    - **Optimization:** Utilize a heat-map or hierarchical A* to manage the large 440x440 grid efficiently in Python.
-    - **Obstacle Awareness:** Pathfinding must account for both static wall tiles and solid GameObjects (Bookcases, Candelabras).
-    - **Interim Complementary Hook (Breadcrumb Pursuit):** For `"global_pursuit"` Marginalia events (see Section 10), `EnemyBase.persistent_pursuit = True` pairs with a lightweight **player movement breadcrumb trail** and brief wall-phase fallback if stalled—providing an immediate map-wide hunter navigation path that later upgrades cleanly onto A* without architectural conflict.
+- **A* Pathfinding:** [DONE] Implemented a dedicated headless pathfinding engine (`engine/pathfinding.py`) allowing Actors (Enemies and NPCs) to navigate around walls and solid props autonomously.
+    - **Dynamic Calculation:** Actors compute corner-safe 8-way smoothed tile routes (`find_path`, `has_line_of_sight`) for patrol navigation, chase detours, and returning to their nearest patrol marker after breaking aggro.
+    - **Optimization:** Uses bounded search radius (`PATHFINDING_MAX_RADIUS_TILES`), node expansion budget (`PATHFINDING_MAX_NODES`), per-actor repath throttling, and spatial-signature cached solid-prop footprints (`get_solid_obstacle_tiles`) for 60fps performance on 440x440 grids.
+    - **Obstacle Awareness:** Accounts for both static `TILE_WALL` tiles and active solid `GameObject` footprints (Bookcases, Candelabras, Rocks/Pillars, Barrels).
+    - **Live Map Patrols & Breadcrumb Pursuit:** `generate_maps.py` places multi-point Stanza patrol routes (`_place_patrol_routes`) across all 7 biome segment pools with socket-scoped `route_id` namespacing in `LevelLoader.load_json_map()`. `persistent_pursuit` Marginalia hunters use A* within local search range and seamlessly fall back to player breadcrumbs + wall-phase at long range.
 
 ## 5. Network & Multiplayer Stabilization (Completed)
 - **LAN Multiplayer:** [DONE] Implemented UDP broadcast (`SO_BROADCAST`), lobby discovery, and TCP socket handshake.

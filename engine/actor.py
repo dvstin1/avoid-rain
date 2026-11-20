@@ -7,7 +7,17 @@ import math
 import random
 from enum import Enum, auto
 from engine.physics import check_aabb_collision, resolve_wall_collision
-from constants import TILE_SIZE, DAMAGE_NUMBER_LIFETIME
+from engine.pathfinding import find_path, has_line_of_sight
+from constants import (
+    DAMAGE_NUMBER_LIFETIME,
+    PATHFINDING_MAX_RADIUS_TILES,
+    PATHFINDING_PATROL_REPATH_INTERVAL,
+    PATHFINDING_REPATH_INTERVAL,
+    PATHFINDING_WAYPOINT_REACH_PX,
+    PATROL_RETURN_SPEED_MULTIPLIER,
+    PATROL_STALL_SKIP_TIME,
+    TILE_SIZE,
+)
 
 class ActorState(Enum):
     IDLE = auto()        # Waiting or wandering
@@ -71,6 +81,57 @@ class Actor:
         self.is_solid = False
         self.loot_tier = 3
         self.active_target = None # (x, y) target for chasing/attacking
+        self._nav_path = []
+        self._nav_goal_tile = None
+        self._nav_repath_timer = 0.0
+        self._returning_to_patrol = False
+        self._patrol_stall_timer = 0.0
+
+    def _clear_nav_path(self):
+        """Reset cached A* waypoints and repath timer."""
+        self._nav_path = []
+        self._nav_goal_tile = None
+        self._nav_repath_timer = 0.0
+
+    def _get_navigation_waypoint(self, dt, game_state, target_x, target_y, repath_interval=PATHFINDING_REPATH_INTERVAL):
+        """Return next world-space steering point toward (target_x, target_y) using A* when blocked."""
+        self._nav_repath_timer = max(0.0, self._nav_repath_timer - dt)
+        world = getattr(game_state, "world", None)
+        if world is None or not getattr(world, "grid", None):
+            return (target_x, target_y)
+
+        cx, cy = self.get_center()
+        if has_line_of_sight(world, (cx, cy), (target_x, target_y)):
+            self._clear_nav_path()
+            return (target_x, target_y)
+
+        while self._nav_path:
+            wx, wy = self._nav_path[0]
+            if (wx - cx) ** 2 + (wy - cy) ** 2 <= PATHFINDING_WAYPOINT_REACH_PX ** 2:
+                self._nav_path.pop(0)
+            else:
+                break
+
+        goal_tile = (int(target_x // TILE_SIZE), int(target_y // TILE_SIZE))
+        goal_moved = (
+            self._nav_goal_tile is None
+            or abs(goal_tile[0] - self._nav_goal_tile[0]) > 1
+            or abs(goal_tile[1] - self._nav_goal_tile[1]) > 1
+        )
+        if not self._nav_path or self._nav_repath_timer <= 0.0 or goal_moved:
+            self._nav_path = find_path(world, (cx, cy), (target_x, target_y))
+            self._nav_goal_tile = goal_tile
+            self._nav_repath_timer = repath_interval
+            while self._nav_path:
+                wx, wy = self._nav_path[0]
+                if (wx - cx) ** 2 + (wy - cy) ** 2 <= PATHFINDING_WAYPOINT_REACH_PX ** 2:
+                    self._nav_path.pop(0)
+                else:
+                    break
+
+        if self._nav_path:
+            return self._nav_path[0]
+        return (target_x, target_y)
 
     def get_visual_packet(self):
         """Returns a composable packet of visual intents for the renderer."""
@@ -233,6 +294,7 @@ class Actor:
                 self.active_target = (tx, ty)
 
         # 3. State Transitions based on Target
+        prev_state = self.state
         in_pursuit = bool(getattr(self, "persistent_pursuit", False))
         if self.active_target and (in_pursuit or best_dist_sq <= self.detect_radius**2):
             # If close enough and off cooldown, trigger attack sequence
@@ -241,6 +303,7 @@ class Actor:
                 self.combat_timer = self.wind_up_duration
                 self.vx, self.vy = 0, 0 # Stop movement to wind up
                 self.has_hit_this_attack = False # Reset damage latch
+                self._clear_nav_path()
 
                 # Auditory Trigger (Telegraph)
                 if hasattr(game_state, 'audio_manager') and game_state.audio_manager:
@@ -258,11 +321,29 @@ class Actor:
                     else:
                         game_state.audio_manager.play_sfx("enemy_telegraph.ogg")
             else:
+                if prev_state != ActorState.CHASE:
+                    self._clear_nav_path()
+                    self._patrol_stall_timer = 0.0
                 self.state = ActorState.CHASE
             return
 
-        # If not chasing/engaged, and has route + not stationary, patrol
+        # If not chasing/engaged, and has route + not stationary, patrol (or return to patrol)
         if self.patrol_route and not self.is_stationary:
+            if prev_state != ActorState.PATROLLING:
+                # Re-anchor to the nearest waypoint on our patrol route when returning from chase/combat
+                nearest_idx = min(
+                    range(len(self.patrol_route)),
+                    key=lambda idx: (
+                        (self.patrol_route[idx].x + self.patrol_route[idx].width / 2 - cx) ** 2
+                        + (self.patrol_route[idx].y + self.patrol_route[idx].height / 2 - cy) ** 2
+                    ),
+                )
+                self.patrol_idx = nearest_idx
+                if prev_state == ActorState.CHASE:
+                    self._returning_to_patrol = True
+                    self.wait_timer = 0.0
+                self._patrol_stall_timer = 0.0
+                self._clear_nav_path()
             self.state = ActorState.PATROLLING
         else:
             self.state = ActorState.IDLE
@@ -302,7 +383,7 @@ class Actor:
             self.cooldown_timer = self.attack_cooldown
 
     def _update_patrol(self, dt, game_state):
-        """Move toward the current patrol point."""
+        """Move toward the current patrol point using A* pathfinding around obstacles."""
         if self.wait_timer > 0:
             self.wait_timer -= dt
             self.vx, self.vy = 0, 0
@@ -313,28 +394,51 @@ class Actor:
             return
 
         target = self.patrol_route[self.patrol_idx]
-        # Target center calculation
         tx = target.x + target.width / 2
         ty = target.y + target.height / 2
-        
+
         cx, cy = self.get_center()
-        dx, dy = tx - cx, ty - cy
-        dist_sq = dx*dx + dy*dy
-        
-        if dist_sq < 100: # Reached marker (within 10 pixels)
+        dx_goal, dy_goal = tx - cx, ty - cy
+        dist_sq_goal = dx_goal * dx_goal + dy_goal * dy_goal
+
+        if dist_sq_goal < 100:  # Reached marker (within 10 pixels)
             self._on_reach_marker(target)
             return
 
-        dist = math.sqrt(dist_sq)
-        move_speed = self.speed * self.patrol_speed_multiplier
+        nav_x, nav_y = self._get_navigation_waypoint(
+            dt, game_state, tx, ty, repath_interval=PATHFINDING_PATROL_REPATH_INTERVAL
+        )
+        dx, dy = nav_x - cx, nav_y - cy
+        dist = math.hypot(dx, dy)
+        if dist <= 0.001:
+            dx, dy = dx_goal, dy_goal
+            dist = math.sqrt(dist_sq_goal)
+
+        speed_mult = (
+            max(self.patrol_speed_multiplier, PATROL_RETURN_SPEED_MULTIPLIER)
+            if self._returning_to_patrol
+            else self.patrol_speed_multiplier
+        )
+        move_speed = self.speed * speed_mult
+        prev_x, prev_y = self.x, self.y
         self.vx, self.vy = (dx / dist) * move_speed, (dy / dist) * move_speed
-        
+
         self.x += self.vx * dt
         self.y += self.vy * dt
-        
+
         # Resolve collisions
         walls = game_state.world.get_nearby_walls(self.get_rect())
         self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+
+        moved = math.hypot(self.x - prev_x, self.y - prev_y)
+        if move_speed > 0 and moved < move_speed * dt * 0.1:
+            self._patrol_stall_timer += dt
+            if self._patrol_stall_timer >= PATROL_STALL_SKIP_TIME:
+                self._patrol_stall_timer = 0.0
+                self._clear_nav_path()
+                self.patrol_idx = (self.patrol_idx + 1) % len(self.patrol_route)
+        else:
+            self._patrol_stall_timer = 0.0
 
     def _on_reach_marker(self, marker):
         """Handle reaching a patrol point."""
@@ -342,32 +446,45 @@ class Actor:
         wait_min = getattr(marker, 'wait_min', 2.0)
         wait_max = getattr(marker, 'wait_max', 5.0)
         self.wait_timer = random.uniform(wait_min, wait_max)
-        
+        self._returning_to_patrol = False
+        self._patrol_stall_timer = 0.0
+        self._clear_nav_path()
+
         # Advance index
         self.patrol_idx = (self.patrol_idx + 1) % len(self.patrol_route)
-        # print(f"[ACTOR] {self.name} reached marker. Waiting {self.wait_timer:.1f}s")
 
     def _update_chase(self, dt, game_state):
-        """Aggressive pursuit logic, supporting breadcrumb pursuit and wall-phase fallback."""
+        """Aggressive pursuit logic with A* pathfinding, breadcrumb pursuit, and wall-phase fallback."""
         if not self.active_target:
             self.state = ActorState.IDLE
             return
-            
+
         target_cx, target_cy = self.active_target
         cx, cy = self.get_center()
         in_pursuit = bool(getattr(self, "persistent_pursuit", False))
         if in_pursuit:
-            breadcrumbs = getattr(game_state, "player_breadcrumbs", None) or []
-            if breadcrumbs and (target_cx - cx) ** 2 + (target_cy - cy) ** 2 > (TILE_SIZE * 3) ** 2:
-                # Choose the furthest breadcrumb along the trail within 6 tiles of the hunter
-                reach_sq = (TILE_SIZE * 6) ** 2
-                for bx, by in reversed(breadcrumbs):
-                    if (bx - cx) ** 2 + (by - cy) ** 2 <= reach_sq:
-                        target_cx, target_cy = bx, by
-                        break
+            max_astar_px = PATHFINDING_MAX_RADIUS_TILES * TILE_SIZE
+            if abs(target_cx - cx) <= max_astar_px and abs(target_cy - cy) <= max_astar_px:
+                nav_x, nav_y = self._get_navigation_waypoint(
+                    dt, game_state, target_cx, target_cy, repath_interval=PATHFINDING_REPATH_INTERVAL
+                )
+                target_cx, target_cy = nav_x, nav_y
+            else:
+                breadcrumbs = getattr(game_state, "player_breadcrumbs", None) or []
+                if breadcrumbs and (target_cx - cx) ** 2 + (target_cy - cy) ** 2 > (TILE_SIZE * 3) ** 2:
+                    # Choose the furthest breadcrumb along the trail within 6 tiles of the hunter
+                    reach_sq = (TILE_SIZE * 6) ** 2
+                    for bx, by in reversed(breadcrumbs):
+                        if (bx - cx) ** 2 + (by - cy) ** 2 <= reach_sq:
+                            target_cx, target_cy = bx, by
+                            break
+        else:
+            target_cx, target_cy = self._get_navigation_waypoint(
+                dt, game_state, target_cx, target_cy, repath_interval=PATHFINDING_REPATH_INTERVAL
+            )
 
         dx, dy = target_cx - cx, target_cy - cy
-        dist = math.sqrt(dx*dx + dy*dy)
+        dist = math.sqrt(dx * dx + dy * dy)
         
         if dist > 0:
             prev_x, prev_y = self.x, self.y

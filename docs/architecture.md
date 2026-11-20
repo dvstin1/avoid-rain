@@ -55,9 +55,10 @@ Upon defeating a Night Boss, "The Bleed" enters the **Dilution** phase.
 The weather system state machine, particle calculations, and damage logic are strictly decoupled from the hub map.
 - **The Hub Gate:** If the current map identifier equals `"sanctuary"`, the weather update thread exits immediately. The system remains completely dormant while the player is inside the hub.
 
-## 5. Physics & Collision Architecture
+## 5. Physics, Collision & A* Pathfinding Architecture
 - **Order of Operations:** 1. Apply Velocity -> 2. Resolve Wall Collisions (AABB) -> 3. Boundary Clamp -> 4. Finalize Coordinates.
 - **Normalization:** Movement vectors are normalized to ensure consistent diagonal speed.
+- **A* Pathfinding & Stanza Patrols (`engine/pathfinding.py`, `engine/actor.py`):** Corner-safe 8-way A* (`find_path`, `has_line_of_sight`) with bounded search radius (`PATHFINDING_MAX_RADIUS_TILES`), node budget (`PATHFINDING_MAX_NODES`), per-actor repath intervals, and cached solid `GameObject` tile footprints (`get_solid_obstacle_tiles`). Enemies navigate around walls and furniture during `PATROLLING`, `CHASE`, and return-to-patrol transitions (re-anchoring to the nearest `PatrolPoint` on their socket-scoped route after breaking aggro).
 - **Soft-Body Repulsion:** Mobile entities (Player/Enemies) calculate separation vectors upon overlap to prevent graphic clipping.
 - **Global Coordinates:** Collision subroutines evaluate position against the master 440x440 grid. Local module boundaries must be passed seamlessly.
 

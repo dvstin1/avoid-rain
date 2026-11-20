@@ -592,11 +592,17 @@ class LevelLoader:
                     for x_p, char_p in enumerate(row_p):
                         grid[b["y"] + y_p][b["x"] + x_p] = char_p
                 
-                # Stitch entities
+                # Stitch entities (namespace patrol route_ids per socket to prevent cross-room collisions)
+                socket_id = socket.get("name") or f"{b['x']}_{b['y']}"
                 for key, e_val in plug_data.get("entities", {}).items():
                     px_p, py_p = map(int, key.split(','))
                     new_key = f"{b['x'] + px_p},{b['y'] + py_p}"
-                    raw_entities[new_key] = e_val
+                    if isinstance(e_val, dict) and e_val.get("route_id") and e_val.get("route_id") != "default":
+                        scoped = dict(e_val)
+                        scoped["route_id"] = f"{socket_id}:{e_val['route_id']}"
+                        raw_entities[new_key] = scoped
+                    else:
+                        raw_entities[new_key] = e_val
             except Exception as e:
                 print(f"[ERROR] Modular stitch failed for {active_plug}: {e}")
 
@@ -894,33 +900,42 @@ class LevelLoader:
                 all_actors.append(obj)
         
         markers = [obj for obj in game_state.world.interactables if isinstance(obj, PatrolPoint)]
-        
+        if not markers:
+            return
+
+        route_by_id = {}
+        for m in markers:
+            if m.route_id != "default":
+                route_by_id.setdefault(m.route_id, []).append(m)
+        for r_list in route_by_id.values():
+            r_list.sort(key=lambda x: x.symbol_idx)
+
+        linked_count = 0
         for actor in all_actors:
             # Rule: Only if actor has no route and is not stationary
             if actor.patrol_route or actor.is_stationary:
                 continue
-                
+
             ax, ay = actor.get_center()
             # 1. Find nearest marker (within 20 tiles for robustness)
             nearest = None
             min_dist_sq = (20 * TILE_SIZE)**2
-            
+
             for m in markers:
                 # Caste Filter Check
                 if m.caste_filter and actor.__class__.__name__ not in m.caste_filter:
                     continue
-                    
+
                 mx, my = m.x + m.width/2, m.y + m.height/2
                 dist_sq = (ax - mx)**2 + (ay - my)**2
                 if dist_sq < min_dist_sq:
                     min_dist_sq = dist_sq
                     nearest = m
-            
+
             if nearest:
                 # 2. Gather all markers in the same logical route
-                # Rule: Same route_id OR spatially connected chain
                 if nearest.route_id != "default":
-                    route = [m for m in markers if m.route_id == nearest.route_id]
+                    route = list(route_by_id.get(nearest.route_id, [nearest]))
                 else:
                     # Spatially Connected Discovery:
                     # Find all 'default' markers reachable in steps of 10 tiles
@@ -930,7 +945,7 @@ class LevelLoader:
                         curr = to_check.pop(0)
                         if curr in route: continue
                         route.append(curr)
-                        
+
                         cx, cy = curr.x + curr.width/2, curr.y + curr.height/2
                         for m in markers:
                             if m.route_id == "default" and m not in route:
@@ -938,13 +953,14 @@ class LevelLoader:
                                 d_sq = (cx - mx)**2 + (cy - my)**2
                                 if d_sq <= (10 * TILE_SIZE)**2:
                                     to_check.append(m)
+                    route.sort(key=lambda x: x.symbol_idx)
 
-                # Sort by symbol index
-                route.sort(key=lambda x: x.symbol_idx)
                 actor.patrol_route = route
                 # Start at the nearest marker
                 actor.patrol_idx = route.index(nearest)
-                print(f"[STANZA] Actor {actor.name} anchored to route '{nearest.route_id}' ({len(route)} points)")
+                linked_count += 1
+        if linked_count:
+            print(f"[STANZA] Linked {linked_count} actors to patrol routes.")
 
 class World:
     """Manages the tile-based world map.

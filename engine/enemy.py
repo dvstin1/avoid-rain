@@ -171,30 +171,31 @@ class BatEnemy(Enemy):
         return packet
 
     def _update_chase(self, dt, state):
-        """Move toward the active target with a sine-wave oscillation."""
+        """Move toward the active target via A* waypoints with a sine-wave oscillation."""
         if not self.active_target:
             self.state = ActorState.IDLE
             return
 
         target_cx, target_cy = self.active_target
+        nav_x, nav_y = self._get_navigation_waypoint(dt, state, target_cx, target_cy)
         cx, cy = self.get_center()
-        dx, dy = target_cx - cx, target_cy - cy
-        dist = math.sqrt(dx*dx + dy*dy)
+        dx, dy = nav_x - cx, nav_y - cy
+        dist = math.sqrt(dx * dx + dy * dy)
 
         if dist > 0.0:
             # Pursuit vector
             vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
-            
+
             # Erratic sine wave perpendicular to movement
             self._angle += dt * 10.0
             perp_x, perp_y = -vy, vx
-            
+
             self.vx = vx + perp_x * math.sin(self._angle)
             self.vy = vy + perp_y * math.sin(self._angle)
-            
+
             self.x += self.vx * dt
             self.y += self.vy * dt
-            
+
             walls = state.world.get_nearby_walls(self.get_rect())
             self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
 
@@ -452,8 +453,26 @@ class FlutterEnemy(Enemy):
                 best_dist_sq = d_sq
                 self.active_target = (tx, ty)
 
+        prev_state = self.state
         if self.active_target and best_dist_sq <= self.detect_radius**2:
+            if prev_state != ActorState.CHASE:
+                self._clear_nav_path()
             self.state = ActorState.CHASE
+        elif self.patrol_route and not self.is_stationary:
+            if prev_state != ActorState.PATROLLING:
+                nearest_idx = min(
+                    range(len(self.patrol_route)),
+                    key=lambda idx: (
+                        (self.patrol_route[idx].x + self.patrol_route[idx].width / 2 - cx) ** 2
+                        + (self.patrol_route[idx].y + self.patrol_route[idx].height / 2 - cy) ** 2
+                    ),
+                )
+                self.patrol_idx = nearest_idx
+                if prev_state == ActorState.CHASE:
+                    self._returning_to_patrol = True
+                    self.wait_timer = 0.0
+                self._clear_nav_path()
+            self.state = ActorState.PATROLLING
         else:
             self.state = ActorState.IDLE
 
@@ -551,21 +570,28 @@ class SentryEnemy(Enemy):
         return (x, y, w, h)
 
     def _update_chase(self, dt, state):
-        """Maintain artillery spacing, orbit target, and fire beam when within range."""
+        """Maintain artillery spacing, route around obstacles, and fire beam when in range & sight."""
         if not self.active_target:
             self.state = ActorState.IDLE
             return
+
+        from engine.pathfinding import has_line_of_sight
 
         target_cx, target_cy = self.active_target
         cx, cy = self.get_center()
         dx, dy = target_cx - cx, target_cy - cy
         dist = math.sqrt(dx * dx + dy * dy)
+        world = getattr(state, "world", None)
+        clear_shot = world is None or not getattr(world, "grid", None) or has_line_of_sight(
+            world, (cx, cy), (target_cx, target_cy)
+        )
 
-        if dist <= self.beam_range and self.cooldown_timer <= 0:
+        if dist <= self.beam_range and self.cooldown_timer <= 0 and clear_shot:
             self.state = ActorState.WIND_UP
             self.combat_timer = self.wind_up_duration
             self.vx, self.vy = 0.0, 0.0
             self.has_hit_this_attack = False
+            self._clear_nav_path()
             if dist > 0.1:
                 self.facing = (dx / dist, dy / dist)
             if hasattr(state, "audio_manager") and state.audio_manager:
@@ -573,23 +599,33 @@ class SentryEnemy(Enemy):
             return
 
         if dist > 0.1:
-            ux, uy = dx / dist, dy / dist
-            px, py = -uy * self._orbit_dir, ux * self._orbit_dir
-            if dist < 110.0:
-                self.vx = (-ux * 0.75 + px * 0.65) * self.speed
-                self.vy = (-uy * 0.75 + py * 0.65) * self.speed
-            elif dist > self.beam_range * 0.9:
-                self.vx = (ux * 0.8 + px * 0.4) * self.speed
-                self.vy = (uy * 0.8 + py * 0.4) * self.speed
+            if not clear_shot or dist > self.beam_range * 0.9:
+                nav_x, nav_y = self._get_navigation_waypoint(dt, state, target_cx, target_cy)
+                ndx, ndy = nav_x - cx, nav_y - cy
+                ndist = math.hypot(ndx, ndy) or 1.0
+                ux, uy = ndx / ndist, ndy / ndist
+                if not clear_shot:
+                    self.vx = ux * self.speed
+                    self.vy = uy * self.speed
+                else:
+                    px, py = -uy * self._orbit_dir, ux * self._orbit_dir
+                    self.vx = (ux * 0.8 + px * 0.4) * self.speed
+                    self.vy = (uy * 0.8 + py * 0.4) * self.speed
             else:
-                self.vx = px * self.speed * 0.8
-                self.vy = py * self.speed * 0.8
+                ux, uy = dx / dist, dy / dist
+                px, py = -uy * self._orbit_dir, ux * self._orbit_dir
+                if dist < 110.0:
+                    self.vx = (-ux * 0.75 + px * 0.65) * self.speed
+                    self.vy = (-uy * 0.75 + py * 0.65) * self.speed
+                else:
+                    self.vx = px * self.speed * 0.8
+                    self.vy = py * self.speed * 0.8
 
             self.x += self.vx * dt
             self.y += self.vy * dt
             walls = state.world.get_nearby_walls(self.get_rect())
             self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
-            self.facing = (ux, uy)
+            self.facing = (dx / dist, dy / dist)
 
 
 class PunctuationWolfEnemy(Enemy):
@@ -676,14 +712,18 @@ class PunctuationWolfEnemy(Enemy):
             return
 
         if dist > 0.1:
-            ux, uy = dx / dist, dy / dist
-            # Pack AI: flank laterally if another wolf is nearby
+            nav_x, nav_y = self._get_navigation_waypoint(dt, state, target_cx, target_cy)
+            ndx, ndy = nav_x - cx, nav_y - cy
+            ndist = math.hypot(ndx, ndy) or 1.0
+            ux, uy = ndx / ndist, ndy / ndist
+            # Pack AI: flank laterally if another wolf is nearby and target is directly ahead
             has_packmate = any(
                 other is not self and getattr(other, "name", "") == "Punctuation Wolf"
                 and math.hypot(other.x - self.x, other.y - self.y) < 140.0
                 for other in getattr(state, "enemies", [])
             )
-            flank = 0.45 * self._flank_dir if has_packmate and dist > 75.0 else 0.0
+            direct_approach = (nav_x == target_cx and nav_y == target_cy)
+            flank = 0.45 * self._flank_dir if has_packmate and direct_approach and dist > 75.0 else 0.0
             px, py = -uy * flank, ux * flank
             move_x, move_y = ux + px, uy + py
             move_mag = math.hypot(move_x, move_y) or 1.0
@@ -695,7 +735,7 @@ class PunctuationWolfEnemy(Enemy):
             if getattr(state, "world", None):
                 walls = state.world.get_nearby_walls(self.get_rect())
                 self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
-            self.facing = (ux, uy)
+            self.facing = (dx / dist, dy / dist)
 
 class NightBoss(Miniboss):
     """Dual-encounter boss."""

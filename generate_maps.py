@@ -70,6 +70,7 @@ SYMBOL_MINIBOSS_M1 = 'E'
 SYMBOL_MINIBOSS_M2 = '2'
 SYMBOL_MINIBOSS_M3 = '3'
 SYMBOL_FINAL_AUTHOR = '!'
+SYMBOL_PATROL_WAYPOINTS: Tuple[str, ...] = ('1', '2', '3', '4')
 
 MAP_LEGEND: Dict[str, str] = {
     SYMBOL_WALL: "Wall Tile",
@@ -92,6 +93,8 @@ MAP_LEGEND: Dict[str, str] = {
     SYMBOL_CHRONICLER: "Chronicler",
     SYMBOL_WARP: "Warp Point",
     SYMBOL_PLAYER: "Player Start",
+    "1": "Patrol Marker 1",
+    "4": "Patrol Marker 4",
     SYMBOL_ENEMY_BAT: "Bat",
     SYMBOL_ENEMY_SLUG: "Slug",
     SYMBOL_ENEMY_FLUTTER: "Flutter",
@@ -393,6 +396,104 @@ def validate_and_carve_connectivity(
     return True
 
 
+def _place_patrol_routes(
+    grid: List[List[str]],
+    entities: Dict[str, dict],
+    rng: random.Random,
+    active_biome: str,
+) -> int:
+    """Place multi-point Stanza patrol routes near enemy clusters, away from Respites and borders."""
+    height = len(grid)
+    width = len(grid[0]) if height > 0 else 0
+    if width < 14 or height < 14:
+        return 0
+
+    enemy_syms = {
+        SYMBOL_ENEMY_SLUG,
+        SYMBOL_ENEMY_BAT,
+        SYMBOL_ENEMY_FLUTTER,
+        SYMBOL_ENEMY_SMEAR,
+        SYMBOL_ENEMY_BINDLING,
+        SYMBOL_ENEMY_SENTRY,
+        SYMBOL_ENEMY_WOLF,
+    }
+    enemy_coords: List[Tuple[int, int]] = []
+    respite_coords: List[Tuple[int, int]] = []
+    candidates: List[Tuple[int, int]] = []
+    border = 4
+
+    for y in range(1, height - 1):
+        for x in range(1, width - 1):
+            cell = grid[y][x]
+            if cell == SYMBOL_RESPITE:
+                respite_coords.append((x, y))
+            elif cell in enemy_syms:
+                enemy_coords.append((x, y))
+
+    for y in range(border, height - border):
+        for x in range(border, width - border):
+            if grid[y][x] != SYMBOL_FLOOR:
+                continue
+            if any(max(abs(x - rx), abs(y - ry)) <= 6 for rx, ry in respite_coords):
+                continue
+            candidates.append((x, y))
+
+    if len(candidates) < 4:
+        return 0
+
+    target_routes = max(1, min(4, len(enemy_coords) // 3)) if width >= 100 else min(2, max(1, len(enemy_coords) // 2))
+    rng.shuffle(enemy_coords)
+    anchors: List[Tuple[int, int]] = list(enemy_coords)
+    if not anchors:
+        anchors = rng.sample(candidates, min(target_routes, len(candidates)))
+
+    placed_anchors: List[Tuple[int, int]] = []
+    used_tiles: Set[Tuple[int, int]] = set()
+    routes_placed = 0
+
+    for ax, ay in anchors:
+        if routes_placed >= target_routes:
+            break
+        if any(abs(ax - px) + abs(ay - py) < 14 for px, py in placed_anchors):
+            continue
+
+        # Pick 3-4 spread-out floor waypoints near this anchor
+        nearby = [
+            pt for pt in candidates
+            if pt not in used_tiles and 2 <= abs(pt[0] - ax) + abs(pt[1] - ay) <= 14
+        ]
+        if len(nearby) < 3:
+            continue
+
+        rng.shuffle(nearby)
+        route_pts: List[Tuple[int, int]] = [nearby[0]]
+        for pt in nearby[1:]:
+            if len(route_pts) >= 4:
+                break
+            prev = route_pts[-1]
+            step_dist = abs(pt[0] - prev[0]) + abs(pt[1] - prev[1])
+            if 4 <= step_dist <= 12 and all(abs(pt[0] - op[0]) + abs(pt[1] - op[1]) >= 4 for op in route_pts):
+                route_pts.append(pt)
+
+        if len(route_pts) < 3:
+            continue
+
+        route_id = f"{active_biome}_r{routes_placed + 1}"
+        for sym, (wx, wy) in zip(SYMBOL_PATROL_WAYPOINTS, route_pts):
+            grid[wy][wx] = sym
+            entities[f"{wx},{wy}"] = {
+                "route_id": route_id,
+                "wait_min": 1.2,
+                "wait_max": 2.6,
+            }
+            used_tiles.add((wx, wy))
+
+        placed_anchors.append((ax, ay))
+        routes_placed += 1
+
+    return routes_placed
+
+
 # ==============================================================================
 # ORGANIC BIOME GENERATOR (Cellular Automata + Drunkard's Walk)
 # ==============================================================================
@@ -552,6 +653,8 @@ def generate_organic_biome(
             if open_floors:
                 ex, ey = open_floors.pop()
                 grid[ey][ex] = rng.choice(enemy_types)
+
+    _place_patrol_routes(grid, entities, rng, active_biome)
 
     elevation_grid, stairs = build_elevation_grid(
         grid, terrace_center=(width // 2, height // 2), terrace_radius=max(4, min(width, height) // 6)
@@ -766,6 +869,8 @@ def generate_architectural_biome(
         if open_floors:
             ex, ey = open_floors.pop()
             grid[ey][ex] = rng.choice(arch_enemies)
+
+    _place_patrol_routes(grid, entities, rng, active_biome)
 
     # Enforce solid boundary frame
     for x in range(width):
