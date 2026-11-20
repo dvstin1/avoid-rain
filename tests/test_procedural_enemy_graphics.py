@@ -1,9 +1,11 @@
 """Unit tests for procedural basic-shape enemy, player, and weapon graphics in the Renderer."""
 # pylint: disable=no-member
+from types import SimpleNamespace
 import pygame
 import constants
 from rendering.renderer import Renderer
 from engine.enemy import (
+    SlugEnemy,
     BatEnemy,
     FlutterEnemy,
     BindlingEnemy,
@@ -232,3 +234,59 @@ def test_sentry_enemy_behavior_and_graphics(monkeypatch):
     assert constants.COLOR_SENTRY_BEAM in beam_colors
     assert constants.COLOR_WHITE in beam_colors
 
+
+def test_posture_outline_boxes_gated_by_debug_text(monkeypatch):
+    """Verify STAGGERED and WOUNDED rectangular outlines only render when debug_text_enabled is True."""
+    recorded = []
+    renderer = _create_headless_renderer(monkeypatch, recorded)
+
+    rect_calls = []
+
+    def _record_rect(_surf, color, rect, *args, **kwargs):
+        width = args[0] if args else kwargs.get("width", 0)
+        rect_calls.append((color, tuple(rect), width))
+
+    monkeypatch.setattr(pygame.draw, "rect", _record_rect)
+
+    debug_off = SimpleNamespace(debug_text_enabled=False)
+    debug_on = SimpleNamespace(debug_text_enabled=True)
+
+    # 1. Ghost/procedural path: STAGGERED white outline
+    bat = BatEnemy(100, 100)
+    bat.stagger_timer = 0.5
+    assert bat.get_visual_packet()["posture"] == "STAGGERED"
+
+    rect_calls.clear()
+    renderer.draw_actor_ghost(bat, 0, 0, debug_off)
+    assert not any(col == constants.COLOR_WHITE and width == 2 for col, _r, width in rect_calls)
+
+    rect_calls.clear()
+    renderer.draw_actor_ghost(bat, 0, 0, debug_on)
+    assert any(col == constants.COLOR_WHITE and width == 2 for col, _r, width in rect_calls)
+
+    # 2. Ghost/procedural path: WOUNDED red pulsing outline
+    bat.stagger_timer = 0.0
+    bat.hp = max(1, int(bat.max_hp * 0.1))
+    assert bat.get_visual_packet()["posture"] == "WOUNDED"
+
+    rect_calls.clear()
+    renderer.draw_actor_ghost(bat, 0, 0, debug_off)
+    assert not any(col == (255, 0, 0) and width >= 1 for col, _r, width in rect_calls)
+
+    rect_calls.clear()
+    renderer.draw_actor_ghost(bat, 0, 0, debug_on)
+    assert any(col == (255, 0, 0) and width >= 1 for col, _r, width in rect_calls)
+
+    # 3. Sprite path (Slug): STAGGERED white outline
+    slug = SlugEnemy(160, 100)
+    slug.stagger_timer = 0.5
+    assert slug.get_visual_packet()["posture"] == "STAGGERED"
+    renderer.image_cache.setdefault("slug_1.png", pygame.Surface((32, 32), pygame.SRCALPHA))
+
+    rect_calls.clear()
+    renderer.draw_actor_ghost(slug, 0, 0, debug_off)
+    assert not any(col == constants.COLOR_WHITE and width == 2 for col, _r, width in rect_calls)
+
+    rect_calls.clear()
+    renderer.draw_actor_ghost(slug, 0, 0, debug_on)
+    assert any(col == constants.COLOR_WHITE and width == 2 for col, _r, width in rect_calls)

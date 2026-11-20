@@ -2490,8 +2490,8 @@ class Renderer:
             
             self.screen.blit(sprite, s_rect)
             
-            # Draw persistent overlays on top of sprite
-            if packet["posture"] == "STAGGERED":
+            # Draw persistent overlays on top of sprite (gated behind debug_text_enabled)
+            if packet["posture"] == "STAGGERED" and getattr(state, "debug_text_enabled", False):
                 pygame.draw.rect(self.screen, constants.COLOR_WHITE, rect, 2)
         else:
             # 1. Posture Modifiers (Transformation)
@@ -2528,8 +2528,8 @@ class Renderer:
             else:
                 pygame.draw.rect(self.screen, color, draw_rect)
 
-        # 3. Universal Posture Layer (Outlines/Decorations)
-        if not sprite: # Ghost-only outlines
+        # 3. Universal Posture Layer (Outlines/Decorations - gated behind debug_text_enabled)
+        if not sprite and getattr(state, "debug_text_enabled", False): # Ghost-only outlines
             if packet["posture"] == "STAGGERED":
                 pygame.draw.rect(self.screen, constants.COLOR_WHITE, draw_rect, 2)
             elif packet["posture"] == "WOUNDED":
