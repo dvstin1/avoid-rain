@@ -4,7 +4,9 @@ import pygame
 from engine.pause import PauseHandler
 from engine.pause_menu import PauseMenu
 from engine.game_state import GameState
+from engine.marginalia_events import MarginaliaEvent
 from engine.stats import StatisticsTracker
+from rendering.bitmap_font import BitmapFont
 from rendering.renderer import Renderer
 from constants import SCREEN_WIDTH, SCREEN_HEIGHT
 
@@ -144,7 +146,6 @@ def test_renderer_gates_debug_text_until_enabled(monkeypatch):
     monkeypatch.setattr(pygame.draw, 'circle', lambda *a, **k: None)
     monkeypatch.setattr(pygame.draw, 'line', lambda *a, **k: None)
 
-    from rendering.bitmap_font import BitmapFont
     orig_render = BitmapFont.render
 
     def spy_bitmap_render(self, text, antialias, color):
@@ -269,3 +270,82 @@ def test_pause_menu_waiting_scholars_return_to_sanctuary():
     assert "Return to Sanctuary" not in pm.get_options()
 
 
+def _make_osd_spy(monkeypatch):
+    """Create a headless SpyScreen and BitmapFont render spy for debug OSD tests."""
+    rendered_strings, blit_positions, surf_labels, kept_surfs = [], [], {}, []
+
+    class SpyScreen:
+        """Mock screen capturing blit coordinates for labeled font surfaces."""
+        get_width = staticmethod(lambda: SCREEN_WIDTH)
+        get_height = staticmethod(lambda: SCREEN_HEIGHT)
+        fill = staticmethod(lambda _color: None)
+        get_rect = staticmethod(lambda: pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+
+        @staticmethod
+        def blit(surf, pos):
+            """Record blit position along with tagged text if present."""
+            label = surf_labels.get(id(surf))
+            if label is not None:
+                blit_positions.append((label, pos))
+
+    for fn in ("rect", "circle", "line"):
+        monkeypatch.setattr(pygame.draw, fn, lambda *a, **k: None)
+    monkeypatch.setattr(pygame.display, "flip", lambda: None)
+
+    orig_render = BitmapFont.render
+
+    def spy_bitmap_render(self, text, antialias, color):
+        rendered_strings.append(str(text))
+        surf = orig_render(self, text, antialias, color)
+        kept_surfs.append(surf)
+        surf_labels[id(surf)] = str(text)
+        return surf
+
+    monkeypatch.setattr(BitmapFont, "render", spy_bitmap_render)
+    return Renderer(SpyScreen()), rendered_strings, blit_positions
+
+
+def test_debug_osd_displays_biome_act_and_marginalia_event(monkeypatch):
+    """Verify top debug OSD shows biome/act and Marginalia event status only when debug_text_enabled is True."""
+    state = GameState(auto_load=False)
+    try:
+        renderer, rendered_strings, blit_positions = _make_osd_spy(monkeypatch)
+        audio = type("DummyAudio", (), {"current_track": "ambient_sanctuary.ogg", "recent_sfx": []})()
+
+        # 1. Debug disabled: biome and event OSD lines are skipped
+        state.in_sanctuary = False
+        state.current_act = 2
+        state.run_biomes["act2"] = "vitreous_basin"
+        state.marginalia_engine.active_event = MarginaliaEvent("unbound_folio", act_variant=2, status="ACTIVE")
+        state.set_debug_text_enabled(False, save=False)
+        rendered_strings.clear()
+        renderer.render(state, audio_manager=audio)
+        assert not any(s.startswith(("Biome:", "Event:")) for s in rendered_strings)
+
+        # 2. Debug enabled in Sanctuary with no active event
+        state.in_sanctuary = True
+        state.marginalia_engine.active_event = None
+        state.set_debug_text_enabled(True, save=False)
+        rendered_strings.clear()
+        renderer.render(state, audio_manager=audio)
+        assert "Biome: Sanctuary" in rendered_strings
+        assert "Event: None" in rendered_strings
+
+        # 3. Debug enabled in Act 2 biome with no active event
+        state.in_sanctuary = False
+        rendered_strings.clear()
+        renderer.render(state, audio_manager=audio)
+        assert "Biome: The Vitreous Basin (Act 2)" in rendered_strings
+        assert "Event: None" in rendered_strings
+
+        # 4. Debug enabled in Act 2 biome with active Marginalia event (positioned below banner)
+        state.marginalia_engine.active_event = MarginaliaEvent("unbound_folio", act_variant=2, status="ACTIVE")
+        rendered_strings.clear()
+        blit_positions.clear()
+        renderer.render(state, audio_manager=audio)
+        assert "Biome: The Vitreous Basin (Act 2)" in rendered_strings
+        assert "Event: The Unbound Folio (ACTIVE)" in rendered_strings
+        osd_y = [pos[1] for label, pos in blit_positions if label.startswith("[ AUDIO_OSD ]")]
+        assert osd_y and osd_y[0] >= 80
+    finally:
+        state.shutdown_save_worker(timeout=1.0)

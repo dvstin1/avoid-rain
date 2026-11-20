@@ -3080,51 +3080,93 @@ class Renderer:
             id_surf = self.small_font.render(name, True, constants.COLOR_WHITE)
             self.screen.blit(id_surf, (rx + 16 - id_surf.get_width() // 2, ry - 15))
 
+    @staticmethod
+    def _format_debug_osd_status(state):
+        """Format biome/act location and active Marginalia event lines for the top debug OSD."""
+        if hasattr(state, "in_sanctuary"):
+            in_sanctuary = bool(state.in_sanctuary)
+        else:
+            in_sanctuary = getattr(getattr(state, "world", None), "name", "") == "sanctuary"
+
+        if in_sanctuary:
+            biome_line = "Biome: Sanctuary"
+        else:
+            current_act = int(getattr(state, "current_act", 0) or 0)
+            run_biomes = getattr(state, "run_biomes", None) or {}
+            biome_key = run_biomes.get(f"act{current_act}") if current_act > 0 else None
+            if not biome_key:
+                biome_key = getattr(getattr(state, "world", None), "name", None)
+            if biome_key:
+                biome_name = constants.BIOME_DISPLAY_NAMES.get(
+                    biome_key, str(biome_key).replace("_", " ").title()
+                )
+            else:
+                biome_name = "Unknown"
+            biome_line = (
+                f"Biome: {biome_name} (Act {current_act})"
+                if current_act > 0
+                else f"Biome: {biome_name}"
+            )
+
+        marg_engine = getattr(state, "marginalia_engine", None)
+        active_event = getattr(marg_engine, "active_event", None) if marg_engine is not None else None
+        if active_event is not None:
+            ev_title = getattr(active_event, "title", None) or getattr(active_event, "event_id", "Unknown")
+            ev_status = getattr(active_event, "status", "UNKNOWN")
+            event_line = f"Event: {ev_title} ({ev_status})"
+        else:
+            event_line = "Event: None"
+
+        return biome_line, event_line
+
     def draw_audio_debug(self, audio, state=None):
-        """Draw OSD for currently playing music, loaded map filename, and recent SFX triggers."""
+        """Draw OSD for music, map filename, biome/act, Marginalia event status, and recent SFX."""
         margin = 10
-        y_off = margin
         sw = self.screen.get_width()
+
+        marg_engine = getattr(state, "marginalia_engine", None) if state is not None else None
+        banner_visible = bool(
+            state is not None
+            and not getattr(state, "in_sanctuary", False)
+            and marg_engine is not None
+            and hasattr(marg_engine, "get_banner_state")
+            and marg_engine.get_banner_state()
+        )
+        # Offset below top-center Marginalia banner (y=12..74) when visible to prevent overlap
+        y_off = 80 if banner_visible else margin
+
+        def _blit_top_center(text, color=(120, 255, 100)):
+            nonlocal y_off
+            surf = self.hud_font.render(text, True, color)
+            surf_w = (
+                surf.get_width()
+                if hasattr(surf, "get_width")
+                else (surf.get_rect().width if hasattr(surf, "get_rect") else 0)
+            )
+            surf_h = (
+                surf.get_height()
+                if hasattr(surf, "get_height")
+                else (surf.get_rect().height if hasattr(surf, "get_rect") else 0)
+            )
+            self.screen.blit(surf, (sw // 2 - surf_w // 2, y_off))
+            y_off += surf_h + 2
 
         # 1. Music Info (Top Center)
         track = audio.current_track if (audio and getattr(audio, "current_track", None)) else "None"
-        m_surf = self.hud_font.render(f"[ AUDIO_OSD ] MUSIC: {track}", True, (120, 255, 100))
-        mw = (
-            m_surf.get_width()
-            if hasattr(m_surf, "get_width")
-            else (m_surf.get_rect().width if hasattr(m_surf, "get_rect") else 0)
-        )
-        mh = (
-            m_surf.get_height()
-            if hasattr(m_surf, "get_height")
-            else (m_surf.get_rect().height if hasattr(m_surf, "get_rect") else 0)
-        )
-        self.screen.blit(m_surf, (sw // 2 - mw // 2, y_off))
-        y_off += mh + 2
+        _blit_top_center(f"[ AUDIO_OSD ] MUSIC: {track}")
 
         # 2. Map Filename (Top Center, directly underneath music track name)
         map_filename = getattr(getattr(state, "world", None), "map_filename", None)
         if map_filename:
-            map_surf = self.hud_font.render(f"Map: {map_filename}", True, (120, 255, 100))
-            map_w = (
-                map_surf.get_width()
-                if hasattr(map_surf, "get_width")
-                else (map_surf.get_rect().width if hasattr(map_surf, "get_rect") else 0)
-            )
-            self.screen.blit(map_surf, (sw // 2 - map_w // 2, y_off))
+            _blit_top_center(f"Map: {map_filename}")
 
-        # 3. Recent SFX (Top Left)
-        if audio and hasattr(audio, "recent_sfx"):
-            sfx_y = margin
-            for sfx in audio.recent_sfx:
-                alpha = int((sfx["time"] / 2.0) * 255)
-                alpha = max(0, min(255, alpha))
-                s_surf = self.small_font.render(f"SFX: {sfx['name']}", True, (220, 220, 220))
-                s_surf.set_alpha(alpha)
-                self.screen.blit(s_surf, (margin, sfx_y))
-                sfx_y += 18
+        # 3. Biome / Act & Marginalia Event Status (Top Center)
+        if state is not None:
+            biome_line, event_line = self._format_debug_osd_status(state)
+            _blit_top_center(biome_line)
+            _blit_top_center(event_line)
 
-        # 3. Recent SFX (Top Left)
+        # 4. Recent SFX (Top Left)
         if audio and hasattr(audio, "recent_sfx"):
             sfx_y = margin
             for sfx in audio.recent_sfx:
