@@ -511,8 +511,11 @@ class Actor:
         self.x += self.vx * dt
         self.y += self.vy * dt
 
-        # Resolve collisions
-        walls = game_state.world.get_nearby_walls(self.get_rect())
+        # Resolve collisions (exclude self for solid NPCs stored in world.interactables)
+        try:
+            walls = game_state.world.get_nearby_walls(self.get_rect(), exclude_obj=self)
+        except TypeError:
+            walls = game_state.world.get_nearby_walls(self.get_rect())
         self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
 
         moved = math.hypot(self.x - prev_x, self.y - prev_y)

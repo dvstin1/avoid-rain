@@ -333,12 +333,13 @@ class Chronicler(Actor):
 class Binder(Actor):
     """Sanctuary artisan NPC who weaves Binder Scripts into the player's frame."""
     def __init__(self, position, dimensions=None, name="The Binder"):
+        from constants import BINDER_PATROL_SPEED_MULTIPLIER
         del dimensions
         super().__init__(position[0], position[1], 40, 40, 9999, name=name)
         self.is_interactive = True
         self.is_solid = True
-        self.is_stationary = True
-        self.patrol_speed_multiplier = 0.0
+        self.is_stationary = False
+        self.patrol_speed_multiplier = BINDER_PATROL_SPEED_MULTIPLIER
 
     def execute_interaction(self, game_state):
         """Open the Binder Script Weaving Loom modal in Sanctuary."""
@@ -1175,6 +1176,25 @@ class World:
                 return z_name
         return None
 
+    def is_in_sanctuary_pond(self, rect):
+        """Return True if rect overlaps any tile in sanctuary_zones['pond_water']."""
+        if not self.sanctuary_zones:
+            return False
+        self._ensure_zone_index()
+        pond_set = self._zone_tile_sets.get("pond_water")
+        if not pond_set:
+            return False
+        rx, ry, rw, rh = rect
+        x0 = int(rx // TILE_SIZE)
+        y0 = int(ry // TILE_SIZE)
+        x1 = int((rx + max(0.0, rw - 1e-4)) // TILE_SIZE)
+        y1 = int((ry + max(0.0, rh - 1e-4)) // TILE_SIZE)
+        for ty in range(y0, y1 + 1):
+            for tx in range(x0, x1 + 1):
+                if (tx, ty) in pond_set:
+                    return True
+        return False
+
     def _ensure_spatial_index(self):
         """Build or refresh spatial hash buckets when self.interactables changes."""
         items = self.interactables
@@ -1304,7 +1324,7 @@ class World:
                         return True
         return False
 
-    def get_nearby_walls(self, player_rect):
+    def get_nearby_walls(self, player_rect, exclude_obj=None):
         """Returns wall rectangles (grid or solid GameObjects) near the player."""
         px, py, pw, ph = player_rect
         h = len(self.grid)
@@ -1325,6 +1345,8 @@ class World:
         from engine.physics import check_aabb_collision
         if len(self.interactables) <= 64:
             for obj in self.interactables:
+                if obj is exclude_obj:
+                    continue
                 if obj.is_solid and getattr(obj, 'is_active', True) and check_aabb_collision(player_rect, obj.rect):
                     walls.append((obj.rect[0], obj.rect[1], obj.rect[2], obj.rect[3]))
             return walls
@@ -1337,6 +1359,8 @@ class World:
         for cy in range(cy0, cy1 + 1):
             for cx in range(cx0, cx1 + 1):
                 for obj in self._solid_buckets.get((cx, cy), ()):
+                    if obj is exclude_obj:
+                        continue
                     oid = id(obj)
                     if oid in seen:
                         continue
@@ -1345,6 +1369,8 @@ class World:
                         walls.append((obj.rect[0], obj.rect[1], obj.rect[2], obj.rect[3]))
 
         for obj in self._dynamic_actors:
+            if obj is exclude_obj:
+                continue
             oid = id(obj)
             if oid in seen:
                 continue

@@ -1772,8 +1772,24 @@ def generate_sanctuary(
         "wait_max": 30.0,
     }
 
-    # - The Binder ('&') — exactly 1 in Sanctuary
+    # - The Binder ('&') — exactly 1 in Sanctuary + gentle workbench patrol route
     grid[15][44] = SYMBOL_BINDER
+    grid[17][43] = "3"
+    entities["43,17"] = {
+        "type": "PatrolPoint",
+        "route_id": "binder_work",
+        "caste_filter": ["Binder"],
+        "wait_min": 4.0,
+        "wait_max": 8.0,
+    }
+    grid[14][46] = "4"
+    entities["46,14"] = {
+        "type": "PatrolPoint",
+        "route_id": "binder_work",
+        "caste_filter": ["Binder"],
+        "wait_min": 4.0,
+        "wait_max": 8.0,
+    }
 
     # - The Wellspring ('F') — spaced clear of player spawn
     grid[14][42] = SYMBOL_WELLSPRING
@@ -1895,14 +1911,19 @@ def generate_sanctuary(
         ],
         "dirt_path": dirt_rects,
         "pond_water": pond_tiles,
+        "south_facade": {
+            "windows": [[30, 21], [33, 21], [35, 21], [41, 21], [43, 21], [46, 21]],
+            "doorway": [[37, 21], [38, 21], [39, 21]],
+        },
         "roof_zones": [
             {
                 "name": "scriptorium_roof",
                 "x": hall_x,
                 "y": hall_y,
                 "w": hall_w,
-                "h": hall_h,
+                "h": hall_h - 1,
                 "interior": [hall_x + 1, hall_y + 1, hall_w - 2, hall_h - 2],
+                "footprint": [hall_x, hall_y, hall_w, hall_h],
                 "chimney": [hall_x + hall_w - 4, hall_y],
             },
             {
@@ -1910,7 +1931,7 @@ def generate_sanctuary(
                 "x": shed_x,
                 "y": shed_y,
                 "w": shed_w,
-                "h": shed_h,
+                "h": shed_h - 1,
                 "interior": [shed_x + 1, shed_y + 1, shed_w - 2, shed_h - 2],
             },
         ],

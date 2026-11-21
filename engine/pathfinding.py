@@ -82,6 +82,9 @@ def get_solid_obstacle_tiles(world) -> Set[Tuple[int, int]]:
     for obj in interactables:
         if not (getattr(obj, "is_solid", False) and getattr(obj, "is_active", True)):
             continue
+        # Skip mobile patrolling NPCs (Chronicler/Binder) so their spawn tile isn't baked as a permanent wall
+        if hasattr(obj, "patrol_route"):
+            continue
         rect = getattr(obj, "rect", None)
         if not rect or len(rect) < 4:
             continue

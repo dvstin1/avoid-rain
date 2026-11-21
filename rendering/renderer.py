@@ -2049,20 +2049,22 @@ class Renderer:
                         self.screen.blit(img, (dx_s, dy_s))
 
         prop_cache = getattr(self, "prop_cache", {}) if is_real_surface else {}
+        player_obj = getattr(state, "player", None)
+        player_bottom = (
+            float(player_obj.y) + float(player_obj.height) if player_obj is not None else 0.0
+        )
+        deferred_tree_canopies = []
         for obj in getattr(state.world, 'interactables', []):
             sx_o, sy_o = obj.x - ox, obj.y - oy
             if sx_o + obj.width < -96 or sx_o > sw + 96 or sy_o + obj.height < -96 or sy_o > sh + 96:
                 continue
             obj_ptype = getattr(obj, "prop_type", None)
             if obj_ptype == "sanctuary_tree" or obj.name == "SanctuaryTreeCanopy":
-                canopy_surf = prop_cache.get("SanctuaryTreeCanopy")
-                if canopy_surf is not None:
-                    # Anchor 80x100 canopy onto its 40x40 solid base footprint
-                    self.screen.blit(canopy_surf, (int(sx_o) - 20, int(sy_o) - 60))
+                tree_bottom = float(obj.y) + float(obj.height)
+                if tree_bottom > player_bottom:
+                    deferred_tree_canopies.append(obj)
                 else:
-                    tx_i, ty_i = int(sx_o), int(sy_o)
-                    pygame.draw.rect(self.screen, (68, 48, 34), (tx_i + 13, ty_i + 4, 14, 34), border_radius=2)
-                    pygame.draw.circle(self.screen, (42, 78, 44), (tx_i + 20, ty_i - 8), 26)
+                    self._draw_sanctuary_tree_canopy(obj, ox, oy, prop_cache)
             elif obj_ptype == "pond_lily_reeds" or obj.name == "PondLilyReeds":
                 lily_surf = prop_cache.get("PondLilyReeds")
                 if lily_surf is not None:
@@ -2446,6 +2448,12 @@ class Renderer:
                 self.font.render(str(num['val']), True, num['color']),
                 (num['pos'][0] - ox, num['pos'][1] - oy),
             )
+
+        # Y-sorted overhead Sanctuary tree canopies whose trunk base sits south of the player
+        if deferred_tree_canopies:
+            deferred_tree_canopies.sort(key=lambda tree: float(tree.y) + float(tree.height))
+            for tree_obj in deferred_tree_canopies:
+                self._draw_sanctuary_tree_canopy(tree_obj, ox, oy, prop_cache)
 
         # Sanctuary Pass 3: Interior/exterior fade update, courtyard atmosphere, roofs, & blackout mask
         perf_now = time.perf_counter()
@@ -4134,6 +4142,17 @@ class Renderer:
         self._sanctuary_roof_surfs[cache_key] = surf
         return surf
 
+    def _draw_sanctuary_tree_canopy(self, obj, ox, oy, prop_cache):
+        """Draw a SanctuaryTreeCanopy (80x100) anchored onto its 40x40 solid trunk footprint."""
+        sx_o, sy_o = obj.x - ox, obj.y - oy
+        canopy_surf = prop_cache.get("SanctuaryTreeCanopy")
+        if canopy_surf is not None:
+            self.screen.blit(canopy_surf, (int(sx_o) - 20, int(sy_o) - 60))
+        else:
+            tx_i, ty_i = int(sx_o), int(sy_o)
+            pygame.draw.rect(self.screen, (68, 48, 34), (tx_i + 13, ty_i + 4, 14, 34), border_radius=2)
+            pygame.draw.circle(self.screen, (42, 78, 44), (tx_i + 20, ty_i - 8), 26)
+
     def draw_sanctuary_courtyard_atmosphere(self, state, ox, oy, now=None):
         """Draw subtle expanding pond water ripples and slow-drifting garden fireflies in Sanctuary."""
         if getattr(getattr(state, "world", None), "name", "") != "sanctuary":
@@ -4172,6 +4191,35 @@ class Renderer:
                     pygame.draw.circle(r_surf, (158, 214, 224, q_alpha), (rad + 2, rad + 2), rad, 1)
                     self._fx_surface_cache[r_key] = r_surf
                 self.screen.blit(r_surf, (rx - rad - 2, ry - rad - 2))
+
+        # 1b. Wading foot-ripple rings when the player walks through the Sanctuary pond
+        player = getattr(state, "player", None)
+        if (
+            player is not None
+            and hasattr(state.world, "is_in_sanctuary_pond")
+            and state.world.is_in_sanctuary_pond(player.rect)
+        ):
+            foot_x = int(player.x + player.width / 2 - ox)
+            foot_y = int(player.y + player.height - 6 - oy)
+            is_moving = abs(getattr(player, "vx", 0.0)) + abs(getattr(player, "vy", 0.0)) > 1.0
+            rate = 1.45 if is_moving else 0.70
+            for ring_idx in range(2):
+                cycle = (t_now * rate + ring_idx * 0.5) % 1.0
+                rad = max(4, int(4 + cycle * constants.SANCTUARY_POND_RIPPLE_MAX_RADIUS))
+                w_alpha = int((145 if is_moving else 95) * (1.0 - cycle) * vis)
+                if w_alpha >= 10:
+                    q_wa = (w_alpha // 8) * 8
+                    w_key = ("pond_wade_ripple", rad, q_wa)
+                    w_surf = self._fx_surface_cache.get(w_key)
+                    if w_surf is None:
+                        d_w = rad * 2 + 4
+                        d_h = max(6, int(rad * 1.2) + 4)
+                        w_surf = pygame.Surface((d_w, d_h), pygame.SRCALPHA)
+                        pygame.draw.ellipse(
+                            w_surf, (192, 232, 240, q_wa), (2, 2, d_w - 4, d_h - 4), 1
+                        )
+                        self._fx_surface_cache[w_key] = w_surf
+                    self.screen.blit(w_surf, (foot_x - w_surf.get_width() // 2, foot_y - w_surf.get_height() // 2))
 
         # 2. Slow-drifting golden-green courtyard fireflies / pollen motes around the west pond & garden
         if pond_tiles:
@@ -4245,18 +4293,50 @@ class Renderer:
                     self._sanctuary_blackout_surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
                 mask = self._sanctuary_blackout_surf
                 mask.fill((6, 5, 10, blackout_alpha))
-                bx = int(scriptorium_roof["x"] * ts - ox)
-                by = int(scriptorium_roof["y"] * ts - oy)
-                bw = int(scriptorium_roof["w"] * ts)
-                bh = int(scriptorium_roof["h"] * ts)
-                # Cut out the Scriptorium building rect (interior + walls + southern doorway threshold)
+                footprint = scriptorium_roof.get("footprint")
+                if isinstance(footprint, (list, tuple)) and len(footprint) >= 4:
+                    fx_t, fy_t, fw_t, fh_t = footprint[:4]
+                else:
+                    fx_t, fy_t, fw_t, fh_t = (
+                        scriptorium_roof["x"], scriptorium_roof["y"], scriptorium_roof["w"], scriptorium_roof["h"]
+                    )
+                bx = int(fx_t * ts - ox)
+                by = int(fy_t * ts - oy)
+                bw = int(fw_t * ts)
+                bh = int(fh_t * ts)
+                # Cut out the full Scriptorium footprint (interior + walls + southern doorway threshold)
                 mask.fill((0, 0, 0, 0), pygame.Rect(bx, by, bw, bh))
                 self.screen.blit(mask, (0, 0))
 
-        # 3. Fading Scriptorium roof overhang & chimney when outside or transitioning
+        # 3. Fading Scriptorium south facade, roof overhang & chimney when outside or transitioning
         if interior_alpha < 1.0 and scriptorium_roof is not None:
             roof_alpha = int(round(255 * (1.0 - interior_alpha)))
             if roof_alpha > 0:
+                zones = getattr(state.world, "sanctuary_zones", None)
+                south_facade = zones.get("south_facade", {}) if isinstance(zones, dict) else {}
+                win_surf = self.prop_cache.get("SanctuaryWindowWall")
+                if win_surf is not None:
+                    win_surf.set_alpha(roof_alpha)
+                    for coord in south_facade.get("windows", ()):
+                        if not isinstance(coord, (list, tuple)) or len(coord) < 2:
+                            continue
+                        wx_px = int(coord[0] * ts - ox)
+                        wy_px = int(coord[1] * ts - oy)
+                        if -ts <= wx_px <= sw and -ts <= wy_px <= sh:
+                            self.screen.blit(win_surf, (wx_px, wy_px))
+                    win_surf.set_alpha(255)
+                arch_surf = self.prop_cache.get("SanctuaryArchDoorway")
+                if arch_surf is not None:
+                    arch_surf.set_alpha(roof_alpha)
+                    for coord in south_facade.get("doorway", ()):
+                        if not isinstance(coord, (list, tuple)) or len(coord) < 2:
+                            continue
+                        dx_px = int(coord[0] * ts - ox)
+                        dy_px = int(coord[1] * ts - oy)
+                        if -ts <= dx_px <= sw and -ts <= dy_px <= sh:
+                            self.screen.blit(arch_surf, (dx_px, dy_px))
+                    arch_surf.set_alpha(255)
+
                 bx = int(scriptorium_roof["x"] * ts - ox)
                 by = int(scriptorium_roof["y"] * ts - oy)
                 s_surf = self._get_sanctuary_roof_surface(scriptorium_roof)

@@ -1145,6 +1145,17 @@ class GameState:
 
             # --- Phase 1 & 4: Host World Events ---
             self._update_world_events(dt)
+
+        # Tick Sanctuary NPCs (The Chronicler & The Binder) when not halted by active dialogue/Loom
+        if (
+            self.world
+            and not self.active_dialogue
+            and not getattr(self, "binder_dialog", None)
+        ):
+            from engine.world import Binder, Chronicler
+            for obj in self.world.interactables:
+                if isinstance(obj, (Chronicler, Binder)):
+                    obj.update(dt, self)
             
         boss_combat_active = (
             getattr(self.player, 'active_track_name', '') in BOSS_COMBAT_TRACKS
@@ -1593,6 +1604,9 @@ class GameState:
                     if check_aabb_collision(player_rect, obj.rect):
                         speed_multiplier = 0.5
                         break
+        if hasattr(self.world, "is_in_sanctuary_pond") and self.world.is_in_sanctuary_pond(player_rect):
+            from constants import SANCTUARY_POND_SPEED_MULTIPLIER
+            speed_multiplier = min(speed_multiplier, SANCTUARY_POND_SPEED_MULTIPLIER)
 
         # Query walls over a swept bounding rect covering pre-move and projected displacement
         from constants import DASH_SPEED_MULTIPLIER
