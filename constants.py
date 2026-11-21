@@ -689,6 +689,96 @@ DIALOGUE_MANIFEST = {
             )
         },
         {
+            "id": "chr_defeat_unbound_folio",
+            "conditions": {"last_run_result": "DEFEAT", "last_death_event": "unbound_folio"},
+            "priority": "110",
+            "emotion": "disappointed",
+            "text": (
+                "An Unbound Folio tore loose from its stitching and overwhelmed you in the ring... "
+                "When a signature unravels that violently, Reader, thin the swarm before the waves close in."
+            ),
+        },
+        {
+            "id": "chr_defeat_running_errata",
+            "conditions": {"last_run_result": "DEFEAT", "last_death_event": "running_errata"},
+            "priority": "110",
+            "emotion": "disappointed",
+            "text": (
+                "You fell chasing the Running Errata across the margin. That wayward wisp draws every ambush "
+                "glyph in the chapter—clear its interceptors first before marching alongside it."
+            ),
+        },
+        {
+            "id": "chr_defeat_censored_passage",
+            "conditions": {"last_run_result": "DEFEAT", "last_death_event": "censored_passage"},
+            "priority": "110",
+            "emotion": "disappointed",
+            "text": (
+                "The black mist of a Censored Passage choked your quill before the glyph-ward could clear. "
+                "Hold the anchor's circle steadily next time, and do not let the defenders crowd the blot."
+            ),
+        },
+        {
+            "id": "chr_defeat_palimpsest_duel",
+            "conditions": {"last_run_result": "DEFEAT", "last_death_event": "palimpsest_duel"},
+            "priority": "110",
+            "emotion": "disappointed",
+            "text": (
+                "Struck down inside a Palimpsest Duel... The Overwritten Champion remembers every cadence "
+                "of an older draft. Read its wind-up carefully and parry before trading blows in that ring."
+            ),
+        },
+        {
+            "id": "chr_defeat_margin_toll",
+            "conditions": {"last_run_result": "DEFEAT", "last_death_event": "margin_toll"},
+            "priority": "110",
+            "emotion": "disappointed",
+            "text": (
+                "The Margin Toll claimed more than Torn Pages from you today. Shatter those resonant "
+                "ink-seals quickly when the bell tolls, Reader, or their wards will bleed you dry."
+            ),
+        },
+        {
+            "id": "chr_defeat_barrel_mimic_cluster",
+            "conditions": {"last_run_result": "DEFEAT", "last_death_event": "barrel_mimic_cluster"},
+            "priority": "110",
+            "emotion": "disappointed",
+            "text": (
+                "Ambushed by a Barrel Mimic Cluster! False ink-casks love to nest in quiet corners of the "
+                "draft—test suspicious props from a safe reach before waking the whole cache."
+            ),
+        },
+        {
+            "id": "chr_defeat_sunken_margin",
+            "conditions": {"last_run_result": "DEFEAT", "last_death_event": "sunken_margin"},
+            "priority": "110",
+            "emotion": "disappointed",
+            "text": (
+                "The floor gave way into a Sunken Margin cellar, and the deep-ink lurkers dragged you under. "
+                "Keep your footing moving in that cramped vault until the exit ladder drops."
+            ),
+        },
+        {
+            "id": "chr_defeat_relentless_censor",
+            "conditions": {"last_run_result": "DEFEAT", "last_death_event": "relentless_censor"},
+            "priority": "110",
+            "emotion": "disappointed",
+            "text": (
+                "I felt the Relentless Censor's redaction blade from here... When that hunter marks your scent "
+                "across the page, either break its posture early or use every wall to outlast the hunt."
+            ),
+        },
+        {
+            "id": "chr_defeat_unblotted_margin",
+            "conditions": {"last_run_result": "DEFEAT", "last_death_event": "unblotted_margin"},
+            "priority": "110",
+            "emotion": "disappointed",
+            "text": (
+                "Even with the grace of an Unblotted Margin refreshing your ink, the draft still claimed you. "
+                "A rare sanctuary breath in the wild is precious, Reader—spend that vigor wisely."
+            ),
+        },
+        {
             "id": "chr_defeat",
             "conditions": {"last_run_result": "DEFEAT"},
             "priority": "100",

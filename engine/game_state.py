@@ -2353,6 +2353,10 @@ class GameState:
         self.waiting_for_host_run = False
         if self.stats:
             self.stats.data["active_session_in_progress"] = True
+            self.stats.data.pop("last_death_event", None)
+            story_flags = self.stats.data.get("story_flags")
+            if isinstance(story_flags, dict):
+                story_flags.pop("last_death_event", None)
         self.trigger_bloom("ACT I: THE FIRST DRAFT", priority=2)
         return self.run_biomes
 
@@ -2796,6 +2800,10 @@ class GameState:
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
             self.stats.data["last_run_result"] = "INIT"
+            self.stats.data.pop("last_death_event", None)
+            story_flags = self.stats.data.get("story_flags")
+            if isinstance(story_flags, dict):
+                story_flags.pop("last_death_event", None)
             try: self.stats.increment("runs_started", 1)
             except Exception: pass
         self.defeated_miniboss_ids = set()
@@ -3138,7 +3146,17 @@ class GameState:
 
     def respawn_player(self):
         from engine.maps import create_world
-        if self.stats: self.stats.data["last_run_result"] = "DEFEAT"
+        active_event = getattr(getattr(self, "marginalia_engine", None), "active_event", None)
+        active_event_id = getattr(active_event, "event_id", None) if active_event is not None else None
+        if self.stats:
+            self.stats.data["last_run_result"] = "DEFEAT"
+            story_flags = self.stats.data.setdefault("story_flags", {})
+            if active_event_id:
+                story_flags["last_death_event"] = active_event_id
+                self.stats.data["last_death_event"] = active_event_id
+            else:
+                story_flags.pop("last_death_event", None)
+                self.stats.data.pop("last_death_event", None)
         self.world = create_world("sanctuary", defeated_ids=self.defeated_miniboss_ids)
         
         # Reset local player fully

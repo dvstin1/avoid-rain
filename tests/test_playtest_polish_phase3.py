@@ -143,7 +143,7 @@ def test_sanctuary_visible_facades_shed_door_and_chimney():
     south_facade = zones["south_facade"]
     assert len(south_facade["windows"]) >= 4
     assert all(coord[1] == 21 for coord in south_facade["windows"])
-    assert south_facade["doorway"] == [[37, 21], [38, 21], [39, 21]]
+    assert south_facade["doorway"] == [[38, 21]]
 
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)

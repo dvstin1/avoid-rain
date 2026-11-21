@@ -1721,9 +1721,8 @@ def generate_sanctuary(
             if x in (hall_x, hall_x + hall_w - 1) or y in (hall_y, hall_y + hall_h - 1):
                 grid[y][x] = SYMBOL_WALL
 
-    # Southern 3-tile Scriptorium entrance doorway at x=37..39, y=21
-    for dx in range(37, 40):
-        grid[hall_y + hall_h - 1][dx] = SYMBOL_FLOOR
+    # Southern single-tile (40px) centered Scriptorium entrance doorway at x=38, y=21
+    grid[hall_y + hall_h - 1][38] = SYMBOL_FLOOR
 
     # Bookcases ('h', 2x1 horizontal, reserving open right-half floor) along north interior wall
     for bx, by in ((30, 8), (34, 8), (41, 8), (45, 8)):
@@ -1913,7 +1912,7 @@ def generate_sanctuary(
         "pond_water": pond_tiles,
         "south_facade": {
             "windows": [[30, 21], [33, 21], [35, 21], [41, 21], [43, 21], [46, 21]],
-            "doorway": [[37, 21], [38, 21], [39, 21]],
+            "doorway": [[38, 21]],
         },
         "roof_zones": [
             {

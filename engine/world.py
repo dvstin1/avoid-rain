@@ -142,6 +142,10 @@ class WarpPortal(GameObject):
                 if game_state.stats:
                     game_state.stats.data["last_run_result"] = "INIT"
                     game_state.stats.data["active_session_in_progress"] = True
+                    game_state.stats.data.pop("last_death_event", None)
+                    story_flags = game_state.stats.data.get("story_flags")
+                    if isinstance(story_flags, dict):
+                        story_flags.pop("last_death_event", None)
 
             # Position player at spawn coords (Priority: World default/player_start, then WarpPortal explicit)
             # Procedural Generation Rule: If create_world returned a world with a valid player_start, use it.
@@ -308,9 +312,17 @@ class Chronicler(Actor):
                         break
                 elif game_state.stats:
                     story_flags = game_state.stats.data.get("story_flags", {})
-                    if story_flags.get(key) != value:
+                    flag_val = (
+                        story_flags.get(key, game_state.stats.data.get(key))
+                        if isinstance(story_flags, dict)
+                        else game_state.stats.data.get(key)
+                    )
+                    if flag_val != value:
                         match = False
                         break
+                else:
+                    match = False
+                    break
 
             if match:
                 valid_nodes.append(node)
