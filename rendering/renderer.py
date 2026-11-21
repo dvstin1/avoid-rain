@@ -383,6 +383,62 @@ class Renderer:
             fl.set_at((1, 1), s_base)
         return fl
 
+    @classmethod
+    def _build_tech_tower_stratum_variant(cls, ts, s_idx, v_idx, s_base):
+        """Generate a low-contrast (<= +/-12 RGB) brushed-titanium / grate 40x40 variant for tech_tower."""
+        fl = pygame.Surface((ts, ts))
+        fl.fill(s_base)
+        rng = random.Random(9400 + s_idx * 97 + v_idx * 19)
+
+        if s_idx == 0:
+            # Recessed Reactor Trench: dark grille slats & fine metallic dust within <= +/-10 RGB
+            slat_dark = cls._shift_rgb_clamped(s_base, -6, -7, -9)
+            slat_bevel = cls._shift_rgb_clamped(s_base, 6, 8, 10)
+            phase = v_idx % 2
+            for gy in range(phase * 2, ts, 6):
+                pygame.draw.line(fl, slat_dark, (0, gy), (ts - 1, gy), 2)
+                if gy + 2 < ts:
+                    pygame.draw.line(fl, slat_bevel, (0, gy + 2), (ts - 1, gy + 2), 1)
+            rib_x = 8 + v_idx * 8
+            pygame.draw.line(fl, slat_dark, (rib_x, 0), (rib_x, ts - 1), 1)
+            for _ in range(28):
+                px, py = rng.randrange(0, ts), rng.randrange(0, ts)
+                delta = rng.randint(-6, 6)
+                fl.set_at((px, py), cls._shift_rgb_clamped(s_base, delta, delta, delta))
+        elif s_idx == 1:
+            # Brushed Titanium Deck Plating: horizontal brushed streaks & micro-rivets (<= +/-11 RGB)
+            streak_hi = cls._shift_rgb_clamped(s_base, 7, 8, 10)
+            streak_lo = cls._shift_rgb_clamped(s_base, -6, -7, -9)
+            for idx in range(14):
+                sx0 = rng.randint(0, ts - 10)
+                sy0 = rng.randint(2, ts - 3)
+                slen = rng.randint(6, 16)
+                col = streak_hi if idx % 2 == 0 else streak_lo
+                pygame.draw.line(fl, col, (sx0, sy0), (min(ts - 1, sx0 + slen), sy0), 1)
+            rivet_hi = cls._shift_rgb_clamped(s_base, 9, 10, 11)
+            rivet_lo = cls._shift_rgb_clamped(s_base, -8, -9, -10)
+            off = 3 + (v_idx % 2)
+            for rx, ry in ((off, off), (ts - off - 1, off), (off, ts - off - 1), (ts - off - 1, ts - off - 1)):
+                fl.set_at((rx, ry), rivet_hi)
+                if rx + 1 < ts and ry + 1 < ts:
+                    fl.set_at((rx + 1, ry + 1), rivet_lo)
+        else:
+            # Anodized Steel Walkway: machined traction grooves & panel seams (<= +/-11 RGB)
+            seam_lo = cls._shift_rgb_clamped(s_base, -9, -10, -11)
+            seam_hi = cls._shift_rgb_clamped(s_base, 8, 9, 10)
+            for idx in range(10):
+                gx = rng.randint(2, ts - 12)
+                gy = rng.randint(3, ts - 4)
+                pygame.draw.line(fl, seam_hi if idx % 2 == 0 else seam_lo, (gx, gy), (gx + 8, gy), 1)
+            notch_y = 10 + v_idx * 6
+            pygame.draw.line(fl, seam_lo, (2, notch_y), (ts - 3, notch_y), 1)
+            if notch_y + 1 < ts:
+                pygame.draw.line(fl, seam_hi, (2, notch_y + 1), (ts - 3, notch_y + 1), 1)
+
+        if v_idx == 0:
+            fl.set_at((1, 1), s_base)
+        return fl
+
     def _generate_biome_tile_cache(self):
         """Procedurally generate seamless base floor and wall surfaces per biome."""
         ts = constants.TILE_SIZE
@@ -405,6 +461,8 @@ class Renderer:
                 for v_idx in range(4):
                     if biome == "windy_ridge":
                         fl = self._build_windy_ridge_stratum_variant(ts, s_idx, v_idx, s_base)
+                    elif biome == "tech_tower":
+                        fl = self._build_tech_tower_stratum_variant(ts, s_idx, v_idx, s_base)
                     else:
                         fl = pygame.Surface((ts, ts))
                         fl.fill(s_base)
@@ -1276,6 +1334,11 @@ class Renderer:
                     target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
             return
 
+        # 2b. Tech Tower Biome: Engineered brushed-titanium bulkheads, louvers, and status pips
+        if biome == "tech_tower":
+            self._draw_tech_tower_wall_tile(target_surf, coords, dr, pal, (wall_n, wall_s, wall_w, wall_e))
+            return
+
         # 3. All other biomes: Restore exact legacy procedural geometric wall rendering (matching 70ed514)
         if wall_s:
             # Connected Plateau / Wall Rooftop: seamless across adjacent wall tiles
@@ -1348,6 +1411,112 @@ class Renderer:
             if not wall_e:
                 target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
 
+    def _draw_tech_tower_wall_tile(self, target_surf, coords, dr, pal, wall_adj):
+        """Render engineered titanium wall bulkheads, louvers, recessed seams, and sparse status pips."""
+        x, y, _, _ = coords
+        sx, sy, ts = int(dr[0]), int(dr[1]), int(dr[2])
+        wall_n, wall_s, wall_w, wall_e = wall_adj
+
+        h_val = ((x * 2654435761) ^ (y * 2246822519)) & 0x7FFFFFFF
+        roll = h_val % 100
+        variant = (h_val >> 4) % 4
+
+        top_base = pal["wall_top"]
+        face_base = pal["wall_face"]
+        mortar = pal["wall_mortar"]
+        bevel_hi = self._shift_rgb_clamped(top_base, 26, 30, 34)
+        panel_dark = self._shift_rgb_clamped(top_base, -14, -16, -20)
+        panel_light = self._shift_rgb_clamped(top_base, 9, 11, 13)
+        pip_col = (48, 172, 198) if (h_val & 1) else (178, 68, 138)
+
+        if wall_s:
+            # Engineered titanium rooftop / bulkhead plateau
+            target_surf.fill(top_base, (sx, sy, ts, ts))
+            pygame.draw.line(target_surf, panel_dark, (sx, sy + ts - 1), (sx + ts - 1, sy + ts - 1), 1)
+            pygame.draw.line(target_surf, panel_dark, (sx + ts - 1, sy), (sx + ts - 1, sy + ts - 1), 1)
+            if variant == 0:
+                # Twin brushed inspection hatches with recessed seam
+                pygame.draw.rect(target_surf, panel_dark, (sx + 4, sy + 5, ts - 8, 13), 1)
+                pygame.draw.rect(target_surf, panel_light, (sx + 5, sy + 6, ts - 10, 1))
+                pygame.draw.rect(target_surf, panel_dark, (sx + 4, sy + 22, ts - 8, 13), 1)
+                pygame.draw.rect(target_surf, panel_light, (sx + 5, sy + 23, ts - 10, 1))
+            elif variant == 1:
+                # Horizontal ventilation louver bank
+                pygame.draw.rect(target_surf, panel_dark, (sx + 5, sy + 7, ts - 10, ts - 14), 1)
+                for ly in range(sy + 10, sy + ts - 9, 5):
+                    target_surf.fill(mortar, (sx + 8, ly, ts - 16, 2))
+                    target_surf.fill(panel_light, (sx + 8, ly + 2, ts - 16, 1))
+            elif variant == 2:
+                # Split expansion plate with center channel & corner bolts
+                target_surf.fill(panel_dark, (sx + ts // 2 - 1, sy + 3, 2, ts - 6))
+                target_surf.fill(panel_light, (sx + ts // 2 + 1, sy + 3, 1, ts - 6))
+                corners = (
+                    (sx + 5, sy + 5),
+                    (sx + ts - 6, sy + 5),
+                    (sx + 5, sy + ts - 6),
+                    (sx + ts - 6, sy + ts - 6),
+                )
+                for bx, by in corners:
+                    target_surf.set_at((bx, by), bevel_hi)
+            else:
+                # Clean brushed deck cap with horizontal structural seam & service bezel
+                target_surf.fill(panel_dark, (sx + 3, sy + 18, ts - 6, 2))
+                target_surf.fill(panel_light, (sx + 3, sy + 20, ts - 6, 1))
+                pygame.draw.rect(target_surf, panel_dark, (sx + 8, sy + 6, 12, 8), 1)
+
+            if roll < 15:
+                px = sx + 8 + ((h_val >> 8) % (ts - 16))
+                py = sy + 8 + ((h_val >> 12) % (ts - 16))
+                target_surf.fill(mortar, (px - 1, py - 1, 5, 4))
+                target_surf.fill(pip_col, (px, py, 3, 2))
+
+            if not wall_n:
+                target_surf.fill(mortar, (sx, sy, ts, 2))
+                target_surf.fill(bevel_hi, (sx, sy + 2, ts, 2))
+            if not wall_w:
+                target_surf.fill(mortar, (sx, sy, 2, ts))
+                target_surf.fill(bevel_hi, (sx + 2, sy, 2, ts))
+            if not wall_e:
+                target_surf.fill(mortar, (sx + ts - 2, sy, 2, ts))
+        else:
+            # 2.5D South-facing engineered titanium bulkhead facade
+            target_surf.fill(face_base, (sx, sy, ts, ts))
+            target_surf.fill(top_base, (sx, sy, ts, 12))
+            if not wall_n:
+                target_surf.fill(mortar, (sx, sy, ts, 2))
+                target_surf.fill(bevel_hi, (sx, sy + 2, ts, 1))
+            target_surf.fill(bevel_hi, (sx, sy + 11, ts, 2))
+            face_seam = self._shift_rgb_clamped(face_base, -12, -14, -18)
+            face_hi = self._shift_rgb_clamped(face_base, 12, 14, 18)
+
+            face_var = variant % 3
+            if face_var == 0:
+                # Recessed horizontal vent louvers
+                for ly in (sy + 17, sy + 23, sy + 29):
+                    target_surf.fill(mortar, (sx + 6, ly, ts - 12, 2))
+                    target_surf.fill(face_hi, (sx + 6, ly + 2, ts - 12, 1))
+            elif face_var == 1:
+                # Split vertical armor panels with recessed seam & rivets
+                target_surf.fill(face_seam, (sx + ts // 2 - 1, sy + 14, 2, ts - 18))
+                target_surf.fill(face_hi, (sx + ts // 2 + 1, sy + 14, 1, ts - 18))
+                for bx in (sx + 5, sx + ts - 6):
+                    target_surf.set_at((bx, sy + 17), face_hi)
+                    target_surf.set_at((bx, sy + ts - 7), face_hi)
+            else:
+                # Inset bulkhead service frame
+                pygame.draw.rect(target_surf, face_seam, (sx + 5, sy + 16, ts - 10, ts - 21), 1)
+                target_surf.fill(face_hi, (sx + 6, sy + 17, ts - 12, 1))
+
+            if roll < 15:
+                target_surf.fill(mortar, (sx + ts - 11, sy + 18, 6, 4))
+                target_surf.fill(pip_col, (sx + ts - 10, sy + 19, 4, 2))
+
+            target_surf.fill(mortar, (sx, sy + ts - 3, ts, 3))
+            if not wall_w:
+                target_surf.fill(mortar, (sx, sy, 2, ts))
+            if not wall_e:
+                target_surf.fill(mortar, (sx + ts - 2, sy, 2, ts))
+
     def _draw_connected_floor_patterns(self, target_surf, biome_info, coords, dr):
         """Draw multi-tile connected shapes across same-surface tiles (restoring 70ed514 legacy)."""
         if not isinstance(target_surf, pygame.Surface):
@@ -1384,6 +1553,17 @@ class Renderer:
                 pygame.draw.ellipse(target_surf, soft_wash, (zpx + 22, zpy + 88, 118, 52))
             else:
                 pygame.draw.ellipse(target_surf, soft_wash, (zpx + 18, zpy + 44, 124, 68))
+        elif biome == "tech_tower":
+            # Muted steel-navy macro deck bay tint (<= +10 RGB) — suppresses bright (0, 145, 185) ovals
+            strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+            s_base = strata_defs[s_idx][0]
+            bay_tint = self._shift_rgb_clamped(s_base, 5, 7, 10)
+            if z_style == 0:
+                pygame.draw.rect(target_surf, bay_tint, (zpx + 10, zpy + 16, 140, 52), border_radius=4)
+            elif z_style == 1:
+                pygame.draw.rect(target_surf, bay_tint, (zpx + 16, zpy + 88, 128, 56), border_radius=4)
+            else:
+                pygame.draw.rect(target_surf, bay_tint, (zpx + 20, zpy + 28, 120, 104), border_radius=4)
         elif z_style == 0:
             pygame.draw.rect(target_surf, s_alt, (zpx + 12, zpy + 22, 136, 34), border_radius=16)
             pygame.draw.rect(target_surf, s_alt, (zpx + 20, zpy + 98, 124, 38), border_radius=18)
@@ -1465,45 +1645,7 @@ class Renderer:
                     pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 20, ay + 28), 8)
                     pygame.draw.circle(target_surf, (144, 244, 152), (ax + 20, ay + 26), 5)
         elif biome == "tech_tower":
-            if s_idx == 0:
-                # Continuous Sub-Floor Reactor Trench Grating across the entire 80x80 block
-                for gy in range(8, 80, 10):
-                    target_surf.fill(pal["wall_mortar"], (ax, ay + gy, 80, 5))
-                if pat in (0, 2):
-                    target_surf.fill(pal["wall_glow"], (ax + 28, ay, 14, 80))
-                    target_surf.fill(pal["floor_speck"], (ax + 32, ay, 6, 80))
-                else:
-                    target_surf.fill(pal["floor_accent"], (ax, ay + 32, 80, 12))
-                    pygame.draw.circle(target_surf, pal["wall_glow"], (ax + 40, ay + 38), 16, 3)
-            elif s_idx == 2:
-                # Continuous High-Voltage Data-Bus Walkway
-                target_surf.fill(pal["floor_accent"], (ax, ay + 36, 80, 8))
-                target_surf.fill(pal["floor_speck"], (ax, ay + 39, 80, 2))
-                if pat == 0:
-                    target_surf.fill(pal["floor_accent"], (ax + 36, ay, 8, 80))
-                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 24, ay + 24, 32, 32), border_radius=4)
-                    pygame.draw.rect(target_surf, pal["wall_glow"], (ax + 30, ay + 30, 20, 20), 2, border_radius=3)
-                elif pat == 1:
-                    for bx_p in (16, 40, 64):
-                        pygame.draw.circle(target_surf, pal["wall_glow"], (ax + bx_p, ay + 40), 5)
-            else:
-                # Giant 2x2 Bulkhead Hull Plates & Circuit Routing
-                if pat == 0:
-                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 4, ay + 4, 72, 72), 2, border_radius=8)
-                    pygame.draw.rect(target_surf, pal["floor_accent"], (ax + 26, ay + 26, 28, 28), 1, border_radius=4)
-                elif pat == 1:
-                    pygame.draw.line(target_surf, pal["floor_accent"], (ax, ay + 24), (ax + 52, ay + 24), 2)
-                    pygame.draw.line(target_surf, pal["floor_accent"], (ax + 52, ay + 24), (ax + 52, ay + 80), 2)
-                    pygame.draw.line(target_surf, pal["wall_glow"], (ax + 24, ay), (ax + 24, ay + 56), 2)
-                    pygame.draw.line(target_surf, pal["wall_glow"], (ax + 24, ay + 56), (ax + 80, ay + 56), 2)
-                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 52, ay + 24), 4)
-                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 24, ay + 56), 4)
-                elif pat == 2:
-                    pygame.draw.circle(target_surf, pal["wall_face"], (ax + 40, ay + 40), 28, 3)
-                    pygame.draw.circle(target_surf, pal["wall_glow"], (ax + 40, ay + 40), 18, 1)
-                else:
-                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 6, ay + 6, 68, 30), 2, border_radius=4)
-                    pygame.draw.rect(target_surf, pal["wall_face"], (ax + 6, ay + 44, 68, 30), 2, border_radius=4)
+            self._draw_tech_tower_floor_patterns(target_surf, pal, s_idx, (x, y, sx, sy, ts))
         elif biome == "swamp_mire":
             if s_idx == 0:
                 # Deep viscous fluid: horizontal wavy ripple bands and floating pea-green scum
@@ -1642,6 +1784,151 @@ class Renderer:
                     pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 18, ay + 24, 44, 30))
 
         target_surf.set_clip(prev_clip)
+
+    def _draw_tech_tower_floor_patterns(self, target_surf, pal, s_idx, tile_geom):
+        """Render recessed sub-floor trench grating, brushed titanium deck seams, and muted data-bus channels."""
+        x, y, sx, sy, ts = tile_geom
+        strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+        s_base = strata_defs[s_idx][0]
+        h_val = ((x * 73856093) ^ (y * 19349663) ^ (s_idx * 83492791)) & 0x7FFFFFFF
+        roll = h_val % 100
+
+        # Muted (~45%) cyan & magenta accents so decks stay sleek and never blaze neon
+        muted_cyan = (24, 114, 138)
+        muted_magenta = (132, 48, 108)
+        etched_cyan = (34, 98, 124)
+        node_magenta = (146, 56, 118)
+
+        if s_idx == 0:
+            # Stratum 0 (Reactor Trench): thin dimmed under-deck conduits UNDER 6px-pitch steel grating
+            conduit_x = sx + 14 + ((h_val >> 3) % 12)
+            target_surf.fill(muted_cyan, (conduit_x, sy, 2, ts))
+            if roll < 32:
+                target_surf.fill(muted_magenta, (min(sx + ts - 3, conduit_x + 5), sy, 1, ts))
+            if (y % 3) == 0:
+                target_surf.fill(muted_cyan, (sx, sy + 18, ts, 1))
+            grate_bar = self._shift_rgb_clamped(s_base, -6, -7, -9)
+            grate_hi = self._shift_rgb_clamped(s_base, 9, 12, 16)
+            for gy in range(2, ts, 6):
+                target_surf.fill(grate_bar, (sx, sy + gy, ts, 2))
+                if gy + 2 < ts:
+                    target_surf.fill(grate_hi, (sx, sy + gy + 2, ts, 1))
+            # Cross-support bar every other tile column
+            if (x % 2) == 0:
+                target_surf.fill(grate_bar, (sx + ts // 2, sy, 2, ts))
+        elif s_idx == 1:
+            # Stratum 1 (Brushed Titanium Deck): subtle 1px bulkhead seams + sparse (~16%) etched PCB traces
+            seam_dark = self._shift_rgb_clamped(s_base, -9, -10, -10)
+            seam_hi = self._shift_rgb_clamped(s_base, 8, 9, 10)
+            pygame.draw.line(target_surf, seam_dark, (sx, sy), (sx + ts - 1, sy), 1)
+            pygame.draw.line(target_surf, seam_dark, (sx, sy), (sx, sy + ts - 1), 1)
+            pygame.draw.line(target_surf, seam_hi, (sx + 1, sy + 1), (sx + ts - 2, sy + 1), 1)
+            if (x + y) % 2 == 0:
+                pygame.draw.line(target_surf, seam_dark, (sx + 4, sy + ts // 2), (sx + ts - 5, sy + ts // 2), 1)
+            if roll < 16:
+                turn_x = sx + 10 + (h_val % 18)
+                turn_y = sy + 10 + ((h_val >> 5) % 18)
+                pygame.draw.line(target_surf, etched_cyan, (sx + 2, turn_y), (turn_x, turn_y), 1)
+                pygame.draw.line(target_surf, etched_cyan, (turn_x, turn_y), (turn_x, sy + ts - 4), 1)
+                pygame.draw.circle(target_surf, node_magenta, (turn_x, turn_y), 2)
+        else:
+            # Stratum 2 (Data-Bus Walkway): anodized steel panels with recessed muted 2px data-bus channel
+            seam_dark = self._shift_rgb_clamped(s_base, -12, -13, -15)
+            seam_hi = self._shift_rgb_clamped(s_base, 10, 11, 13)
+            trough = self._shift_rgb_clamped(s_base, -24, -26, -32)
+            pygame.draw.rect(target_surf, seam_dark, (sx, sy, ts, ts), 1)
+            pygame.draw.line(target_surf, seam_hi, (sx + 1, sy + 1), (sx + ts - 2, sy + 1), 1)
+            cy = sy + ts // 2
+            target_surf.fill(trough, (sx, cy - 3, ts, 6))
+            target_surf.fill(muted_cyan, (sx, cy - 1, ts, 2))
+            target_surf.fill(muted_magenta, (sx, cy + 1, ts, 1))
+            if roll < 26:
+                jx = sx + 12 + (h_val % 16)
+                target_surf.fill(seam_dark, (jx - 3, cy - 4, 7, 8))
+                target_surf.fill(muted_cyan, (jx - 1, cy - 2, 3, 4))
+
+    def _draw_tech_tower_stratum_borders(self, target_surf, dr, s_idx, strata_defs, neighbors):
+        """Draw recessed dark-steel shadow edges (25% darker) and 1px muted slate-cyan chamfer highlights."""
+        sx, sy, ts = int(dr[0]), int(dr[1]), int(dr[2])
+        same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se = neighbors
+
+        outer_canvas_col = strata_defs[1][0]
+        edge_shadow = tuple(max(0, int(c * 0.75)) for c in outer_canvas_col)
+        chamfer_hi = (74, 118, 144) if s_idx == 0 else (96, 128, 158)
+
+        c_rad = 6
+        rnd_nw = (not same_n) and (not same_w)
+        rnd_ne = (not same_n) and (not same_e)
+        rnd_sw = (not same_s) and (not same_w)
+        rnd_se = (not same_s) and (not same_e)
+
+        # 1. Clean 45-degree chamfered metallic outer corners
+        if rnd_nw:
+            pygame.draw.polygon(target_surf, outer_canvas_col, [(sx, sy), (sx + c_rad, sy), (sx, sy + c_rad)])
+            pygame.draw.line(target_surf, edge_shadow, (sx, sy + c_rad), (sx + c_rad, sy), 2)
+            pygame.draw.line(target_surf, chamfer_hi, (sx + 2, sy + c_rad + 1), (sx + c_rad + 1, sy + 2), 1)
+        if rnd_ne:
+            pygame.draw.polygon(
+                target_surf, outer_canvas_col, [(sx + ts, sy), (sx + ts - c_rad, sy), (sx + ts, sy + c_rad)]
+            )
+            pygame.draw.line(target_surf, edge_shadow, (sx + ts - c_rad, sy), (sx + ts, sy + c_rad), 2)
+            pygame.draw.line(target_surf, chamfer_hi, (sx + ts - c_rad - 1, sy + 2), (sx + ts - 2, sy + c_rad + 1), 1)
+        if rnd_sw:
+            pygame.draw.polygon(
+                target_surf, outer_canvas_col, [(sx, sy + ts), (sx + c_rad, sy + ts), (sx, sy + ts - c_rad)]
+            )
+            pygame.draw.line(target_surf, edge_shadow, (sx, sy + ts - c_rad), (sx + c_rad, sy + ts), 2)
+            pygame.draw.line(target_surf, chamfer_hi, (sx + 2, sy + ts - c_rad - 1), (sx + c_rad + 1, sy + ts - 2), 1)
+        if rnd_se:
+            pygame.draw.polygon(
+                target_surf,
+                outer_canvas_col,
+                [(sx + ts, sy + ts), (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad)],
+            )
+            pygame.draw.line(target_surf, edge_shadow, (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad), 2)
+            pygame.draw.line(
+                target_surf, chamfer_hi, (sx + ts - c_rad - 1, sy + ts - 2), (sx + ts - 2, sy + ts - c_rad - 1), 1
+            )
+
+        # 2. Recessed 2px dark steel shadow edge + 1px muted slate-cyan chamfer highlight
+        if not same_n:
+            x0 = sx + (c_rad if rnd_nw else 0)
+            x1 = sx + ts - (c_rad if rnd_ne else 0)
+            if x1 > x0:
+                target_surf.fill(edge_shadow, (x0, sy, x1 - x0, 2))
+                target_surf.fill(chamfer_hi, (x0, sy + 2, x1 - x0, 1))
+        if not same_s:
+            x0 = sx + (c_rad if rnd_sw else 0)
+            x1 = sx + ts - (c_rad if rnd_se else 0)
+            if x1 > x0:
+                target_surf.fill(edge_shadow, (x0, sy + ts - 2, x1 - x0, 2))
+                target_surf.fill(chamfer_hi, (x0, sy + ts - 3, x1 - x0, 1))
+        if not same_w:
+            y0 = sy + (c_rad if rnd_nw else 0)
+            y1 = sy + ts - (c_rad if rnd_sw else 0)
+            if y1 > y0:
+                target_surf.fill(edge_shadow, (sx, y0, 2, y1 - y0))
+                target_surf.fill(chamfer_hi, (sx + 2, y0, 1, y1 - y0))
+        if not same_e:
+            y0 = sy + (c_rad if rnd_ne else 0)
+            y1 = sy + ts - (c_rad if rnd_se else 0)
+            if y1 > y0:
+                target_surf.fill(edge_shadow, (sx + ts - 2, y0, 2, y1 - y0))
+                target_surf.fill(chamfer_hi, (sx + ts - 3, y0, 1, y1 - y0))
+
+        # 3. Concave inner corner bevels
+        if same_n and same_w and not same_nw:
+            target_surf.fill(edge_shadow, (sx, sy, 2, 2))
+            target_surf.set_at((sx + 2, sy + 2), chamfer_hi)
+        if same_n and same_e and not same_ne:
+            target_surf.fill(edge_shadow, (sx + ts - 2, sy, 2, 2))
+            target_surf.set_at((sx + ts - 3, sy + 2), chamfer_hi)
+        if same_s and same_w and not same_sw:
+            target_surf.fill(edge_shadow, (sx, sy + ts - 2, 2, 2))
+            target_surf.set_at((sx + 2, sy + ts - 3), chamfer_hi)
+        if same_s and same_e and not same_se:
+            target_surf.fill(edge_shadow, (sx + ts - 2, sy + ts - 2, 2, 2))
+            target_surf.set_at((sx + ts - 3, sy + ts - 3), chamfer_hi)
 
     def _draw_windy_ridge_floor_patterns(self, target_surf, pal, s_idx, tile_geom):
         """Render organic low-contrast highland clover basins, combed meadow grass, and weathered limestone cobbles."""
@@ -1831,6 +2118,10 @@ class Renderer:
         if biome == "windy_ridge":
             neighbors = (same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se)
             self._draw_windy_ridge_stratum_borders(target_surf, (x, y), dr, s_idx, strata_defs, neighbors)
+            return
+        if biome == "tech_tower":
+            neighbors = (same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se)
+            self._draw_tech_tower_stratum_borders(target_surf, dr, s_idx, strata_defs, neighbors)
             return
 
         outer_canvas_col = strata_defs[1][0]
