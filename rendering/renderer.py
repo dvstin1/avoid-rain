@@ -439,6 +439,64 @@ class Renderer:
             fl.set_at((1, 1), s_base)
         return fl
 
+    @classmethod
+    def _build_swamp_mire_stratum_variant(cls, ts, s_idx, v_idx, s_base):
+        """Generate a low-contrast (<= +/-12 RGB) peat, sludge, or chitin 40x40 variant for swamp_mire."""
+        fl = pygame.Surface((ts, ts))
+        fl.fill(s_base)
+        rng = random.Random(9600 + s_idx * 97 + v_idx * 19)
+
+        if s_idx == 0:
+            # Viscous Fluid & Sunken Sludge: stagnant oil-slick ripples within <= +/-10 RGB
+            trough = cls._shift_rgb_clamped(s_base, -6, -4, -8)
+            sheen = cls._shift_rgb_clamped(s_base, 7, 5, 10)
+            phase = (v_idx * 3) % 7
+            for gy in range(4 + phase, ts - 2, 9):
+                x0 = rng.randint(1, 9)
+                x1 = min(ts - 2, x0 + rng.randint(14, 24))
+                pygame.draw.line(fl, trough, (x0, gy), (x1, gy), 1)
+                if gy + 1 < ts:
+                    pygame.draw.line(fl, sheen, (x0 + 2, gy + 1), (max(x0 + 2, x1 - 2), gy + 1), 1)
+            for _ in range(26):
+                px, py = rng.randrange(0, ts), rng.randrange(0, ts)
+                d = rng.randint(-6, 7)
+                fl.set_at((px, py), cls._shift_rgb_clamped(s_base, d, d // 2, d))
+        elif s_idx == 1:
+            # Bruised Violet Marsh: fibrous peat grain & damp silt flecks within <= +/-11 RGB
+            fiber_hi = cls._shift_rgb_clamped(s_base, 8, 5, 11)
+            fiber_lo = cls._shift_rgb_clamped(s_base, -8, -5, -10)
+            for idx in range(18):
+                fx = rng.randint(1, ts - 8)
+                fy = rng.randint(1, ts - 3)
+                flen = rng.randint(3, 8)
+                dy = rng.choice((-1, 0, 1))
+                col = fiber_hi if idx % 2 == 0 else fiber_lo
+                pygame.draw.line(fl, col, (fx, fy), (min(ts - 1, fx + flen), max(0, min(ts - 1, fy + dy))), 1)
+            for _ in range(30):
+                px, py = rng.randrange(0, ts), rng.randrange(0, ts)
+                d = rng.randint(-7, 7)
+                fl.set_at((px, py), cls._shift_rgb_clamped(s_base, d, d // 2, d))
+        else:
+            # Raised Calcified Hive Chitin: porous chitin mottling within <= +/-11 RGB
+            pore_lo = cls._shift_rgb_clamped(s_base, -10, -7, -11)
+            pore_hi = cls._shift_rgb_clamped(s_base, 9, 7, 11)
+            for _ in range(12):
+                cx = rng.randint(3, ts - 4)
+                cy = rng.randint(3, ts - 4)
+                rad = rng.choice((1, 2))
+                pygame.draw.circle(fl, pore_lo, (cx, cy), rad)
+                if cx - 1 >= 0 and cy - 1 >= 0:
+                    fl.set_at((cx - 1, cy - 1), pore_hi)
+            for _ in range(28):
+                px, py = rng.randrange(0, ts), rng.randrange(0, ts)
+                d = rng.randint(-8, 8)
+                fl.set_at((px, py), cls._shift_rgb_clamped(s_base, d, (d * 2) // 3, d))
+
+        # Preserve exact pixel (1, 1) == s_base invariant for stratum verification tests
+        if v_idx == 0:
+            fl.set_at((1, 1), s_base)
+        return fl
+
     def _generate_biome_tile_cache(self):
         """Procedurally generate seamless base floor and wall surfaces per biome."""
         ts = constants.TILE_SIZE
@@ -463,6 +521,8 @@ class Renderer:
                         fl = self._build_windy_ridge_stratum_variant(ts, s_idx, v_idx, s_base)
                     elif biome == "tech_tower":
                         fl = self._build_tech_tower_stratum_variant(ts, s_idx, v_idx, s_base)
+                    elif biome == "swamp_mire":
+                        fl = self._build_swamp_mire_stratum_variant(ts, s_idx, v_idx, s_base)
                     else:
                         fl = pygame.Surface((ts, ts))
                         fl.fill(s_base)
@@ -1286,54 +1346,9 @@ class Renderer:
                 target_surf.blit(selected_wall, (sx, sy))
                 return
 
-        # 2. Swamp Biome: Organic mounded cliff walls and parasitic hive plateaus
+        # 2. Swamp Biome: Organic mounded cliff walls, overlapping peat ledges & root overhangs
         if biome == "swamp_mire":
-            if wall_s:
-                target_surf.fill(pal["wall_top"], (sx, sy, ts, ts))
-                prev_clip = target_surf.get_clip()
-                target_surf.set_clip(pygame.Rect(sx, sy, ts, ts))
-                ax = sx - (x % 2) * ts
-                ay = sy - (y % 2) * ts
-                pat = ((x // 2) * 31 + (y // 2) * 47) % 3
-                if pat == 0:
-                    pygame.draw.ellipse(target_surf, pal["wall_face"], (ax + 8, ay + 10, 64, 60))
-                    pygame.draw.ellipse(target_surf, pal["wall_top"], (ax + 16, ay + 18, 48, 44))
-                    pygame.draw.ellipse(target_surf, pal["wall_hi"], (ax + 22, ay + 22, 28, 14), 1)
-                elif pat == 1:
-                    pygame.draw.ellipse(target_surf, pal["wall_face"], (ax + 6, ay + 8, 36, 32))
-                    pygame.draw.ellipse(target_surf, pal["wall_face"], (ax + 36, ay + 38, 38, 34))
-                    pygame.draw.circle(target_surf, pal["wall_glow"], (ax + 34, ay + 34), 3)
-                else:
-                    pygame.draw.ellipse(target_surf, pal["wall_face"], (ax + 8, ay + 20, 64, 40))
-                    pygame.draw.ellipse(target_surf, pal["wall_hi"], (ax + 16, ay + 24, 48, 18), 1)
-                target_surf.set_clip(prev_clip)
-
-                if not wall_n:
-                    target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 2))
-                    target_surf.fill(pal["wall_hi"], (sx, sy + 2, ts, 2))
-                if not wall_w:
-                    target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
-                    target_surf.fill(pal["wall_hi"], (sx + 2, sy, 2, ts))
-                if not wall_e:
-                    target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
-            else:
-                # 2.5D cliff facade with soft rounded tiers and deep undercut drop shadow
-                target_surf.fill(pal["wall_face"], (sx, sy, ts, ts))
-                target_surf.fill(pal["wall_top"], (sx, sy, ts, 12))
-                if not wall_n:
-                    target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 2))
-                    target_surf.fill(pal["wall_hi"], (sx, sy + 2, ts, 2))
-                target_surf.fill(pal["wall_hi"], (sx, sy + 11, ts, 2))
-                pygame.draw.rect(target_surf, pal["wall_top"], (sx + 2, sy + 16, ts - 4, 8), border_radius=4)
-                pygame.draw.rect(target_surf, pal["wall_hi"], (sx + 4, sy + 17, ts - 8, 2), border_radius=1)
-                pygame.draw.rect(target_surf, pal["wall_top"], (sx + 4, sy + 26, ts - 8, 7), border_radius=3)
-                pore_x = sx + 8 + ((x * 11) % (ts - 16))
-                pygame.draw.circle(target_surf, pal["wall_glow"], (pore_x, sy + 28), 2)
-                target_surf.fill(pal["wall_mortar"], (sx, sy + ts - 4, ts, 4))
-                if not wall_w:
-                    target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
-                if not wall_e:
-                    target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
+            self._draw_swamp_mire_wall_tile(target_surf, (x, y, sx, sy, ts), pal, (wall_n, wall_s, wall_w, wall_e))
             return
 
         # 2b. Tech Tower Biome: Engineered brushed-titanium bulkheads, louvers, and status pips
@@ -1412,6 +1427,114 @@ class Renderer:
                 target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
             if not wall_e:
                 target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
+
+    def _draw_swamp_mire_wall_tile(self, target_surf, geom, pal, wall_adj):
+        """Render organic peat/chitin wall plateaus and root-overhang south facades for swamp_mire."""
+        x, y, sx, sy, ts = geom
+        wall_n, wall_s, wall_w, wall_e = wall_adj
+
+        top_col = pal["wall_top"]
+        face_col = pal["wall_face"]
+        mortar_col = pal["wall_mortar"]
+        glow_col = pal["wall_glow"]
+        mound_shade = self._shift_rgb_clamped(top_col, -16, -10, -16)
+        mound_hi = self._shift_rgb_clamped(top_col, 44, 34, 48)
+        rim_soft = self._shift_rgb_clamped(top_col, 56, 44, 58)
+        root_dark = self._shift_rgb_clamped(face_col, -32, -16, -28)
+        root_mid = self._shift_rgb_clamped(face_col, -14, -8, -12)
+        moss_drip = (82, 118, 40)
+
+        h_val = ((x * 2654435761) ^ (y * 2246822519)) & 0x7FFFFFFF
+        roll = h_val % 100
+
+        if wall_s:
+            # Organic cellular hive plateau (2x2 clipped domes, muted lilac highlights)
+            target_surf.fill(top_col, (sx, sy, ts, ts))
+            prev_clip = target_surf.get_clip()
+            target_surf.set_clip(pygame.Rect(sx, sy, ts, ts))
+            ax = sx - (x % 2) * ts
+            ay = sy - (y % 2) * ts
+            pat = ((x // 2) * 31 + (y // 2) * 47) % 3
+            if pat == 0:
+                pygame.draw.ellipse(target_surf, face_col, (ax + 8, ay + 10, 64, 58))
+                pygame.draw.ellipse(target_surf, top_col, (ax + 15, ay + 16, 50, 44))
+                pygame.draw.arc(target_surf, mound_hi, (ax + 20, ay + 20, 32, 18), 0.3, 2.8, 1)
+            elif pat == 1:
+                pygame.draw.ellipse(target_surf, face_col, (ax + 6, ay + 8, 36, 32))
+                pygame.draw.ellipse(target_surf, mound_shade, (ax + 36, ay + 38, 38, 34))
+                if roll < 28:
+                    pygame.draw.circle(target_surf, moss_drip, (ax + 34, ay + 34), 3)
+                    pygame.draw.circle(target_surf, glow_col, (ax + 34, ay + 34), 1)
+            else:
+                pygame.draw.ellipse(target_surf, face_col, (ax + 8, ay + 20, 62, 38))
+                pygame.draw.arc(target_surf, mound_hi, (ax + 16, ay + 22, 46, 20), 0.25, 2.85, 1)
+            target_surf.set_clip(prev_clip)
+
+            if not wall_n:
+                target_surf.fill(mortar_col, (sx, sy, ts, 2))
+                target_surf.fill(rim_soft, (sx + 2, sy + 2, ts - 4, 1))
+            if not wall_w:
+                target_surf.fill(mortar_col, (sx, sy, 2, ts))
+                target_surf.fill(rim_soft, (sx + 2, sy + 2, 1, ts - 4))
+            if not wall_e:
+                target_surf.fill(mortar_col, (sx + ts - 2, sy, 2, ts))
+        else:
+            # 2.5D South-facing peat/root cliff facade: overlapping organic ledges, drooping roots & spore drips
+            target_surf.fill(face_col, (sx, sy, ts, ts))
+            target_surf.fill(top_col, (sx, sy, ts, 11))
+            if not wall_n:
+                target_surf.fill(mortar_col, (sx, sy, ts, 2))
+                target_surf.fill(rim_soft, (sx + 2, sy + 2, ts - 4, 1))
+
+            # Organic scalloped overhang crown (replaces straight horizontal mortar bars)
+            prev_clip = target_surf.get_clip()
+            target_surf.set_clip(pygame.Rect(sx, sy, ts, ts))
+            shift_a = (h_val % 7) - 3
+            shift_b = ((h_val >> 3) % 7) - 3
+            # Upper overlapping peat mounds along crown lip
+            pygame.draw.ellipse(target_surf, top_col, (sx - 4 + shift_a, sy + 5, 24, 13))
+            pygame.draw.ellipse(target_surf, top_col, (sx + 16 + shift_b, sy + 6, 26, 12))
+            pygame.draw.arc(target_surf, mound_hi, (sx - 2 + shift_a, sy + 6, 20, 9), 0.2, 2.9, 1)
+            pygame.draw.arc(target_surf, mound_hi, (sx + 18 + shift_b, sy + 7, 22, 8), 0.2, 2.9, 1)
+
+            # Mid-cliff staggered organic peat shelf & recessed shadow cleft
+            shelf_x = sx + 2 + ((h_val >> 5) % 9)
+            shelf_w = 18 + ((h_val >> 7) % 10)
+            shelf_y = sy + 18 + ((h_val >> 9) % 4)
+            pygame.draw.ellipse(target_surf, root_dark, (shelf_x - 1, shelf_y + 3, shelf_w + 2, 8))
+            pygame.draw.ellipse(target_surf, mound_shade, (shelf_x, shelf_y, shelf_w, 8))
+            pygame.draw.arc(target_surf, mound_hi, (shelf_x + 2, shelf_y, shelf_w - 4, 5), 0.3, 2.8, 1)
+
+            # Drooping knotted root tendrils hanging down the cliff face
+            r1_x = sx + 6 + ((h_val >> 2) % 10)
+            r2_x = sx + 22 + ((h_val >> 6) % 11)
+            r1_len = 13 + ((h_val >> 10) % 7)
+            r2_len = 11 + ((h_val >> 12) % 8)
+            for rx, rlen, sway in ((r1_x, r1_len, 2), (r2_x, r2_len, -2)):
+                pts = [
+                    (rx, sy + 11),
+                    (rx + sway, sy + 11 + rlen // 2),
+                    (rx + sway // 2, min(sy + ts - 5, sy + 11 + rlen)),
+                ]
+                pygame.draw.lines(target_surf, root_dark, False, pts, 2)
+                pygame.draw.line(target_surf, root_mid, pts[0], pts[1], 1)
+
+            # Sparse (~28%) bioluminescent moss & spore drips clinging under the overhang
+            if roll < 28:
+                drip_x = sx + 9 + ((h_val >> 4) % (ts - 18))
+                drip_y = sy + 14 + ((h_val >> 8) % 10)
+                pygame.draw.line(target_surf, moss_drip, (drip_x, sy + 11), (drip_x, drip_y), 1)
+                pygame.draw.circle(target_surf, moss_drip, (drip_x, drip_y + 1), 2)
+                target_surf.set_at((drip_x, drip_y + 1), glow_col)
+
+            target_surf.set_clip(prev_clip)
+
+            # Deep undercut shadow along south base (preserves pixel (20, TILE_SIZE - 2) == wall_mortar invariant)
+            target_surf.fill(mortar_col, (sx, sy + ts - 4, ts, 4))
+            if not wall_w:
+                target_surf.fill(mortar_col, (sx, sy, 2, ts))
+            if not wall_e:
+                target_surf.fill(mortar_col, (sx + ts - 2, sy, 2, ts))
 
     def _draw_tech_tower_wall_tile(self, target_surf, coords, dr, pal, wall_adj):
         """Render engineered titanium wall bulkheads, louvers, recessed seams, and sparse status pips."""
@@ -1566,6 +1689,17 @@ class Renderer:
                 pygame.draw.rect(target_surf, bay_tint, (zpx + 16, zpy + 88, 128, 56), border_radius=4)
             else:
                 pygame.draw.rect(target_surf, bay_tint, (zpx + 20, zpy + 28, 120, 104), border_radius=4)
+        elif biome == "swamp_mire":
+            # Muted bruised-violet bog tint (<= +10 RGB) — suppresses bright raw s_alt ovals
+            strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+            s_base = strata_defs[s_idx][0]
+            bog_tint = self._shift_rgb_clamped(s_base, 7, 4, 9)
+            if z_style == 0:
+                pygame.draw.ellipse(target_surf, bog_tint, (zpx + 14, zpy + 18, 132, 54))
+            elif z_style == 1:
+                pygame.draw.ellipse(target_surf, bog_tint, (zpx + 20, zpy + 84, 120, 56))
+            else:
+                pygame.draw.ellipse(target_surf, bog_tint, (zpx + 18, zpy + 40, 124, 72))
         elif z_style == 0:
             pygame.draw.rect(target_surf, s_alt, (zpx + 12, zpy + 22, 136, 34), border_radius=16)
             pygame.draw.rect(target_surf, s_alt, (zpx + 20, zpy + 98, 124, 38), border_radius=18)
@@ -1649,38 +1783,7 @@ class Renderer:
         elif biome == "tech_tower":
             self._draw_tech_tower_floor_patterns(target_surf, pal, s_idx, (x, y, sx, sy, ts))
         elif biome == "swamp_mire":
-            if s_idx == 0:
-                # Deep viscous fluid: horizontal wavy ripple bands and floating pea-green scum
-                for r_o in (16, 32, 48, 64):
-                    pygame.draw.arc(target_surf, pal["floor_alt"], (ax + 4, ay + r_o - 6, 72, 14), 0.1, 3.0, 2)
-                if pat == 0:
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 16, ay + 20, 48, 18))
-                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 26, ay + 24), 3)
-                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 42, ay + 28), 2)
-                elif pat == 1:
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 24, ay + 42, 36, 14))
-                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 32, ay + 46), 2)
-                else:
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 12, ay + 30, 26, 12))
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 44, ay + 50, 28, 12))
-            elif s_idx == 2:
-                # Raised calcified hive chitin and peat bank
-                pygame.draw.ellipse(target_surf, pal["wall_top"], (ax + 10, ay + 14, 60, 52))
-                pygame.draw.ellipse(target_surf, pal["wall_hi"], (ax + 16, ay + 18, 48, 40), 2)
-                if pat == 1:
-                    pygame.draw.circle(target_surf, pal["wall_glow"], (ax + 40, ay + 40), 4)
-            else:
-                # Stratum 1: Sluggish eggplant fluid with soft horizontal ripples and algae scum flecks
-                for r_o in (20, 40, 60):
-                    pygame.draw.arc(target_surf, pal["floor_alt"], (ax + 8, ay + r_o - 5, 64, 12), 0.1, 3.0, 2)
-                if pat == 0:
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 20, ay + 28, 38, 16))
-                    pygame.draw.circle(target_surf, pal["floor_speck"], (ax + 30, ay + 34), 3)
-                elif pat == 1:
-                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 26, ay + 26), 7)
-                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 54, ay + 46), 6)
-                else:
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 24, ay + 38, 32, 14))
+            self._draw_swamp_mire_floor_patterns(target_surf, pal, s_idx, (x, y, sx, sy, ts))
         elif biome == "frozen_peaks":
             if s_idx == 0:
                 # Continuous Mirror-Ice Basin with branching multi-tile fracture networks
@@ -1848,6 +1951,197 @@ class Renderer:
                 jx = sx + 12 + (h_val % 16)
                 target_surf.fill(seam_dark, (jx - 3, cy - 4, 7, 8))
                 target_surf.fill(muted_cyan, (jx - 1, cy - 2, 3, 4))
+
+    def _draw_swamp_mire_floor_patterns(self, target_surf, pal, s_idx, tile_geom):
+        """Render organic mycelium veins, recessed chitin fissures, and sparse bog ripples for swamp_mire."""
+        x, y, sx, sy, ts = tile_geom
+        strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+        s_base = strata_defs[s_idx][0]
+
+        h_val = ((x * 73856093) ^ (y * 19349663) ^ (s_idx * 83492791)) & 0x7FFFFFFF
+        roll = h_val % 100
+        bx, by = x // 2, y // 2
+        ax = sx - (x % 2) * ts
+        ay = sy - (y % 2) * ts
+        pat = ((bx * 37 + by * 59 + s_idx * 17) & 0x7FFFFFFF) % 4
+
+        scum_dark = (58, 80, 32)
+        scum_soft = (94, 122, 42)
+        spore_lilac = (156, 124, 178)
+
+        if s_idx == 0:
+            # Stratum 0 (Viscous Fluid & Sunken Sludge): subtle oil-slick ripples + sparse muted algae patches
+            ripple_mid = self._shift_rgb_clamped(s_base, 18, 12, 24)
+            ripple_lo = self._shift_rgb_clamped(s_base, -8, -5, -10)
+            y_step = 18 if pat % 2 == 0 else 22
+            for r_o in range(12 + (pat * 3) % 7, 74, y_step):
+                pygame.draw.arc(target_surf, ripple_mid, (ax + 6, ay + r_o - 5, 68, 12), 0.15, 2.95, 1)
+                pygame.draw.arc(target_surf, ripple_lo, (ax + 10, ay + r_o - 3, 60, 10), 0.25, 2.85, 1)
+            if roll < 22:
+                px = sx + 8 + ((h_val >> 3) % 14)
+                py = sy + 10 + ((h_val >> 7) % 14)
+                pw = 12 + ((h_val >> 11) % 8)
+                ph = 5 + ((h_val >> 13) % 4)
+                pygame.draw.ellipse(target_surf, scum_dark, (px, py, pw, ph))
+                pygame.draw.ellipse(target_surf, scum_soft, (px + 2, py + 1, max(4, pw - 5), max(2, ph - 2)))
+                if roll < 9:
+                    target_surf.set_at((px + pw // 2, py + ph // 2), spore_lilac)
+        elif s_idx == 2:
+            # Stratum 2 (Calcified Hive Chitin): branching pale-lilac mycelium veins, recessed fissures & ~18% pustules
+            fissure_dark = self._shift_rgb_clamped(s_base, -22, -16, -24)
+            fissure_rim = self._shift_rgb_clamped(s_base, 18, 14, 22)
+            mycelium_col = self._shift_rgb_clamped(s_base, 42, 34, 48)
+            mycelium_dim = self._shift_rgb_clamped(s_base, 24, 18, 28)
+
+            # Irregular recessed chitin fissure across 2x2 patch
+            if pat == 0:
+                pts = [(ax + 12, ay + 24), (ax + 34, ay + 36), (ax + 58, ay + 30), (ax + 68, ay + 46)]
+                pygame.draw.lines(target_surf, fissure_dark, False, pts, 2)
+                pygame.draw.lines(target_surf, fissure_rim, False, [(px, py - 1) for px, py in pts[:3]], 1)
+            elif pat == 1:
+                pts = [(ax + 18, ay + 58), (ax + 38, ay + 42), (ax + 62, ay + 52)]
+                pygame.draw.lines(target_surf, fissure_dark, False, pts, 2)
+                pygame.draw.line(target_surf, fissure_dark, (ax + 38, ay + 42), (ax + 46, ay + 18), 1)
+            elif pat == 2:
+                pts = [(ax + 10, ay + 40), (ax + 30, ay + 34), (ax + 52, ay + 44)]
+                pygame.draw.lines(target_surf, fissure_dark, False, pts, 1)
+
+            # Branching organic pale-lilac mycelium tendrils (no stamped 60x52 white-ring ovals)
+            if roll < 52:
+                mx = sx + 8 + ((h_val >> 4) % 22)
+                my = sy + 8 + ((h_val >> 8) % 22)
+                dx1 = 8 if (h_val & 1) else -8
+                dy1 = 6 if (h_val & 2) else -6
+                mid = (max(sx + 2, min(sx + ts - 3, mx + dx1)), max(sy + 2, min(sy + ts - 3, my + dy1)))
+                end_a = (max(sx + 2, min(sx + ts - 3, mid[0] + dx1 // 2)), max(sy + 2, min(sy + ts - 3, mid[1] - 5)))
+                end_b = (max(sx + 2, min(sx + ts - 3, mid[0] - 4)), max(sy + 2, min(sy + ts - 3, mid[1] + dy1 // 2)))
+                pygame.draw.line(target_surf, mycelium_col, (mx, my), mid, 1)
+                pygame.draw.line(target_surf, mycelium_dim, mid, end_a, 1)
+                pygame.draw.line(target_surf, mycelium_dim, mid, end_b, 1)
+
+            # Sparse (~18%) glowing spore pustules nestled in the chitin
+            if roll < 18:
+                px = sx + 10 + ((h_val >> 5) % 20)
+                py = sy + 10 + ((h_val >> 9) % 20)
+                pygame.draw.circle(target_surf, fissure_dark, (px, py), 4)
+                pygame.draw.circle(target_surf, scum_soft, (px, py), 2)
+                target_surf.set_at((px, py), pal["wall_glow"])
+        else:
+            # Stratum 1 (Bruised Violet Marsh): subtle damp peat ripples + sparse algae flecks
+            ripple_mid = self._shift_rgb_clamped(s_base, 14, 9, 18)
+            peat_lo = self._shift_rgb_clamped(s_base, -10, -6, -12)
+            for r_o in (18, 42, 62):
+                pygame.draw.arc(target_surf, ripple_mid, (ax + 10, ay + r_o - 4, 60, 10), 0.2, 2.9, 1)
+            if pat in (0, 2):
+                pygame.draw.ellipse(target_surf, peat_lo, (ax + 16, ay + 24, 34, 14), 1)
+            if roll < 16:
+                px = sx + 9 + ((h_val >> 3) % 16)
+                py = sy + 9 + ((h_val >> 7) % 16)
+                pygame.draw.ellipse(target_surf, scum_dark, (px, py, 10, 5))
+                pygame.draw.ellipse(target_surf, scum_soft, (px + 2, py + 1, 6, 3))
+                if roll < 7:
+                    target_surf.set_at((px + 4, py + 2), spore_lilac)
+
+    def _draw_swamp_mire_stratum_borders(self, target_surf, geom, stratum_info, neighbors):
+        """Draw 45-degree organic shoreline bevels: feathered algae edge (S0) and bruised-lilac chitin lip (S2)."""
+        x, y, sx, sy, ts = geom
+        s_idx, strata_defs = stratum_info
+        same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se = neighbors
+
+        outer_canvas_col = strata_defs[1][0]
+        if s_idx == 0:
+            # Feathered muted algae-scum shoreline (replaces harsh 3px neon (142, 172, 44) band)
+            edge_hi = (18, 9, 26)
+            edge_lo = (14, 7, 20)
+            feather_lip = (58, 78, 34)
+            dab_col = (88, 114, 42)
+        else:
+            # Softer bruised-lilac chitin lip (replaces stark 2-3px pale-white (216, 202, 226) outline)
+            edge_hi = (114, 80, 122)
+            edge_lo = (26, 12, 32)
+            feather_lip = (82, 48, 88)
+            dab_col = (132, 96, 140)
+
+        c_rad = 8
+        rnd_nw = (not same_n) and (not same_w)
+        rnd_ne = (not same_n) and (not same_e)
+        rnd_sw = (not same_s) and (not same_w)
+        rnd_se = (not same_s) and (not same_e)
+
+        # 1. Soft 45-degree organic beveled outer corners
+        if rnd_nw:
+            pygame.draw.polygon(target_surf, outer_canvas_col, [(sx, sy), (sx + c_rad, sy), (sx, sy + c_rad)])
+            pygame.draw.line(target_surf, edge_hi, (sx + 1, sy + c_rad), (sx + c_rad, sy + 1), 2)
+            pygame.draw.line(target_surf, feather_lip, (sx + 2, sy + c_rad + 1), (sx + c_rad + 1, sy + 2), 1)
+        if rnd_ne:
+            pygame.draw.polygon(
+                target_surf, outer_canvas_col, [(sx + ts, sy), (sx + ts - c_rad, sy), (sx + ts, sy + c_rad)]
+            )
+            pygame.draw.line(target_surf, edge_hi, (sx + ts - c_rad, sy + 1), (sx + ts - 1, sy + c_rad), 2)
+            pygame.draw.line(target_surf, feather_lip, (sx + ts - c_rad - 1, sy + 2), (sx + ts - 2, sy + c_rad + 1), 1)
+        if rnd_sw:
+            pygame.draw.polygon(
+                target_surf, outer_canvas_col, [(sx, sy + ts), (sx + c_rad, sy + ts), (sx, sy + ts - c_rad)]
+            )
+            pygame.draw.line(target_surf, edge_lo, (sx + 1, sy + ts - c_rad), (sx + c_rad, sy + ts - 1), 2)
+            pygame.draw.line(target_surf, feather_lip, (sx + 2, sy + ts - c_rad - 1), (sx + c_rad + 1, sy + ts - 2), 1)
+        if rnd_se:
+            pygame.draw.polygon(
+                target_surf,
+                outer_canvas_col,
+                [(sx + ts, sy + ts), (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad)],
+            )
+            pygame.draw.line(target_surf, edge_lo, (sx + ts - c_rad, sy + ts - 1), (sx + ts - 1, sy + ts - c_rad), 2)
+            pygame.draw.line(
+                target_surf, feather_lip, (sx + ts - c_rad - 1, sy + ts - 2), (sx + ts - 2, sy + ts - c_rad - 1), 1
+            )
+
+        # 2. Feathered 1-2px cardinal shoreline/chitin lips with sparse organic dabs
+        seam_hash = ((x * 2654435761) ^ (y * 2246822519)) & 0x7FFFFFFF
+        dab1 = 9 + (seam_hash % 11)
+        dab2 = 22 + ((seam_hash >> 4) % 9)
+        if not same_n:
+            x0 = sx + (c_rad if rnd_nw else 0)
+            x1 = sx + ts - (c_rad if rnd_ne else 0)
+            if x1 > x0:
+                target_surf.fill(edge_hi, (x0, sy, x1 - x0, 2))
+                target_surf.fill(feather_lip, (x0, sy + 2, x1 - x0, 1))
+                if (seam_hash & 3) == 0:
+                    target_surf.fill(dab_col, (sx + dab1, sy + 2, 4, 2))
+        if not same_s:
+            x0 = sx + (c_rad if rnd_sw else 0)
+            x1 = sx + ts - (c_rad if rnd_se else 0)
+            if x1 > x0:
+                target_surf.fill(edge_lo, (x0, sy + ts - 2, x1 - x0, 2))
+                target_surf.fill(feather_lip, (x0, sy + ts - 3, x1 - x0, 1))
+                if (seam_hash & 3) == 1:
+                    target_surf.fill(dab_col, (sx + dab2, sy + ts - 4, 4, 2))
+        if not same_w:
+            y0 = sy + (c_rad if rnd_nw else 0)
+            y1 = sy + ts - (c_rad if rnd_sw else 0)
+            if y1 > y0:
+                target_surf.fill(edge_hi, (sx, y0, 2, y1 - y0))
+                target_surf.fill(feather_lip, (sx + 2, y0, 1, y1 - y0))
+                if (seam_hash & 3) == 2:
+                    target_surf.fill(dab_col, (sx + 2, sy + dab1, 2, 4))
+        if not same_e:
+            y0 = sy + (c_rad if rnd_ne else 0)
+            y1 = sy + ts - (c_rad if rnd_se else 0)
+            if y1 > y0:
+                target_surf.fill(edge_lo, (sx + ts - 2, y0, 2, y1 - y0))
+                target_surf.fill(feather_lip, (sx + ts - 3, y0, 1, y1 - y0))
+                if (seam_hash & 3) == 3:
+                    target_surf.fill(dab_col, (sx + ts - 4, sy + dab2, 2, 4))
+
+        # 3. Soft concave inner corner caps
+        if same_n and same_w and not same_nw:
+            target_surf.fill(edge_hi, (sx, sy, 2, 2))
+        if same_n and same_e and not same_ne:
+            target_surf.fill(edge_hi, (sx + ts - 2, sy, 2, 2))
+        if same_s and same_w and not same_sw:
+            target_surf.fill(edge_lo, (sx, sy + ts - 2, 2, 2))
+        if same_s and same_e and not same_se:
+            target_surf.fill(edge_lo, (sx + ts - 2, sy + ts - 2, 2, 2))
 
     def _draw_tech_tower_stratum_borders(self, target_surf, dr, s_idx, strata_defs, neighbors):
         """Draw recessed dark-steel shadow edges (25% darker) and 1px muted slate-cyan chamfer highlights."""
@@ -2125,6 +2419,10 @@ class Renderer:
             neighbors = (same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se)
             self._draw_tech_tower_stratum_borders(target_surf, dr, s_idx, strata_defs, neighbors)
             return
+        if biome == "swamp_mire":
+            neighbors = (same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se)
+            self._draw_swamp_mire_stratum_borders(target_surf, (x, y, sx, sy, ts), (s_idx, strata_defs), neighbors)
+            return
 
         outer_canvas_col = strata_defs[1][0]
         if biome == "pastoral_valley" and s_idx == 0:
@@ -2135,14 +2433,6 @@ class Renderer:
             rim_hi = (224, 192, 134)
             rim_lo = (156, 118, 68)
             inner_lip = (178, 140, 86)
-        elif biome == "swamp_mire" and s_idx == 0:
-            rim_hi = (28, 14, 38)
-            rim_lo = (18, 8, 22)
-            inner_lip = (142, 172, 44)
-        elif biome == "swamp_mire" and s_idx == 2:
-            rim_hi = (216, 202, 226)
-            rim_lo = (18, 8, 22)
-            inner_lip = (86, 44, 82)
         elif s_idx == 0:
             rim_hi = pal["wall_mortar"]
             rim_lo = pal["wall_mortar"]
