@@ -371,9 +371,34 @@ class Wellspring(GameObject):
         self.name = "The Wellspring"
         self.is_interactive = True
         self.is_solid = True
+        self.night_boss_used = False
 
     def execute_interaction(self, game_state):
-        from constants import FLASK_MAX_CHARGES
+        from constants import FLASK_MAX_CHARGES, WELLSPRING_NIGHT_BOSS_FLASK_GRANT
+        enemies = getattr(game_state, "enemies", None) or []
+        night_boss_active = bool(getattr(game_state, "night_boss_spawned", False)) or any(
+            (getattr(e, "name", "") == "Night Boss" or e.__class__.__name__ == "NightBoss")
+            and getattr(e, "hp", 1) > 0
+            for e in enemies
+        )
+        if night_boss_active:
+            if self.night_boss_used:
+                game_state.trigger_bloom("WELLSPRING DRY", priority=1)
+                print("[WELLSPRING] Wellspring is dry during Night Boss encounter.")
+                return
+            if game_state.player.flask_charges < FLASK_MAX_CHARGES:
+                game_state.player.flask_charges = min(
+                    FLASK_MAX_CHARGES,
+                    game_state.player.flask_charges + WELLSPRING_NIGHT_BOSS_FLASK_GRANT,
+                )
+                self.night_boss_used = True
+                game_state.trigger_bloom("HYDRATION RESTORED", priority=1)
+                print("[WELLSPRING] Granted +1 flask charge; wellspring is now dry.")
+            else:
+                game_state.trigger_bloom("HYDRATION FULL", priority=1)
+                print("[WELLSPRING] Flasks already full.")
+            return
+
         if game_state.player.flask_charges < FLASK_MAX_CHARGES:
             game_state.player.flask_charges = FLASK_MAX_CHARGES
             game_state.trigger_bloom("HYDRATION RESTORED", priority=1)
@@ -1035,6 +1060,13 @@ class LevelLoader:
                         else:
                             enemies.append(temp_enemy)
 
+        if not saved_enemies and enemies:
+            for enemy in enemies:
+                wx, wy = World.find_walkable_spawn_in_grid(
+                    grid, interactables, enemy.x, enemy.y, enemy.width, enemy.height
+                )
+                enemy.x, enemy.y = wx, wy
+                enemy.origin_x, enemy.origin_y = wx, wy
 
         return grid, interactables, warp_tiles, player_start, enemies
 
@@ -1137,6 +1169,87 @@ class World:
         self._puddle_buckets = {}
         self._dynamic_actors = []
         self._gated_respites = []
+
+    @staticmethod
+    def find_walkable_spawn_in_grid(grid, interactables, x, y, width, height, max_radius_tiles=6):
+        """Return the nearest walkable (wx, wy) in grid where (wx, wy, width, height) avoids walls and solid props."""
+        fx, fy = float(x), float(y)
+        if not grid or not grid[0]:
+            return (fx, fy)
+
+        from engine.physics import check_aabb_collision
+
+        grid_h = len(grid)
+        grid_w = len(grid[0])
+        map_w_px = grid_w * TILE_SIZE
+        map_h_px = grid_h * TILE_SIZE
+        w_val = max(1.0, float(width))
+        h_val = max(1.0, float(height))
+        solid_props = [
+            getattr(obj, "rect", (obj.x, obj.y, obj.width, obj.height))
+            for obj in (interactables or ())
+            if getattr(obj, "is_solid", False) and getattr(obj, "is_active", True)
+        ]
+
+        def _is_clear(cx_px, cy_px):
+            if cx_px < 0.0 or cy_px < 0.0 or (cx_px + w_val) > map_w_px or (cy_px + h_val) > map_h_px:
+                return False
+            tx0 = int(cx_px // TILE_SIZE)
+            ty0 = int(cy_px // TILE_SIZE)
+            tx1 = int((cx_px + max(0.0, w_val - 1e-4)) // TILE_SIZE)
+            ty1 = int((cy_px + max(0.0, h_val - 1e-4)) // TILE_SIZE)
+            if tx0 < 0 or ty0 < 0 or tx1 >= grid_w or ty1 >= grid_h:
+                return False
+            for ty in range(ty0, ty1 + 1):
+                row = grid[ty]
+                for tx in range(tx0, tx1 + 1):
+                    if row[tx] in (TILE_WALL, "#", "X"):
+                        return False
+            cand_rect = (cx_px, cy_px, w_val, h_val)
+            for p_rect in solid_props:
+                if check_aabb_collision(cand_rect, p_rect):
+                    return False
+            return True
+
+        if _is_clear(fx, fy):
+            return (fx, fy)
+
+        base_tx = max(0, min(grid_w - 1, int(fx // TILE_SIZE)))
+        base_ty = max(0, min(grid_h - 1, int(fy // TILE_SIZE)))
+        search_radius = max(1, int(max_radius_tiles))
+
+        for radius in range(0, search_radius + 1):
+            ring_candidates = []
+            for dy in range(-radius, radius + 1):
+                for dx in range(-radius, radius + 1):
+                    if max(abs(dx), abs(dy)) != radius:
+                        continue
+                    tx = base_tx + dx
+                    ty = base_ty + dy
+                    if tx < 0 or ty < 0 or tx >= grid_w or ty >= grid_h:
+                        continue
+                    cand_x = float(tx * TILE_SIZE)
+                    cand_y = float(ty * TILE_SIZE)
+                    dist_sq = (cand_x - fx) ** 2 + (cand_y - fy) ** 2
+                    ring_candidates.append((dist_sq, abs(dy) + abs(dx), dy, dx, cand_x, cand_y))
+            ring_candidates.sort()
+            for _, _, _, _, cand_x, cand_y in ring_candidates:
+                if _is_clear(cand_x, cand_y):
+                    return (cand_x, cand_y)
+
+        return (fx, fy)
+
+    def find_nearest_walkable_spawn(self, x, y, width, height, max_radius_tiles=6):
+        """Instance wrapper around find_walkable_spawn_in_grid using this World's grid and interactables."""
+        return self.find_walkable_spawn_in_grid(
+            self.grid,
+            self.interactables,
+            x,
+            y,
+            width,
+            height,
+            max_radius_tiles=max_radius_tiles,
+        )
 
     def _ensure_zone_index(self):
         """Build cached tile sets from self.sanctuary_zones for O(1) floor/roof zone lookup."""

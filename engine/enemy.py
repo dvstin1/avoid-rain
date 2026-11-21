@@ -168,7 +168,8 @@ class BatEnemy(Enemy):
     def __init__(self, x, y, hp=None, id=None):
         from constants import (
             BAT_MAX_HP, BAT_SPEED, BAT_DETECT_METERS,
-            BAT_DAMAGE, BAT_DAMAGE_COOLDOWN
+            BAT_DAMAGE, BAT_DAMAGE_COOLDOWN,
+            BAT_SINE_AMPLITUDE, BAT_SWOOP_SPEED_MULTIPLIER,
         )
         initial_hp = hp if hp is not None else BAT_MAX_HP
         super().__init__(x, y, 24, 24, initial_hp, id=id, name="Bat")
@@ -176,7 +177,11 @@ class BatEnemy(Enemy):
         self.detect_radius = BAT_DETECT_METERS * TILE_SIZE
         self.damage = BAT_DAMAGE
         self.attack_cooldown = BAT_DAMAGE_COOLDOWN
-        
+        self.sine_amplitude = BAT_SINE_AMPLITUDE
+        self.swoop_speed_multiplier = BAT_SWOOP_SPEED_MULTIPLIER
+        self.swoop_dir = (1.0, 0.0)
+        self._swoop_locked = False
+
         # Fast telegraphs
         self.wind_up_duration = 0.3
         self.strike_duration = 0.2
@@ -188,8 +193,79 @@ class BatEnemy(Enemy):
         packet["color_hint"] = (150, 50, 150) # Bat Purple
         return packet
 
+    def _lock_swoop_vector(self):
+        """Lock a normalized swoop direction toward the active target or current facing."""
+        if self.active_target:
+            tx, ty = self.active_target
+            cx, cy = self.get_center()
+            dx, dy = tx - cx, ty - cy
+            mag = math.hypot(dx, dy)
+            if mag > 0.001:
+                self.swoop_dir = (dx / mag, dy / mag)
+                self.facing = self.swoop_dir
+                self._swoop_locked = True
+                return
+        fx, fy = self.facing
+        mag = math.hypot(fx, fy)
+        if mag > 0.001:
+            self.swoop_dir = (fx / mag, fy / mag)
+        else:
+            self.swoop_dir = (1.0, 0.0)
+        self.facing = self.swoop_dir
+        self._swoop_locked = True
+
+    def get_attack_hitbox(self):
+        """Return a 36x36 swoop hitbox shifted forward along the bat's swoop vector."""
+        from constants import BAT_SWOOP_HITBOX_SIZE, BAT_SWOOP_HITBOX_OFFSET
+        cx, cy = self.get_center()
+        dx, dy = self.swoop_dir if self._swoop_locked else self.facing
+        mag = math.hypot(dx, dy)
+        if mag > 0.001:
+            ux, uy = dx / mag, dy / mag
+        else:
+            ux, uy = 1.0, 0.0
+        size = float(BAT_SWOOP_HITBOX_SIZE)
+        offset = float(BAT_SWOOP_HITBOX_OFFSET)
+        hx = cx + ux * offset - size / 2.0
+        hy = cy + uy * offset - size / 2.0
+        return (hx, hy, size, size)
+
+    def _update_wind_up(self, dt, game_state):
+        """Lock the swoop direction vector on wind-up before lunging."""
+        if not self._swoop_locked:
+            self._lock_swoop_vector()
+        super()._update_wind_up(dt, game_state)
+        self.facing = self.swoop_dir
+
+    def _on_start_strike(self, game_state):
+        """Launch high-speed swoop lunge (~2.4x speed) along the locked swoop vector."""
+        if not self._swoop_locked:
+            self._lock_swoop_vector()
+        sx, sy = self.swoop_dir
+        swoop_speed = self.speed * self.swoop_speed_multiplier
+        self.vx = sx * swoop_speed
+        self.vy = sy * swoop_speed
+        self.facing = self.swoop_dir
+
+    def _update_strike(self, dt, game_state):
+        """Surge forward during STRIKE frames and check swoop hitbox collision."""
+        if not self.has_hit_this_attack and self.attempt_damage_player(game_state):
+            self.has_hit_this_attack = True
+            self.vx, self.vy = 0.0, 0.0
+        if not self.has_hit_this_attack:
+            self.x += self.vx * dt
+            self.y += self.vy * dt
+            if getattr(game_state, "world", None):
+                walls = game_state.world.get_nearby_walls(self.get_rect())
+                self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+        super()._update_strike(dt, game_state)
+        self.facing = self.swoop_dir
+        if self.state != ActorState.STRIKE:
+            self._swoop_locked = False
+
     def _update_chase(self, dt, state):
-        """Move toward the active target via A* waypoints with a sine-wave oscillation."""
+        """Move toward the active target via A* waypoints with a tightened sine-wave oscillation."""
+        self._swoop_locked = False
         if not self.active_target:
             self.state = ActorState.IDLE
             return
@@ -204,12 +280,14 @@ class BatEnemy(Enemy):
             # Pursuit vector
             vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
 
-            # Erratic sine wave perpendicular to movement
+            # Tightened sine wave perpendicular to movement so bat tracks reliably onto target
             self._angle += dt * 10.0
             perp_x, perp_y = -vy, vx
+            dist_scale = min(1.0, dist / (TILE_SIZE * 2.5))
+            amp = self.sine_amplitude * dist_scale
 
-            self.vx = vx + perp_x * math.sin(self._angle)
-            self.vy = vy + perp_y * math.sin(self._angle)
+            self.vx = vx + perp_x * math.sin(self._angle) * amp
+            self.vy = vy + perp_y * math.sin(self._angle) * amp
 
             self.x += self.vx * dt
             self.y += self.vy * dt

@@ -189,6 +189,10 @@ BAT_SPEED = 150.0  # pixels per second (fast pursuit)
 BAT_DETECT_METERS = 7  # detection radius
 BAT_DAMAGE = 5  # damage dealt on contact
 BAT_DAMAGE_COOLDOWN = 0.5  # seconds between contact damage attempts
+BAT_SINE_AMPLITUDE = 0.35  # Lateral sine wave ratio relative to forward pursuit speed
+BAT_SWOOP_SPEED_MULTIPLIER = 2.4  # Forward lunge speed multiplier during STRIKE
+BAT_SWOOP_HITBOX_SIZE = 36.0  # 36x36 swoop attack hitbox
+BAT_SWOOP_HITBOX_OFFSET = 14.0  # Forward shift of the 36x36 hitbox along swoop vector
 
 # Skittish Flutter enemy configuration
 FLUTTER_MAX_HP = 15
@@ -243,6 +247,7 @@ CHOICE_OF_FATES_ATTACK_BASE = 3
 CHOICE_OF_FATES_HP_BASE = 5
 CHOICE_OF_FATES_MINOR_RATIO = 0.25
 RESPITE_HOSTILE_BLOCK_RADIUS = 320.0
+WELLSPRING_NIGHT_BOSS_FLASK_GRANT = 1
 
 # Grid & World Configuration
 TILE_SIZE = 40

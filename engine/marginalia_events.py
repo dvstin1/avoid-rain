@@ -563,6 +563,11 @@ class MarginaliaEventEngine:
         self, state: Any, enemy_cls: Any, x: float, y: float, act: int, name: Optional[str] = None
     ) -> Any:
         enemy = enemy_cls(x, y)
+        world = getattr(state, "world", None)
+        if world is not None and hasattr(world, "find_nearest_walkable_spawn"):
+            wx, wy = world.find_nearest_walkable_spawn(x, y, enemy.width, enemy.height)
+            enemy.x, enemy.y = wx, wy
+            enemy.origin_x, enemy.origin_y = wx, wy
         if name:
             enemy.name = name
         enemy.network_id = self._allocate_enemy_net_id()

@@ -1252,6 +1252,12 @@ class GameState:
                     )
                     bx, by = coords['x'] * TILE_SIZE, coords['y'] * TILE_SIZE
                     new_boss = NightBoss(bx, by)
+                    if hasattr(self.world, "find_nearest_walkable_spawn"):
+                        bx, by = self.world.find_nearest_walkable_spawn(
+                            bx, by, new_boss.width, new_boss.height
+                        )
+                        new_boss.x, new_boss.y = bx, by
+                        new_boss.origin_x, new_boss.origin_y = bx, by
                     new_boss.network_id = 9000 + idx
                     if self.current_act >= 2 or getattr(self, 'empowered_act', False):
                         sat = get_act_saturation(max(2, self.current_act))
@@ -1687,6 +1693,82 @@ class GameState:
                     target.execute_interaction(self)
             return
 
+    def _resolve_active_biome_key(self, matched_socket=None):
+        """Return the active biome identifier for the current world/act."""
+        from constants import BIOME_DISPLAY_NAMES
+        if isinstance(matched_socket, dict):
+            sock_biome = matched_socket.get("biome")
+            if sock_biome in BIOME_DISPLAY_NAMES:
+                return sock_biome
+        current_act = int(getattr(self, "current_act", 0) or 0)
+        run_biomes = getattr(self, "run_biomes", None) or {}
+        if current_act > 0:
+            act_biome = run_biomes.get(f"act{current_act}")
+            if act_biome in BIOME_DISPLAY_NAMES:
+                return act_biome
+        for b_val in run_biomes.values():
+            if b_val in BIOME_DISPLAY_NAMES:
+                return b_val
+        for candidate in (
+            getattr(self, "active_biome", None),
+            getattr(self.world, "biome", None),
+            getattr(self.world, "name", None),
+        ):
+            if candidate in BIOME_DISPLAY_NAMES:
+                return candidate
+            if isinstance(candidate, str):
+                c_low = candidate.lower()
+                for b_key in BIOME_DISPLAY_NAMES:
+                    if b_key in c_low:
+                        return b_key
+        for sock in getattr(self.world, "module_sockets", []) or []:
+            plug = str(sock.get("active_plug", "")).lower()
+            sock_b = sock.get("biome")
+            if sock_b in BIOME_DISPLAY_NAMES:
+                return sock_b
+            for b_key in BIOME_DISPLAY_NAMES:
+                if b_key in plug:
+                    return b_key
+        return "windy_ridge"
+
+    def _resolve_room_area_name(self, current_room_id):
+        """Resolve display area title for current_room_id without falling back to THE UNKNOWN MARGIN."""
+        from constants import BIOME_DISPLAY_NAMES
+        zone_name = ""
+        matched_socket = None
+        for s in getattr(self.world, "module_sockets", []):
+            s_id = s.get("id") or s.get("name")
+            if s_id == current_room_id:
+                matched_socket = s
+                plug = s.get("active_plug", "").lower()
+                if "windy_ridge" in plug:
+                    zone_name = "THE ZEPHYR RIDGE"
+                elif "pastoral_valley" in plug:
+                    zone_name = "THE SCARRED MEADOW"
+                elif "swamp_mire" in plug:
+                    zone_name = "THE VENOMOUS MIRE"
+                elif "frozen_peaks" in plug:
+                    zone_name = "THE RIMECREST PASS"
+                elif "tech_tower" in plug:
+                    zone_name = "THE SKY CITADEL"
+                elif "vitreous_basin" in plug or "basin" in plug:
+                    zone_name = "THE VITREOUS BASIN"
+                elif "sunlit_aqueducts" in plug or "aqueduct" in plug:
+                    zone_name = "THE SUNLIT AQUEDUCTS"
+                elif "forest" in plug:
+                    zone_name = "THE VERDANT SILENCE"
+                elif "ruins" in plug:
+                    zone_name = "THE SCORCHED MARGIN"
+                elif "colophon" in plug:
+                    zone_name = "THE COLOPHON"
+                elif "boss" in plug:
+                    zone_name = "THE CROWN RING"
+                break
+        if not zone_name:
+            active_biome = self._resolve_active_biome_key(matched_socket=matched_socket)
+            zone_name = BIOME_DISPLAY_NAMES.get(active_biome, "Windy Ridge").upper()
+        return zone_name
+
     def _update_ui_and_menus(self, dt, actions, attack_pressed, audio_manager):
         # Zone Discovery Bloom
         if getattr(self.world, 'name', '') not in ("", "sanctuary"):
@@ -1706,24 +1788,7 @@ class GameState:
                 if self.zone_cooldown_timer <= 0:
                     self.last_zone_id = current_room_id
                     self.zone_cooldown_timer = BLOOM_COOLDOWN
-                    
-                    # Search for a meaningful room name
-                    zone_name = "THE UNKNOWN MARGIN"
-                    for s in getattr(self.world, 'module_sockets', []):
-                        # Fix: Check both 'name' and 'id' (world_generator uses 'name')
-                        s_id = s.get('id') or s.get('name')
-                        if s_id == current_room_id:
-                            plug = s.get('active_plug', '').lower()
-                            if 'windy_ridge' in plug: zone_name = "THE ZEPHYR RIDGE"
-                            elif 'pastoral_valley' in plug: zone_name = "THE SCARRED MEADOW"
-                            elif 'swamp_mire' in plug: zone_name = "THE VENOMOUS MIRE"
-                            elif 'frozen_peaks' in plug: zone_name = "THE RIMECREST PASS"
-                            elif 'tech_tower' in plug: zone_name = "THE SKY CITADEL"
-                            elif 'forest' in plug: zone_name = "THE VERDANT SILENCE"
-                            elif 'ruins' in plug: zone_name = "THE SCORCHED MARGIN"
-                            elif 'colophon' in plug: zone_name = "THE COLOPHON"
-                            elif 'boss' in plug: zone_name = "THE CROWN RING"
-                            break
+                    zone_name = self._resolve_room_area_name(current_room_id)
                     self.trigger_bloom(zone_name, priority=1)
         
         if self.zone_cooldown_timer > 0: self.zone_cooldown_timer -= dt
