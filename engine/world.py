@@ -852,9 +852,9 @@ class LevelLoader:
                     candelabra.name = "Candelabra"
                     interactables.append(candelabra)
 
-                elif char == 'S':                    # Seat / Bench - Vertical 1x2
-                    bench_dim = (TILE_SIZE, TILE_SIZE * 2)
-                    bench = GameObject(pos, bench_dim)
+                elif char == 'S':
+                    # Seat / Bench - 1x1 (40x40 matching bench.png)
+                    bench = GameObject(pos, dim)
                     bench.is_solid = True
                     bench.name = "Bench"
                     interactables.append(bench)
@@ -1005,6 +1005,7 @@ class World:
         self._solid_buckets = {}
         self._interactive_buckets = {}
         self._puddle_buckets = {}
+        self._dynamic_actors = []
         self._gated_respites = []
 
     def _ensure_spatial_index(self):
@@ -1023,10 +1024,15 @@ class World:
         solid_b = {}
         inter_b = {}
         puddle_b = {}
+        dynamic_actors = []
         respites = []
         for obj in items:
             if type(obj).__name__ == "Respite" and getattr(obj, "gated_by_miniboss_id", None):
                 respites.append(obj)
+            # Keep mobile Actor instances (e.g., patrolling Chronicler) out of static buckets
+            if isinstance(obj, Actor):
+                dynamic_actors.append(obj)
+                continue
             ox, oy, ow, oh = obj.rect
             cx0, cy0 = int(ox // cell_size), int(oy // cell_size)
             cx1, cy1 = int((ox + ow) // cell_size), int((oy + oh) // cell_size)
@@ -1047,6 +1053,7 @@ class World:
         self._solid_buckets = solid_b
         self._interactive_buckets = inter_b
         self._puddle_buckets = puddle_b
+        self._dynamic_actors = dynamic_actors
         self._gated_respites = respites
 
     def load_from_prototype(self, prototype_array, entity_data=None, saved_enemies=None):
@@ -1170,6 +1177,14 @@ class World:
                     if obj.is_solid and getattr(obj, 'is_active', True) and check_aabb_collision(player_rect, obj.rect):
                         walls.append((obj.rect[0], obj.rect[1], obj.rect[2], obj.rect[3]))
 
+        for obj in self._dynamic_actors:
+            oid = id(obj)
+            if oid in seen:
+                continue
+            seen.add(oid)
+            if obj.is_solid and getattr(obj, 'is_active', True) and check_aabb_collision(player_rect, obj.rect):
+                walls.append((obj.rect[0], obj.rect[1], obj.rect[2], obj.rect[3]))
+
         return walls
 
     def get_nearby_interactables(self, player_rect):
@@ -1210,4 +1225,16 @@ class World:
                         and check_aabb_collision(expanded_rect, obj.rect)
                     ):
                         nearby.append(obj)
+
+        for obj in self._dynamic_actors:
+            oid = id(obj)
+            if oid in seen:
+                continue
+            seen.add(oid)
+            if (
+                obj.is_interactive
+                and getattr(obj, 'is_active', True)
+                and check_aabb_collision(expanded_rect, obj.rect)
+            ):
+                nearby.append(obj)
         return nearby

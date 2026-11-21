@@ -65,8 +65,8 @@ MASTER_TOOL_REGISTRY = [
         "char": "S",
         "name": "Bench",
         "type": "tile",
-        "size": "40x80 px (1x2 tiles)",
-        "desc": "Solid sitting bench prop. Spans 2 tiles vertically."
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Solid sitting bench prop (1x1 tile)."
     },
     {
         "id": "tile_candelabra",
@@ -111,10 +111,10 @@ MASTER_TOOL_REGISTRY = [
     {
         "id": "tile_rock",
         "char": "K",
-        "name": "Rock / Biome Obstacle",
+        "name": "Rock / Ground Clutter",
         "type": "tile",
         "size": "40x40 px (1x1 tile)",
-        "desc": "Solid biome obstacle (rock, rubble, swamp vent, salt spire, or aqueduct pillar)."
+        "desc": "Non-solid walkable ground clutter (rocks, rubble, swamp vent, or crypt clutter)."
     },
     {
         "id": "tile_warp",

@@ -1671,21 +1671,19 @@ class Renderer:
             elif tile == constants.TILE_OBSTACLE:
                 w_name = getattr(state.world, "name", "").lower()
                 map_file = getattr(state.world, "map_filename", "").lower()
-                rdx = ((x * 11 + y * 23) % 9) - 4
-                rdy = ((x * 17 + y * 13) % 9) - 4
                 if ("ruins" in w_name or "ruins" in map_file) and "RuinsRubble" in getattr(self, "prop_cache", {}):
-                    target_surf.blit(self.prop_cache["RuinsRubble"], (sx + rdx, sy + rdy))
+                    target_surf.blit(self.prop_cache["RuinsRubble"], (sx, sy))
                 elif ("swamp" in w_name or "swamp" in map_file) and "SwampVent" in getattr(self, "prop_cache", {}):
-                    target_surf.blit(self.prop_cache["SwampVent"], (sx + rdx, sy + rdy))
+                    target_surf.blit(self.prop_cache["SwampVent"], (sx, sy))
                 elif (
                     "colophon" in w_name
                     or (x * 7 + y * 13) % 3 == 0
                 ) and "CryptClutter" in getattr(self, "prop_cache", {}):
-                    target_surf.blit(self.prop_cache["CryptClutter"], (sx + rdx, sy + rdy))
+                    target_surf.blit(self.prop_cache["CryptClutter"], (sx, sy))
                 else:
                     rock_surf = getattr(self, "prop_cache", {}).get("Rock")
                     if rock_surf is not None:
-                        target_surf.blit(rock_surf, (sx + rdx, sy + rdy))
+                        target_surf.blit(rock_surf, (sx, sy))
 
             return biome, pal, s_idx
 
@@ -1744,34 +1742,28 @@ class Renderer:
                             tuft = pool[variant % len(pool)]
                             target_surf.blit(tuft, (sx + 8 + dx, sy + 8 + dy))
             elif tile == constants.TILE_OBSTACLE:
-                rdx = ((x * 11 + y * 23) % 9) - 4
-                rdy = ((x * 17 + y * 13) % 9) - 4
                 w_name = getattr(state.world, "name", "").lower()
                 map_file = getattr(state.world, "map_filename", "").lower()
                 if biome == "swamp_mire" and "SwampVent" in getattr(self, "prop_cache", {}):
                     vent_surf = self.prop_cache["SwampVent"]
-                    target_surf.blit(vent_surf, (sx + rdx, sy + rdy))
-                elif biome == "vitreous_basin" and "VitreousSaltSpire" in getattr(self, "prop_cache", {}):
-                    target_surf.blit(self.prop_cache["VitreousSaltSpire"], (sx + rdx, sy + rdy))
-                elif biome == "sunlit_aqueducts" and "AqueductPillar" in getattr(self, "prop_cache", {}):
-                    target_surf.blit(self.prop_cache["AqueductPillar"], (sx + rdx, sy + rdy))
+                    target_surf.blit(vent_surf, (sx, sy))
                 elif (
                     biome in ("tech_tower", "ruins")
                     or "ruins" in w_name
                     or "ruins" in map_file
                 ) and "RuinsRubble" in getattr(self, "prop_cache", {}):
                     rubble_surf = self.prop_cache["RuinsRubble"]
-                    target_surf.blit(rubble_surf, (sx + rdx, sy + rdy))
+                    target_surf.blit(rubble_surf, (sx, sy))
                 elif (
                     "colophon" in w_name
                     or "crypt" in w_name
                 ) and "CryptClutter" in getattr(self, "prop_cache", {}):
                     crypt_surf = self.prop_cache["CryptClutter"]
-                    target_surf.blit(crypt_surf, (sx + rdx, sy + rdy))
+                    target_surf.blit(crypt_surf, (sx, sy))
                 else:
                     rock_surf = getattr(self, "prop_cache", {}).get("Rock")
                     if rock_surf is not None:
-                        target_surf.blit(rock_surf, (sx + rdx, sy + rdy))
+                        target_surf.blit(rock_surf, (sx, sy))
         else:
             pygame.draw.rect(target_surf, constants.COLOR_FLOOR, dr, 1)
 
@@ -2136,7 +2128,9 @@ class Renderer:
             elif obj.name == "Candelabra":
                 glow_surf = prop_cache.get("CandelabraGlow")
                 if glow_surf is not None:
-                    self.screen.blit(glow_surf, (int(sx_o + obj.width // 2 - 32), int(sy_o + 5 - 32)))
+                    gx = int(sx_o + obj.width // 2 - glow_surf.get_width() // 2)
+                    gy = int(sy_o + 5 - glow_surf.get_height() // 2)
+                    self.screen.blit(glow_surf, (gx, gy))
                 cand_surf = prop_cache.get("Candelabra")
                 if cand_surf is not None:
                     self.screen.blit(cand_surf, (int(sx_o), int(sy_o)))
@@ -2152,50 +2146,56 @@ class Renderer:
                 if bench_surf is not None:
                     self.screen.blit(bench_surf, (int(sx_o), int(sy_o)))
                 else:
-                    pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, obj.width, obj.height))
-                    pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, obj.width, 2))
+                    pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, ts, ts))
+                    pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, ts, 2))
             elif obj.name == "Rock":
                 obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
-                rdx = ((int(obj.x) * 11 + int(obj.y) * 23) % 9) - 4
-                rdy = ((int(obj.x) * 17 + int(obj.y) * 13) % 9) - 4
                 w_name = getattr(state.world, "name", "").lower()
                 map_file = getattr(state.world, "map_filename", "").lower()
                 if obj_biome == "swamp_mire":
                     vent_surf = prop_cache.get("SwampVent")
                     if vent_surf is not None:
-                        self.screen.blit(vent_surf, (int(sx_o) + rdx, int(sy_o) + rdy))
+                        self.screen.blit(vent_surf, (int(sx_o), int(sy_o)))
                     else:
-                        rx, ry = int(sx_o) + rdx, int(sy_o) + rdy
+                        rx, ry = int(sx_o), int(sy_o)
                         pygame.draw.ellipse(self.screen, (66, 30, 62), (rx + 4, ry + 8, ts - 8, ts - 12))
                         pygame.draw.circle(self.screen, (148, 215, 68), (rx + ts // 2, ry + ts // 2), 4)
-                elif obj_biome == "vitreous_basin" and "VitreousSaltSpire" in prop_cache:
-                    self.screen.blit(prop_cache["VitreousSaltSpire"], (int(sx_o) + rdx, int(sy_o) + rdy))
-                elif obj_biome == "sunlit_aqueducts" and "AqueductPillar" in prop_cache:
-                    self.screen.blit(prop_cache["AqueductPillar"], (int(sx_o) + rdx, int(sy_o) + rdy))
                 elif (
                     obj_biome in ("tech_tower", "ruins")
                     or "ruins" in w_name
                     or "ruins" in map_file
                 ) and "RuinsRubble" in prop_cache:
-                    self.screen.blit(prop_cache["RuinsRubble"], (int(sx_o) + rdx, int(sy_o) + rdy))
+                    self.screen.blit(prop_cache["RuinsRubble"], (int(sx_o), int(sy_o)))
                 elif (
                     "colophon" in w_name
                     or "crypt" in w_name
                 ) and "CryptClutter" in prop_cache:
-                    self.screen.blit(prop_cache["CryptClutter"], (int(sx_o) + rdx, int(sy_o) + rdy))
+                    self.screen.blit(prop_cache["CryptClutter"], (int(sx_o), int(sy_o)))
                 else:
                     rock_surf = prop_cache.get("Rock")
                     if rock_surf is not None:
-                        self.screen.blit(rock_surf, (int(sx_o) + rdx, int(sy_o) + rdy))
+                        self.screen.blit(rock_surf, (int(sx_o), int(sy_o)))
                     else:
                         rx, ry, rw, rh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
                         pygame.draw.circle(self.screen, (68, 88, 118), (rx + rw // 2, ry + rh // 2 + 2), rw // 2 - 3)
             elif obj.name in ("RuinsRubble", "SwampFlora", "CryptClutter"):
                 clutter_surf = prop_cache.get(obj.name)
                 if clutter_surf is not None:
-                    rdx = ((int(obj.x) * 11 + int(obj.y) * 23) % 9) - 4
-                    rdy = ((int(obj.x) * 17 + int(obj.y) * 13) % 9) - 4
-                    self.screen.blit(clutter_surf, (int(sx_o) + rdx, int(sy_o) + rdy))
+                    self.screen.blit(clutter_surf, (int(sx_o), int(sy_o)))
+            elif hasattr(obj, 'fragment_id'):
+                fx, fy, fw, fh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                fcx, fcy = fx + fw // 2, fy + fh // 2
+                pulse = (math.sin(now * 4.0 + obj.x) + 1.0) * 0.5
+                glow_r = int(12 + pulse * 3)
+                pygame.draw.circle(self.screen, (215, 180, 95), (fcx, fcy), glow_r, 1)
+                page_rect = (fx + 9, fy + 7, max(8, fw - 18), max(10, fh - 14))
+                pygame.draw.rect(self.screen, (235, 224, 194), page_rect, border_radius=2)
+                pygame.draw.rect(self.screen, (72, 52, 34), page_rect, 1, border_radius=2)
+                for line_off in (12, 17, 22):
+                    pygame.draw.line(
+                        self.screen, (95, 76, 56), (fx + 13, fy + line_off), (fx + fw - 13, fy + line_off), 1
+                    )
+                pygame.draw.circle(self.screen, (175, 48, 56), (fx + fw - 14, fy + fh - 12), 2)
             elif hasattr(obj, 'weapon_data'):
                 col = constants.COLOR_PURPLE if "modifiers" in obj.weapon_data else constants.COLOR_WHITE
                 pygame.draw.rect(self.screen, col, (sx_o, sy_o, obj.width, obj.height))

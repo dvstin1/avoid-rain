@@ -436,6 +436,8 @@ def _place_patrol_routes(
         for x in range(border, width - border):
             if grid[y][x] != SYMBOL_FLOOR:
                 continue
+            if x > 0 and grid[y][x - 1] == SYMBOL_BOOKCASE:
+                continue
             if any(max(abs(x - rx), abs(y - ry)) <= 6 for rx, ry in respite_coords):
                 continue
             candidates.append((x, y))
@@ -805,9 +807,10 @@ def generate_architectural_biome(
     # 8. Smart Architectural Dressing: Bookcases, Benches, Barrels, Rubble / Aqueduct Moss & Channels
     dist_map = _compute_wall_distances(grid)
     is_aqueduct = active_biome == "sunlit_aqueducts"
+    bookcase_reserved: Set[Tuple[int, int]] = set()
     for y in range(1, height - 1):
         for x in range(1, width - 1):
-            if grid[y][x] == SYMBOL_FLOOR and (x, y) != (cx, cy):
+            if grid[y][x] == SYMBOL_FLOOR and (x, y) != (cx, cy) and (x, y) not in bookcase_reserved:
                 dist = dist_map[y][x]
                 if dist == 1:
                     # Flush against wall
@@ -817,12 +820,22 @@ def generate_architectural_biome(
                         if rng.random() < 0.24:
                             grid[y][x] = SYMBOL_GRASS
                         elif (n_wall or s_wall) and rng.random() < 0.08:
-                            grid[y][x] = SYMBOL_CLUTTER  # Cracked aqueduct pillar
+                            grid[y][x] = SYMBOL_CLUTTER  # Cracked aqueduct rubble
                         elif rng.random() < 0.05:
                             grid[y][x] = SYMBOL_BARREL
                     else:
                         if (n_wall or s_wall) and rng.random() < 0.08:
-                            grid[y][x] = SYMBOL_BOOKCASE if rng.random() < 0.5 else SYMBOL_BENCH
+                            can_place_bookcase = (
+                                x + 1 < width - 1
+                                and grid[y][x + 1] == SYMBOL_FLOOR
+                                and (x + 1, y) != (cx, cy)
+                                and (x + 1, y) not in bookcase_reserved
+                            )
+                            if can_place_bookcase and rng.random() < 0.5:
+                                grid[y][x] = SYMBOL_BOOKCASE
+                                bookcase_reserved.add((x + 1, y))
+                            else:
+                                grid[y][x] = SYMBOL_BENCH
                         elif rng.random() < 0.07:
                             grid[y][x] = SYMBOL_BARREL
                         elif rng.random() < 0.05:
@@ -831,7 +844,12 @@ def generate_architectural_biome(
                     grid[y][x] = SYMBOL_INK_PUDDLE  # Shallow sunlit aqueduct runnel
 
     # 9. Spawners & Key Entrances
-    open_floors = [(x, y) for y in range(2, height - 2) for x in range(2, width - 2) if grid[y][x] == SYMBOL_FLOOR]
+    open_floors = [
+        (x, y)
+        for y in range(2, height - 2)
+        for x in range(2, width - 2)
+        if grid[y][x] == SYMBOL_FLOOR and (x, y) not in bookcase_reserved
+    ]
     rng.shuffle(open_floors)
 
     # Player start in wing room
