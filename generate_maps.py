@@ -204,6 +204,19 @@ ARCH_MAX_ROOM_SIZE = 14
 ARCH_CHAMFER_SIZE = 2
 ARCH_PILLAR_INTERVAL = 3
 
+# Solid Prop Collision & Hallway Clearance Constants (Section 13)
+SOLID_PROP_SYMBOLS: Tuple[str, ...] = (
+    SYMBOL_BOOKCASE,
+    SYMBOL_BENCH,
+    SYMBOL_BARREL,
+    SYMBOL_STRUCTURE,
+    SYMBOL_INK_URN,
+    SYMBOL_CANDELABRA,
+)
+HALLWAY_MIN_CLEAR_SPAN = 3
+BOOKCASE_MIN_HORIZ_SPAN = 4
+PROP_LOCAL_WINDOW_RADIUS = 2
+
 # 2.5D Elevation Tiers & Shadow Casters
 ELEVATION_PIT = -1
 ELEVATION_LOWER = 0
@@ -339,6 +352,7 @@ def validate_and_carve_connectivity(
 
     # 2. Designate primary component (largest or containing mandatory coords)
     mandatory = mandatory_coords or []
+    mandatory_set = set(mandatory)
     primary_idx = 0
     for idx, comp in enumerate(components):
         comp_set = set(comp)
@@ -356,7 +370,7 @@ def validate_and_carve_connectivity(
         if idx == primary_idx:
             continue
 
-        comp_has_mandatory = any(pt in main_comp for pt in comp)
+        comp_has_mandatory = any(pt in mandatory_set for pt in comp)
         if len(comp) < 12 and not comp_has_mandatory:
             # Small isolated pocket: seal into solid wall
             for cx, cy in comp:
@@ -398,6 +412,226 @@ def validate_and_carve_connectivity(
                     main_comp.add(pt)
 
     return True
+
+
+def _get_solid_prop_footprint(
+    grid: List[List[str]],
+) -> Tuple[Set[Tuple[int, int]], Dict[Tuple[int, int], Tuple[int, int]]]:
+    """Compute impassable wall + solid-prop tiles (including bookcase right-half) and prop owners."""
+    h = len(grid)
+    w = len(grid[0]) if h > 0 else 0
+    impassable: Set[Tuple[int, int]] = set()
+    prop_owners: Dict[Tuple[int, int], Tuple[int, int]] = {}
+    solid_props = set(SOLID_PROP_SYMBOLS)
+
+    for y in range(h):
+        for x in range(w):
+            cell = grid[y][x]
+            if cell in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
+                impassable.add((x, y))
+            elif cell in solid_props:
+                impassable.add((x, y))
+                prop_owners[(x, y)] = (x, y)
+                if cell == SYMBOL_BOOKCASE and x + 1 < w:
+                    impassable.add((x + 1, y))
+                    if grid[y][x + 1] not in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
+                        prop_owners[(x + 1, y)] = (x, y)
+    return impassable, prop_owners
+
+
+def _can_place_architectural_prop(
+    grid: List[List[str]],
+    candidate_cells: List[Tuple[int, int]],
+    occupied_solid: Set[Tuple[int, int]],
+) -> bool:
+    """Return True if placing a solid prop preserves hallway width and local walkable connectivity."""
+    h = len(grid)
+    w = len(grid[0]) if h > 0 else 0
+    cand_set = set(candidate_cells)
+    min_horiz = BOOKCASE_MIN_HORIZ_SPAN if len(candidate_cells) > 1 else HALLWAY_MIN_CLEAR_SPAN
+
+    def is_open(tx: int, ty: int) -> bool:
+        if not (1 <= tx < w - 1 and 1 <= ty < h - 1):
+            return False
+        if grid[ty][tx] in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
+            return False
+        if (tx, ty) in occupied_solid:
+            return False
+        return True
+
+    # 1. Span clearance guard: reject narrow hallways, 1-2 tile corridors, and tight doorway mouths
+    for cx, cy in candidate_cells:
+        if not is_open(cx, cy):
+            return False
+        left = 0
+        while left < 6 and is_open(cx - left - 1, cy):
+            left += 1
+        right = 0
+        while right < 6 and is_open(cx + right + 1, cy):
+            right += 1
+        horiz_span = 1 + left + right
+
+        up = 0
+        while up < 6 and is_open(cx, cy - up - 1):
+            up += 1
+        down = 0
+        while down < 6 and is_open(cx, cy + down + 1):
+            down += 1
+        vert_span = 1 + up + down
+
+        if horiz_span < min_horiz or vert_span < HALLWAY_MIN_CLEAR_SPAN:
+            return False
+
+    # 2. Local articulation check: all 4-adjacent walkable neighbors must stay connected in a 5x5 window
+    min_x = max(1, min(cx for cx, _ in candidate_cells) - PROP_LOCAL_WINDOW_RADIUS)
+    max_x = min(w - 2, max(cx for cx, _ in candidate_cells) + PROP_LOCAL_WINDOW_RADIUS)
+    min_y = max(1, min(cy for _, cy in candidate_cells) - PROP_LOCAL_WINDOW_RADIUS)
+    max_y = min(h - 2, max(cy for _, cy in candidate_cells) + PROP_LOCAL_WINDOW_RADIUS)
+
+    neighbors: List[Tuple[int, int]] = []
+    for cx, cy in candidate_cells:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = cx + dx, cy + dy
+            if (nx, ny) not in cand_set and is_open(nx, ny) and (nx, ny) not in neighbors:
+                neighbors.append((nx, ny))
+
+    if len(neighbors) <= 1:
+        return True
+
+    visited = {neighbors[0]}
+    queue = deque([neighbors[0]])
+    while queue:
+        qx, qy = queue.popleft()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = qx + dx, qy + dy
+            if (
+                min_x <= nx <= max_x
+                and min_y <= ny <= max_y
+                and (nx, ny) not in cand_set
+                and (nx, ny) not in visited
+                and is_open(nx, ny)
+            ):
+                visited.add((nx, ny))
+                queue.append((nx, ny))
+
+    return all(nb in visited for nb in neighbors)
+
+
+def validate_prop_walkable_connectivity(
+    grid: List[List[str]],
+    mandatory_coords: Optional[List[Tuple[int, int]]] = None,
+) -> int:
+    """Post-dressing pass treating walls + solid props ('h' incl. right half, 'S','B','T','d','l') as impassable.
+
+    Clears the minimum set of blocking props via 0-1 BFS whenever a hallway, doorway, or walkable
+    pocket becomes pinched or disconnected. Returns the number of blocking props cleared.
+    """
+    h = len(grid)
+    w = len(grid[0]) if h > 0 else 0
+    if w == 0 or h == 0:
+        return 0
+
+    mandatory = [pt for pt in (mandatory_coords or []) if 0 <= pt[0] < w and 0 <= pt[1] < h]
+    cleared = 0
+
+    # Ensure mandatory coordinates themselves are never covered by a solid prop or bookcase right-half
+    _, init_owners = _get_solid_prop_footprint(grid)
+    for mx, my in mandatory:
+        owner = init_owners.get((mx, my))
+        if owner is not None:
+            ox, oy = owner
+            if grid[oy][ox] in SOLID_PROP_SYMBOLS:
+                grid[oy][ox] = SYMBOL_FLOOR
+                cleared += 1
+
+    max_passes = 256
+    for _ in range(max_passes):
+        impassable, prop_owners = _get_solid_prop_footprint(grid)
+        walkable = {(x, y) for y in range(h) for x in range(w) if (x, y) not in impassable}
+        if not walkable:
+            break
+
+        visited: Set[Tuple[int, int]] = set()
+        components: List[Set[Tuple[int, int]]] = []
+        for pt in walkable:
+            if pt in visited:
+                continue
+            comp: Set[Tuple[int, int]] = set()
+            queue = deque([pt])
+            visited.add(pt)
+            while queue:
+                cx, cy = queue.popleft()
+                comp.add((cx, cy))
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = cx + dx, cy + dy
+                    if (nx, ny) in walkable and (nx, ny) not in visited:
+                        visited.add((nx, ny))
+                        queue.append((nx, ny))
+            components.append(comp)
+
+        mandatory_walkable = [pt for pt in mandatory if pt in walkable]
+        components.sort(
+            key=lambda c, mw=mandatory_walkable: (sum(1 for m in mw if m in c), len(c)),
+            reverse=True,
+        )
+        primary = components[0]
+        unreachable_mandatory = [m for m in mandatory_walkable if m not in primary]
+        if len(components) <= 1 and not unreachable_mandatory:
+            break
+
+        # 0-1 BFS from primary component through walkable tiles (cost 0) and removable solid props (cost 1)
+        dist: Dict[Tuple[int, int], int] = {pt: 0 for pt in primary}
+        parent: Dict[Tuple[int, int], Optional[Tuple[int, int]]] = {pt: None for pt in primary}
+        bfs_q = deque(primary)
+
+        target_set = set(unreachable_mandatory) if unreachable_mandatory else (walkable - primary)
+        found_target: Optional[Tuple[int, int]] = None
+
+        while bfs_q:
+            ux, uy = bfs_q.popleft()
+            cur_d = dist[(ux, uy)]
+            if (ux, uy) in target_set:
+                found_target = (ux, uy)
+                break
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = ux + dx, uy + dy
+                if not (0 <= nx < w and 0 <= ny < h):
+                    continue
+                if grid[ny][nx] in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
+                    continue
+                step_cost = 1 if (nx, ny) in impassable else 0
+                if step_cost == 1 and (nx, ny) not in prop_owners:
+                    continue
+                new_d = cur_d + step_cost
+                if new_d < dist.get((nx, ny), 10**9):
+                    dist[(nx, ny)] = new_d
+                    parent[(nx, ny)] = (ux, uy)
+                    if step_cost == 0:
+                        bfs_q.appendleft((nx, ny))
+                    else:
+                        bfs_q.append((nx, ny))
+
+        if found_target is None:
+            break
+
+        # Clear all solid props along the minimum-cost bridge path
+        props_to_clear: Set[Tuple[int, int]] = set()
+        cursor: Optional[Tuple[int, int]] = found_target
+        while cursor is not None:
+            owner = prop_owners.get(cursor)
+            if owner is not None:
+                props_to_clear.add(owner)
+            cursor = parent.get(cursor)
+
+        if not props_to_clear:
+            break
+
+        for ox, oy in props_to_clear:
+            if grid[oy][ox] in SOLID_PROP_SYMBOLS:
+                grid[oy][ox] = SYMBOL_FLOOR
+                cleared += 1
+
+    return cleared
 
 
 def _place_patrol_routes(
@@ -815,6 +1049,7 @@ def generate_architectural_biome(
     dist_map = _compute_wall_distances(grid)
     is_aqueduct = active_biome == "sunlit_aqueducts"
     bookcase_reserved: Set[Tuple[int, int]] = set()
+    occupied_solid, _ = _get_solid_prop_footprint(grid)
     for y in range(1, height - 1):
         for x in range(1, width - 1):
             if grid[y][x] == SYMBOL_FLOOR and (x, y) != (cx, cy) and (x, y) not in bookcase_reserved:
@@ -828,8 +1063,9 @@ def generate_architectural_biome(
                             grid[y][x] = SYMBOL_GRASS
                         elif (n_wall or s_wall) and rng.random() < 0.08:
                             grid[y][x] = SYMBOL_CLUTTER  # Cracked aqueduct rubble
-                        elif rng.random() < 0.05:
+                        elif rng.random() < 0.05 and _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
                             grid[y][x] = SYMBOL_BARREL
+                            occupied_solid.add((x, y))
                     else:
                         if (n_wall or s_wall) and rng.random() < 0.08:
                             can_place_bookcase = (
@@ -837,18 +1073,32 @@ def generate_architectural_biome(
                                 and grid[y][x + 1] == SYMBOL_FLOOR
                                 and (x + 1, y) != (cx, cy)
                                 and (x + 1, y) not in bookcase_reserved
+                                and _can_place_architectural_prop(grid, [(x, y), (x + 1, y)], occupied_solid)
                             )
                             if can_place_bookcase and rng.random() < 0.5:
                                 grid[y][x] = SYMBOL_BOOKCASE
                                 bookcase_reserved.add((x + 1, y))
-                            else:
+                                occupied_solid.add((x, y))
+                                occupied_solid.add((x + 1, y))
+                            elif _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
                                 grid[y][x] = SYMBOL_BENCH
-                        elif rng.random() < 0.07:
+                                occupied_solid.add((x, y))
+                        elif rng.random() < 0.07 and _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
                             grid[y][x] = SYMBOL_BARREL
+                            occupied_solid.add((x, y))
                         elif rng.random() < 0.05:
                             grid[y][x] = SYMBOL_CLUTTER  # Crumbled masonry / rubble
                 elif is_aqueduct and dist == 2 and rng.random() < 0.06:
                     grid[y][x] = SYMBOL_INK_PUDDLE  # Shallow sunlit aqueduct runnel
+
+    # 8b. Post-dressing walkable connectivity check treating walls + solid props as impassable
+    validate_prop_walkable_connectivity(grid, mandatory_coords=[(cx, cy)])
+    bookcase_reserved = {
+        (x + 1, y)
+        for y in range(height)
+        for x in range(width - 1)
+        if grid[y][x] == SYMBOL_BOOKCASE
+    }
 
     # 9. Spawners & Key Entrances
     open_floors = [
@@ -1270,12 +1520,22 @@ def carve_segment_connectors(
         for x in range(max(1, mid_x - half_width), min(w - 1, mid_x + half_width)):
             grid[y][x] = SYMBOL_FLOOR
             grid[h - 1 - y][x] = SYMBOL_FLOOR
+        left_edge = max(1, mid_x - half_width) - 1
+        if left_edge >= 0:
+            if grid[y][left_edge] == SYMBOL_BOOKCASE:
+                grid[y][left_edge] = SYMBOL_FLOOR
+            if grid[h - 1 - y][left_edge] == SYMBOL_BOOKCASE:
+                grid[h - 1 - y][left_edge] = SYMBOL_FLOOR
 
     # West & East centered connectors
     for x in range(depth):
         for y in range(max(1, mid_y - half_width), min(h - 1, mid_y + half_width)):
             grid[y][x] = SYMBOL_FLOOR
             grid[y][w - 1 - x] = SYMBOL_FLOOR
+    for y in range(max(1, mid_y - half_width), min(h - 1, mid_y + half_width)):
+        east_left = w - depth - 1
+        if east_left >= 0 and grid[y][east_left] == SYMBOL_BOOKCASE:
+            grid[y][east_left] = SYMBOL_FLOOR
 
     return [
         (mid_x, 1),
@@ -1322,7 +1582,7 @@ def generate_biome_segment(
             (x, y)
             for y in range(4, height - 4)
             for x in range(4, width - 4)
-            if grid[y][x] == SYMBOL_FLOOR
+            if grid[y][x] == SYMBOL_FLOOR and not (x > 0 and grid[y][x - 1] == SYMBOL_BOOKCASE)
         ]
         if candidate_floors:
             mx, my = rng.choice(candidate_floors)
@@ -1330,6 +1590,14 @@ def generate_biome_segment(
 
     connectors = carve_segment_connectors(grid)
     validate_and_carve_connectivity(grid, rng, mandatory_coords=connectors)
+    mid_x, mid_y = width // 2, height // 2
+    doorway_edges = [
+        (mid_x, 0),
+        (mid_x, height - 1),
+        (0, mid_y),
+        (width - 1, mid_y),
+    ]
+    validate_prop_walkable_connectivity(grid, mandatory_coords=connectors + doorway_edges)
 
     # Recompute elevation & verticality layers cleanly after carving connectors
     if gen_map.biome in ARCHITECTURAL_BIOMES or "tech" in gen_map.biome:

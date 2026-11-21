@@ -180,10 +180,11 @@ Registered `vitreous_basin` and `sunlit_aqueducts` in `CHRONICLE_BIOME_ROSTER`, 
 - **Lower-Act Fallback Loader (`resolve_segment_pool()`, `[DONE]`):**
   - `engine/world_generator.py:resolve_segment_pool(biome_id, act_number)` resolves `(biome_id, act_number)` by walking `act_number` down to `1` in `BIOME_ACT_SEGMENT_POOLS` and falling back to `BIOME_SEGMENT_POOLS[biome_id]` across all 7 first-class biomes (while future bespoke Act 3–5 segment variants remain an ongoing incremental content track).
 
-## 13. Map Generation & Corridor Pathing Fixes
-- **Tech Tower Hallway Chokepoints (`generate_maps.py`, `maps/segments/tech_tower/`):**
-  - Heavy Bookcases (`SYMBOL_BOOKCASE` / `'h'`, `80x40`) and Benches (`SYMBOL_BENCH` / `'S'`) placed by `generate_architectural_biome()` in Tech Tower hallways can block navigable paths and narrow corridors.
-  - Add hallway/corridor clearance guards during architectural prop dressing to preserve guaranteed walkable throughput, re-verify BFS flood-fill connectivity across all `maps/segments/tech_tower/` rooms and corridors, and regenerate segment pools (`--generate-pools`).
+## 13. Map Generation & Corridor Pathing Fixes [DONE]
+- **Tech Tower Hallway Chokepoints (`[DONE]` — `generate_maps.py`, `maps/segments/tech_tower/`):**
+  - Added corridor/doorway clearance guards (`_can_place_architectural_prop()` with `HALLWAY_MIN_CLEAR_SPAN = 3` and `BOOKCASE_MIN_HORIZ_SPAN = 4` plus a 5x5 local articulation check) in `generate_architectural_biome()` Step 8 so Heavy Bookcases (`'h'`, 2x1), Benches (`'S'`), and Barrels (`'B'`) are never placed in narrow corridors or tight doorways.
+  - Added `validate_prop_walkable_connectivity()` (0-1 BFS post-dressing pass treating walls plus solid props `'h'` including `(x + 1, y)`, `'S'`, `'B'`, `'T'`, `'d'`, `'l'` as impassable) after Step 8 and in `generate_biome_segment()` (plus doorway apron bookcase cleanup in `carve_segment_connectors()` and fixing mandatory-coord retention in `validate_and_carve_connectivity()`).
+  - Regenerated all 56 biome segment pools (`--generate-pools`) with zero blocked doorways or disconnected walkable pockets across all 7 biomes while preserving Section 14's normalized miniboss budgets.
 
 ## 14. Combat & Progression Balance [DONE]
 - **Attack-Up Scaling Rebalanced (`[DONE]` — `constants.py`, `engine/world.py`, `engine/game_state.py`, `engine/player.py`, `ui/menu.py`, `rendering/renderer.py`):**
