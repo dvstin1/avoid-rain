@@ -255,17 +255,158 @@ class BindlingEnemy(Enemy):
         super().update(dt, state)
 
 class Boss(Enemy):
-    """Base class for all Elites and Bosses. Implements weapon telegraphs and parrying."""
+    """Base class for all Elites and Bosses. Implements weapon telegraphs, parrying, and anti-cheese attacks."""
     def __init__(self, x, y, width, height, hp, id=None, name="Boss"):
+        from constants import (
+            BOSS_WIND_UP_DURATION, BOSS_STRIKE_DURATION, BOSS_RECOVERY_DURATION
+        )
         super().__init__(x, y, width, height, hp, id=id, name=name)
         self.is_miniboss = True # Music/Spawn trigger flag
         self.is_parryable = True
-        
+
         # Elite Telegraphs
-        self.wind_up_duration = 0.5
-        self.strike_duration = 0.25
-        self.recovery_duration = 0.6
+        self.wind_up_duration = BOSS_WIND_UP_DURATION
+        self.strike_duration = BOSS_STRIKE_DURATION
+        self.recovery_duration = BOSS_RECOVERY_DURATION
         self.attack_type = "THRUST"
+
+        # Anti-cheese ranged ink-bolt and cover-flanking state
+        self.ranged_cooldown_timer = 0.0
+        self._boss_stall_timer = 0.0
+        self._flank_dir = random.choice((-1.0, 1.0))
+        self.ink_bolts = []
+
+    def update(self, dt, state):
+        """Advance boss ranged cooldown and active ink-bolt projectiles alongside base AI."""
+        if self.ranged_cooldown_timer > 0.0:
+            self.ranged_cooldown_timer = max(0.0, self.ranged_cooldown_timer - dt)
+        if self.ink_bolts:
+            self._update_ink_bolts(dt, state)
+        super().update(dt, state)
+
+    def _fire_ink_bolt(self, start_x, start_y, target_x, target_y, state):
+        """Spawn a Host-authoritative arcing ink-bolt aimed at the target to counter pillar cheese."""
+        from constants import (
+            BOSS_BOLT_SPEED, BOSS_BOLT_DAMAGE, BOSS_BOLT_RADIUS,
+            BOSS_BOLT_MAX_LIFETIME, BOSS_RANGED_COOLDOWN
+        )
+        net = getattr(state, "network_manager", None)
+        if getattr(net, "network_mode", "OFFLINE") == "CLIENT":
+            return False
+
+        dx = target_x - start_x
+        dy = target_y - start_y
+        mag = math.hypot(dx, dy)
+        ux, uy = (dx / mag, dy / mag) if mag > 0.001 else (1.0, 0.0)
+        self.facing = (ux, uy)
+        self.ink_bolts.append({
+            "x": float(start_x),
+            "y": float(start_y),
+            "vx": ux * BOSS_BOLT_SPEED,
+            "vy": uy * BOSS_BOLT_SPEED,
+            "damage": float(BOSS_BOLT_DAMAGE),
+            "life": float(BOSS_BOLT_MAX_LIFETIME),
+            "radius": int(BOSS_BOLT_RADIUS),
+        })
+        self.ranged_cooldown_timer = BOSS_RANGED_COOLDOWN
+        self._boss_stall_timer = 0.0
+        audio = getattr(state, "audio_manager", None)
+        if audio:
+            try:
+                audio.play_sfx("enemy_telegraph.ogg")
+            except Exception:
+                pass
+        return True
+
+    def _update_ink_bolts(self, dt, state):
+        """Advance active ink-bolts and resolve hits against the player."""
+        net = getattr(state, "network_manager", None)
+        is_client = getattr(net, "network_mode", "OFFLINE") == "CLIENT"
+        player = getattr(state, "player", None)
+        player_rect = getattr(player, "rect", None) if player is not None else None
+        if player is not None and player_rect is None and hasattr(player, "x") and hasattr(player, "y"):
+            player_rect = (player.x, player.y, getattr(player, "width", 40), getattr(player, "height", 40))
+        can_hit_local = (
+            not is_client
+            and player is not None
+            and player_rect is not None
+            and hasattr(player, "take_damage")
+            and getattr(state, "active_respite", None) is None
+            and getattr(player, "hp", 0.0) > 0.0
+        )
+        audio = getattr(state, "audio_manager", None)
+
+        remaining = []
+        for bolt in self.ink_bolts:
+            bolt["x"] += bolt["vx"] * dt
+            bolt["y"] += bolt["vy"] * dt
+            bolt["life"] -= dt
+            if bolt["life"] <= 0.0:
+                continue
+
+            r = bolt["radius"]
+            bolt_rect = (bolt["x"] - r, bolt["y"] - r, r * 2, r * 2)
+            if can_hit_local and check_aabb_collision(bolt_rect, player_rect):
+                try:
+                    player.take_damage(bolt["damage"], audio_manager=audio, game_state=state)
+                except TypeError:
+                    player.take_damage(bolt["damage"])
+                continue
+
+            remaining.append(bolt)
+        self.ink_bolts = remaining
+
+    def _update_chase(self, dt, state):
+        """Chase with obstacle flanking and anti-cheese ranged ink-bolts when cover blocks LOS or stalls pursuit."""
+        from constants import (
+            BOSS_ANTI_CHEESE_RANGE, BOSS_ANTI_CHEESE_STALL_TIME,
+            BOSS_FLANK_WEIGHT, BOSS_STALL_MOVE_RATIO
+        )
+        from engine.pathfinding import has_line_of_sight
+
+        if not self.active_target:
+            self.state = ActorState.IDLE
+            return
+
+        target_cx, target_cy = self.active_target
+        cx, cy = self.get_center()
+        dx, dy = target_cx - cx, target_cy - cy
+        dist = math.hypot(dx, dy)
+        world = getattr(state, "world", None)
+        los_clear = has_line_of_sight(world, (cx, cy), (target_cx, target_cy)) if world is not None else True
+
+        prev_x, prev_y = self.x, self.y
+        super()._update_chase(dt, state)
+        moved = math.hypot(self.x - prev_x, self.y - prev_y)
+
+        stalled = dist > 1.0 and dt > 0.0 and moved < self.speed * dt * BOSS_STALL_MOVE_RATIO
+        if stalled:
+            self._boss_stall_timer += dt
+            ux, uy = dx / dist, dy / dist
+            px, py = -uy * self._flank_dir, ux * self._flank_dir
+            steer_x = ux * (1.0 - BOSS_FLANK_WEIGHT) + px * BOSS_FLANK_WEIGHT
+            steer_y = uy * (1.0 - BOSS_FLANK_WEIGHT) + py * BOSS_FLANK_WEIGHT
+            steer_mag = math.hypot(steer_x, steer_y) or 1.0
+            flank_prev_x, flank_prev_y = self.x, self.y
+            self.vx = (steer_x / steer_mag) * self.speed
+            self.vy = (steer_y / steer_mag) * self.speed
+            self.x += self.vx * dt
+            self.y += self.vy * dt
+            if world is not None:
+                walls = world.get_nearby_walls(self.get_rect())
+                self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+            if math.hypot(self.x - flank_prev_x, self.y - flank_prev_y) < self.speed * dt * BOSS_STALL_MOVE_RATIO * 0.5:
+                self._flank_dir = -self._flank_dir
+        elif los_clear:
+            self._boss_stall_timer = 0.0
+
+        if (
+            dist <= BOSS_ANTI_CHEESE_RANGE
+            and self.ranged_cooldown_timer <= 0.0
+            and (not los_clear or self._boss_stall_timer >= BOSS_ANTI_CHEESE_STALL_TIME)
+        ):
+            new_cx, new_cy = self.get_center()
+            self._fire_ink_bolt(new_cx, new_cy, target_cx, target_cy, state)
 
     def get_attack_hitbox(self):
         """Calculate the boss's current strike hitbox based on position, size, facing direction, and attack type."""
@@ -310,12 +451,13 @@ class Boss(Enemy):
     def _update_wind_up(self, dt, state):
         """Randomize attack type at the start of a wind-up."""
         if self.combat_timer == self.wind_up_duration:
+            from constants import BOSS_SWING_EXTRA_WIND_UP
             self.attack_type = random.choice(["THRUST", "SWING"])
             print(f"[COMBAT] {self.name} preparing {self.attack_type}!")
             
             # Balancing: Swings take slightly longer to wind up
             if self.attack_type == "SWING":
-                self.combat_timer += 0.2 
+                self.combat_timer += BOSS_SWING_EXTRA_WIND_UP
         
         super()._update_wind_up(dt, state)
 
@@ -381,16 +523,18 @@ class Miniboss(Boss):
 class MinibossM2(Miniboss):
     """Fast pursuit elite."""
     def __init__(self, x, y, hp=None, id=None):
+        from constants import MINIBOSS_M2_SPEED
         super().__init__(x, y, hp, id=id)
         self.name = "Bleeding Scribe"
-        self.speed *= 1.4
+        self.speed = MINIBOSS_M2_SPEED
 
 class MinibossM3(Miniboss):
     """Teleporting elite."""
     def __init__(self, x, y, hp=None, id=None):
+        from constants import MINIBOSS_M3_SPEED
         super().__init__(x, y, hp, id=id)
         self.name = "Forgotten Binder"
-        self.speed *= 0.7
+        self.speed = MINIBOSS_M3_SPEED
         self.teleport_cooldown = 4.0
         self._tele_timer = 0.0
 
@@ -767,14 +911,14 @@ class NightBoss(Miniboss):
 class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
-        from constants import FINAL_AUTHOR_MAX_HP, MINIBOSS_SPEED
+        from constants import FINAL_AUTHOR_MAX_HP, FINAL_AUTHOR_WIND_UP_DURATION, MINIBOSS_SPEED
         initial_hp = hp if hp is not None else FINAL_AUTHOR_MAX_HP
         super().__init__(x, y, 80, 80, initial_hp, id=id, name="The Final Author")
         self.speed = MINIBOSS_SPEED * 0.8
         self.detect_radius = 2000.0
         self.loot_tier = 0 # No rewards for the final redaction
 
-        self.wind_up_duration = 0.7
+        self.wind_up_duration = FINAL_AUTHOR_WIND_UP_DURATION
         self.strike_duration = 0.4
         self.recovery_duration = 1.0
 

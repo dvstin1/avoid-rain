@@ -2422,6 +2422,8 @@ class Renderer:
         except Exception as e:
             print(f"[RENDER ERROR] Enemy Loop: {e}")
 
+        self.draw_boss_projectiles(state, ox, oy)
+
         # Local Player Rendering
         self.draw_marginalia_world_overlays(state, ox, oy)
         self.draw_actor_ghost(state.player, ox, oy, state)
@@ -2509,6 +2511,20 @@ class Renderer:
 
         if pygame.display.get_init() and pygame.display.get_surface() is not None:
             pygame.display.flip()
+
+    def draw_boss_projectiles(self, state, ox, oy):
+        """Render active anti-cheese boss ink-bolt projectiles in world space."""
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        for enemy in getattr(state, 'enemies', []):
+            for bolt in getattr(enemy, 'ink_bolts', ()):
+                bx = int(bolt["x"] - ox)
+                by = int(bolt["y"] - oy)
+                r = int(bolt.get("radius", constants.BOSS_BOLT_RADIUS))
+                if bx < -r * 3 or bx > sw + r * 3 or by < -r * 3 or by > sh + r * 3:
+                    continue
+                pygame.draw.circle(self.screen, (42, 16, 56), (bx, by), r + 3)
+                pygame.draw.circle(self.screen, (195, 48, 86), (bx, by), r)
+                pygame.draw.circle(self.screen, (255, 215, 225), (bx, by), max(2, r // 2))
 
     def draw_marginalia_world_overlays(self, state, ox, oy):
         """Render world-space rings, Footnote Wisp, and ink-mist vignette for Marginalia events."""
@@ -2717,13 +2733,14 @@ class Renderer:
                 draw_rect.y += random.randint(-2, 2)
 
             # 2. Base Layer (Body)
+            debug_mode = bool(getattr(state, "debug_text_enabled", False))
             color = packet.get("color_hint", (100, 100, 100))
             if packet["base"] == "WIND_UP": color = (200, 100, 0) # Orange Telegraph
             elif packet["base"] == "STRIKE": color = constants.COLOR_MARGIN_RED
             elif packet["base"] == "RECOVERY": 
                 # Dim the base color
                 color = tuple(max(0, c - 50) for c in color)
-            elif packet["base"] == "DASH": color = constants.COLOR_CYAN
+            elif packet["base"] == "DASH" and debug_mode: color = constants.COLOR_CYAN
             elif packet["base"] == "BLOCK": color = (80, 80, 120)
 
             # Special coloring for local Player if no hint provided
@@ -2732,14 +2749,17 @@ class Renderer:
 
             used_procedural = False
             if hasattr(actor, 'weapons'):
-                used_procedural = self.draw_procedural_player(actor, draw_rect, packet, color)
+                used_procedural = self.draw_procedural_player(
+                    actor, draw_rect, packet, color, debug_text_enabled=debug_mode
+                )
             elif self.draw_procedural_enemy(actor, draw_rect, packet, color):
                 used_procedural = True
             else:
                 pygame.draw.rect(self.screen, color, draw_rect)
 
         # 3. Universal Posture Layer (Outlines/Decorations - gated behind debug_text_enabled)
-        if not sprite and getattr(state, "debug_text_enabled", False): # Ghost-only outlines
+        debug_mode = bool(getattr(state, "debug_text_enabled", False))
+        if not sprite and debug_mode: # Ghost-only outlines
             if packet["posture"] == "STAGGERED":
                 pygame.draw.rect(self.screen, constants.COLOR_WHITE, draw_rect, 2)
             elif packet["posture"] == "WOUNDED":
@@ -2763,8 +2783,8 @@ class Renderer:
                 s = pygame.Surface((overlay_rect.width, overlay_rect.height), pygame.SRCALPHA)
                 s.fill((100, 150, 255, int(50 + shimmer * 50)))
                 self.screen.blit(s, overlay_rect.topleft)
-            elif overlay == "PARRY_WINDOW":
-                # Glowing blue/white border
+            elif overlay == "PARRY_WINDOW" and debug_mode:
+                # Glowing blue/white debug border
                 pygame.draw.rect(self.screen, (200, 255, 255), overlay_rect, 4)
             elif overlay == "NEGATION":
                 # Glowing gold/yellow overlay
@@ -3040,7 +3060,7 @@ class Renderer:
         pygame.draw.circle(self.screen, constants.COLOR_WEAPON_GUARD, (g1x, g1y), 2)
         pygame.draw.circle(self.screen, constants.COLOR_WEAPON_GUARD, (g2x, g2y), 2)
 
-    def draw_procedural_player(self, actor, draw_rect, packet, state_color):
+    def draw_procedural_player(self, actor, draw_rect, packet, state_color, debug_text_enabled=False):
         """Draw the player character as a hooded Scriptorium Scholar with animated stride and gear."""
         cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
         w, h = int(draw_rect.width), int(draw_rect.height)
@@ -3050,7 +3070,7 @@ class Renderer:
 
         # 1. Base cloak silhouette (maintains exact draw_rect call for camera offset verification)
         cloak_col = constants.COLOR_PLAYER_CLOAK
-        if base_state == "DASH":
+        if base_state == "DASH" and debug_text_enabled:
             cloak_col = constants.COLOR_CYAN
         elif base_state == "BLOCK":
             cloak_col = constants.COLOR_PLAYER_SHIELD
@@ -4373,11 +4393,16 @@ class Renderer:
                     dot_color = constants.COLOR_CYAN  # Host
                 pygame.draw.circle(minimap_surface, dot_color, (int((rx - vpx) * sx), int((ry - vpy) * sy)), 3)
 
-        # Enemies: Red Dot
+        # Enemies: Muted slate-grey normally; high-contrast red in debug mode
+        enemy_dot_color = (
+            constants.MINIMAP_ENEMY_COLOR
+            if getattr(state, "debug_text_enabled", False)
+            else constants.MINIMAP_ENEMY_STEALTH_COLOR
+        )
         for e in getattr(state, 'enemies', []):
             ex, ey = e.x + e.width // 2, e.y + e.height // 2
             if vpx <= ex <= vpx + vpw and vpy <= ey <= vpy + vph:
-                pygame.draw.rect(minimap_surface, constants.MINIMAP_ENEMY_COLOR, (
+                pygame.draw.rect(minimap_surface, enemy_dot_color, (
                     int((ex - vpx) * sx - 1),
                     int((ey - vpy) * sy - 1), 3, 3))
 

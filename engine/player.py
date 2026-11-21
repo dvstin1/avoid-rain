@@ -388,12 +388,16 @@ class Player:
             if not bypass_stagger: # Hazards like rain still tick
                 return
 
-        # 1. Apply active blocking reduction
+        # 1. Apply active blocking / warding reduction
         if self.state == PlayerStateEnum.BLOCKING:
-            from constants import BLOCK_DAMAGE_REDUCTION
-            amount *= BLOCK_DAMAGE_REDUCTION
-            if audio_manager:
-                audio_manager.play_sfx("player_block.ogg")
+            if bypass_stagger:
+                from constants import WARDING_RAIN_DAMAGE_REDUCTION
+                amount *= (1.0 - WARDING_RAIN_DAMAGE_REDUCTION)
+            else:
+                from constants import BLOCK_DAMAGE_REDUCTION
+                amount *= BLOCK_DAMAGE_REDUCTION
+                if audio_manager:
+                    audio_manager.play_sfx("player_block.ogg")
 
         # 1b. Apply compiled Binder Script damage mitigation
         from constants import BINDER_MAX_DAMAGE_MITIGATION

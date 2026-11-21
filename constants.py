@@ -109,8 +109,9 @@ DASH_COOLDOWN = 0.5
 DASH_SPEED_MULTIPLIER = 3.0
 DASH_SUBSTEP_MAX_PX = 8.0
 
-# Block Mechanics
+# Block & Warding Mechanics
 BLOCK_DAMAGE_REDUCTION = 0.5
+WARDING_RAIN_DAMAGE_REDUCTION = 0.20
 BLOCK_SPEED_MULTIPLIER = 0.5
 
 # Combat Configuration
@@ -257,9 +258,25 @@ CAMERA_LERP_SPEED = 8.0
 
 # Miniboss & Boss configuration
 MINIBOSS_MAX_HP = 450
-MINIBOSS_SPEED = 100.0
+MINIBOSS_SPEED = 145.0
+MINIBOSS_M2_SPEED = 175.0
+MINIBOSS_M3_SPEED = 105.0
 MINIBOSS_DAMAGE = 20
-MINIBOSS_DAMAGE_COOLDOWN = 1.5
+MINIBOSS_DAMAGE_COOLDOWN = 1.15
+BOSS_WIND_UP_DURATION = 0.36
+BOSS_STRIKE_DURATION = 0.25
+BOSS_RECOVERY_DURATION = 0.52
+BOSS_SWING_EXTRA_WIND_UP = 0.14
+FINAL_AUTHOR_WIND_UP_DURATION = 0.50
+BOSS_ANTI_CHEESE_RANGE = 360.0
+BOSS_ANTI_CHEESE_STALL_TIME = 1.2
+BOSS_RANGED_COOLDOWN = 2.4
+BOSS_BOLT_SPEED = 320.0
+BOSS_BOLT_DAMAGE = 12.0
+BOSS_BOLT_RADIUS = 8
+BOSS_BOLT_MAX_LIFETIME = 2.0
+BOSS_FLANK_WEIGHT = 0.70
+BOSS_STALL_MOVE_RATIO = 0.20
 NIGHT_BOSS_MAX_HP = 950
 FINAL_AUTHOR_MAX_HP = 1600
 ACT_MINIBOSS_BUDGET = 4
@@ -302,7 +319,8 @@ MINIMAP_PADDING = 8
 # Minimap tile marker color
 MINIMAP_WALL_COLOR = (120, 120, 120)
 MINIMAP_PLAYER_COLOR = (255, 255, 255) # Rule: Radar player dot is White
-MINIMAP_ENEMY_COLOR = (255, 0, 0) # Rule: Radar enemy dot is Red
+MINIMAP_ENEMY_COLOR = (255, 0, 0) # Debug mode high-contrast enemy dot
+MINIMAP_ENEMY_STEALTH_COLOR = (135, 140, 148, 175) # Normal play muted slate-grey enemy dot
 MINIMAP_LOOT_COLOR = (220, 200, 50)
 # Zoom SCALE factor: Increased zoom (smaller fraction of world shown)
 MINIMAP_VIEWPORT_FRAC = 2.5
@@ -724,8 +742,9 @@ DIALOGUE_MANIFEST = {
             "priority": "0",
             "emotion": "neutral",
             "text": (
-                "Bring me Margin Scraps salvaged from the storm. Two scripts on the same stat will clash—"
-                "the stronger compiles, the weaker frays. Through deliberate conflicts, we perfect the stitch."
+                "Weave Margin Scraps into persistent run passives. Two scripts on the same stat clash—"
+                "the stronger overwrites the weaker. Force three conflicts in sequence "
+                "(Hemming -> Serif -> Gloss) to unlock the True Stitch ending."
             ),
         },
     ],

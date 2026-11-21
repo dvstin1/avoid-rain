@@ -99,7 +99,7 @@ def test_minimap_draws_compass_indicators(monkeypatch):
     assert player_marker_found
 
 def test_minimap_draws_entity_markers(monkeypatch):
-    from constants import MINIMAP_ENEMY_COLOR, MINIMAP_LOOT_COLOR
+    from constants import MINIMAP_ENEMY_COLOR, MINIMAP_ENEMY_STEALTH_COLOR, MINIMAP_LOOT_COLOR
     state = GameState(auto_load=False)
     state.world = MockWorld("chapter1")
     # Place player at (100, 100)
@@ -130,20 +130,31 @@ def test_minimap_draws_entity_markers(monkeypatch):
     monkeypatch.setattr(pygame.draw, 'circle', lambda *a, **k: None)
 
     renderer = Renderer(dummy)
+
+    # Normal play: enemy dot uses muted slate-grey stealth color (not high-contrast red)
+    state.debug_text_enabled = False
     renderer.draw_minimap(state)
 
-    # Check for enemy marker
-    enemy_marker_found = False
-    for c, r in recorded_rects:
-        if pygame.Color(c) == pygame.Color(MINIMAP_ENEMY_COLOR):
-            enemy_marker_found = True
-            break
-    assert enemy_marker_found
-    
+    stealth_marker_found = any(
+        pygame.Color(c) == pygame.Color(MINIMAP_ENEMY_STEALTH_COLOR) for c, _ in recorded_rects
+    )
+    red_marker_in_normal = any(
+        pygame.Color(c) == pygame.Color(MINIMAP_ENEMY_COLOR) for c, _ in recorded_rects
+    )
+    assert stealth_marker_found
+    assert not red_marker_in_normal
+
     # Check for loot marker
-    loot_marker_found = False
-    for c, r in recorded_rects:
-        if pygame.Color(c) == pygame.Color(MINIMAP_LOOT_COLOR):
-            loot_marker_found = True
-            break
+    loot_marker_found = any(
+        pygame.Color(c) == pygame.Color(MINIMAP_LOOT_COLOR) for c, _ in recorded_rects
+    )
     assert loot_marker_found
+
+    # Debug mode: enemy dot switches to high-contrast red MINIMAP_ENEMY_COLOR
+    recorded_rects.clear()
+    state.debug_text_enabled = True
+    renderer.draw_minimap(state)
+    debug_red_marker_found = any(
+        pygame.Color(c) == pygame.Color(MINIMAP_ENEMY_COLOR) for c, _ in recorded_rects
+    )
+    assert debug_red_marker_found

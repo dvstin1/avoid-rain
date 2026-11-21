@@ -429,8 +429,10 @@ def main():
                 
                 if pause_menu.is_open():
                     audio.update_rain_audio(0.0, paused=True)
+                    audio.stop_enemy_move_sounds()
                     renderer.draw_pause_menu(pause_menu)
                     if pause_menu.should_return_to_sanctuary():
+                        audio.stop_enemy_move_sounds()
                         pause_menu.clear_return_to_sanctuary()
                         pause_menu.close()
                         state.return_party_to_sanctuary()
@@ -438,6 +440,7 @@ def main():
                         continue
                     if pause_menu.should_quit():
                         audio.update_rain_audio(0.0, paused=True)
+                        audio.stop_enemy_move_sounds()
                         try: state.save_stats(wait=True)
                         except Exception: pass
                         pause_menu.clear_quit(); pause_menu.close(); in_title = True

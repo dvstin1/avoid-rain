@@ -139,6 +139,16 @@ class AudioManager:
                         pass
                 self.active_move_sounds.pop(enemy_id, None)
 
+    def stop_enemy_move_sounds(self):
+        """Stop and clear all actively looping enemy movement SFX channels."""
+        for channel in list(self.active_move_sounds.values()):
+            if channel:
+                try:
+                    channel.stop()
+                except Exception:
+                    pass
+        self.active_move_sounds.clear()
+
     def update_rain_audio(self, intensity: float, paused: bool = False):
         """Play or adjust the looping ambient rain channel based on intensity and pause state."""
         if not self.rain_channel:

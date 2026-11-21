@@ -208,6 +208,34 @@ def draw_chronicle_biome_menu(screen, font, state):
     screen.blit(hint, (x + 25, y + h - 38))
 
 
+def _wrap_text_lines(font, text, max_width_px):
+    """Word-wrap text into lines that fit within max_width_px without truncation."""
+    cleaned = " ".join(str(text or "").split())
+    if not cleaned:
+        return []
+
+    def _measure(sample):
+        if hasattr(font, "size"):
+            try:
+                return font.size(sample)[0]
+            except (TypeError, AttributeError):
+                pass
+        return len(sample) * 10
+
+    lines = []
+    current = ""
+    for word in cleaned.split(" "):
+        candidate = f"{current} {word}".strip() if current else word
+        if not current or _measure(candidate) <= max_width_px:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
 def draw_binder_weave_menu(screen, font, state):
     """Render The Binder's Script Weaving Loom modal in Sanctuary."""
     dialog = getattr(state, "binder_dialog", None)
@@ -255,15 +283,20 @@ def draw_binder_weave_menu(screen, font, state):
     screen.blit(font.render(frame_str, True, constants.COLOR_WHITE), (x + 24, y + 68))
 
     status_msg = str(dialog.get("status_msg", "") or "")
-    if len(status_msg) > 84:
-        status_msg = status_msg[:81] + "..."
     msg_col = (245, 115, 115) if "CONFLICT" in status_msg else constants.COLOR_GREY
-    screen.blit(font.render(status_msg, True, msg_col), (x + 24, y + 94))
+    wrapped_status = _wrap_text_lines(font, status_msg, max(200, w - 48))
+    font_h = font.get_height() if hasattr(font, "get_height") else 22
+    line_step = max(20, min(26, int(font_h)))
+    status_y = 90
+    for line in wrapped_status:
+        screen.blit(font.render(line, True, msg_col), (x + 24, y + status_y))
+        status_y += line_step
 
     options = state.get_binder_dialog_options()
     sel_idx = int(dialog.get("selection", 0))
-    y_off = 126
-    spacing = 36
+    y_off = max(126, status_y + 10)
+    avail_h = max(120, (h - 40) - y_off)
+    spacing = min(36, max(24, avail_h // max(1, len(options))))
 
     for idx, opt in enumerate(options):
         focused = idx == sel_idx

@@ -84,12 +84,13 @@ def test_full_cradle_rule():
 
 def test_miniboss_variants():
     """Verify that M2 and M3 variants exist and can be instantiated."""
+    from constants import MINIBOSS_SPEED
     from engine.enemy import MinibossM2, MinibossM3
     m2 = MinibossM2(10, 10)
     m3 = MinibossM3(20, 20)
     assert m2.name == "Bleeding Scribe"
     assert m3.name == "Forgotten Binder"
-    assert m3.speed < 100.0 # Standard speed is 100, M3 is 70
+    assert m3.speed < MINIBOSS_SPEED < m2.speed
 
 def test_sanctuary_reset():
     """Verify that entering the sanctuary resets health and weapons."""
