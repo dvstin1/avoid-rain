@@ -12,6 +12,9 @@ os.environ["SDL_AUDIODRIVER"] = "dummy"
 import pytest
 import pygame
 
+from constants import RESPITE_HOSTILE_BLOCK_RADIUS
+from engine.actor import ActorState
+from engine.enemy import FlutterEnemy, NightBoss, SlugEnemy
 from engine.game_state import GameState
 from engine.world import Respite, LevelLoader
 from engine.maps import create_world
@@ -215,3 +218,183 @@ def test_respite_multiplayer_defeated_sync():
     client.update(0.1, {"move": (0, 0)})
     for r in respites:
         assert r.is_active is True, "Client Respite should activate after receiving sync data from Host."
+
+
+def test_respite_blocked_when_hostiles_nearby_or_aggroed():
+    """Verify Respite blocks interaction when alive enemies are within radius or actively aggroed."""
+    state = GameState(auto_load=False)
+    try:
+        state.world = create_world("sanctuary")
+        state.player.x, state.player.y = 200.0, 200.0
+        respite = Respite((200, 200), (40, 40))
+        state.world.interactables.append(respite)
+
+        # 1. Nearby idle enemy inside RESPITE_HOSTILE_BLOCK_RADIUS blocks opening
+        slug = SlugEnemy(200.0 + RESPITE_HOSTILE_BLOCK_RADIUS * 0.5, 200.0)
+        state.enemies = [slug]
+        respite.execute_interaction(state)
+        assert state.active_respite is None
+        assert isinstance(state.active_dialogue, dict)
+        assert state.active_dialogue.get("speaker") == "Respite Anchor"
+        assert "Hostile" in state.active_dialogue.get("text", "")
+
+        # 2. Far enemy outside radius but actively chasing still blocks opening
+        slug.x = 200.0 + RESPITE_HOSTILE_BLOCK_RADIUS + 200.0
+        slug.state = ActorState.CHASE
+        respite.execute_interaction(state)
+        assert state.active_respite is None
+
+        # 3. Far idle enemy allows Respite to open cleanly
+        slug.state = ActorState.IDLE
+        respite.execute_interaction(state)
+        assert state.active_respite is respite
+
+        # 4. Dead enemy right next to player does not block opening
+        state.close_respite_menu()
+        slug.x, slug.y = 210.0, 200.0
+        slug.hp = 0
+        respite.execute_interaction(state)
+        assert state.active_respite is respite
+    finally:
+        state.shutdown_save_worker(timeout=1.0)
+
+
+def test_respite_disabled_during_and_after_night_boss():
+    """Verify Respite locks out during/after Night Boss across flag, active boss, and bleed_state."""
+    state = GameState(auto_load=False)
+    try:
+        state.world = create_world("sanctuary")
+        state.in_sanctuary = False
+        state.player.x, state.player.y = 100.0, 100.0
+        respite = Respite((100, 100), (40, 40))
+        state.world.interactables.append(respite)
+
+        # 1. Locked when night_boss_spawned flag is True (even with enemies cleared)
+        state.enemies = []
+        state.night_boss_spawned = True
+        respite.execute_interaction(state)
+        assert state.active_respite is None
+        assert isinstance(state.active_dialogue, dict)
+        assert "Night Boss" in state.active_dialogue.get("text", "")
+
+        # 2. Locked when an alive NightBoss exists in state.enemies (even far away)
+        state.night_boss_spawned = False
+        boss = NightBoss(2000.0, 2000.0)
+        state.enemies = [boss]
+        respite.execute_interaction(state)
+        assert state.active_respite is None
+
+        # 3. Locked when bleed_state is BOSS_PHASE, DILUTION, or APPENDIX
+        state.enemies = []
+        for locked_phase in ("BOSS_PHASE", "DILUTION", "APPENDIX"):
+            state.weather_manager.bleed_state = locked_phase
+            respite.execute_interaction(state)
+            assert state.active_respite is None
+
+        # 4. Spawning NightBoss via _update_world_events sets night_boss_spawned and closes open Respite
+        state.weather_manager.bleed_state = "GRACE_PERIOD"
+        respite.execute_interaction(state)
+        assert state.active_respite is respite
+
+        state.world.boss_coords_list = [{"x": 5, "y": 5}]
+        state.weather_manager.current_boss_idx = 0
+        state.weather_manager.bleed_state = "CLAMPED"
+        state._update_world_events(0.016)  # pylint: disable=protected-access
+        assert state.night_boss_spawned is True
+        assert state.active_respite is None
+
+        # 5. on_enter_sanctuary() and reset_to_new_game() clear night_boss_spawned
+        state.on_enter_sanctuary()
+        assert state.night_boss_spawned is False
+        state.night_boss_spawned = True
+        state.reset_to_new_game()
+        assert state.night_boss_spawned is False
+    finally:
+        state.shutdown_save_worker(timeout=1.0)
+
+
+def test_start_warp_auto_closes_respite_menu():
+    """Verify GameState.start_warp() clears open Respite UI and staged session flags."""
+    state = GameState(auto_load=False)
+    try:
+        state.world = create_world("sanctuary")
+        respite = Respite((100, 100), (40, 40))
+        state.world.interactables.append(respite)
+        respite.execute_interaction(state)
+        state.respite_upgrades = {1: 2, 2: 1}
+        state.respite_selection_idx = 2
+        state.respite_marked_idx = 1
+        state.player.has_rested_this_session = True
+        assert state.active_respite is respite
+
+        state.start_warp("sanctuary")
+        assert state.active_respite is None
+        assert state.active_dialogue is None
+        assert state.respite_upgrades == {1: 0, 2: 0}
+        assert state.respite_selection_idx == 0
+        assert state.respite_marked_idx == -1
+        assert state.player.has_rested_this_session is False
+    finally:
+        state.shutdown_save_worker(timeout=1.0)
+
+
+def test_respite_defers_enemy_aggro_and_damage_until_closed():
+    """Verify enemies ignore the resting local player while active_respite is open, preserve LAN peer targeting,
+    and resume aggro once the Respite menu closes."""
+    state = GameState(auto_load=False)
+    try:
+        state.world = create_world("sanctuary")
+        state.in_sanctuary = False
+        state.player.x, state.player.y = 200.0, 200.0
+        respite = Respite((200, 200), (40, 40))
+        state.world.interactables.append(respite)
+        respite.execute_interaction(state)
+        assert state.active_respite is respite
+
+        # Enemies spawned right next to player stay non-hostile while Respite menu is open
+        slug = SlugEnemy(210.0, 200.0)
+        flutter = FlutterEnemy(220.0, 200.0)
+        state.enemies = [slug, flutter]
+
+        slug._update_state_logic(0.016, state)  # pylint: disable=protected-access
+        flutter._update_state_logic(0.016, state)  # pylint: disable=protected-access
+        assert slug.state not in (ActorState.CHASE, ActorState.WIND_UP, ActorState.STRIKE)
+        assert slug.active_target is None
+        assert flutter.state != ActorState.CHASE
+        assert flutter.active_target is None
+
+        # Even if overlapping during STRIKE, resting local player takes no damage
+        hp_before = state.player.hp
+        slug.state = ActorState.STRIKE
+        assert slug.attempt_damage_player(state) is False
+        assert state.player.hp == hp_before
+
+        # LAN Co-op safety: non-resting remote peer remains targetable and damageable
+        state.network_manager.remote_players["peer_1"] = {
+            "x": 210.0,
+            "y": 200.0,
+            "hp": 100.0,
+            "in_sanctuary": False,
+            "identity": "Ally",
+        }
+        slug.state = ActorState.IDLE
+        slug._update_state_logic(0.016, state)  # pylint: disable=protected-access
+        assert slug.active_target == (230.0, 220.0)
+        assert slug.state in (ActorState.CHASE, ActorState.WIND_UP)
+        assert slug.attempt_damage_player(state) is True
+        assert state.network_manager.remote_players["peer_1"]["hp"] < 100.0
+        assert state.player.hp == hp_before
+
+        # Closing Respite menu restores normal aggro and damage against local player
+        state.network_manager.remote_players.clear()
+        state.close_respite_menu()
+        slug.state = ActorState.IDLE
+        slug.cooldown_timer = 0.0
+        slug._update_state_logic(0.016, state)  # pylint: disable=protected-access
+        flutter._update_state_logic(0.016, state)  # pylint: disable=protected-access
+        assert slug.state in (ActorState.CHASE, ActorState.WIND_UP)
+        assert flutter.state == ActorState.CHASE
+        assert slug.attempt_damage_player(state) is True
+        assert state.player.hp < hp_before
+    finally:
+        state.shutdown_save_worker(timeout=1.0)

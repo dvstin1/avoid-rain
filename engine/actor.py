@@ -96,13 +96,17 @@ class Actor:
 
     @staticmethod
     def get_active_runner_positions(game_state):
-        """Return world-space centers of active runners (excluding Sanctuary Waiting Scholars)."""
+        """Return world-space centers of active runners (excluding Waiting Scholars & resting local player)."""
         cached = getattr(game_state, "_frame_runner_positions", None)
         if cached is not None:
             return cached
         runners = []
         player = getattr(game_state, "player", None)
-        if player is not None and hasattr(player, "get_center"):
+        if (
+            player is not None
+            and hasattr(player, "get_center")
+            and getattr(game_state, "active_respite", None) is None
+        ):
             runners.append(player.get_center())
         in_sanctuary = bool(getattr(game_state, "in_sanctuary", False))
         net = getattr(game_state, "network_manager", None)

@@ -40,9 +40,9 @@ class Enemy(Actor):
 
     def attempt_damage_player(self, state):
         """Apply damage on contact during STRIKE frames, handling parries for all players."""
-        # 1. Identify all potential victims (Local + Remote)
+        # 1. Identify all potential victims (Local + Remote); skip resting local player in Respite UI
         potential_victims = []
-        if state.player:
+        if state.player and getattr(state, "active_respite", None) is None:
             potential_victims.append(("local", None, state.player))
         
         remote_data = getattr(state.network_manager, 'remote_players', {})

@@ -7,7 +7,7 @@ import random
 from constants import (
     GRID_WIDTH, GRID_HEIGHT, TILE_WALL, TILE_EMPTY, TILE_SIZE, TILE_WARP,
     PLAYER_START_X, PLAYER_START_Y, POOL_MONTHLY_REPORT, POOL_SPECIAL_EDITION,
-    TILE_PATROL
+    TILE_PATROL, RESPITE_HOSTILE_BLOCK_RADIUS
 )
 from engine.actor import Actor, ActorState
 
@@ -425,6 +425,29 @@ class Respite(GameObject):
         self.is_active = True
         self.gated_by_miniboss_id = None
 
+    @staticmethod
+    def _has_blocking_hostiles(game_state) -> bool:
+        """Return True if any alive enemy is within block radius of the player or actively aggroed."""
+        player = getattr(game_state, "player", None)
+        if player is None:
+            return False
+        px, py = player.get_center()
+        block_r_sq = RESPITE_HOSTILE_BLOCK_RADIUS ** 2
+        for enemy in getattr(game_state, "enemies", None) or []:
+            if getattr(enemy, "hp", 0) <= 0:
+                continue
+            ex, ey = enemy.get_center()
+            if (ex - px) ** 2 + (ey - py) ** 2 <= block_r_sq:
+                return True
+            if getattr(enemy, "state", None) in (
+                ActorState.CHASE,
+                ActorState.WIND_UP,
+                ActorState.STRIKE,
+                ActorState.RECOVERY,
+            ):
+                return True
+        return False
+
     def execute_interaction(self, game_state):
         """Trigger the Respite Level-Up UI in GameState."""
         rx = self.x + self.width / 2
@@ -436,6 +459,39 @@ class Respite(GameObject):
                     "The glyphs are smothered under a thick layer of liquid ink. "
                     "The sanctuary's power is drowned until the rain clears."
                 )
+            }
+            game_state.active_respite = None
+            return
+
+        wm_state = getattr(getattr(game_state, "weather_manager", None), "bleed_state", "")
+        enemies = getattr(game_state, "enemies", None) or []
+        has_night_boss = any(
+            (getattr(e, "name", "") == "Night Boss" or e.__class__.__name__ == "NightBoss")
+            and getattr(e, "hp", 1) > 0
+            for e in enemies
+        )
+        if (
+            getattr(game_state, "night_boss_spawned", False)
+            or has_night_boss
+            or wm_state in ("BOSS_PHASE", "DILUTION", "APPENDIX")
+        ):
+            game_state.active_dialogue = {
+                "speaker": "Respite Anchor",
+                "text": (
+                    "The Night Boss has broken the anchor's seal. "
+                    "This Respite cannot be used for the remainder of the Act."
+                ),
+            }
+            game_state.active_respite = None
+            return
+
+        if getattr(game_state, "active_respite", None) != self and self._has_blocking_hostiles(game_state):
+            game_state.active_dialogue = {
+                "speaker": "Respite Anchor",
+                "text": (
+                    "Hostile ink presses too close to the anchor. "
+                    "Clear nearby threats before resting."
+                ),
             }
             game_state.active_respite = None
             return

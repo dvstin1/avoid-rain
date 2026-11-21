@@ -193,12 +193,12 @@ Registered `vitreous_basin` and `sunlit_aqueducts` in `CHRONICLE_BIOME_ROSTER`, 
 - **Uneven Boss Distribution Across Biomes (`generate_maps.py`, `maps/segments/`):**
   - Some biomes currently spawn multiple mid-run bosses/minibosses (letting players over-farm Torn Pages, Margin Scraps, and upgrades) while other biomes spawn none. Normalize mid-run boss encounter budgets and spawn quotas across all 7 biome segment pools (`BIOME_SEGMENT_POOLS`).
 
-## 15. Respite Interaction & World Lifecycle Locks
-- **Block Interaction When Hostiles Are Nearby (`engine/world.py`, `engine/game_state.py`):**
-  - Prevent opening/interacting with a `Respite` (`Respite.execute_interaction()`) while any hostile enemy is within aggro/proximity range of the player, and display a clear feedback prompt/message explaining why interaction is blocked.
-- **Disable Respite During/After Night Boss Fight (`engine/world.py`, `engine/weather.py`, `engine/game_state.py`):**
-  - Lock out `Respite` interaction once the Night Boss encounter starts (active `NightBoss` in `GameState.enemies`, a `night_boss_spawned` latch, or `WeatherManager.bleed_state` in `("BOSS_PHASE", "DILUTION", "APPENDIX")`).
-- **Auto-Close Respite Menu on Warp (`engine/game_state.py`):**
-  - Automatically clear `active_respite`, `active_dialogue`, staged `respite_upgrades`, and `player.has_rested_this_session` inside `GameState.start_warp()` so the Respite modal never stays stuck open across automatic post-boss Act transitions or Sanctuary warps.
-- **Defer Enemy Aggro Until Respite Menu Closes (`engine/world.py`, `engine/actor.py`, `engine/game_state.py`):**
-  - After resting at a `Respite` (`Respite.execute_rest()`), keep enemies non-hostile/pacified until the player closes the Respite menu (or the menu is forcibly closed by rain/storm exposure), rather than allowing re-manifested enemies to aggro while the player is still reading or staging upgrades inside the UI.
+## 15. Respite Interaction & World Lifecycle Locks [DONE]
+- **Block Interaction When Hostiles Are Nearby (`[DONE]` — `constants.py`, `engine/world.py`):**
+  - `Respite.execute_interaction()` blocks opening the Respite menu whenever any alive enemy is within `RESPITE_HOSTILE_BLOCK_RADIUS` (`320.0`) of the player or actively aggroed (`CHASE`/`WIND_UP`/`STRIKE`/`RECOVERY`), surfacing a clear Respite Anchor dialogue message.
+- **Disable Respite During/After Night Boss Fight (`[DONE]` — `engine/world.py`, `engine/weather.py`, `engine/game_state.py`):**
+  - Added `GameState.night_boss_spawned` (set on `NightBoss` spawn; reset on Act transition, `on_enter_sanctuary()`, and `reset_to_new_game()`), locking out `Respite.execute_interaction()` whenever `night_boss_spawned` is `True`, an active `NightBoss` is present, or `WeatherManager.bleed_state` is in `("BOSS_PHASE", "DILUTION", "APPENDIX")`.
+- **Auto-Close Respite Menu on Warp (`[DONE]` — `engine/game_state.py`):**
+  - Added `GameState.close_respite_menu()` invoked at the start of `GameState.start_warp()` (as well as on rain exposure and Night Boss spawn) to clear `active_respite`, dismiss Respite-tied `active_dialogue`, and reset `respite_upgrades`, `respite_selection_idx`, `respite_marked_idx`, and `player.has_rested_this_session`.
+- **Defer Enemy Aggro Until Respite Menu Closes (`[DONE]` — `engine/actor.py`, `engine/enemy.py`, `engine/world.py`):**
+  - `Actor.get_active_runner_positions()` and `Enemy.attempt_damage_player()` exclude the resting local player while `state.active_respite` is open (covering `Actor._update_state_logic()`, `FlutterEnemy._update_state_logic()`, and melee contact damage while keeping non-resting LAN Co-op peers targetable), restoring normal aggro immediately once the Respite menu closes or is closed by rain.

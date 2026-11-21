@@ -111,6 +111,7 @@ class GameState:
         if not hasattr(self, "act2_world_data"):
             self.act2_world_data = None
         self.act_warp_target = None
+        self.night_boss_spawned: bool = False
         if not hasattr(self, "empowered_act"):
             self.empowered_act = False
         self.audio_manager = None
@@ -1160,12 +1161,7 @@ class GameState:
             rx = self.active_respite.x + self.active_respite.width / 2
             ry = self.active_respite.y + self.active_respite.height / 2
             if not self.weather_manager.is_pos_safe(rx, ry):
-                self.active_respite = None
-                self.active_dialogue = None
-                self.respite_upgrades = {1: 0, 2: 0}
-                self.respite_selection_idx = 0
-                self.respite_marked_idx = -1
-                self.player.has_rested_this_session = False
+                self.close_respite_menu()
                 print("[RESPITE] Closed instantly due to rain exposure.")
 
         self.update_combat(dt, attack_pressed, actions, audio_manager)
@@ -1256,6 +1252,9 @@ class GameState:
                             emp_flag = bool(sat["empowered"])
                         new_boss.apply_act_scaling(hp_m, dmg_m, empowered=emp_flag)
                     self.enemies.append(new_boss)
+                    self.night_boss_spawned = True
+                    if getattr(self, "active_respite", None):
+                        self.close_respite_menu()
                     print(f"[THE BLEED] Night Boss manifested at ({bx}, {by}).")
                     boss_alive = True
             self.weather_manager.lock_circle_for_boss(boss_alive)
@@ -2208,6 +2207,7 @@ class GameState:
         sat1 = get_act_saturation(1)
         self.empowered_act = bool(sat1["empowered"])
         self.act_warp_target = None
+        self.night_boss_spawned = False
         self.last_zone_id = None
         if hasattr(self, "marginalia_engine") and self.marginalia_engine:
             self.marginalia_engine.reset(self)
@@ -2294,6 +2294,7 @@ class GameState:
             self.weather_manager.rain_dps = float(sat["rain_dps"])
         self.current_act = target_act
         self.act_warp_target = None
+        self.night_boss_spawned = False
         self.last_zone_id = None
         if (
             hasattr(self, "warp_controller")
@@ -2348,8 +2349,24 @@ class GameState:
                 if not (hasattr(self, 'warp_controller') and self.warp_controller.is_active()):
                     self.start_warp("sanctuary")
 
+    def close_respite_menu(self) -> None:
+        """Close any open Respite modal and reset staged session state."""
+        had_respite = getattr(self, "active_respite", None) is not None
+        self.active_respite = None
+        if had_respite or (
+            isinstance(getattr(self, "active_dialogue", None), dict)
+            and self.active_dialogue.get("speaker") == "Respite Anchor"
+        ):
+            self.active_dialogue = None
+        self.respite_upgrades = {1: 0, 2: 0}
+        self.respite_selection_idx = 0
+        self.respite_marked_idx = -1
+        if getattr(self, "player", None) is not None:
+            self.player.has_rested_this_session = False
+
     def start_warp(self, target, callback=None, confirmed=False):
         """Initiate the three-stage Ink & Fog transit sequence."""
+        self.close_respite_menu()
         target_name = getattr(target, 'target_name', target if isinstance(target, str) else None)
         is_client = hasattr(self, 'network_manager') and self.network_manager.network_mode == "CLIENT"
         if not confirmed and not is_client and target_name == "macro_world":
@@ -2395,6 +2412,7 @@ class GameState:
         self.act1_world_data = None
         self.act2_world_data = None
         self.act_warp_target = None
+        self.night_boss_spawned = False
         self.empowered_act = False
         self.audio_manager = None
         self.pending_remote_sfx.clear()
@@ -2560,6 +2578,7 @@ class GameState:
             from constants import MAX_ACTS
             self.current_act = int(run_data.get("current_act", 0))
             self.empowered_act = bool(run_data.get("empowered_act", self.current_act >= 3))
+            self.night_boss_spawned = bool(run_data.get("night_boss_spawned", False))
             raw_biomes = run_data.get("run_biomes")
             norm_biomes = {f"act{i}": None for i in range(1, MAX_ACTS + 1)}
             if isinstance(raw_biomes, dict):
@@ -2667,6 +2686,7 @@ class GameState:
         self.act1_world_data = None
         self.act2_world_data = None
         self.act_warp_target = None
+        self.night_boss_spawned = False
         self.empowered_act = False
         self.player.stats = {"attack_modifier": 0, "max_hp_modifier": 0, "edification": 1}
         self.input_ratchet_latched = False
@@ -2697,6 +2717,7 @@ class GameState:
             "world_name": getattr(self.world, 'name', 'macro_world'),
             "current_act": int(getattr(self, "current_act", 0)),
             "empowered_act": bool(getattr(self, "empowered_act", False)),
+            "night_boss_spawned": bool(getattr(self, "night_boss_spawned", False)),
             "run_biomes": dict(getattr(self, "run_biomes", {})),
             "act_worlds": {
                 str(k): v for k, v in getattr(self, "act_worlds", {}).items() if v is not None
