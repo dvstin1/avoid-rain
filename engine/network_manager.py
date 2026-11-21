@@ -60,16 +60,17 @@ class NetworkManager:
 
     def __init__(
         self,
-        port: int = LAN_PORT,
+        port: Optional[int] = None,
         identity: str = DEFAULT_PLAYER_NAME,
         local_udp_port: Optional[int] = None,
         host_tcp_port: Optional[int] = None,
         host_udp_port: Optional[int] = None,
         peer_id: Optional[str] = None,
     ) -> None:
-        self.port = port
-        self.tcp_port = host_tcp_port if host_tcp_port is not None else port + 1
-        self.host_udp_port = host_udp_port if host_udp_port is not None else port + 2
+        resolved_port = LAN_PORT if port is None else int(port)
+        self.port = resolved_port
+        self.tcp_port = host_tcp_port if host_tcp_port is not None else resolved_port + 1
+        self.host_udp_port = host_udp_port if host_udp_port is not None else resolved_port + 2
         self.local_udp_port = local_udp_port if local_udp_port is not None else self.host_udp_port
 
         self.identity = identity

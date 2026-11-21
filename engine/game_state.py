@@ -1765,16 +1765,29 @@ class GameState:
             self.save_stats(wait=True)
             return
         if active_respite:
+            if actions.get("cancel"):
+                self.close_respite_menu()
+                if self.network_manager.network_mode == "CLIENT":
+                    threading.Thread(
+                        target=self.network_manager.send_full_state,
+                        args=(self.get_full_player_state(),),
+                        daemon=True,
+                    ).start()
+                self.save_stats(wait=True)
+                return
+
+            if actions.get("respite_rest"):
+                active_respite.execute_rest(self, audio_manager=audio_manager)
+                return
+
             move_dir = actions.get('move', (0, 0))
-            if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
+            if self.menu_nav_cooldown <= 0:
                 if move_dir[1] > 0.6:
                     self.respite_selection_idx = self._get_next_respite_idx(self.respite_selection_idx)
-                    self.input_ratchet_latched = True
-                    self.menu_nav_cooldown = 0.2
+                    self.menu_nav_cooldown = 0.10
                 elif move_dir[1] < -0.6:
                     self.respite_selection_idx = self._get_prev_respite_idx(self.respite_selection_idx)
-                    self.input_ratchet_latched = True
-                    self.menu_nav_cooldown = 0.2
+                    self.menu_nav_cooldown = 0.10
             if attack_pressed and not self.input_ratchet_latched:
                 self.input_ratchet_latched = True
                 if self.respite_selection_idx == 0:
@@ -1799,11 +1812,13 @@ class GameState:
                         self.player.has_rested_this_session = False
                         self.respite_selection_idx = 5
                 elif self.respite_selection_idx == 5:
-                    self.active_dialogue = self.active_respite = None
-                    self.player.has_rested_this_session = False
-                    self.respite_upgrades = {1: 0, 2: 0}
+                    self.close_respite_menu()
                     if self.network_manager.network_mode == "CLIENT":
-                        threading.Thread(target=self.network_manager.send_full_state, args=(self.get_full_player_state(),), daemon=True).start()
+                        threading.Thread(
+                            target=self.network_manager.send_full_state,
+                            args=(self.get_full_player_state(),),
+                            daemon=True,
+                        ).start()
                     self.save_stats(wait=True)
 
     def _get_next_respite_idx(self, current_idx):
@@ -2412,8 +2427,17 @@ class GameState:
         target_name = getattr(target, 'target_name', target if isinstance(target, str) else None)
         is_client = hasattr(self, 'network_manager') and self.network_manager.network_mode == "CLIENT"
         if not confirmed and not is_client and target_name == "macro_world":
-            self.open_chronicle_biome_dialog(portal=target if hasattr(target, 'target_name') else None)
-            return False
+            portal_obj = target if hasattr(target, 'target_name') else None
+            if getattr(self, "debug_text_enabled", False):
+                self.open_chronicle_biome_dialog(portal=portal_obj)
+                return False
+            from constants import MAX_ACTS
+            self.confirm_chronicle_run(["random"] * MAX_ACTS, portal=portal_obj)
+            return bool(
+                hasattr(self, "warp_controller")
+                and self.warp_controller
+                and self.warp_controller.is_active()
+            )
         if hasattr(self, 'warp_controller') and self.warp_controller and self.player:
             return self.warp_controller.start_warp(self.player, target, callback=callback)
         return False
@@ -2437,7 +2461,12 @@ class GameState:
         self.player.hp = float(self.player.max_hp)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
         self.in_sanctuary = True
-        self.waiting_for_host_run = False
+        if not (
+            hasattr(self, "network_manager")
+            and self.network_manager.network_mode == "CLIENT"
+            and getattr(self, "host_in_run", False)
+        ):
+            self.waiting_for_host_run = False
         if hasattr(self, "network_manager") and self.network_manager.network_mode != "CLIENT":
             self.host_in_run = False
             self.waiting_scholars = 0
@@ -2565,9 +2594,11 @@ class GameState:
             self.reset_to_new_game()
             return
         
-        # Update Network Identity and Debug Text Preference from loaded stats
+        # Update Network Identity and reset Debug Text Preference to OFF on Continue/hydrate
+        self.debug_text_enabled = False
+        self.debug_biome_select = False
         if self.stats:
-            self.debug_text_enabled = bool(self.stats.data.get("debug_text_enabled", False))
+            self.stats.data["debug_text_enabled"] = False
             self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
             self.online_mode = bool(self.stats.data.get("online_mode", getattr(self, "online_mode", True)))
             if hasattr(self, 'network_manager'):
@@ -2688,11 +2719,12 @@ class GameState:
     def reset_to_new_game(self):
         from engine.maps import create_world
         from constants import ENGINE_REVISION
+        self.debug_text_enabled = False
+        self.debug_biome_select = False
         if self.stats:
             self.stats.data["engine_revision"] = ENGINE_REVISION
             self.stats.is_revision_compatible = True
-            self.stats.data.setdefault("debug_text_enabled", bool(getattr(self, "debug_text_enabled", False)))
-            self.debug_text_enabled = bool(self.stats.data.get("debug_text_enabled", False))
+            self.stats.data["debug_text_enabled"] = False
             self.stats.data.setdefault("screen_shake_enabled", bool(getattr(self, "screen_shake_enabled", True)))
             self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
             self.stats.data["lifetime_stats"]["pages_collected"] = 0
@@ -2785,6 +2817,7 @@ class GameState:
     def set_debug_text_enabled(self, enabled: bool, save: bool = True) -> None:
         """Update the debug text toggle and persist it in the save file."""
         self.debug_text_enabled = bool(enabled)
+        self.debug_biome_select = self.debug_text_enabled
         if self.stats is not None:
             self.stats.data["debug_text_enabled"] = self.debug_text_enabled
             if save:

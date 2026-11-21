@@ -4,17 +4,22 @@ Respite Level-Up Menu UI components.
 import pygame
 import constants
 
+RESPITE_PANEL_WIDTH = 620
+RESPITE_PANEL_HEIGHT = 290
+
+
 def draw_respite_menu(screen, font, state):
-    """Draw the specialized Respite level-up menu with live data and feedback."""
+    """Draw the compact, centered Respite level-up modal with live data and feedback."""
     player = state.player
     sw, sh = screen.get_width(), screen.get_height()
-    mx, my = 100, 100
-    w, h = sw - mx * 2, sh - my * 2
-    x, y = mx, my
+    w = min(RESPITE_PANEL_WIDTH, sw - 60)
+    h = min(RESPITE_PANEL_HEIGHT, sh - 60)
+    x = (sw - w) // 2
+    y = (sh - h) // 2
 
     panel = pygame.Rect(x, y, w, h)
-    pygame.draw.rect(screen, (10, 10, 30), panel)
-    pygame.draw.rect(screen, constants.COLOR_WHITE, panel, 2)
+    pygame.draw.rect(screen, (14, 12, 24), panel, border_radius=6)
+    pygame.draw.rect(screen, constants.COLOR_WHITE, panel, 2, border_radius=6)
 
     # 1. Header and staging calculations
     info = state.get_staged_respite_info()
@@ -23,7 +28,6 @@ def draw_respite_menu(screen, font, state):
         pages = state.stats.data["lifetime_stats"].get("pages_collected", 0)
     virtual_pages = pages - info["total_staged_cost"]
 
-    # Calculate virtual levels
     prowess = player.stats.get("attack_modifier", 0)
     fort = player.stats.get("max_hp_modifier", 0)
     prowess_lvl = 1 + (prowess // constants.PROWESS_ATTACK_STEP)
@@ -36,41 +40,35 @@ def draw_respite_menu(screen, font, state):
     header = font.render(
         f"Respite - Anchor of the First Edition (Understanding: Lvl {virtual_edif_lvl})",
         True,
-        constants.COLOR_SELECTION
+        constants.COLOR_SELECTION,
     )
-    screen.blit(header, (x + 20, y + 10))
+    screen.blit(header, (x + 20, y + 14))
 
     stats_text = font.render(f"Torn Pages Available: {virtual_pages}", True, (200, 200, 255))
-    screen.blit(stats_text, (x + 20, y + 45))
+    screen.blit(stats_text, (x + 20, y + 42))
 
-    y_off = 100
-    spacing = 40
+    y_off = 78
+    spacing = 30
 
-    # 2. Options
     def draw_option(idx, label, staged_count, current_lvl, cost, is_available):
         nonlocal y_off
         sel_idx = getattr(state, 'respite_selection_idx', 0)
         is_focused = sel_idx == idx
 
-        # Color Rules
         if is_available:
-            color = constants.COLOR_WHITE
-            if is_focused:
-                color = constants.COLOR_SELECTION # Focused is always selection color
+            color = constants.COLOR_SELECTION if is_focused else constants.COLOR_WHITE
         else:
-            color = (80, 80, 80) # Charcoal/Grey
+            color = (85, 85, 95)
 
         prefix = "> " if is_focused else "  "
-        staged_str = f"[ +{staged_count} ] " if staged_count > 0 else "[      ] "
-
+        staged_str = f"[ +{staged_count} ] " if staged_count > 0 else "[    ] "
         opt_text = f"{prefix}{staged_str}{label}: Lvl {current_lvl} (Cost: {cost})"
-
         surf = font.render(opt_text, True, color)
-        screen.blit(surf, (x + 40, y + y_off))
+        screen.blit(surf, (x + 24, y + y_off))
 
         if not is_available:
-            warn = font.render("[ Insufficient Pages ]", True, constants.COLOR_RED)
-            screen.blit(warn, (x + 40 + surf.get_width() + 20, y + y_off))
+            warn = font.render("[Insufficient]", True, constants.COLOR_RED)
+            screen.blit(warn, (x + 24 + surf.get_width() + 12, y + y_off))
 
         y_off += spacing
 
@@ -86,8 +84,8 @@ def draw_respite_menu(screen, font, state):
     if player.has_rested_this_session:
         rest_text += " (Already Rested)"
 
-    screen.blit(font.render(rest_text, True, rest_color), (x + 40, y + y_off))
-    y_off += spacing * 1.5
+    screen.blit(font.render(rest_text, True, rest_color), (x + 24, y + y_off))
+    y_off += spacing + 6
 
     if player.has_rested_this_session:
         draw_option(
@@ -96,7 +94,7 @@ def draw_respite_menu(screen, font, state):
             info["staged_prowess"],
             virtual_prowess_lvl,
             info["next_prowess_cost"],
-            virtual_pages >= info["next_prowess_cost"]
+            virtual_pages >= info["next_prowess_cost"],
         )
         draw_option(
             2,
@@ -104,15 +102,15 @@ def draw_respite_menu(screen, font, state):
             info["staged_fort"],
             virtual_fort_lvl,
             info["next_fort_cost"],
-            virtual_pages >= info["next_fort_cost"]
+            virtual_pages >= info["next_fort_cost"],
         )
     else:
         warn_box = font.render("  [ Must Rest to Unblock Level Up ]", True, constants.COLOR_SELECTION)
-        screen.blit(warn_box, (x + 40, y + y_off))
-        y_off += spacing * 3
+        screen.blit(warn_box, (x + 24, y + y_off))
+        y_off += spacing * 2
 
     # 4. Finalize Button (Index 4)
-    y_off = h - 100
+    y_off = h - 94
     fin_focused = sel_idx == 4
     fin_available = info["total_staged_cost"] > 0 and player.has_rested_this_session
 
@@ -120,20 +118,28 @@ def draw_respite_menu(screen, font, state):
     if fin_available:
         fin_col = constants.COLOR_SELECTION if fin_focused else constants.COLOR_WHITE
     elif fin_focused:
-        fin_col = (150, 50, 50) # Reddish if focused but unavailable
+        fin_col = (150, 50, 50)
 
     fin_text = f"{'> ' if fin_focused else '  '}[ FINALIZE UPGRADES ]"
     if info["total_staged_cost"] == 0 and player.has_rested_this_session:
         fin_text += " (No upgrades staged)"
 
-    screen.blit(font.render(fin_text, True, fin_col), (x + 40, y + y_off))
+    screen.blit(font.render(fin_text, True, fin_col), (x + 24, y + y_off))
 
     # 5. Close Button (Index 5)
-    y_off += spacing
+    y_off += spacing - 2
     close_focused = sel_idx == 5
     close_col = constants.COLOR_SELECTION if close_focused else constants.COLOR_GREY
     close_text = f"{'> ' if close_focused else '  '}[ CLOSE MENU ]"
-    screen.blit(font.render(close_text, True, close_col), (x + 40, y + y_off))
+    screen.blit(font.render(close_text, True, close_col), (x + 24, y + y_off))
+
+    hint = font.render(
+        "[UP/DOWN] Select   [ENTER/E] Confirm   [R] Rest   [ESC] Close",
+        True,
+        constants.COLOR_GREY,
+    )
+    screen.blit(hint, (x + 20, y + h - 30))
+    return panel
 
 
 def draw_chronicle_biome_menu(screen, font, state):

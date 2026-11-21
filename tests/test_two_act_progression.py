@@ -26,6 +26,8 @@ def _make_headless_state(tmp_path):
 def test_chronicle_dialog_two_step_and_debug_toggle(tmp_path):
     """Verify Chronicle opens two-step modal, greys out Act 1 pick in Step 2, and respects debug_biome_select."""
     state = _make_headless_state(tmp_path)
+    state.debug_text_enabled = True
+    state.debug_biome_select = True
     portal = WarpPortal("macro_world", 10, 10, (0, 0, 40, 40), name="Chronicle")
 
     # Intercepting macro_world warp opens the Chronicle dialog instead of warping immediately

@@ -2742,8 +2742,11 @@ class Renderer:
             overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
             overlay.fill((200, 200, 200, 150))
             self.screen.blit(overlay, (0, 0))
-            msg = self.font.render("TEXT BLEACHING...", True, constants.COLOR_BLACK)
-            self.screen.blit(msg, msg.get_rect(center=(sw//2, sh//2)))
+            bleach_font = getattr(self, "bloom_font", None) or self.font
+            shadow_msg = bleach_font.render("TEXT BLEACHING...", True, constants.COLOR_BLOOM_SHADOW)
+            self.screen.blit(shadow_msg, shadow_msg.get_rect(center=(sw // 2 + 2, sh // 2 + 2)))
+            msg = bleach_font.render("TEXT BLEACHING...", True, constants.COLOR_BLACK)
+            self.screen.blit(msg, msg.get_rect(center=(sw // 2, sh // 2)))
 
         self.draw_weather(state)
         self.draw_bloom_overlay(state)

@@ -5,6 +5,8 @@ from engine.world import WarpPortal
 def test_warp_interaction_required():
     """Verify player must attack to execute portal warping."""
     gs = GameState(auto_load=False)
+    gs.debug_text_enabled = True
+    gs.debug_biome_select = True
     # Find warp interactable in the sanctuary
     warp_obj = None
     for obj in gs.world.interactables:

@@ -50,15 +50,16 @@ class Enemy(Actor):
             victim_rect = (p_data["x"], p_data["y"], 40, 40) # Standard Player size
             potential_victims.append(("remote", addr, victim_rect))
 
+        body_rect = self.get_rect()
         if hasattr(self, 'get_attack_hitbox'):
             source_rect = self.get_attack_hitbox()
         else:
-            source_rect = self.get_rect()
+            source_rect = body_rect
 
         for v_type, v_id, v_obj in potential_victims:
             v_rect = v_obj if v_type == "remote" else v_obj.rect
-            
-            if check_aabb_collision(source_rect, v_rect):
+
+            if check_aabb_collision(source_rect, v_rect) or check_aabb_collision(body_rect, v_rect):
                 if v_type == "local":
                     # Local Player Parry Check
                     if self.is_parryable and v_obj.is_parry_active():

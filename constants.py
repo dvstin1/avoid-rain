@@ -20,6 +20,7 @@ TITLE = "Avoid Rain"
 # Network Configuration (Phase 1: Discovery)
 DEFAULT_PLAYER_NAME = "Scholar"
 LAN_PORT = 55555
+TEST_LAN_PORT_BASE = 51000
 
 # Input Modes
 INPUT_MODE_KEYBOARD = "KEYBOARD"

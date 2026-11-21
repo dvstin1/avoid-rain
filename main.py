@@ -179,15 +179,29 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
                 if getattr(state, 'binder_dialog', None):
                     state.close_binder_dialog()
                     continue
+                if getattr(state, 'active_respite', None):
+                    state.close_respite_menu()
+                    state.save_stats(wait=True)
+                    continue
                 if pause_menu is not None: pause_menu.toggle()
                 else: running = False
+            if getattr(state, 'active_respite', None) and event.key == pygame.K_r:
+                state.active_respite.execute_rest(state, audio_manager=audio_manager)
+                continue
             if (
-                getattr(state, 'chronicle_dialog', None) or getattr(state, 'binder_dialog', None)
+                getattr(state, 'chronicle_dialog', None)
+                or getattr(state, 'binder_dialog', None)
+                or getattr(state, 'active_respite', None)
             ) and event.key in (
                 pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_e
             ):
+                if getattr(state, 'active_respite', None):
+                    state.input_ratchet_latched = False
                 attack = True
-            if event.key == pygame.K_SPACE: attack = True
+            if event.key == pygame.K_SPACE:
+                if getattr(state, 'active_respite', None):
+                    state.input_ratchet_latched = False
+                attack = True
             if event.key == pygame.K_1: flask = True
             if event.key == pygame.K_q: swap = True
             if event.key == pygame.K_TAB: inspect = True
@@ -370,15 +384,17 @@ def main():
                         title_transition.reset()
                         if mode == "continue":
                             state.hydrate_from_disk()
+                            state.set_debug_text_enabled(False, save=True)
                             renderer.invalidate_static_world()
                             state.start_seamless_lan(background=True)
                         elif mode == "new_draft":
                             state.reset_to_new_game()
+                            state.set_debug_text_enabled(False, save=False)
                             state.save_stats(wait=True)
                             renderer.invalidate_static_world()
                             title_menu.state = TitleMenuState.MAIN
                             state.start_seamless_lan(background=True)
-                        pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
+                        pause_menu.set_debug_text_enabled(False)
                         pause_menu.set_screen_shake_enabled(getattr(state, "screen_shake_enabled", True))
                         pause_menu.set_forced_marginalia_event_id(
                             getattr(state, "forced_marginalia_event_id", None)

@@ -40,6 +40,8 @@ def test_5_of_7_biome_draft_dialog_and_ordering(tmp_path, monkeypatch):
     assert "sunlit_aqueducts" in constants.CHRONICLE_BIOME_ROSTER
 
     state = _make_state(tmp_path)
+    state.debug_text_enabled = True
+    state.debug_biome_select = True
     portal = WarpPortal("macro_world", 10, 10, (0, 0, 40, 40), name="Chronicle")
     assert state.start_warp(portal) is False
     assert state.chronicle_dialog is not None
