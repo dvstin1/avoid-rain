@@ -171,12 +171,19 @@ def test_candelabra_glow_centered_and_chronicler_dynamic_spatial_lookup():
     world.interactables = [cand]
     renderer.render(_make_render_state(world))
 
-    glow = renderer.prop_cache["CandelabraGlow"]
+    # Flickering candelabra glow surface must be centered via its own dimensions on (x + 20, y + 5)
+    glow_blits = [
+        (src, dest)
+        for src, dest in screen.blits
+        if src.get_width() == src.get_height() and src.get_width() >= 32 and dest != (80, 80)
+    ]
+    assert glow_blits, f"Expected a centered Candelabra glow blit in {screen.blits}"
+    glow_src, glow_dest = glow_blits[0]
     expected_glow_pos = (
-        80 + constants.TILE_SIZE // 2 - glow.get_width() // 2,
-        80 + 5 - glow.get_height() // 2,
+        80 + constants.TILE_SIZE // 2 - glow_src.get_width() // 2,
+        80 + 5 - glow_src.get_height() // 2,
     )
-    assert (glow, expected_glow_pos) in screen.blits
+    assert glow_dest == expected_glow_pos
 
     # Mobile Chronicler spatial lookup when len(interactables) > 64
     big_world = World("sanctuary")

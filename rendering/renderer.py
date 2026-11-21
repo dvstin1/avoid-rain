@@ -52,6 +52,10 @@ class Renderer:
         self.warp_veil_surface = None
         self._puff_cache = {}
         self._actor_scratch_surf = None
+        self.sanctuary_interior_alpha = 0.0
+        self._sanctuary_last_perf_time = None
+        self._sanctuary_blackout_surf = None
+        self._sanctuary_roof_surfs = {}
         self.floor_variants = []
         self.sanctuary_flagstone_variants = []
         self.sanctuary_dirt_path_variants = []
@@ -2280,8 +2284,9 @@ class Renderer:
                 ripple = int(((math.sin(now * 4.5 + obj.x) + 1.0) * 0.5) * (pw // 3 - 3)) + 3
                 pygame.draw.circle(self.screen, (165, 68, 198), (pcx, pcy), ripple, 1)
             elif obj.name == "Candelabra":
-                glow_surf = prop_cache.get("CandelabraGlow")
-                if glow_surf is not None:
+                glow_r, glow_a = self._compute_candelabra_flicker(now, obj.x, obj.y)
+                if is_real_surface:
+                    glow_surf = self._get_candelabra_glow_surface(glow_r, glow_a)
                     gx = int(sx_o + obj.width // 2 - glow_surf.get_width() // 2)
                     gy = int(sy_o + 5 - glow_surf.get_height() // 2)
                     self.screen.blit(glow_surf, (gx, gy))
@@ -2433,6 +2438,18 @@ class Renderer:
                 self.font.render(str(num['val']), True, num['color']),
                 (num['pos'][0] - ox, num['pos'][1] - oy),
             )
+
+        # Sanctuary Pass 3: Interior/exterior fade update, courtyard atmosphere, roofs, & blackout mask
+        perf_now = time.perf_counter()
+        if self._sanctuary_last_perf_time is None:
+            frame_dt = 0.0
+        else:
+            frame_dt = min(0.1, max(0.0, perf_now - self._sanctuary_last_perf_time))
+        self._sanctuary_last_perf_time = perf_now
+        self.update_sanctuary_interior_alpha(state, frame_dt)
+        self.draw_sanctuary_courtyard_atmosphere(state, ox, oy, now=now)
+        self.draw_sanctuary_roofs_and_blackout(state, ox, oy)
+
         if getattr(state.player, 'current_interactable', None):
             self.draw_interaction_prompt(state.player, ox, oy)
         try:
@@ -3949,6 +3966,260 @@ class Renderer:
             
         self.screen.blit(tip_surf, (x, y - h))
         return h
+
+    @staticmethod
+    def _compute_candelabra_flicker(now, obj_x, obj_y):
+        """Return per-candelabra (glow_radius, glow_alpha) using an independent double-harmonic phase."""
+        phase = float(now) * 5.2 + float(obj_x) * 1.7 + float(obj_y) * 0.9
+        wave = 0.65 * math.sin(phase) + 0.35 * math.sin(phase * 2.3 + float(obj_y) * 0.4)
+        glow_r = max(
+            16,
+            int(round(constants.SANCTUARY_CANDLE_GLOW_BASE_RADIUS + wave * constants.SANCTUARY_CANDLE_GLOW_RADIUS_AMP)),
+        )
+        glow_a = max(
+            20,
+            min(
+                140,
+                int(
+                    round(
+                        constants.SANCTUARY_CANDLE_GLOW_BASE_ALPHA + wave * constants.SANCTUARY_CANDLE_GLOW_ALPHA_AMP
+                    )
+                ),
+            ),
+        )
+        return glow_r, glow_a
+
+    def _get_candelabra_glow_surface(self, glow_r, glow_a):
+        """Return a cached soft radial amber glow surface quantized by radius and alpha step."""
+        q_a = (int(glow_a) // 4) * 4
+        key = ("candelabra_glow", int(glow_r), q_a)
+        surf = self._fx_surface_cache.get(key)
+        if surf is None:
+            size = int(glow_r) * 2
+            surf = pygame.Surface((size, size), pygame.SRCALPHA)
+            pygame.draw.circle(surf, (255, 178, 36, q_a), (glow_r, glow_r), glow_r)
+            inner_r = max(4, int(glow_r * 0.55))
+            inner_a = min(180, int(q_a * 1.35))
+            pygame.draw.circle(surf, (255, 224, 118, inner_a), (glow_r, glow_r), inner_r)
+            self._fx_surface_cache[key] = surf
+        return surf
+
+    @staticmethod
+    def _get_sanctuary_roof_zones(state):
+        """Return list of roof_zones dicts from state.world.sanctuary_zones when in Sanctuary."""
+        world = getattr(state, "world", None)
+        if getattr(world, "name", "") != "sanctuary":
+            return []
+        zones = getattr(world, "sanctuary_zones", None)
+        if not isinstance(zones, dict):
+            return []
+        roofs = zones.get("roof_zones")
+        return roofs if isinstance(roofs, list) else []
+
+    @classmethod
+    def _is_player_inside_scriptorium(cls, state):
+        """Return True if local player center lies within the scriptorium_roof interior rect."""
+        player = getattr(state, "player", None)
+        if player is None:
+            return False
+        roofs = cls._get_sanctuary_roof_zones(state)
+        scriptorium = next((r for r in roofs if isinstance(r, dict) and r.get("name") == "scriptorium_roof"), None)
+        if scriptorium is None:
+            return False
+        interior = scriptorium.get("interior")
+        if not isinstance(interior, (list, tuple)) or len(interior) != 4:
+            return False
+        ts = constants.TILE_SIZE
+        ix, iy, iw, ih = interior[0] * ts, interior[1] * ts, interior[2] * ts, interior[3] * ts
+        px, py = player.get_center()
+        return ix <= px <= ix + iw and iy <= py <= iy + ih
+
+    def update_sanctuary_interior_alpha(self, state, dt):
+        """Smoothly interpolate self.sanctuary_interior_alpha in [0.0, 1.0]; resets to 0.0 outside Sanctuary."""
+        if getattr(getattr(state, "world", None), "name", "") != "sanctuary":
+            self.sanctuary_interior_alpha = 0.0
+            return self.sanctuary_interior_alpha
+
+        target = 1.0 if self._is_player_inside_scriptorium(state) else 0.0
+        step = constants.SANCTUARY_INTERIOR_FADE_SPEED * max(0.0, float(dt))
+        cur = float(self.sanctuary_interior_alpha)
+        if cur < target:
+            cur = min(target, cur + step)
+        elif cur > target:
+            cur = max(target, cur - step)
+        self.sanctuary_interior_alpha = max(0.0, min(1.0, cur))
+        return self.sanctuary_interior_alpha
+
+    def _get_sanctuary_roof_surface(self, zone_dict):
+        """Return a cached tiled slate roof surface for a Sanctuary roof_zones entry."""
+        ts = constants.TILE_SIZE
+        zw = int(zone_dict.get("w", 1))
+        zh = int(zone_dict.get("h", 1))
+        z_name = str(zone_dict.get("name", "roof"))
+        roof_tile = self.prop_cache.get("SanctuaryRoofTile")
+        cache_key = (z_name, zw, zh, id(roof_tile) if roof_tile is not None else 0)
+        cached = self._sanctuary_roof_surfs.get(cache_key)
+        if cached is not None:
+            return cached
+
+        rw_px, rh_px = max(ts, zw * ts), max(ts, zh * ts)
+        surf = pygame.Surface((rw_px, rh_px))
+        if roof_tile is not None:
+            for ty in range(zh):
+                for tx in range(zw):
+                    surf.blit(roof_tile, (tx * ts, ty * ts))
+        else:
+            surf.fill((42, 46, 56))
+            for sy in range(0, rh_px, 10):
+                pygame.draw.line(surf, (26, 29, 38), (0, sy), (rw_px - 1, sy), 1)
+        # Architectural slate ridge line & eaves trim
+        ridge_y = rh_px // 2
+        pygame.draw.line(surf, (78, 86, 100), (2, ridge_y), (rw_px - 3, ridge_y), 3)
+        pygame.draw.rect(surf, (22, 25, 34), (0, 0, rw_px, rh_px), 3)
+        self._sanctuary_roof_surfs[cache_key] = surf
+        return surf
+
+    def draw_sanctuary_courtyard_atmosphere(self, state, ox, oy, now=None):
+        """Draw subtle expanding pond water ripples and slow-drifting garden fireflies in Sanctuary."""
+        if getattr(getattr(state, "world", None), "name", "") != "sanctuary":
+            return
+        if self.sanctuary_interior_alpha >= 0.95 or not isinstance(self.screen, pygame.Surface):
+            return
+
+        t_now = time.time() if now is None else float(now)
+        vis = max(0.0, 1.0 - float(self.sanctuary_interior_alpha))
+        ts = constants.TILE_SIZE
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        zones = getattr(state.world, "sanctuary_zones", None)
+        pond_tiles = zones.get("pond_water", []) if isinstance(zones, dict) else []
+
+        # 1. Expanding concentric pond water ripples
+        if pond_tiles:
+            sample_step = max(1, len(pond_tiles) // 6)
+            for idx, entry in enumerate(pond_tiles[::sample_step][:6]):
+                if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+                    continue
+                rx = int(entry[0] * ts + ts // 2 - ox)
+                ry = int(entry[1] * ts + ts // 2 - oy)
+                if rx < -32 or rx > sw + 32 or ry < -32 or ry > sh + 32:
+                    continue
+                cycle = (t_now * 0.55 + idx * 0.37) % 1.0
+                rad = max(2, int(2 + cycle * constants.SANCTUARY_POND_RIPPLE_MAX_RADIUS))
+                rip_alpha = int(110 * (1.0 - cycle) * vis)
+                if rip_alpha < 8:
+                    continue
+                q_alpha = (rip_alpha // 8) * 8
+                r_key = ("pond_ripple", rad, q_alpha)
+                r_surf = self._fx_surface_cache.get(r_key)
+                if r_surf is None:
+                    d_sz = rad * 2 + 4
+                    r_surf = pygame.Surface((d_sz, d_sz), pygame.SRCALPHA)
+                    pygame.draw.circle(r_surf, (158, 214, 224, q_alpha), (rad + 2, rad + 2), rad, 1)
+                    self._fx_surface_cache[r_key] = r_surf
+                self.screen.blit(r_surf, (rx - rad - 2, ry - rad - 2))
+
+        # 2. Slow-drifting golden-green courtyard fireflies / pollen motes around the west pond & garden
+        if pond_tiles:
+            valid_pts = [p for p in pond_tiles if isinstance(p, (list, tuple)) and len(p) >= 2]
+            avg_x = (sum(p[0] for p in valid_pts) / len(valid_pts)) * ts if valid_pts else 12.5 * ts
+            avg_y = (sum(p[1] for p in valid_pts) / len(valid_pts)) * ts if valid_pts else 24.0 * ts
+        else:
+            avg_x, avg_y = 12.5 * ts, 24.0 * ts
+
+        for i in range(constants.SANCTUARY_FIREFLY_COUNT):
+            ang_x = t_now * (0.28 + (i % 3) * 0.09) + i * 1.37
+            ang_y = t_now * (0.22 + (i % 4) * 0.07) + i * 2.11
+            wx = avg_x + math.sin(ang_x) * (150.0 + (i % 3) * 55.0)
+            wy = avg_y + math.cos(ang_y) * (130.0 + (i % 4) * 45.0)
+            fx, fy = int(wx - ox), int(wy - oy)
+            if fx < -16 or fx > sw + 16 or fy < -16 or fy > sh + 16:
+                continue
+            pulse = (math.sin(t_now * (2.4 + (i % 3) * 0.6) + i * 1.9) + 1.0) * 0.5
+            mote_alpha = int((45 + pulse * 145) * vis)
+            if mote_alpha < 10:
+                continue
+            q_ma = (mote_alpha // 12) * 12
+            m_key = ("firefly_mote", q_ma)
+            m_surf = self._fx_surface_cache.get(m_key)
+            if m_surf is None:
+                m_surf = pygame.Surface((12, 12), pygame.SRCALPHA)
+                pygame.draw.circle(m_surf, (192, 240, 114, min(140, q_ma // 2)), (6, 6), 5)
+                pygame.draw.circle(m_surf, (248, 252, 180, min(255, q_ma)), (6, 6), 2)
+                self._fx_surface_cache[m_key] = m_surf
+            self.screen.blit(m_surf, (fx - 6, fy - 6))
+
+    def draw_sanctuary_roofs_and_blackout(self, state, ox, oy):
+        """Render locked shed roof, smooth exterior blackout when inside, and fading Scriptorium roof + chimney."""
+        if getattr(getattr(state, "world", None), "name", "") != "sanctuary":
+            return
+        if not isinstance(self.screen, pygame.Surface):
+            return
+
+        roofs = self._get_sanctuary_roof_zones(state)
+        if not roofs:
+            return
+
+        ts = constants.TILE_SIZE
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        interior_alpha = float(self.sanctuary_interior_alpha)
+
+        scriptorium_roof = None
+        locked_roofs = []
+        for r_zone in roofs:
+            if not isinstance(r_zone, dict):
+                continue
+            if r_zone.get("name") == "scriptorium_roof":
+                scriptorium_roof = r_zone
+            else:
+                locked_roofs.append(r_zone)
+
+        # 1. Permanently locked roofs (e.g., shed_roof) always render opaque (1.0) beneath interior blackout
+        for l_zone in locked_roofs:
+            lx = int(l_zone["x"] * ts - ox)
+            ly = int(l_zone["y"] * ts - oy)
+            l_surf = self._get_sanctuary_roof_surface(l_zone)
+            if lx + l_surf.get_width() >= 0 and lx <= sw and ly + l_surf.get_height() >= 0 and ly <= sh:
+                l_surf.set_alpha(255)
+                self.screen.blit(l_surf, (lx, ly))
+
+        # 2. Exterior blackout mask when stepping inside Scriptorium (leaves Scriptorium building warmly lit)
+        if interior_alpha > 0.0 and scriptorium_roof is not None:
+            blackout_alpha = int(round(constants.SANCTUARY_EXTERIOR_BLACKOUT_ALPHA * interior_alpha))
+            if blackout_alpha > 0:
+                if self._sanctuary_blackout_surf is None or self._sanctuary_blackout_surf.get_size() != (sw, sh):
+                    self._sanctuary_blackout_surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+                mask = self._sanctuary_blackout_surf
+                mask.fill((6, 5, 10, blackout_alpha))
+                bx = int(scriptorium_roof["x"] * ts - ox)
+                by = int(scriptorium_roof["y"] * ts - oy)
+                bw = int(scriptorium_roof["w"] * ts)
+                bh = int(scriptorium_roof["h"] * ts)
+                # Cut out the Scriptorium building rect (interior + walls + southern doorway threshold)
+                mask.fill((0, 0, 0, 0), pygame.Rect(bx, by, bw, bh))
+                self.screen.blit(mask, (0, 0))
+
+        # 3. Fading Scriptorium roof overhang & chimney when outside or transitioning
+        if interior_alpha < 1.0 and scriptorium_roof is not None:
+            roof_alpha = int(round(255 * (1.0 - interior_alpha)))
+            if roof_alpha > 0:
+                bx = int(scriptorium_roof["x"] * ts - ox)
+                by = int(scriptorium_roof["y"] * ts - oy)
+                s_surf = self._get_sanctuary_roof_surface(scriptorium_roof)
+                if bx + s_surf.get_width() >= 0 and bx <= sw and by + s_surf.get_height() >= 0 and by <= sh:
+                    s_surf.set_alpha(roof_alpha)
+                    self.screen.blit(s_surf, (bx, by))
+                chimney_coords = scriptorium_roof.get("chimney")
+                chimney_surf = self.prop_cache.get("SanctuaryChimney")
+                if (
+                    chimney_surf is not None
+                    and isinstance(chimney_coords, (list, tuple))
+                    and len(chimney_coords) >= 2
+                ):
+                    cx_px = int(chimney_coords[0] * ts - ox)
+                    cy_px = int(chimney_coords[1] * ts - oy) - ts
+                    chimney_surf.set_alpha(roof_alpha)
+                    self.screen.blit(chimney_surf, (cx_px, cy_px))
+                    chimney_surf.set_alpha(255)
 
     @staticmethod
     def _select_weapon_pickup_sprite_key(weapon_data):
