@@ -101,9 +101,13 @@ DEFAULT_BAT_PATH = os.path.join("assets", "graphics", "bat.png")
 DEFAULT_FLUTTER_PATH = os.path.join("assets", "graphics", "flutter.png")
 DEFAULT_BINDLING_PATH = os.path.join("assets", "graphics", "bindling.png")
 DEFAULT_SMEAR_PATH = os.path.join("assets", "graphics", "smear.png")
+DEFAULT_SENTRY_PATH = os.path.join("assets", "graphics", "sentry.png")
+DEFAULT_PUNCTUATION_WOLF_PATH = os.path.join("assets", "graphics", "punctuation_wolf.png")
+DEFAULT_EVENT_CHAMPION_PATH = os.path.join("assets", "graphics", "event_champion.png")
 DEFAULT_MINIBOSS_PATH = os.path.join("assets", "graphics", "miniboss.png")
 DEFAULT_NIGHT_BOSS_PATH = os.path.join("assets", "graphics", "night_boss.png")
 DEFAULT_FINAL_AUTHOR_PATH = os.path.join("assets", "graphics", "final_author.png")
+DEFAULT_TORN_PAGE_PATH = os.path.join("assets", "graphics", "torn_page.png")
 
 # Canonical Dimensions
 TILE_WIDTH = 40
@@ -2816,6 +2820,58 @@ def generate_base_enemy_sprite(
         pygame.draw.arc(surf, (112, 106, 138, 190), (cx - 9, cy - 9, 16, 12), 0.6, 2.5, 1)
         return surf
 
+    if kind == "sentry":
+        # Act 1 Scriptorium brass-and-slate hovering turret automaton
+        for ang_idx in range(4):
+            ang = ang_idx * (math.pi / 2.0) + (math.pi / 4.0)
+            fx = cx + int(math.cos(ang) * (width * 0.42))
+            fy = cy + int(math.sin(ang) * (height * 0.42))
+            pygame.draw.line(surf, (154, 128, 76, 255), (cx, cy), (fx, fy), 3)
+            pygame.draw.circle(surf, (110, 152, 184, 255), (fx, fy), 3)
+        core = pygame.Rect(7, 7, width - 14, height - 14)
+        pygame.draw.rect(surf, (54, 64, 82, 255), core, border_radius=7)
+        pygame.draw.rect(surf, (168, 142, 86, 255), core, 2, border_radius=7)
+        pygame.draw.circle(surf, (88, 124, 154, 255), (cx, cy), max(6, width // 4), 2)
+        pygame.draw.circle(surf, (110, 216, 236, 255), (cx + 3, cy), 4)
+        surf.set_at((cx + 2, cy - 1), (240, 252, 255, 255))
+        return surf
+
+    if kind == "punctuation_wolf":
+        # Act 1 ink-and-parchment calligraphic hound with cyan glyph spine & gold tail tip
+        body_poly = [(6, cy + 5), (12, cy - 6), (cx + 4, cy - 8), (width - 6, cy - 1), (cx + 6, cy + 8)]
+        pygame.draw.polygon(surf, (32, 38, 52, 255), body_poly)
+        pygame.draw.polygon(surf, (218, 194, 146, 255), [(10, cy - 4), (14, 7), (18, cy - 4)])
+        pygame.draw.polygon(surf, (218, 194, 146, 255), [(cx - 1, cy - 5), (cx + 3, 6), (cx + 6, cy - 5)])
+        pygame.draw.arc(surf, (118, 198, 224, 255), (5, cy - 10, width - 10, 18), 0.2, 2.9, 2)
+        pygame.draw.line(surf, (118, 198, 224, 255), (6, cy + 3), (2, cy - 5), 2)
+        pygame.draw.circle(surf, (238, 204, 114, 255), (3, cy - 8), 2)
+        pygame.draw.line(surf, (238, 226, 196, 255), (width - 9, cy + 1), (width - 9, cy + 6), 2)
+        pygame.draw.circle(surf, (242, 212, 126, 255), (width - 12, cy - 3), 2)
+        return surf
+
+    if kind == "event_champion":
+        # Marginalia event inquisitor-scribe (Overwritten Elite / Relentless Censor)
+        pygame.draw.polygon(
+            surf,
+            (36, 28, 42, 255),
+            [(cx, 4), (width - 5, height - 5), (cx, height - 2), (5, height - 5)],
+        )
+        # Parchment-and-brass inquisitor pauldrons
+        pygame.draw.circle(surf, (164, 146, 108, 255), (9, cy - 3), 7)
+        pygame.draw.circle(surf, (164, 146, 108, 255), (width - 9, cy - 3), 7)
+        pygame.draw.circle(surf, (92, 68, 44, 255), (9, cy - 3), 7, 1)
+        pygame.draw.circle(surf, (92, 68, 44, 255), (width - 9, cy - 3), 7, 1)
+        # Armored torso with crossed crimson censor sash
+        torso = pygame.Rect(9, 10, width - 18, height - 15)
+        pygame.draw.rect(surf, (48, 38, 56, 255), torso, border_radius=5)
+        pygame.draw.line(surf, (186, 46, 62, 255), (10, 13), (width - 11, height - 7), 3)
+        pygame.draw.line(surf, (222, 178, 86, 255), (10, 12), (width - 11, 12), 2)
+        # Hooded censor mask with twin amber-gold eyes
+        pygame.draw.ellipse(surf, (20, 16, 26, 255), (cx - 8, 5, 16, 13))
+        pygame.draw.circle(surf, (246, 198, 92, 255), (cx - 3, 11), 2)
+        pygame.draw.circle(surf, (246, 198, 92, 255), (cx + 3, 11), 2)
+        return surf
+
     if kind == "miniboss":
         # Armored ink-warden knight with heavy tome-plate pauldrons & tarnished brass trim
         pygame.draw.circle(surf, (62, 66, 78, 255), (8, cy - 4), 8)
@@ -3501,6 +3557,169 @@ def generate_mossy_gravestone(
     return surf
 
 
+def generate_torn_page_sprite(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 SRCALPHA illuminated Torn Page pickup sprite with curled corners and gold seal."""
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, "torn_page")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # Soft ground drop shadow
+    pygame.draw.ellipse(surf, (18, 14, 10, 95), (7, height - 9, width - 14, 6))
+
+    # Ragged weathered parchment polygon with jagged torn lower edge
+    parchment_poly = [
+        (9, 7),
+        (26, 6),
+        (31, 11),
+        (30, 29),
+        (26, 33),
+        (22, 30),
+        (17, 34),
+        (13, 30),
+        (8, 32),
+        (9, 14),
+    ]
+    pygame.draw.polygon(surf, (96, 76, 50, 255), [(px + 1, py + 1) for px, py in parchment_poly])
+    pygame.draw.polygon(surf, (232, 218, 184, 255), parchment_poly)
+    pygame.draw.polygon(surf, (118, 92, 58, 255), parchment_poly, 1)
+
+    # Subtle weathered paper fiber grain
+    for _ in range(16):
+        gx = gen.randint(11, 28)
+        gy = gen.randint(9, 29)
+        if surf.get_at((gx, gy)).a > 200:
+            tone = (218, 200, 162, 255) if gen.random() < 0.5 else (242, 232, 206, 255)
+            surf.set_at((gx, gy), tone)
+
+    # Curled top-right dog-ear corner & subtle bottom-left curl highlight
+    pygame.draw.polygon(surf, (158, 134, 96, 255), [(25, 6), (31, 12), (24, 13)])
+    pygame.draw.polygon(surf, (248, 238, 214, 255), [(25, 6), (31, 11), (25, 11)])
+    pygame.draw.line(surf, (108, 86, 54, 255), (25, 6), (25, 12), 1)
+    pygame.draw.line(surf, (248, 238, 214, 255), (9, 30), (13, 28), 1)
+
+    # Illuminated gold drop-cap initial & dark-gold calligraphy script lines
+    pygame.draw.rect(surf, (218, 174, 72, 255), (12, 11, 5, 6))
+    pygame.draw.rect(surf, (132, 96, 36, 255), (12, 11, 5, 6), 1)
+    pygame.draw.line(surf, (132, 102, 48, 240), (19, 12), (25, 12), 1)
+    pygame.draw.line(surf, (94, 70, 38, 235), (19, 15), (27, 15), 1)
+    pygame.draw.line(surf, (132, 102, 48, 240), (12, 19), (27, 19), 1)
+    pygame.draw.line(surf, (94, 70, 38, 235), (12, 22), (24, 22), 1)
+    pygame.draw.line(surf, (132, 102, 48, 230), (12, 25), (20, 25), 1)
+
+    # Warm amber-gold ink wax seal at lower right
+    pygame.draw.circle(surf, (148, 86, 24, 255), (24, 26), 4)
+    pygame.draw.circle(surf, (218, 154, 46, 255), (24, 26), 3)
+    surf.set_at((23, 25), (252, 224, 134, 255))
+    return surf
+
+
+def generate_sanctuary_window_wall(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 Sanctuary stone wall facade with a warm candle-lit leaded glass window."""
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, "sanctuary_window_wall")
+    surf = pygame.Surface((width, height))
+    surf.fill((62, 64, 68))
+
+    # Coursed stone masonry blocks
+    mortar = (40, 42, 46)
+    row_h = 10
+    for row_idx in range(0, height, row_h):
+        pygame.draw.line(surf, mortar, (0, row_idx), (width - 1, row_idx), 1)
+        offset = 8 if (row_idx // row_h) % 2 == 1 else 0
+        for bx in range(offset, width, 16):
+            pygame.draw.line(surf, mortar, (bx, row_idx), (bx, min(height - 1, row_idx + row_h)), 1)
+            tone = 60 + gen.randint(-6, 6)
+            pygame.draw.rect(
+                surf,
+                (tone, tone + 2, tone + 5),
+                (bx + 1, row_idx + 1, min(14, width - bx - 1), min(row_h - 1, height - row_idx - 1)),
+            )
+
+    # Recessed stone window surround & arched top
+    win_x, win_y, win_w, win_h = 10, 8, width - 20, height - 16
+    pygame.draw.rect(surf, (38, 36, 38), (win_x - 2, win_y - 2, win_w + 4, win_h + 4), border_radius=4)
+    pygame.draw.rect(surf, (52, 42, 34), (win_x, win_y, win_w, win_h), border_radius=3)
+
+    # Warm candle-lit amber glass panes with soft vertical gradient
+    glass_rect = pygame.Rect(win_x + 2, win_y + 2, win_w - 4, win_h - 4)
+    for gy in range(glass_rect.top, glass_rect.bottom):
+        t = (gy - glass_rect.top) / max(1, glass_rect.height - 1)
+        r_col = int(224 + 28 * t)
+        g_col = int(164 + 54 * t)
+        b_col = int(72 + 54 * t)
+        pygame.draw.line(surf, (r_col, g_col, b_col), (glass_rect.left, gy), (glass_rect.right - 1, gy), 1)
+
+    # Leaded mullion crossbars and diamond lattice accents
+    cx = width // 2
+    cy = glass_rect.centery
+    pygame.draw.line(surf, (52, 42, 36), (cx, glass_rect.top), (cx, glass_rect.bottom - 1), 2)
+    pygame.draw.line(surf, (52, 42, 36), (glass_rect.left, cy), (glass_rect.right - 1, cy), 2)
+    pygame.draw.line(surf, (72, 56, 44), (glass_rect.left, glass_rect.top), (cx, cy), 1)
+    pygame.draw.line(surf, (72, 56, 44), (glass_rect.right - 1, glass_rect.top), (cx, cy), 1)
+
+    # Carved stone windowsill catching warm candlelight
+    pygame.draw.rect(surf, (84, 82, 78), (win_x - 3, win_y + win_h, win_w + 6, 4))
+    pygame.draw.line(surf, (158, 134, 92), (win_x - 2, win_y + win_h), (win_x + win_w + 2, win_y + win_h), 1)
+    # Subtle base moss trim along footing
+    for mx in (3, 7, 32, 36):
+        pygame.draw.rect(surf, (56, 84, 50), (mx, height - 3, 3, 3))
+    return surf
+
+
+def generate_sanctuary_arch_doorway(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 Sanctuary stone archway facade with recessed timber double-doors."""
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, "sanctuary_arch_doorway")
+    surf = pygame.Surface((width, height))
+    surf.fill((58, 60, 64))
+
+    # Flanking masonry stone courses
+    for row_idx in range(0, height, 10):
+        tone = 58 + gen.randint(-5, 5)
+        pygame.draw.rect(surf, (tone, tone + 2, tone + 4), (0, row_idx, width, 9))
+        pygame.draw.line(surf, (38, 40, 44), (0, row_idx + 9), (width - 1, row_idx + 9), 1)
+
+    # Carved stone arch ring & keystone
+    cx = width // 2
+    pygame.draw.circle(surf, (40, 40, 44), (cx, 16), 15)
+    pygame.draw.rect(surf, (40, 40, 44), (cx - 15, 16, 30, height - 16))
+    pygame.draw.circle(surf, (92, 92, 90), (cx, 16), 14)
+    pygame.draw.rect(surf, (92, 92, 90), (cx - 14, 16, 28, height - 16))
+    # Keystone accent at top center of arch
+    pygame.draw.polygon(surf, (118, 116, 110), [(cx - 3, 2), (cx + 3, 2), (cx + 2, 7), (cx - 2, 7)])
+
+    # Recessed dark timber double-doors inside the archway
+    pygame.draw.circle(surf, (24, 18, 16), (cx, 16), 11)
+    pygame.draw.rect(surf, (24, 18, 16), (cx - 11, 16, 22, height - 16))
+    pygame.draw.circle(surf, (78, 52, 34), (cx, 16), 10)
+    pygame.draw.rect(surf, (78, 52, 34), (cx - 10, 16, 20, height - 16))
+
+    # Vertical plank seams & center split between double doors
+    for px in (cx - 6, cx + 6):
+        pygame.draw.line(surf, (58, 38, 24), (px, 9), (px, height - 2), 1)
+    pygame.draw.line(surf, (30, 20, 14), (cx, 6), (cx, height - 1), 2)
+
+    # Wrought-iron strap hinges & brass door rings
+    for hy in (18, 30):
+        pygame.draw.line(surf, (44, 44, 48), (cx - 10, hy), (cx - 4, hy), 2)
+        pygame.draw.line(surf, (44, 44, 48), (cx + 4, hy), (cx + 10, hy), 2)
+    pygame.draw.circle(surf, (208, 174, 86), (cx - 3, 24), 2, 1)
+    pygame.draw.circle(surf, (208, 174, 86), (cx + 3, 24), 2, 1)
+
+    # Warm candle threshold seam along the bottom step
+    pygame.draw.line(surf, (232, 186, 94), (cx - 9, height - 2), (cx + 9, height - 2), 1)
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -3553,9 +3772,13 @@ def generate_all_assets(
     flutter_path: str = DEFAULT_FLUTTER_PATH,
     bindling_path: str = DEFAULT_BINDLING_PATH,
     smear_path: str = DEFAULT_SMEAR_PATH,
+    sentry_path: str = DEFAULT_SENTRY_PATH,
+    punctuation_wolf_path: str = DEFAULT_PUNCTUATION_WOLF_PATH,
+    event_champion_path: str = DEFAULT_EVENT_CHAMPION_PATH,
     miniboss_path: str = DEFAULT_MINIBOSS_PATH,
     night_boss_path: str = DEFAULT_NIGHT_BOSS_PATH,
     final_author_path: str = DEFAULT_FINAL_AUTHOR_PATH,
+    torn_page_path: str = DEFAULT_TORN_PAGE_PATH,
     seed: int = DEFAULT_ASSET_SEED,
     stats_out: Dict[str, int] | None = None,
 ) -> Dict[str, str]:
@@ -3763,6 +3986,9 @@ def generate_all_assets(
         ("flutter", flutter_path, "flutter", 40, 40),
         ("bindling", bindling_path, "bindling", 40, 40),
         ("smear", smear_path, "smear", 40, 40),
+        ("sentry", sentry_path, "sentry", 40, 40),
+        ("punctuation_wolf", punctuation_wolf_path, "punctuation_wolf", 40, 40),
+        ("event_champion", event_champion_path, "event_champion", 40, 40),
         ("miniboss", miniboss_path, "miniboss", 40, 40),
         ("night_boss", night_boss_path, "night_boss", 64, 64),
         ("final_author", final_author_path, "final_author", 80, 80),
@@ -3770,6 +3996,9 @@ def generate_all_assets(
     for key, out_path, kind, w, h in base_enemy_specs:
         surf = generate_base_enemy_sprite(kind, w, h, rng=_rng(key))
         _emit(key, out_path, surf)
+
+    # Torn Page collectible pickup sprite
+    _emit("torn_page", torn_page_path, generate_torn_page_sprite(TILE_WIDTH, TILE_HEIGHT, rng=_rng("torn_page")))
 
     # Pipeline 14: Assorted Procedural Weapon Pickup Sprites (Standard & Anomalous)
     weapon_pickup_specs = (
@@ -3810,6 +4039,14 @@ def generate_all_assets(
         ("garden_flora", generate_garden_flora(TILE_WIDTH, TILE_HEIGHT, rng=_rng("garden_flora"))),
         ("locked_shed_door", generate_locked_shed_door(TILE_WIDTH, TILE_HEIGHT, rng=_rng("locked_shed_door"))),
         ("mossy_gravestone", generate_mossy_gravestone(TILE_WIDTH, TILE_HEIGHT, rng=_rng("mossy_gravestone"))),
+        (
+            "sanctuary_window_wall",
+            generate_sanctuary_window_wall(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_window_wall")),
+        ),
+        (
+            "sanctuary_arch_doorway",
+            generate_sanctuary_arch_doorway(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_arch_doorway")),
+        ),
     )
     for sp_key, sp_surf in sanctuary_prop_specs:
         out_path = os.path.join("assets", "graphics", f"{sp_key}.png")

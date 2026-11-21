@@ -14,6 +14,7 @@ from engine.enemy import (
     NightBoss,
     FinalAuthor,
     SentryEnemy,
+    PunctuationWolfEnemy,
 )
 from engine.actor import Actor, ActorState
 from engine.player import Player, PlayerStateEnum
@@ -77,6 +78,8 @@ def test_procedural_enemies_render_distinct_shapes(monkeypatch):
         (FlutterEnemy(150, 100), "flutter.png", (40, 40)),
         (BindlingEnemy(200, 100), "bindling.png", (40, 40)),
         (SmearEnemy(250, 100), "smear.png", (40, 40)),
+        (SentryEnemy(450, 100), "sentry.png", (40, 40)),
+        (PunctuationWolfEnemy(500, 100), "punctuation_wolf.png", (40, 40)),
         (Miniboss(300, 100), "miniboss.png", (40, 40)),
         (NightBoss(350, 100), "night_boss.png", (64, 64)),
         (FinalAuthor(400, 100), "final_author.png", (80, 80)),
@@ -99,12 +102,15 @@ def test_procedural_enemies_render_distinct_shapes(monkeypatch):
         act2_bat, pygame.Rect(100, 100, 40, 40), act2_bat.get_visual_packet(), (100, 100, 100)
     )
 
-    # Sentry remains procedural in Act 1
+    # Sentry procedural fallback still works if sentry.png is removed from cache
     recorded.clear()
+    saved_sentry = renderer.image_cache.pop("sentry.png", None)
     sentry = SentryEnemy(450, 100)
     renderer.draw_actor_ghost(sentry, 0, 0, None)
     colors_drawn = [call[1] for call in recorded]
     assert constants.COLOR_SENTRY_CHASSIS in colors_drawn
+    if saved_sentry is not None:
+        renderer.image_cache["sentry.png"] = saved_sentry
 
 
 def test_procedural_enemy_telegraph_color_override(monkeypatch):
@@ -208,7 +214,7 @@ def test_biome_tile_generation_and_new_maps(monkeypatch):
 
 
 def test_sentry_enemy_behavior_and_graphics(monkeypatch):
-    """Verify SentryEnemy artillery spacing, beam hitbox, and procedural rendering."""
+    """Verify SentryEnemy artillery spacing, beam hitbox, PNG sprite, and procedural fallback."""
     recorded = []
     renderer = _create_headless_renderer(monkeypatch, recorded)
 
@@ -220,11 +226,19 @@ def test_sentry_enemy_behavior_and_graphics(monkeypatch):
 
     draw_rect = pygame.Rect(200, 200, sentry.width, sentry.height)
     packet = sentry.get_visual_packet()
+    assert "sentry.png" in renderer.image_cache
+    assert renderer.draw_procedural_enemy(sentry, draw_rect, packet, (48, 62, 88)) is True
+
+    # Verify procedural fallback still draws distinct sentry components when PNG is absent
+    recorded.clear()
+    saved_sentry = renderer.image_cache.pop("sentry.png", None)
     assert renderer.draw_procedural_enemy(sentry, draw_rect, packet, (48, 62, 88)) is True
     colors = [call[1] for call in recorded]
     assert constants.COLOR_SENTRY_CHASSIS in colors
     assert constants.COLOR_SENTRY_RING in colors
     assert constants.COLOR_SENTRY_EYE in colors
+    if saved_sentry is not None:
+        renderer.image_cache["sentry.png"] = saved_sentry
 
     recorded.clear()
     sentry.state = ActorState.STRIKE

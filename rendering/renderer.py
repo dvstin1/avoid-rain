@@ -134,7 +134,10 @@ class Renderer:
         import os
         base_path = os.path.join("assets", "graphics")
         display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
-        for kind in ("bat", "flutter", "bindling", "smear", "miniboss", "night_boss", "final_author"):
+        for kind in (
+            "bat", "flutter", "bindling", "smear", "sentry", "punctuation_wolf",
+            "event_champion", "miniboss", "night_boss", "final_author",
+        ):
             name = f"{kind}.png"
             path = os.path.join(base_path, name)
             if os.path.exists(path):
@@ -685,6 +688,9 @@ class Renderer:
             ("garden_flora.png", "GardenFlora", (ts, ts), True),
             ("locked_shed_door.png", "LockedShedDoor", (ts, ts), True),
             ("mossy_gravestone.png", "MossyGravestone", (ts, ts), True),
+            ("sanctuary_window_wall.png", "SanctuaryWindowWall", (ts, ts), False),
+            ("sanctuary_arch_doorway.png", "SanctuaryArchDoorway", (ts, ts), False),
+            ("torn_page.png", "TornPage", (ts, ts), True),
         )
         for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
             sx_path = os.path.join(base_path, sx_file)
@@ -2676,10 +2682,11 @@ class Renderer:
                 self.screen.blit(s, (sx, sy))
 
         # --- SPRITE RESOLUTION ---
+        from engine.enemy import SlugEnemy
         sprite = None
         actor_tag = actor.name.lower()
         
-        if "slug" in actor_tag:
+        if isinstance(actor, SlugEnemy) or "slug" in actor_tag:
             # 1. Determine direction (1=Right, 2=Left)
             # Slug frames: 1/3 (Right), 2/4 (Left)
             # Attack frames: attack_1 (Right), attack_2 (Left)
@@ -2822,7 +2829,12 @@ class Renderer:
             self.draw_boss_weapon(actor, ox, oy)
 
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
-        """Draw procedural basic-shape graphics for enemies without image sprites."""
+        """Draw image sprites or procedural basic-shape graphics for enemies and bosses."""
+        from engine.enemy import (
+            BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy,
+            Miniboss, MinibossM2, MinibossM3, NightBoss, PunctuationWolfEnemy,
+            SentryEnemy, SmearEnemy,
+        )
         actor_tag = actor.name.lower()
         cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
         w, h = int(draw_rect.width), int(draw_rect.height)
@@ -2830,47 +2842,69 @@ class Renderer:
         anim_t = float(packet.get("anim_timer", 0.0))
         is_telegraph = packet.get("base") in ("WIND_UP", "STRIKE", "RECOVERY")
 
+        is_boss = isinstance(actor, Boss) or bool(getattr(actor, "is_miniboss", False))
+        is_event_champion = is_boss and any(
+            tok in actor_tag for tok in ("overwritten", "champion", "censor", "event")
+        )
+
         if getattr(actor, "is_empowered", False):
             emp_key = None
-            if "bat" in actor_tag:
+            if isinstance(actor, BatEnemy) or "bat" in actor_tag:
                 emp_key = "bat_empowered.png"
-            elif "flutter" in actor_tag:
+            elif isinstance(actor, FlutterEnemy) or "flutter" in actor_tag:
                 emp_key = "flutter_empowered.png"
-            elif "bindling" in actor_tag:
+            elif isinstance(actor, BindlingEnemy) or "bindling" in actor_tag:
                 emp_key = "bindling_empowered.png"
-            elif "smear" in actor_tag:
+            elif isinstance(actor, SmearEnemy) or "smear" in actor_tag:
                 emp_key = "smear_empowered.png"
-            elif "sentry" in actor_tag:
+            elif isinstance(actor, SentryEnemy) or "sentry" in actor_tag:
                 emp_key = "sentry_empowered.png"
-            elif "wolf" in actor_tag:
+            elif isinstance(actor, PunctuationWolfEnemy) or "wolf" in actor_tag:
                 emp_key = "punctuation_wolf_empowered.png"
-            elif any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
+            elif is_boss or any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
                 emp_key = "boss_empowered.png"
             emp_surf = self.image_cache.get(emp_key) if emp_key else None
+            if emp_surf is None and is_boss:
+                emp_surf = self.image_cache.get("event_champion.png") or self.image_cache.get("miniboss.png")
             if emp_surf is not None:
                 if emp_surf.get_size() != (w, h) and w > 0 and h > 0:
                     emp_surf = pygame.transform.scale(emp_surf, (w, h))
+                if fx < 0:
+                    emp_surf = pygame.transform.flip(emp_surf, True, False)
                 self.screen.blit(emp_surf, draw_rect.topleft)
                 if is_telegraph:
-                    pygame.draw.rect(self.screen, state_color, draw_rect, 2)
+                    ring_r = max(10, max(w, h) // 2 + 2)
+                    pygame.draw.circle(self.screen, state_color, (cx, cy), ring_r, 2)
                 return True
         else:
             base_key = None
-            if "bat" in actor_tag:
+            if isinstance(actor, BatEnemy) or "bat" in actor_tag:
                 base_key = "bat.png"
-            elif "flutter" in actor_tag:
+            elif isinstance(actor, FlutterEnemy) or "flutter" in actor_tag:
                 base_key = "flutter.png"
-            elif "bindling" in actor_tag:
+            elif isinstance(actor, BindlingEnemy) or "bindling" in actor_tag:
                 base_key = "bindling.png"
-            elif "smear" in actor_tag:
+            elif isinstance(actor, SmearEnemy) or "smear" in actor_tag:
                 base_key = "smear.png"
-            elif "author" in actor_tag:
+            elif isinstance(actor, SentryEnemy) or "sentry" in actor_tag:
+                base_key = "sentry.png"
+            elif isinstance(actor, PunctuationWolfEnemy) or "wolf" in actor_tag:
+                base_key = "punctuation_wolf.png"
+            elif isinstance(actor, FinalAuthor) or "author" in actor_tag:
                 base_key = "final_author.png"
-            elif "night boss" in actor_tag or "night_boss" in actor_tag:
+            elif isinstance(actor, NightBoss) or "night boss" in actor_tag or "night_boss" in actor_tag:
                 base_key = "night_boss.png"
-            elif any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss")):
+            elif is_event_champion:
+                base_key = "event_champion.png"
+            elif (
+                isinstance(actor, (MinibossM2, MinibossM3, Miniboss, Boss))
+                or is_boss
+                or any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss"))
+            ):
                 base_key = "miniboss.png"
             base_surf = self.image_cache.get(base_key) if base_key else None
+            if base_surf is None and is_event_champion:
+                base_surf = self.image_cache.get("miniboss.png")
             if base_surf is not None:
                 if base_surf.get_size() != (w, h) and w > 0 and h > 0:
                     base_surf = pygame.transform.scale(base_surf, (w, h))
@@ -2878,10 +2912,11 @@ class Renderer:
                     base_surf = pygame.transform.flip(base_surf, True, False)
                 self.screen.blit(base_surf, draw_rect.topleft)
                 if is_telegraph:
-                    pygame.draw.rect(self.screen, state_color, draw_rect, 2)
+                    ring_r = max(10, max(w, h) // 2 + 2)
+                    pygame.draw.circle(self.screen, state_color, (cx, cy), ring_r, 2)
                 return True
 
-        if "bat" in actor_tag:
+        if isinstance(actor, BatEnemy) or "bat" in actor_tag:
             body_col = state_color if is_telegraph else constants.COLOR_BAT_BODY
             wing_col = state_color if is_telegraph else constants.COLOR_BAT_WING
             flap = int(math.sin(anim_t * 18.0) * 6)
@@ -2899,7 +2934,7 @@ class Renderer:
             pygame.draw.line(self.screen, constants.COLOR_WHITE, (cx + 2, cy + 2), (cx + 2, cy + 5), 1)
             return True
 
-        if "flutter" in actor_tag:
+        if isinstance(actor, FlutterEnemy) or "flutter" in actor_tag:
             body_col = state_color if is_telegraph else constants.COLOR_FLUTTER_BODY
             wing_col = state_color if is_telegraph else constants.COLOR_FLUTTER_WING
             flutter_off = int(math.sin(anim_t * 24.0) * 4)
@@ -2914,7 +2949,7 @@ class Renderer:
             pygame.draw.circle(self.screen, constants.COLOR_FLUTTER_MOTE, (cx + w // 3, cy + h // 3), 2)
             return True
 
-        if "bindling" in actor_tag:
+        if isinstance(actor, BindlingEnemy) or "bindling" in actor_tag:
             body_col = state_color if is_telegraph else constants.COLOR_BINDLING_PARCHMENT
             hood_col = state_color if is_telegraph else constants.COLOR_BINDLING_HOOD
             # Stitched parchment body and folded margin hood
@@ -2933,7 +2968,7 @@ class Renderer:
             pygame.draw.line(self.screen, constants.COLOR_BINDLING_STITCH, (cx + 3, cy - 1), (cx + 3, cy + 9), 1)
             return True
 
-        if "smear" in actor_tag:
+        if isinstance(actor, SmearEnemy) or "smear" in actor_tag:
             blob_col = state_color if is_telegraph else constants.COLOR_SMEAR_BLOB
             base_r = max(4, w // 3)
             # Amorphous wobbling ink blot lobes
@@ -2949,7 +2984,7 @@ class Renderer:
             pygame.draw.circle(self.screen, constants.COLOR_SMEAR_CORE, (eye_x, eye_y), max(2, w // 8))
             return True
 
-        if "sentry" in actor_tag:
+        if isinstance(actor, SentryEnemy) or "sentry" in actor_tag:
             chassis_col = state_color if is_telegraph else constants.COLOR_SENTRY_CHASSIS
             fin_col = state_color if is_telegraph else constants.COLOR_SENTRY_FIN
             # Rotating diagonal stabilizer fins around hovering droid core
@@ -2969,7 +3004,7 @@ class Renderer:
             pygame.draw.circle(self.screen, constants.COLOR_SENTRY_EYE, (eye_x, eye_y), 4)
             return True
 
-        if "wolf" in actor_tag:
+        if isinstance(actor, PunctuationWolfEnemy) or "wolf" in actor_tag:
             glyph_col = state_color if is_telegraph else constants.COLOR_WOLF_GLYPH
             spine_col = state_color if is_telegraph else constants.COLOR_WOLF_SPINE
             stride = int(math.sin(anim_t * 14.0) * 2)
@@ -3000,7 +3035,7 @@ class Renderer:
             pygame.draw.line(self.screen, glyph_col, (cx + 11 * dir_x, cy + 1), (cx + 11 * dir_x, cy + 5), 2)
             return True
 
-        if any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
+        if is_boss or any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
             armor_col = state_color if is_telegraph else constants.COLOR_BOSS_ARMOR
             pauldron_col = state_color if is_telegraph else constants.COLOR_BOSS_PAULDRON
             # Shoulder pauldrons and hulking armored torso
@@ -4274,13 +4309,43 @@ class Renderer:
         return standard_keys[sum(ord(ch) for ch in name) % len(standard_keys)]
 
     def draw_loot(self, item, offset_x, offset_y):
-        """Draw loot items."""
+        """Draw loot items with illuminated Torn Page sprite and pulsing golden-amber glow aura."""
         from engine.loot import TornPage, HealItem
         ir = item.get_rect()
         dr = pygame.Rect(ir[0] - offset_x, ir[1] - offset_y, ir[2], ir[3])
         if isinstance(item, TornPage):
-            pygame.draw.rect(self.screen, constants.COLOR_WHITE, dr)
-            pygame.draw.rect(self.screen, constants.COLOR_SELECTION, dr, 1)
+            now = time.time()
+            pulse = (math.sin(now * 3.6 + (item.x + item.y) * 0.02) + 1.0) * 0.5
+            bob_y = int(round((pulse - 0.5) * 4.0))
+            cx, cy = int(dr.centerx), int(dr.centery + bob_y)
+
+            # Pulsing golden-amber radial glow aura behind the Torn Page
+            aura_r = int(14 + pulse * 5)
+            glow_size = aura_r * 2 + 8
+            glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
+            gc = glow_size // 2
+            pygame.draw.circle(glow_surf, (238, 186, 72, int(26 + pulse * 24)), (gc, gc), aura_r)
+            pygame.draw.circle(glow_surf, (252, 220, 122, int(48 + pulse * 36)), (gc, gc), max(6, aura_r - 5))
+            self.screen.blit(glow_surf, (cx - gc, cy - gc))
+            pygame.draw.circle(self.screen, (242, 198, 94), (cx, cy), aura_r, 1)
+
+            page_surf = self.image_cache.get("torn_page.png") or self.prop_cache.get("TornPage")
+            if page_surf is not None:
+                target_sz = 34
+                if page_surf.get_size() != (target_sz, target_sz):
+                    page_surf = pygame.transform.scale(page_surf, (target_sz, target_sz))
+                self.screen.blit(page_surf, (cx - target_sz // 2, cy - target_sz // 2))
+            else:
+                # Weathered ragged parchment fallback (never a flat white square)
+                poly = [
+                    (cx - 8, cy - 10), (cx + 6, cy - 10), (cx + 9, cy - 6),
+                    (cx + 8, cy + 9), (cx + 2, cy + 7), (cx - 3, cy + 10), (cx - 8, cy + 8),
+                ]
+                pygame.draw.polygon(self.screen, (232, 218, 184), poly)
+                pygame.draw.polygon(self.screen, (118, 92, 58), poly, 1)
+                pygame.draw.line(self.screen, (132, 102, 48), (cx - 5, cy - 4), (cx + 5, cy - 4), 1)
+                pygame.draw.line(self.screen, (132, 102, 48), (cx - 5, cy), (cx + 4, cy), 1)
+                pygame.draw.circle(self.screen, (218, 154, 46), (cx + 3, cy + 4), 2)
         elif isinstance(item, HealItem):
             pygame.draw.rect(self.screen, (200, 50, 50), dr)
             pygame.draw.rect(self.screen, constants.COLOR_WHITE, (dr.centerx - 2, dr.y + 2, 4, dr.height - 4))
