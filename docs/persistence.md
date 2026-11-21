@@ -86,7 +86,7 @@ The persistent JSON document differentiates between permanent lifetime metrics a
 ```
 
 ### 3.1. Binder Scripts & Persistent Meta-Progression Fields
-- **`margin_scraps` (`int`):** Persistent Sanctuary currency earned from Night Bosses (`+2` in Acts 1–2, `+3` in Acts 3–5), Marginalia event completions (`+1`), and *The Final Author* (`+5`). Unlike active-run Torn Pages (`lifetime_stats.pages_collected`), which reset to `0` on `GameState.on_enter_sanctuary()` per the Closed Volume Paradox, `margin_scraps` persist across runs for weaving Binder Scripts.
+- **`margin_scraps` (`int`):** Persistent Sanctuary currency earned from Night Bosses (`+1` in Acts 1–2, `+2` in Acts 3–5), Marginalia event completions (`+0`), and *The Final Author* (`+3`). Unlike active-run Torn Pages (`lifetime_stats.pages_collected`), which reset to `0` on `GameState.on_enter_sanctuary()` per the Closed Volume Paradox, `margin_scraps` persist across runs for weaving Binder Scripts.
 - **`binder_scripts` (`dict`):** Tracks `unlocked` script IDs, `equipped` script IDs (up to `BINDER_MAX_EQUIPPED_SCRIPTS = 4`), `failed_sequence` (ordered stat archetypes of syntax-conflicted scripts toward `BINDER_PERFECT_STITCH_SEQUENCE`), and `conflicts_triggered`.
 - **`story_flags` (`dict`):** Persistent narrative milestones including `perfect_stitch_completed` (`bool`) and `ink_bleed_halted` (`bool`). When `perfect_stitch_completed` is `True` and *The Final Author* is defeated, `last_run_result` is set to `"STITCH_VICTORY"` (`"THE INK-BLEED HALTED"`).
 

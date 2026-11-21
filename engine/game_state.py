@@ -1583,7 +1583,6 @@ class GameState:
                 self.network_manager.send_full_state(full_state)
 
         player_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
-        walls = self.world.get_nearby_walls(player_rect)
         speed_multiplier = 1.0
         if hasattr(self.world, "has_puddle_collision"):
             if self.world.has_puddle_collision(player_rect):
@@ -1594,9 +1593,38 @@ class GameState:
                     if check_aabb_collision(player_rect, obj.rect):
                         speed_multiplier = 0.5
                         break
-        
+
+        # Query walls over a swept bounding rect covering pre-move and projected displacement
+        from constants import DASH_SPEED_MULTIPLIER
+        eff_speed = self.player.speed + float(getattr(self.player, "script_modifiers", {}).get("speed", 0.0))
+        if self.player.state == PlayerStateEnum.DASHING or dash_pressed:
+            proj_speed = eff_speed * speed_multiplier * DASH_SPEED_MULTIPLIER
+            proj_dx = self.player.facing[0] * proj_speed * dt
+            proj_dy = self.player.facing[1] * proj_speed * dt
+        else:
+            proj_dx = move_dir[0] * eff_speed * speed_multiplier * dt
+            proj_dy = move_dir[1] * eff_speed * speed_multiplier * dt
+        swept_min_x = min(self.player.x, self.player.x + proj_dx)
+        swept_min_y = min(self.player.y, self.player.y + proj_dy)
+        swept_max_x = max(self.player.x, self.player.x + proj_dx) + self.player.width
+        swept_max_y = max(self.player.y, self.player.y + proj_dy) + self.player.height
+        swept_rect = (swept_min_x, swept_min_y, swept_max_x - swept_min_x, swept_max_y - swept_min_y)
+        walls = self.world.get_nearby_walls(swept_rect)
+
+        world_grid = getattr(self.world, "grid", None)
+        if world_grid and len(world_grid) > 0 and len(world_grid[0]) > 0:
+            world_w = len(world_grid[0]) * TILE_SIZE
+            world_h = len(world_grid) * TILE_SIZE
+        else:
+            world_w = None
+            world_h = None
+
         prev_player_state = self.player.state
-        healed = self.player.update(dt, move_dir, walls, actions, attack_pressed, flask_pressed, dash_pressed, block_pressed, speed_multiplier)
+        healed = self.player.update(
+            dt, move_dir, walls, actions, attack_pressed, flask_pressed,
+            dash_pressed, block_pressed, speed_multiplier,
+            world_width=world_w, world_height=world_h,
+        )
         if self.player.state == PlayerStateEnum.DASHING and prev_player_state != PlayerStateEnum.DASHING:
             self.local_dash_seq += 1
             if audio_manager:
@@ -2765,6 +2793,30 @@ class GameState:
             self.forced_marginalia_event_id = str(event_id)
         else:
             self.forced_marginalia_event_id = None
+
+    def reset_margin_scraps(self, save: bool = True) -> None:
+        """Reset Margin Scraps, Binder Scripts unlocks/equips, and Binder story flags for debug playtesting."""
+        if self.stats is not None:
+            self.stats.data["margin_scraps"] = 0
+            self.stats.data["binder_scripts"] = {
+                "unlocked": [],
+                "equipped": [],
+                "failed_sequence": [],
+                "conflicts_triggered": 0,
+            }
+            flags = self.stats.data.setdefault("story_flags", {})
+            flags["perfect_stitch_completed"] = False
+            flags["ink_bleed_halted"] = False
+
+        self.sync_player_binder_scripts(refill_in_sanctuary=False)
+        if getattr(self, "player", None) is not None:
+            self.player.hp = min(self.player.hp, self.player.max_hp)
+
+        if self.network_manager.network_mode == "CLIENT":
+            self.network_manager.send_full_state(self.get_full_player_state())
+
+        if save and self.stats is not None:
+            self.save_stats(wait=True)
 
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
         if self.stats is None or not getattr(self, '_save_worker_running', False): return

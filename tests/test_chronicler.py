@@ -67,23 +67,23 @@ def test_dialogue_stasis_blocks_movement():
     gs.active_dialogue = {"speaker": "Test", "text": "Hello"}
     
     initial_x = gs.player.x
-    # Try to move
-    actions = {'move': (1, 0), 'attack': False, 'flask': False}
+    # Try to move west (open floor; east tile at x=760 is the solid Wellspring)
+    actions = {'move': (-1, 0), 'attack': False, 'flask': False}
     gs.update(0.1, actions)
-    
+
     # Player should not have moved
     assert gs.player.x == initial_x
     assert gs.active_dialogue is not None
-    
+
     # Press attack to clear dialogue
-    actions = {'move': (1, 0), 'attack': True, 'flask': False}
+    actions = {'move': (-1, 0), 'attack': True, 'flask': False}
     gs.update(0.1, actions)
-    
+
     assert gs.active_dialogue is None
     # Player still hasn't moved in THIS frame because update returned early
     assert gs.player.x == initial_x
-    
+
     # Next frame player moves
-    actions = {'move': (1, 0), 'attack': False, 'flask': False}
+    actions = {'move': (-1, 0), 'attack': False, 'flask': False}
     gs.update(0.1, actions)
-    assert gs.player.x > initial_x
+    assert gs.player.x < initial_x

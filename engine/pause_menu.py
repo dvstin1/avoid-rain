@@ -39,6 +39,7 @@ class PauseMenu(MenuBase):
         on_return_to_sanctuary: Optional[Callable[[], None]] = None,
         forced_marginalia_event_id: Optional[str] = None,
         on_select_forced_event: Optional[Callable[[Optional[str]], None]] = None,
+        on_reset_margin_scraps: Optional[Callable[[], None]] = None,
     ) -> None:
         self.debug_text_enabled = bool(debug_text_enabled)
         self.on_toggle_debug = on_toggle_debug
@@ -53,6 +54,7 @@ class PauseMenu(MenuBase):
             else None
         )
         self.on_select_forced_event = on_select_forced_event
+        self.on_reset_margin_scraps = on_reset_margin_scraps
         MenuBase.__init__(self, self._build_options())
         self.pause_handler = pause_handler or PauseHandler()
         self._open = False
@@ -79,6 +81,7 @@ class PauseMenu(MenuBase):
         options.extend(["Controls", dbg_label])
         if self.debug_text_enabled:
             options.append(self._format_forced_event_label())
+            options.append("Reset Margin Scraps")
         options.extend([shake_label, "Quit"])
         return options
 
@@ -221,6 +224,8 @@ class PauseMenu(MenuBase):
         elif selected.startswith("Debug Event:"):
             self.cycle_forced_marginalia_event()
             self._invoke_callback(self.on_select_forced_event, self.forced_marginalia_event_id)
+        elif selected == "Reset Margin Scraps":
+            self._invoke_callback(self.on_reset_margin_scraps)
         elif selected.startswith("Screen Shake:"):
             self.set_screen_shake_enabled(not self.screen_shake_enabled)
             self._invoke_callback(self.on_toggle_screen_shake, self.screen_shake_enabled)

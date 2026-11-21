@@ -932,8 +932,8 @@ class Renderer:
                     pygame.draw.line(overlay, rain_color, (rx, ry), (rx, ry + p['len']), 2)
                     drew_any = True
 
-        # 3. Draw a 'Mysterious Barrier' for the circle boundary only if it intersects the screen
-        if not force_global and not is_dilution and current_boss_coords:
+        # 3. Draw a 'Mysterious Barrier' for the circle boundary only in debug text mode when it intersects the screen
+        if getattr(state, "debug_text_enabled", False) and not force_global and not is_dilution and current_boss_coords:
             bcx = current_boss_coords['x'] * constants.TILE_SIZE - ox
             bcy = current_boss_coords['y'] * constants.TILE_SIZE - oy
             if 0 < radius < 30000:

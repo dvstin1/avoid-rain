@@ -328,6 +328,7 @@ def main():
         on_toggle_screen_shake=lambda val: state.set_screen_shake_enabled(val, save=True),
         forced_marginalia_event_id=getattr(state, "forced_marginalia_event_id", None),
         on_select_forced_event=state.set_forced_marginalia_event_id,
+        on_reset_margin_scraps=lambda: state.reset_margin_scraps(save=True),
     )
     
     # [Initialization] Detect existing compatible save file to enable 'Continue'

@@ -67,7 +67,7 @@ def test_margin_scraps_milestones_and_closed_volume_paradox(tmp_path):
     state = _make_state(tmp_path)
     assert state.stats.data["margin_scraps"] == 0
 
-    # 1. Marginalia event completion awards +1 Margin Scrap
+    # 1. Marginalia event completion awards SCRAPS_REWARD_MARGINALIA_EVENT (+0)
     state.in_sanctuary = False
     state.world.name = "generated_world"
     state.current_act = 1
@@ -76,7 +76,7 @@ def test_margin_scraps_milestones_and_closed_volume_paradox(tmp_path):
     assert ev.status == "COMPLETED"
     assert state.stats.data["margin_scraps"] == constants.SCRAPS_REWARD_MARGINALIA_EVENT
 
-    # 2. Night Boss defeat in Act 3 (empowered) awards +3 Margin Scraps
+    # 2. Night Boss defeat in Act 3 (empowered) awards SCRAPS_REWARD_NIGHT_BOSS_EMPOWERED (+2)
     state.current_act = 3
     state.empowered_act = True
     nb = NightBoss(state.player.x + 20, state.player.y)

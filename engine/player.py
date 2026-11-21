@@ -131,7 +131,8 @@ class Player:
     # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-branches,too-many-statements
     def update(
         self, dt, move_dir, walls, actions, attack_pressed=False, flask_pressed=False,
-        dash_pressed=False, block_pressed=False, speed_multiplier=1.0, audio_manager=None
+        dash_pressed=False, block_pressed=False, speed_multiplier=1.0, audio_manager=None,
+        world_width=None, world_height=None
     ):
         """
         Update player position and state. Returns True if a heal was performed.
@@ -161,7 +162,16 @@ class Player:
             val_t = getattr(self, attr_t, 0.0)
             if val_t > 0.0:
                 setattr(self, attr_t, max(0.0, val_t - dt))
-        from constants import DASH_DURATION, DASH_COOLDOWN, DASH_SPEED_MULTIPLIER, BLOCK_SPEED_MULTIPLIER, PARRY_WINDOW
+        from constants import (
+            DASH_DURATION,
+            DASH_COOLDOWN,
+            DASH_SPEED_MULTIPLIER,
+            DASH_SUBSTEP_MAX_PX,
+            BLOCK_SPEED_MULTIPLIER,
+            PARRY_WINDOW,
+        )
+        world_pixel_width = world_width if world_width is not None else GRID_WIDTH * TILE_SIZE
+        world_pixel_height = world_height if world_height is not None else GRID_HEIGHT * TILE_SIZE
 
         healed = False
         
@@ -186,17 +196,26 @@ class Player:
             if self.dash_timer <= 0:
                 self.state = PlayerStateEnum.IDLE
             else:
-                # Continue dash movement
+                # Continue dash movement with sub-stepping to prevent wall/edge tunneling
                 eff_speed = self.speed + float(getattr(self, "script_modifiers", {}).get("speed", 0.0))
                 current_speed = eff_speed * speed_multiplier * DASH_SPEED_MULTIPLIER
                 self.vx = self.facing[0] * current_speed
                 self.vy = self.facing[1] * current_speed
-                self.x += self.vx * dt
-                self.y += self.vy * dt
-                self.x, self.y = resolve_wall_collision(
-                    (self.x, self.y, self.width, self.height),
-                    walls
-                )
+                total_dx = self.vx * dt
+                total_dy = self.vy * dt
+                dist = math.hypot(total_dx, total_dy)
+                steps = max(1, int(math.ceil(dist / DASH_SUBSTEP_MAX_PX)))
+                step_dx = total_dx / steps
+                step_dy = total_dy / steps
+                for _ in range(steps):
+                    self.x += step_dx
+                    self.y += step_dy
+                    self.x, self.y = resolve_wall_collision(
+                        (self.x, self.y, self.width, self.height),
+                        walls
+                    )
+                    self.x = max(0, min(self.x, world_pixel_width - self.width))
+                    self.y = max(0, min(self.y, world_pixel_height - self.height))
             return False
 
         # Update dash cooldown
@@ -279,9 +298,7 @@ class Player:
             walls
         )
 
-        # 6. World Boundary Clamping (use world grid size instead of screen)
-        world_pixel_width = GRID_WIDTH * TILE_SIZE
-        world_pixel_height = GRID_HEIGHT * TILE_SIZE
+        # 6. World Boundary Clamping (active world dimensions, falling back to macro grid size)
         self.x = max(0, min(self.x, world_pixel_width - self.width))
         self.y = max(0, min(self.y, world_pixel_height - self.height))
         
