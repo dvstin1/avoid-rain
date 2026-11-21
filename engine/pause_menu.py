@@ -9,6 +9,7 @@ from typing import Optional, Callable
 from enum import Enum, auto
 from .pause import PauseHandler
 from .menu import MenuBase
+from .marginalia_events import MARGINALIA_EVENT_CATALOG
 
 
 class PauseMenuState(Enum):
@@ -36,6 +37,8 @@ class PauseMenu(MenuBase):
         waiting_scholars: int = 0,
         return_to_sanctuary_visible: bool = False,
         on_return_to_sanctuary: Optional[Callable[[], None]] = None,
+        forced_marginalia_event_id: Optional[str] = None,
+        on_select_forced_event: Optional[Callable[[Optional[str]], None]] = None,
     ) -> None:
         self.debug_text_enabled = bool(debug_text_enabled)
         self.on_toggle_debug = on_toggle_debug
@@ -44,6 +47,12 @@ class PauseMenu(MenuBase):
         self.waiting_scholars = max(0, int(waiting_scholars))
         self.return_to_sanctuary_visible = bool(return_to_sanctuary_visible or self.waiting_scholars > 0)
         self.on_return_to_sanctuary = on_return_to_sanctuary
+        self.forced_marginalia_event_id: Optional[str] = (
+            str(forced_marginalia_event_id)
+            if forced_marginalia_event_id and forced_marginalia_event_id in MARGINALIA_EVENT_CATALOG
+            else None
+        )
+        self.on_select_forced_event = on_select_forced_event
         MenuBase.__init__(self, self._build_options())
         self.pause_handler = pause_handler or PauseHandler()
         self._open = False
@@ -53,6 +62,13 @@ class PauseMenu(MenuBase):
         # Optional callback invoked when the pause menu is opened (e.g., to auto-save)
         self.on_open = on_open
 
+    def _format_forced_event_label(self) -> str:
+        """Return display label for the debug Marginalia event override option."""
+        if self.forced_marginalia_event_id and self.forced_marginalia_event_id in MARGINALIA_EVENT_CATALOG:
+            title = MARGINALIA_EVENT_CATALOG[self.forced_marginalia_event_id]["title"]
+            return f"Debug Event: {title}"
+        return "Debug Event: Auto"
+
     def _build_options(self) -> list[str]:
         """Return pause menu options reflecting current toggle and Waiting Scholars states."""
         dbg_label = f"Debug Text: {'ON' if self.debug_text_enabled else 'OFF'}"
@@ -60,13 +76,37 @@ class PauseMenu(MenuBase):
         options = ["Resume"]
         if self.return_to_sanctuary_visible:
             options.append("Return to Sanctuary")
-        options.extend(["Controls", dbg_label, shake_label, "Quit"])
+        options.extend(["Controls", dbg_label])
+        if self.debug_text_enabled:
+            options.append(self._format_forced_event_label())
+        options.extend([shake_label, "Quit"])
         return options
 
     def set_debug_text_enabled(self, enabled: bool) -> None:
         """Synchronize the pause menu's debug text state and option label."""
         self.debug_text_enabled = bool(enabled)
         self._options = self._build_options()
+        if self._selected >= len(self._options):
+            self._selected = max(0, len(self._options) - 1)
+
+    def set_forced_marginalia_event_id(self, event_id: Optional[str]) -> None:
+        """Synchronize the pause menu's forced Marginalia event override and option label."""
+        if event_id and event_id in MARGINALIA_EVENT_CATALOG:
+            self.forced_marginalia_event_id = str(event_id)
+        else:
+            self.forced_marginalia_event_id = None
+        self._options = self._build_options()
+
+    def cycle_forced_marginalia_event(self) -> Optional[str]:
+        """Cycle the forced Marginalia event override through Auto and all catalog event IDs."""
+        choices: list[Optional[str]] = [None] + list(MARGINALIA_EVENT_CATALOG.keys())
+        try:
+            idx = choices.index(self.forced_marginalia_event_id)
+        except ValueError:
+            idx = 0
+        next_event_id = choices[(idx + 1) % len(choices)]
+        self.set_forced_marginalia_event_id(next_event_id)
+        return self.forced_marginalia_event_id
 
     def set_screen_shake_enabled(self, enabled: bool) -> None:
         """Synchronize the pause menu's screen shake state and option label."""
@@ -149,12 +189,22 @@ class PauseMenu(MenuBase):
         """Return True if Return to Sanctuary was confirmed from the pause menu."""
         return bool(self._return_to_sanctuary_requested)
 
+    @staticmethod
+    def _invoke_callback(callback: Optional[Callable], *args) -> None:
+        """Invoke an optional pause-menu callback without letting errors break navigation."""
+        if callback is not None:
+            try:
+                callback(*args)
+            except Exception:  # pylint: disable=broad-exception-caught
+                pass
+
     def confirm(self) -> None:
         """Confirm the currently selected option.
 
         If 'Quit' is selected, mark quit requested. If 'Resume', close the menu.
         If 'Return to Sanctuary' is selected, request party return and close the menu.
         If 'Debug Text: ...' is selected, toggle debug text and invoke callback.
+        If 'Debug Event: ...' is selected, cycle forced Marginalia event and invoke callback.
         """
         selected = self._options[self._selected]
         if selected == "Quit":
@@ -163,23 +213,14 @@ class PauseMenu(MenuBase):
             self.close()
         elif selected == "Return to Sanctuary":
             self.request_return_to_sanctuary()
-            if self.on_return_to_sanctuary is not None:
-                try:
-                    self.on_return_to_sanctuary()
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+            self._invoke_callback(self.on_return_to_sanctuary)
             self.close()
         elif selected.startswith("Debug Text:"):
             self.set_debug_text_enabled(not self.debug_text_enabled)
-            if self.on_toggle_debug is not None:
-                try:
-                    self.on_toggle_debug(self.debug_text_enabled)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+            self._invoke_callback(self.on_toggle_debug, self.debug_text_enabled)
+        elif selected.startswith("Debug Event:"):
+            self.cycle_forced_marginalia_event()
+            self._invoke_callback(self.on_select_forced_event, self.forced_marginalia_event_id)
         elif selected.startswith("Screen Shake:"):
             self.set_screen_shake_enabled(not self.screen_shake_enabled)
-            if self.on_toggle_screen_shake is not None:
-                try:
-                    self.on_toggle_screen_shake(self.screen_shake_enabled)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+            self._invoke_callback(self.on_toggle_screen_shake, self.screen_shake_enabled)

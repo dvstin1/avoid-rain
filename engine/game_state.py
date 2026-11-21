@@ -199,6 +199,7 @@ class GameState:
         # Marginalia Event Engine, ReturnAnchor Warp Stack, & Breadcrumb Trail
         from engine.marginalia_events import MarginaliaEventEngine
         self.marginalia_engine = MarginaliaEventEngine()
+        self.forced_marginalia_event_id: Optional[str] = None
         self.return_anchor_stack = []
         self.player_breadcrumbs = []
         self.ink_mist_vignette_timer = 0.0
@@ -2481,6 +2482,7 @@ class GameState:
         self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
         if hasattr(self, "marginalia_engine") and self.marginalia_engine:
             self.marginalia_engine.reset(self)
+        self.forced_marginalia_event_id = None
         self.loot = []
         self.damage_numbers = []
         if hasattr(self, 'glyph_particles'):
@@ -2538,6 +2540,14 @@ class GameState:
             self.stats.data["screen_shake_enabled"] = self.screen_shake_enabled
             if save:
                 self.save_stats(wait=True)
+
+    def set_forced_marginalia_event_id(self, event_id: Optional[str]) -> None:
+        """Set or clear the one-shot forced Marginalia event override for playtesting."""
+        from engine.marginalia_events import MARGINALIA_EVENT_CATALOG
+        if event_id and event_id in MARGINALIA_EVENT_CATALOG:
+            self.forced_marginalia_event_id = str(event_id)
+        else:
+            self.forced_marginalia_event_id = None
 
     def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
         if self.stats is None or not getattr(self, '_save_worker_running', False): return

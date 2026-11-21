@@ -379,6 +379,18 @@ class MarginaliaEventEngine:
             return None
 
         self.rolled_acts.add(act)
+        forced_id = getattr(state, "forced_marginalia_event_id", None)
+        if forced_id and forced_id in MARGINALIA_EVENT_CATALOG:
+            chosen_id = str(forced_id)
+            meta = MARGINALIA_EVENT_CATALOG[chosen_id]
+            if meta["spatial_mode"] == "map_anchor":
+                ev = self.seed_map_anchor(state, chosen_id, act_variant=act)
+            else:
+                ev = self.start_event(state, chosen_id, act_variant=act)
+            if ev is not None:
+                state.forced_marginalia_event_id = None
+            return ev
+
         roll = self.rng.random()
         if roll >= self.trigger_chance:
             return None

@@ -321,6 +321,8 @@ def main():
         on_toggle_debug=lambda val: state.set_debug_text_enabled(val, save=True),
         screen_shake_enabled=getattr(state, "screen_shake_enabled", True),
         on_toggle_screen_shake=lambda val: state.set_screen_shake_enabled(val, save=True),
+        forced_marginalia_event_id=getattr(state, "forced_marginalia_event_id", None),
+        on_select_forced_event=state.set_forced_marginalia_event_id,
     )
     
     # [Initialization] Detect existing compatible save file to enable 'Continue'
@@ -372,6 +374,9 @@ def main():
                             state.start_seamless_lan(background=True)
                         pause_menu.set_debug_text_enabled(getattr(state, "debug_text_enabled", False))
                         pause_menu.set_screen_shake_enabled(getattr(state, "screen_shake_enabled", True))
+                        pause_menu.set_forced_marginalia_event_id(
+                            getattr(state, "forced_marginalia_event_id", None)
+                        )
                         in_title = False
                     continue
 
@@ -409,6 +414,9 @@ def main():
                 waiting_cnt = getattr(state, "waiting_scholars", 0)
                 if waiting_cnt != pause_menu.waiting_scholars:
                     pause_menu.set_waiting_scholars(waiting_cnt)
+                forced_ev = getattr(state, "forced_marginalia_event_id", None)
+                if forced_ev != pause_menu.forced_marginalia_event_id:
+                    pause_menu.set_forced_marginalia_event_id(forced_ev)
                 ev_res = handle_game_events(state, pause_menu=pause_menu, audio_manager=audio)
                 running, attack, flask, dash, swap, inspect, mouse_click, ratchet_reset = ev_res
                 if ratchet_reset: state.input_ratchet_latched = False

@@ -385,3 +385,49 @@ def test_persistent_pursuit_breadcrumbs_and_lan_coop_sync():
 
     renderer = Renderer(screen)
     renderer.render(runner_client)
+
+
+def test_forced_marginalia_event_override_and_one_shot_consumption():
+    """Verify forced_marginalia_event_id bypasses trigger_chance, persists when debug_text_enabled is False,
+    consumes one-shot on trigger, supports map_anchor events, and clears in reset_to_new_game()."""
+    # 1. Local/immediate event bypasses 0% trigger_chance even after debug_text_enabled is False
+    state = _make_active_run_state(act=1)
+    try:
+        state.marginalia_engine = MarginaliaEventEngine(rng=random.Random(1), trigger_chance=0.0)
+        state.set_forced_marginalia_event_id("unbound_folio")
+        state.set_debug_text_enabled(False, save=False)
+
+        ev1 = state.marginalia_engine.try_roll_for_act(state)
+        assert ev1 is not None
+        assert ev1.event_id == "unbound_folio"
+        assert ev1.status == "ACTIVE"
+        assert state.forced_marginalia_event_id is None
+
+        # Subsequent Act rolls normally (trigger_chance=0.0 -> None)
+        state.current_act = 2
+        state.marginalia_engine.active_event = None
+        assert state.marginalia_engine.try_roll_for_act(state) is None
+    finally:
+        state.shutdown_save_worker(timeout=1.0)
+
+    # 2. Map-anchor event seeds PENDING anchor deterministically and consumes override
+    anchor_state = _make_active_run_state(act=1)
+    try:
+        anchor_state.marginalia_engine = MarginaliaEventEngine(rng=random.Random(2), trigger_chance=0.0)
+        anchor_state.set_forced_marginalia_event_id("sunken_margin")
+        anchor_state.set_debug_text_enabled(False, save=False)
+
+        ev_anchor = anchor_state.marginalia_engine.try_roll_for_act(anchor_state)
+        assert ev_anchor is not None
+        assert ev_anchor.event_id == "sunken_margin"
+        assert ev_anchor.status == "PENDING"
+        assert any(o.name == "Suspicious Leaf Pile" for o in anchor_state.world.interactables)
+        assert anchor_state.forced_marginalia_event_id is None
+
+        # 3. reset_to_new_game() clears any pending forced_marginalia_event_id
+        anchor_state.set_forced_marginalia_event_id("relentless_censor")
+        assert anchor_state.forced_marginalia_event_id == "relentless_censor"
+        anchor_state.reset_to_new_game()
+        assert anchor_state.forced_marginalia_event_id is None
+    finally:
+        anchor_state.shutdown_save_worker(timeout=1.0)

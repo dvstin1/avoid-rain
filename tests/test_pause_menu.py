@@ -4,7 +4,7 @@ import pygame
 from engine.pause import PauseHandler
 from engine.pause_menu import PauseMenu
 from engine.game_state import GameState
-from engine.marginalia_events import MarginaliaEvent
+from engine.marginalia_events import MARGINALIA_EVENT_CATALOG, MarginaliaEvent
 from engine.stats import StatisticsTracker
 from rendering.bitmap_font import BitmapFont
 from rendering.renderer import Renderer
@@ -349,3 +349,58 @@ def test_debug_osd_displays_biome_act_and_marginalia_event(monkeypatch):
         assert osd_y and osd_y[0] >= 80
     finally:
         state.shutdown_save_worker(timeout=1.0)
+
+
+def test_pause_menu_debug_event_visibility_and_cycling():
+    """Verify Debug Event option is only shown when debug_text_enabled is True and cycles through all events."""
+    gs = GameState(auto_load=False)
+    try:
+        assert gs.forced_marginalia_event_id is None
+        pm = PauseMenu(
+            debug_text_enabled=False,
+            on_toggle_debug=lambda val: gs.set_debug_text_enabled(val, save=False),
+            forced_marginalia_event_id=gs.forced_marginalia_event_id,
+            on_select_forced_event=gs.set_forced_marginalia_event_id,
+        )
+
+        # Hidden when debug_text_enabled is False
+        assert not any(opt.startswith("Debug Event:") for opt in pm.get_options())
+
+        # Enable debug text via menu confirm -> Debug Event: Auto appears
+        pm.open()
+        pm.navigate("down")
+        pm.navigate("down")
+        assert pm.get_selected() == "Debug Text: OFF"
+        pm.confirm()
+        assert pm.debug_text_enabled is True
+        assert "Debug Event: Auto" in pm.get_options()
+
+        # Navigate to Debug Event and cycle through every catalog entry and back to Auto
+        pm.navigate("down")
+        assert pm.get_selected() == "Debug Event: Auto"
+        catalog_ids = list(MARGINALIA_EVENT_CATALOG.keys())
+        for expected_id in catalog_ids:
+            pm.confirm()
+            expected_title = MARGINALIA_EVENT_CATALOG[expected_id]["title"]
+            assert pm.forced_marginalia_event_id == expected_id
+            assert gs.forced_marginalia_event_id == expected_id
+            assert pm.get_selected() == f"Debug Event: {expected_title}"
+
+        # One more confirm wraps back to Auto (None)
+        pm.confirm()
+        assert pm.forced_marginalia_event_id is None
+        assert gs.forced_marginalia_event_id is None
+        assert pm.get_selected() == "Debug Event: Auto"
+
+        # Select an event, then turn Debug Text OFF -> option hides but forced_marginalia_event_id remains queued
+        pm.confirm()
+        first_id = catalog_ids[0]
+        assert gs.forced_marginalia_event_id == first_id
+        pm.navigate("up")
+        assert pm.get_selected() == "Debug Text: ON"
+        pm.confirm()
+        assert pm.debug_text_enabled is False
+        assert not any(opt.startswith("Debug Event:") for opt in pm.get_options())
+        assert gs.forced_marginalia_event_id == first_id
+    finally:
+        gs.shutdown_save_worker(timeout=1.0)
