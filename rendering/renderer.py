@@ -759,6 +759,7 @@ class Renderer:
             ("sanctuary_window_wall.png", "SanctuaryWindowWall", (ts, ts), False),
             ("sanctuary_arch_doorway.png", "SanctuaryArchDoorway", (ts, ts), False),
             ("torn_page.png", "TornPage", (ts, ts), True),
+            ("highland_monolith.png", "HighlandMonolith", (ts, 60), True),
         )
         for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
             sx_path = os.path.join(base_path, sx_file)
@@ -2418,6 +2419,8 @@ class Renderer:
                     self.screen.blit(prop_cache["VitreousSaltSpire"], (int(sx_o), int(sy_o)))
                 elif obj_biome == "sunlit_aqueducts" and "AqueductPillar" in prop_cache:
                     self.screen.blit(prop_cache["AqueductPillar"], (int(sx_o), int(sy_o)))
+                elif obj_biome == "windy_ridge":
+                    self._draw_highland_monolith(sx_o, sy_o, prop_cache)
                 elif (
                     obj_biome in ("tech_tower", "ruins")
                     or "ruins" in w_name
@@ -2701,6 +2704,7 @@ class Renderer:
         self._sanctuary_last_perf_time = perf_now
         self.update_sanctuary_interior_alpha(state, frame_dt)
         self.draw_sanctuary_courtyard_atmosphere(state, ox, oy, now=now)
+        self.draw_windy_ridge_atmosphere(state, ox, oy, now=now)
         self.draw_sanctuary_roofs_and_blackout(state, ox, oy)
 
         if getattr(state.player, 'current_interactable', None):
@@ -2930,15 +2934,17 @@ class Renderer:
         from engine.enemy import SlugEnemy
         sprite = None
         actor_tag = actor.name.lower()
-        
-        if isinstance(actor, SlugEnemy) or "slug" in actor_tag:
+        is_slug = isinstance(actor, SlugEnemy) or "slug" in actor_tag
+        is_empowered_actor = bool(getattr(actor, "is_empowered", False))
+
+        if is_slug:
             # 1. Determine direction (1=Right, 2=Left)
             # Slug frames: 1/3 (Right), 2/4 (Left)
             # Attack frames: attack_1 (Right), attack_2 (Left)
             fx, fy = packet["facing"]
             suffix = "1" if fx >= 0 else "2"
-            
-            emp_suffix = "_empowered" if getattr(actor, "is_empowered", False) else ""
+
+            emp_suffix = "_empowered" if is_empowered_actor else ""
             if packet["base"] in ("WIND_UP", "STRIKE"):
                 sprite = (
                     self.image_cache.get(f"slug_attack_{suffix}{emp_suffix}.png")
@@ -2965,9 +2971,13 @@ class Renderer:
                 h = int(s_rect.height * 0.7)
                 sprite = pygame.transform.scale(sprite, (s_rect.width, h))
                 s_rect = sprite.get_rect(midbottom=rect.midbottom)
-            
+
+            if is_slug:
+                self._draw_dark_enemy_ground_shadow(s_rect)
             self.screen.blit(sprite, s_rect)
-            
+            if is_slug:
+                self._draw_dark_enemy_rim_highlight(s_rect, is_empowered=is_empowered_actor)
+
             # Draw persistent overlays on top of sprite (gated behind debug_text_enabled)
             if packet["posture"] == "STAGGERED" and getattr(state, "debug_text_enabled", False):
                 pygame.draw.rect(self.screen, constants.COLOR_WHITE, rect, 2)
@@ -3007,7 +3017,11 @@ class Renderer:
             elif self.draw_procedural_enemy(actor, draw_rect, packet, color):
                 used_procedural = True
             else:
+                if is_slug:
+                    self._draw_dark_enemy_ground_shadow(draw_rect)
                 pygame.draw.rect(self.screen, color, draw_rect)
+                if is_slug:
+                    self._draw_dark_enemy_rim_highlight(draw_rect, is_empowered=is_empowered_actor)
 
         # 3. Universal Posture Layer (Outlines/Decorations - gated behind debug_text_enabled)
         debug_mode = bool(getattr(state, "debug_text_enabled", False))
@@ -3088,6 +3102,7 @@ class Renderer:
         is_telegraph = packet.get("base") in ("WIND_UP", "STRIKE", "RECOVERY")
 
         is_boss = isinstance(actor, Boss) or bool(getattr(actor, "is_miniboss", False))
+        is_smear = isinstance(actor, SmearEnemy) or "smear" in actor_tag
         is_event_champion = is_boss and any(
             tok in actor_tag for tok in ("overwritten", "champion", "censor", "event")
         )
@@ -3100,7 +3115,7 @@ class Renderer:
                 emp_key = "flutter_empowered.png"
             elif isinstance(actor, BindlingEnemy) or "bindling" in actor_tag:
                 emp_key = "bindling_empowered.png"
-            elif isinstance(actor, SmearEnemy) or "smear" in actor_tag:
+            elif is_smear:
                 emp_key = "smear_empowered.png"
             elif isinstance(actor, SentryEnemy) or "sentry" in actor_tag:
                 emp_key = "sentry_empowered.png"
@@ -3116,7 +3131,11 @@ class Renderer:
                     emp_surf = pygame.transform.scale(emp_surf, (w, h))
                 if fx < 0:
                     emp_surf = pygame.transform.flip(emp_surf, True, False)
+                if is_smear:
+                    self._draw_dark_enemy_ground_shadow(draw_rect)
                 self.screen.blit(emp_surf, draw_rect.topleft)
+                if is_smear:
+                    self._draw_dark_enemy_rim_highlight(draw_rect, is_empowered=True)
                 if is_telegraph:
                     ring_r = max(10, max(w, h) // 2 + 2)
                     pygame.draw.circle(self.screen, state_color, (cx, cy), ring_r, 2)
@@ -3129,7 +3148,7 @@ class Renderer:
                 base_key = "flutter.png"
             elif isinstance(actor, BindlingEnemy) or "bindling" in actor_tag:
                 base_key = "bindling.png"
-            elif isinstance(actor, SmearEnemy) or "smear" in actor_tag:
+            elif is_smear:
                 base_key = "smear.png"
             elif isinstance(actor, SentryEnemy) or "sentry" in actor_tag:
                 base_key = "sentry.png"
@@ -3155,7 +3174,11 @@ class Renderer:
                     base_surf = pygame.transform.scale(base_surf, (w, h))
                 if fx < 0:
                     base_surf = pygame.transform.flip(base_surf, True, False)
+                if is_smear:
+                    self._draw_dark_enemy_ground_shadow(draw_rect)
                 self.screen.blit(base_surf, draw_rect.topleft)
+                if is_smear:
+                    self._draw_dark_enemy_rim_highlight(draw_rect, is_empowered=False)
                 if is_telegraph:
                     ring_r = max(10, max(w, h) // 2 + 2)
                     pygame.draw.circle(self.screen, state_color, (cx, cy), ring_r, 2)
@@ -3213,9 +3236,10 @@ class Renderer:
             pygame.draw.line(self.screen, constants.COLOR_BINDLING_STITCH, (cx + 3, cy - 1), (cx + 3, cy + 9), 1)
             return True
 
-        if isinstance(actor, SmearEnemy) or "smear" in actor_tag:
+        if is_smear:
             blob_col = state_color if is_telegraph else constants.COLOR_SMEAR_BLOB
             base_r = max(4, w // 3)
+            self._draw_dark_enemy_ground_shadow(draw_rect)
             # Amorphous wobbling ink blot lobes
             pygame.draw.circle(self.screen, blob_col, (cx, cy), base_r)
             for i in range(4):
@@ -3227,6 +3251,7 @@ class Renderer:
             eye_x = cx + int(fx * (w * 0.15))
             eye_y = cy + int(fy * (h * 0.15))
             pygame.draw.circle(self.screen, constants.COLOR_SMEAR_CORE, (eye_x, eye_y), max(2, w // 8))
+            self._draw_dark_enemy_rim_highlight(draw_rect, is_empowered=bool(getattr(actor, "is_empowered", False)))
             return True
 
         if isinstance(actor, SentryEnemy) or "sentry" in actor_tag:
@@ -4378,6 +4403,133 @@ class Renderer:
         pygame.draw.rect(surf, (22, 25, 34), (0, 0, rw_px, rh_px), 3)
         self._sanctuary_roof_surfs[cache_key] = surf
         return surf
+
+    def _draw_dark_enemy_ground_shadow(self, rect):
+        """Draw a subtle translucent oval ground contact shadow beneath dark enemies."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        sw_s = max(14, int(rect.width * 0.78))
+        sh_s = max(6, int(rect.height * 0.28))
+        sx_s = int(rect.centerx - sw_s // 2)
+        sy_s = int(rect.bottom - sh_s + 2)
+        cache = getattr(self, "_fx_surface_cache", None)
+        s_key = ("enemy_ground_shadow", sw_s, sh_s)
+        sh_surf = cache.get(s_key) if cache is not None else None
+        if sh_surf is None:
+            sh_surf = pygame.Surface((sw_s, sh_s), pygame.SRCALPHA)
+            pygame.draw.ellipse(sh_surf, (8, 14, 16, 92), (0, 0, sw_s, sh_s))
+            if cache is not None:
+                cache[s_key] = sh_surf
+        self.screen.blit(sh_surf, (sx_s, sy_s))
+
+    def _draw_dark_enemy_rim_highlight(self, rect, is_empowered=False):
+        """Draw a crisp 1px pale-lavender/cool-silver top-rim arc over dark enemies for silhouette contrast."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        rim_col = (232, 184, 218) if is_empowered else (210, 202, 236)
+        arc_w = max(10, int(rect.width * 0.76))
+        arc_h = max(8, int(rect.height * 0.56))
+        arc_rect = pygame.Rect(int(rect.centerx - arc_w // 2), int(rect.top + 2), arc_w, arc_h)
+        pygame.draw.arc(self.screen, rim_col, arc_rect, 0.32, math.pi - 0.32, 1)
+
+    def _draw_highland_monolith(self, sx_o, sy_o, prop_cache):
+        """Render a weathered 40x60 HighlandMonolith anchored on its 40x40 base footprint with ground shadow."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        if isinstance(self.screen, pygame.Surface):
+            cache = getattr(self, "_fx_surface_cache", None)
+            s_key = ("highland_monolith_shadow", 34, 11)
+            sh_surf = cache.get(s_key) if cache is not None else None
+            if sh_surf is None:
+                sh_surf = pygame.Surface((34, 11), pygame.SRCALPHA)
+                pygame.draw.ellipse(sh_surf, (10, 18, 22, 96), (0, 0, 34, 11))
+                if cache is not None:
+                    cache[s_key] = sh_surf
+            self.screen.blit(sh_surf, (tx_i + 3, ty_i + 29))
+
+        mono_surf = prop_cache.get("HighlandMonolith")
+        if mono_surf is not None:
+            self.screen.blit(mono_surf, (tx_i, ty_i - 20))
+        elif isinstance(self.screen, pygame.Surface):
+            # Graceful procedural weathered standing stone fallback
+            poly = [
+                (tx_i + 10, ty_i + 35), (tx_i + 11, ty_i - 6),
+                (tx_i + 17, ty_i - 16), (tx_i + 24, ty_i - 13),
+                (tx_i + 29, ty_i - 4), (tx_i + 30, ty_i + 35),
+            ]
+            pygame.draw.polygon(self.screen, (68, 96, 128), poly)
+            pygame.draw.polygon(self.screen, (22, 32, 48), poly, 1)
+            pygame.draw.lines(
+                self.screen, (150, 215, 240), False,
+                [(tx_i + 12, ty_i + 32), (tx_i + 12, ty_i - 5), (tx_i + 17, ty_i - 15)], 2,
+            )
+            pygame.draw.line(self.screen, (90, 228, 178), (tx_i + 19, ty_i - 4), (tx_i + 19, ty_i + 18), 1)
+            pygame.draw.ellipse(self.screen, (42, 108, 62), (tx_i + 6, ty_i + 30, 14, 6))
+
+    def draw_windy_ridge_atmosphere(self, state, ox, oy, now=None):
+        """Render sweeping translucent gale wind ribbons and drifting pale-gold pollen motes on windy_ridge."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        player = getattr(state, "player", None)
+        world = getattr(state, "world", None)
+        if player is None or world is None:
+            return
+        ts = constants.TILE_SIZE
+        px_c, py_c = player.get_center()
+        if self._resolve_tile_biome(state, int(px_c // ts), int(py_c // ts)) != "windy_ridge":
+            return
+
+        t_now = time.time() if now is None else float(now)
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        cache = self._fx_surface_cache
+
+        # 1. Translucent diagonal gale wind-gust ribbons (alpha 28..44) sweeping across the ridge
+        span_w = sw + 240
+        span_h = sh + 120
+        for idx in range(6):
+            r_len = 110 + (idx % 3) * 24
+            r_h = 26
+            speed_x = 170.0 + (idx % 3) * 32.0
+            speed_y = 26.0 + (idx % 2) * 10.0
+            raw_x = (idx * 237.0 + t_now * speed_x - ox * 0.85) % span_w
+            raw_y = (idx * 139.0 + t_now * speed_y - oy * 0.85 + math.sin(t_now * 1.4 + idx) * 14.0) % span_h
+            gx, gy = int(raw_x - 160), int(raw_y - 40)
+            pulse = (math.sin(t_now * 1.6 + idx * 1.2) + 1.0) * 0.5
+            q_alpha = 28 + int(pulse * 4) * 4  # 28..44
+            g_key = ("windy_ridge_gust", r_len, q_alpha)
+            g_surf = cache.get(g_key)
+            if g_surf is None:
+                g_surf = pygame.Surface((r_len + 12, r_h), pygame.SRCALPHA)
+                pts = [
+                    (4, r_h - 6),
+                    (r_len // 3, r_h // 2 + 2),
+                    ((r_len * 2) // 3, r_h // 2 - 3),
+                    (r_len + 6, 6),
+                ]
+                pygame.draw.lines(g_surf, (216, 238, 244, q_alpha), False, pts, 2)
+                pygame.draw.lines(g_surf, (238, 248, 250, max(16, q_alpha - 10)), False, pts[1:], 1)
+                cache[g_key] = g_surf
+            self.screen.blit(g_surf, (gx, gy))
+
+        # 2. 12 drifting pale-gold dandelion / pollen motes carried along the wind vector
+        m_span_w = sw + 80
+        m_span_h = sh + 80
+        for idx in range(12):
+            spd_x = 58.0 + (idx % 4) * 16.0
+            spd_y = 10.0 + (idx % 3) * 5.0
+            mx = int(((idx * 173.0 + t_now * spd_x - ox * 0.92) % m_span_w) - 40)
+            my = int(
+                ((idx * 97.0 + t_now * spd_y + math.sin(t_now * 2.1 + idx * 0.9) * 18.0 - oy * 0.92) % m_span_h) - 40
+            )
+            m_pulse = (math.sin(t_now * 2.8 + idx * 1.7) + 1.0) * 0.5
+            q_ma = 96 + int(m_pulse * 8) * 12  # 96..192
+            p_key = ("windy_ridge_pollen", q_ma)
+            p_surf = cache.get(p_key)
+            if p_surf is None:
+                p_surf = pygame.Surface((10, 10), pygame.SRCALPHA)
+                pygame.draw.circle(p_surf, (238, 222, 138, q_ma // 2), (5, 5), 4)
+                pygame.draw.circle(p_surf, (252, 244, 194, min(255, q_ma)), (5, 5), 2)
+                cache[p_key] = p_surf
+            self.screen.blit(p_surf, (mx - 5, my - 5))
 
     def _draw_sanctuary_tree_canopy(self, obj, ox, oy, prop_cache):
         """Draw a SanctuaryTreeCanopy (80x100) anchored onto its 40x40 solid trunk footprint."""

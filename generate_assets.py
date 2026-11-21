@@ -3720,6 +3720,92 @@ def generate_sanctuary_arch_doorway(
     return surf
 
 
+def generate_highland_monolith(
+    width: int = TILE_WIDTH,
+    height: int = 60,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x60 SRCALPHA weathered highland monolith with mossy base and faint carved runes."""
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, "highland_monolith")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx = width // 2
+
+    # Soft ground contact shadow beneath the 40x40 base footprint
+    pygame.draw.ellipse(surf, (12, 18, 22, 115), (4, height - 10, width - 8, 8))
+
+    # Stepped weathered plinth at base
+    outline = (22, 32, 48, 255)
+    pygame.draw.rect(surf, outline, (6, height - 14, width - 12, 9), border_radius=2)
+    pygame.draw.rect(surf, (56, 76, 106, 255), (7, height - 13, width - 14, 7), border_radius=2)
+    pygame.draw.line(surf, (132, 192, 222, 255), (8, height - 13), (width - 9, height - 13), 1)
+
+    # Tall fractured highland monolith shaft (asymmetric chipped top crown)
+    shaft_outline = [
+        (10, height - 13),
+        (11, 12),
+        (16, 4),
+        (24, 6),
+        (29, 14),
+        (30, height - 13),
+    ]
+    pygame.draw.polygon(surf, outline, shaft_outline)
+    shaft_main = [
+        (11, height - 14),
+        (12, 13),
+        (17, 6),
+        (23, 7),
+        (28, 15),
+        (29, height - 14),
+    ]
+    pygame.draw.polygon(surf, (68, 96, 128, 255), shaft_main)
+
+    # Shaded east stone facet & windward sky-blue rim highlight
+    east_facet = [
+        (cx + 2, 7),
+        (23, 7),
+        (28, 15),
+        (29, height - 14),
+        (cx + 2, height - 14),
+    ]
+    pygame.draw.polygon(surf, (46, 64, 92, 255), east_facet)
+    pygame.draw.lines(surf, (150, 215, 240, 255), False, [(12, height - 16), (12, 13), (17, 6), (22, 7)], 2)
+
+    # Subtle weathered stone grit & hairline horizontal fracture
+    for _ in range(24):
+        gx = gen.randint(13, 27)
+        gy = gen.randint(10, height - 16)
+        col = surf.get_at((gx, gy))
+        if col.a > 200:
+            delta = gen.randint(-10, 10)
+            surf.set_at(
+                (gx, gy),
+                (
+                    max(0, min(255, col.r + delta)),
+                    max(0, min(255, col.g + delta)),
+                    max(0, min(255, col.b + delta)),
+                    255,
+                ),
+            )
+    pygame.draw.lines(surf, (30, 44, 66, 255), False, [(13, 28), (19, 26), (26, 30)], 1)
+
+    # Faint seafoam-mint carved scriptorium runes down the center face
+    rune_glow = (90, 228, 178, 185)
+    rune_core = (156, 246, 212, 215)
+    pygame.draw.line(surf, rune_glow, (cx - 1, 14), (cx - 1, 24), 1)
+    pygame.draw.line(surf, rune_glow, (cx - 4, 17), (cx + 2, 17), 1)
+    pygame.draw.circle(surf, rune_glow, (cx - 1, 34), 3, 1)
+    pygame.draw.line(surf, rune_core, (cx - 1, 37), (cx - 1, 42), 1)
+    surf.set_at((cx - 1, 19), rune_core)
+    surf.set_at((cx - 1, 34), rune_core)
+
+    # Mossy highland base tufts clinging to plinth
+    pygame.draw.ellipse(surf, (32, 88, 54, 255), (6, height - 12, 12, 6))
+    pygame.draw.ellipse(surf, (48, 122, 70, 255), (8, height - 11, 8, 4))
+    pygame.draw.ellipse(surf, (32, 88, 54, 255), (22, height - 11, 12, 5))
+    pygame.draw.ellipse(surf, (56, 134, 76, 255), (24, height - 10, 7, 3))
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -4046,6 +4132,10 @@ def generate_all_assets(
         (
             "sanctuary_arch_doorway",
             generate_sanctuary_arch_doorway(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_arch_doorway")),
+        ),
+        (
+            "highland_monolith",
+            generate_highland_monolith(TILE_WIDTH, 60, rng=_rng("highland_monolith")),
         ),
     )
     for sp_key, sp_surf in sanctuary_prop_specs:
