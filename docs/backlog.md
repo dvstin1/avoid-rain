@@ -179,3 +179,26 @@ Registered `vitreous_basin` and `sunlit_aqueducts` in `CHRONICLE_BIOME_ROSTER`, 
   - `BIOME_ACT_SEGMENT_POOLS[(biome_id, act_number)]` in `constants.py` allows higher Acts to register bespoke room geometry, chokepoints, environmental hazards, and secret vaults incrementally.
 - **Lower-Act Fallback Loader (`resolve_segment_pool()`, `[DONE]`):**
   - `engine/world_generator.py:resolve_segment_pool(biome_id, act_number)` resolves `(biome_id, act_number)` by walking `act_number` down to `1` in `BIOME_ACT_SEGMENT_POOLS` and falling back to `BIOME_SEGMENT_POOLS[biome_id]` across all 7 first-class biomes (while future bespoke Act 3–5 segment variants remain an ongoing incremental content track).
+
+## 13. Map Generation & Corridor Pathing Fixes
+- **Tech Tower Hallway Chokepoints (`generate_maps.py`, `maps/segments/tech_tower/`):**
+  - Heavy Bookcases (`SYMBOL_BOOKCASE` / `'h'`, `80x40`) and Benches (`SYMBOL_BENCH` / `'S'`) placed by `generate_architectural_biome()` in Tech Tower hallways can block navigable paths and narrow corridors.
+  - Add hallway/corridor clearance guards during architectural prop dressing to preserve guaranteed walkable throughput, re-verify BFS flood-fill connectivity across all `maps/segments/tech_tower/` rooms and corridors, and regenerate segment pools (`--generate-pools`).
+
+## 14. Combat & Progression Balance
+- **Attack-Up Scaling Too Strong (`constants.py`, `engine/binder_scripts.py`, `engine/world.py`, `engine/game_state.py`):**
+  - Rebalance flat attack-up bonuses across Respite Edification (`attack_modifier` in `Respite.execute_finalize_upgrades()` / `GameState._handle_upgrade()`), Choice of Fates attack boons (`GameState.trigger_choice_of_fates()`), and Binder Scripts (`"serif_minor"` and `"serif_major"` in `constants.py` / `engine/binder_scripts.py`) so early damage stacking does not trivialize encounters.
+- **Enemy & Boss HP Pools Too Low (`constants.py`, `engine/enemy.py`):**
+  - Increase base HP across standard enemy castes and bosses (`Miniboss`, `NightBoss`, and `FinalAuthor` / *The Final Author*) to sustain longer, more deliberate combat engagements.
+- **Uneven Boss Distribution Across Biomes (`generate_maps.py`, `maps/segments/`):**
+  - Some biomes currently spawn multiple mid-run bosses/minibosses (letting players over-farm Torn Pages, Margin Scraps, and upgrades) while other biomes spawn none. Normalize mid-run boss encounter budgets and spawn quotas across all 7 biome segment pools (`BIOME_SEGMENT_POOLS`).
+
+## 15. Respite Interaction & World Lifecycle Locks
+- **Block Interaction When Hostiles Are Nearby (`engine/world.py`, `engine/game_state.py`):**
+  - Prevent opening/interacting with a `Respite` (`Respite.execute_interaction()`) while any hostile enemy is within aggro/proximity range of the player, and display a clear feedback prompt/message explaining why interaction is blocked.
+- **Disable Respite During/After Night Boss Fight (`engine/world.py`, `engine/weather.py`, `engine/game_state.py`):**
+  - Lock out `Respite` interaction once the Night Boss encounter starts (active `NightBoss` in `GameState.enemies`, a `night_boss_spawned` latch, or `WeatherManager.bleed_state` in `("BOSS_PHASE", "DILUTION", "APPENDIX")`).
+- **Auto-Close Respite Menu on Warp (`engine/game_state.py`):**
+  - Automatically clear `active_respite`, `active_dialogue`, staged `respite_upgrades`, and `player.has_rested_this_session` inside `GameState.start_warp()` so the Respite modal never stays stuck open across automatic post-boss Act transitions or Sanctuary warps.
+- **Defer Enemy Aggro Until Respite Menu Closes (`engine/world.py`, `engine/actor.py`, `engine/game_state.py`):**
+  - After resting at a `Respite` (`Respite.execute_rest()`), keep enemies non-hostile/pacified until the player closes the Respite menu (or the menu is forcibly closed by rain/storm exposure), rather than allowing re-manifested enemies to aggro while the player is still reading or staging upgrades inside the UI.
