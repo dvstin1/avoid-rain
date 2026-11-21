@@ -90,7 +90,24 @@ class Enemy(Actor):
                 else:
                     # Remote Player Damage (Host authoritative view)
                     if v_id in state.network_manager.remote_players:
-                        state.network_manager.remote_players[v_id]["hp"] -= self.damage
+                        from constants import BINDER_MAX_DAMAGE_MITIGATION
+                        p_data = state.network_manager.remote_players[v_id]
+                        get_cached = getattr(state, "_get_cached_client_state", None)
+                        cached = (
+                            get_cached(v_id, p_data.get("identity"))
+                            if callable(get_cached)
+                            else {}
+                        )
+                        s_mods = cached.get("script_modifiers") if isinstance(cached, dict) else None
+                        if not isinstance(s_mods, dict):
+                            s_mods = p_data.get("script_modifiers", {})
+                        mit = 0.0
+                        if isinstance(s_mods, dict):
+                            mit = min(
+                                BINDER_MAX_DAMAGE_MITIGATION,
+                                max(0.0, float(s_mods.get("damage_mitigation", 0.0))),
+                            )
+                        p_data["hp"] = max(0.0, p_data["hp"] - self.damage * (1.0 - mit))
                         return True
         return False
 

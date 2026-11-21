@@ -94,6 +94,10 @@ class GameState:
         self.active_dialogue = None
         self.active_respite = None
         self.chronicle_dialog: Optional[dict] = None
+        self.binder_dialog: Optional[dict] = None
+        self.sync_player_binder_scripts(
+            refill_in_sanctuary=(getattr(self.world, "name", "sanctuary") == "sanctuary")
+        )
         from constants import DEBUG_BIOME_SELECT, MAX_ACTS
         self.debug_biome_select = DEBUG_BIOME_SELECT
         if not hasattr(self, "current_act"):
@@ -925,11 +929,13 @@ class GameState:
         if not self.player or not data: return
         self.player.x = float(data.get("x", self.player.x))
         self.player.y = float(data.get("y", self.player.y))
-        self.player.hp = float(data.get("hp", self.player.hp))
         self.player.flask_charges = int(data.get("flask_charges", self.player.flask_charges))
         self.player.active_weapon_idx = int(data.get("active_weapon_idx", self.player.active_weapon_idx))
         self.player.weapons = data.get("weapons", self.player.weapons)
         self.player.stats = data.get("stats", self.player.stats)
+        if "script_modifiers" in data and hasattr(self.player, "apply_script_modifiers"):
+            self.player.apply_script_modifiers(data.get("script_modifiers"), refill_in_sanctuary=False)
+        self.player.hp = min(float(self.player.max_hp), float(data.get("hp", self.player.hp)))
         if hasattr(self, 'camera'): self.camera.instant_center(self.player.get_center())
 
     def handle_remote_damage(self, target_type, target_id, amount):
@@ -1041,7 +1047,8 @@ class GameState:
             "x": self.player.x, "y": self.player.y, "hp": self.player.hp,
             "max_hp": self.player.max_hp, "flask_charges": self.player.flask_charges,
             "active_weapon_idx": self.player.active_weapon_idx,
-            "weapons": self.player.weapons, "stats": self.player.stats
+            "weapons": self.player.weapons, "stats": self.player.stats,
+            "script_modifiers": dict(getattr(self.player, "script_modifiers", {})),
         }
 
     def update(self, dt, actions, audio_manager=None):
@@ -1112,6 +1119,7 @@ class GameState:
             and not self.active_dialogue
             and not self.active_choice
             and not getattr(self, 'chronicle_dialog', None)
+            and not getattr(self, 'binder_dialog', None)
             and not warp_blocked
         ):
             from engine.world import WarpPortal
@@ -1176,6 +1184,7 @@ class GameState:
             not self.active_dialogue
             and not getattr(self, 'active_choice', None)
             and not getattr(self, 'chronicle_dialog', None)
+            and not getattr(self, 'binder_dialog', None)
             and not warp_blocks
         ):
             self._update_player_lifecycle(dt, actions, attack_pressed, audio_manager)
@@ -1373,11 +1382,12 @@ class GameState:
             hitbox = get_sword_hitbox(player_center, player_facing)
             active_weapon = self.player.get_active_weapon()
             bonus_atk = getattr(self.player, 'stats', {}).get('attack_modifier', 0)
+            script_atk = int(round(float(getattr(self.player, 'script_modifiers', {}).get('attack', 0.0))))
             from constants import (
                 SWORD_DAMAGE, HIT_STOP_DURATION, SCREEN_SHAKE_DURATION,
                 DAMAGE_NUMBER_LIFETIME, COLOR_SELECTION
             )
-            damage = active_weapon.get("damage", SWORD_DAMAGE) + bonus_atk
+            damage = active_weapon.get("damage", SWORD_DAMAGE) + bonus_atk + script_atk
             hit_landed = False
 
             # Enemies
@@ -1402,11 +1412,13 @@ class GameState:
                         self.glyph_particles.spawn_burst(impact_x, impact_y, color=enemy_color)
                         self.spawn_impact_sparks(impact_x, impact_y, weapon=active_weapon)
 
-                        # Apply anomalous weapon modifiers on hit
+                        # Apply anomalous weapon & Binder Script bleed modifiers on hit
                         all_mods = self.player.get_all_modifiers()
-                        if "bleed" in all_mods and enemy.hp > 0:
+                        script_bleed = float(getattr(self.player, "script_modifiers", {}).get("bleed", 0.0))
+                        total_bleed = float(all_mods.get("bleed", 0.0)) + script_bleed
+                        if total_bleed > 0.0 and enemy.hp > 0:
                             enemy.bleed_timer = 5.0
-                            enemy.bleed_damage = all_mods["bleed"]
+                            enemy.bleed_damage = total_bleed
                             enemy.bleed_tick_timer = 1.0
 
                         hit_landed = True
@@ -1468,6 +1480,21 @@ class GameState:
                     try:
                         if getattr(enemy, 'is_miniboss', False) and getattr(enemy, 'id', None):
                             self.defeated_miniboss_ids.add(enemy.id)
+                        if getattr(enemy, 'name', '') == "Night Boss" and self.stats:
+                            from constants import (
+                                SCRAPS_REWARD_NIGHT_BOSS_BASE,
+                                SCRAPS_REWARD_NIGHT_BOSS_EMPOWERED,
+                            )
+                            is_emp = self.current_act >= 3 or getattr(self, "empowered_act", False)
+                            scrap_reward = (
+                                SCRAPS_REWARD_NIGHT_BOSS_EMPOWERED if is_emp else SCRAPS_REWARD_NIGHT_BOSS_BASE
+                            )
+                            if hasattr(self.stats, "add_margin_scraps"):
+                                self.stats.add_margin_scraps(scrap_reward)
+                            else:
+                                self.stats.data["margin_scraps"] = int(
+                                    self.stats.data.get("margin_scraps", 0)
+                                ) + scrap_reward
                         if hasattr(enemy, 'on_death'): enemy.on_death(self)
                         self.enemies.remove(enemy)
                         if audio_manager: audio_manager.play_sfx("enemy_death.ogg")
@@ -1671,6 +1698,8 @@ class GameState:
 
         if getattr(self, 'chronicle_dialog', None):
             self._handle_chronicle_dialog_ui(actions, attack_pressed)
+        elif getattr(self, 'binder_dialog', None):
+            self._handle_binder_dialog_ui(actions, attack_pressed, audio_manager)
         elif self.active_dialogue:
             self._handle_dialogue_ui(actions, attack_pressed, audio_manager)
         elif getattr(self, 'active_choice', None):
@@ -1777,6 +1806,148 @@ class GameState:
         if getattr(self, 'audio_manager', None):
             sfx_name = CHRONICLER_MUMBLE_SFX.get(emotion, CHRONICLER_MUMBLE_SFX["neutral"])
             self.audio_manager.play_sfx(sfx_name)
+
+    def sync_player_binder_scripts(self, refill_in_sanctuary=False):
+        """Compile equipped Binder Scripts from stats and apply modifiers to self.player."""
+        if not getattr(self, "player", None):
+            return
+        from engine.binder_scripts import (
+            compile_binder_scripts,
+            ensure_binder_persistence,
+            record_syntax_conflicts,
+        )
+        binder_state, story_flags = ensure_binder_persistence(getattr(self, "stats", None))
+        comp = compile_binder_scripts(list(binder_state.get("equipped") or []))
+        record_syntax_conflicts(binder_state, story_flags, comp)
+        self.player.apply_script_modifiers(comp["modifiers"], refill_in_sanctuary=refill_in_sanctuary)
+
+    def open_binder_dialog(self, binder_npc=None):
+        """Open The Binder's Script Weaving Loom modal in Sanctuary."""
+        from engine.binder_scripts import ensure_binder_persistence, select_binder_dialogue_node
+        ensure_binder_persistence(getattr(self, "stats", None))
+        node = select_binder_dialogue_node(getattr(self, "stats", None))
+        self.binder_dialog = {
+            "selection": 0,
+            "status_msg": node.get("text", ""),
+            "dialogue_id": node.get("id", "binder_default"),
+            "emotion": node.get("emotion", "neutral"),
+            "npc": binder_npc,
+        }
+        self.input_debounce_timer = 0.2
+        self.input_ratchet_latched = True
+        self.menu_nav_cooldown = 0.2
+        self.play_chronicler_mumble(node.get("emotion", "neutral"))
+
+    def close_binder_dialog(self):
+        """Close the Binder Weaving modal, sync player modifiers, and persist stats."""
+        self.binder_dialog = None
+        self.input_debounce_timer = 0.2
+        self.sync_player_binder_scripts(refill_in_sanctuary=getattr(self, "in_sanctuary", True))
+        if hasattr(self, "network_manager") and self.network_manager.network_mode == "CLIENT":
+            threading.Thread(
+                target=self.network_manager.send_full_state,
+                args=(self.get_full_player_state(),),
+                daemon=True,
+            ).start()
+        self.save_stats(wait=True)
+
+    def get_binder_dialog_options(self):
+        """Return interactive rows for the Binder Weaving UI (10 scripts + Speak + Close)."""
+        from engine.binder_scripts import get_catalog_view
+        rows = get_catalog_view(getattr(self, "stats", None))
+        options = []
+        for row in rows:
+            options.append(
+                {
+                    "action": "script",
+                    "script_id": row["id"],
+                    "name": row["name"],
+                    "stat": row["stat"],
+                    "value": row["value"],
+                    "cost": row["cost"],
+                    "summary": row["summary"],
+                    "desc": row["desc"],
+                    "unlocked": row["unlocked"],
+                    "equipped": row["equipped"],
+                    "compile_status": row["compile_status"],
+                    "overridden_by_name": row["overridden_by_name"],
+                }
+            )
+        options.append({"action": "speak", "name": "Consult The Binder", "summary": "Hear the Binder's counsel"})
+        options.append({"action": "close", "name": "Close Loom", "summary": "Return to the Scriptorium"})
+        return options
+
+    def _handle_binder_dialog_ui(self, actions, attack_pressed, audio_manager=None):
+        """Handle keyboard/gamepad navigation inside the Binder Script Weaving Loom modal."""
+        dialog = getattr(self, "binder_dialog", None)
+        if not dialog:
+            return
+        options = self.get_binder_dialog_options()
+        if not options:
+            self.close_binder_dialog()
+            return
+
+        if actions.get("cancel"):
+            self.close_binder_dialog()
+            return
+
+        move_dir = actions.get("move", (0, 0))
+        if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
+            if move_dir[1] > 0.6:
+                dialog["selection"] = (int(dialog.get("selection", 0)) + 1) % len(options)
+                self.input_ratchet_latched = True
+                self.menu_nav_cooldown = 0.18
+            elif move_dir[1] < -0.6:
+                dialog["selection"] = (int(dialog.get("selection", 0)) - 1) % len(options)
+                self.input_ratchet_latched = True
+                self.menu_nav_cooldown = 0.18
+
+        if attack_pressed and not self.input_ratchet_latched:
+            from engine.binder_scripts import select_binder_dialogue_node, toggle_equip_script, weave_script
+            self.input_ratchet_latched = True
+            sel_idx = min(max(0, int(dialog.get("selection", 0))), len(options) - 1)
+            chosen = options[sel_idx]
+            act = chosen.get("action")
+
+            if act == "close":
+                self.close_binder_dialog()
+                return
+            if act == "speak":
+                node = select_binder_dialogue_node(getattr(self, "stats", None))
+                dialog["status_msg"] = node.get("text", "")
+                dialog["dialogue_id"] = node.get("id", "binder_default")
+                dialog["emotion"] = node.get("emotion", "neutral")
+                self.play_chronicler_mumble(dialog["emotion"])
+                return
+
+            sid = chosen["script_id"]
+            if not chosen["unlocked"]:
+                ok, msg = weave_script(self.stats, sid)
+                if ok:
+                    _, eq_msg, _ = toggle_equip_script(
+                        self.stats,
+                        self.player,
+                        sid,
+                        in_sanctuary=getattr(self, "in_sanctuary", True),
+                    )
+                    msg = f"{msg} {eq_msg}"
+            else:
+                ok, msg, _ = toggle_equip_script(
+                    self.stats,
+                    self.player,
+                    sid,
+                    in_sanctuary=getattr(self, "in_sanctuary", True),
+                )
+            dialog["status_msg"] = msg
+            if ok and audio_manager:
+                audio_manager.play_sfx("menu_confirm.ogg")
+            if hasattr(self, "network_manager") and self.network_manager.network_mode == "CLIENT":
+                threading.Thread(
+                    target=self.network_manager.send_full_state,
+                    args=(self.get_full_player_state(),),
+                    daemon=True,
+                ).start()
+            self.save_stats(wait=True)
 
     def open_chronicle_biome_dialog(self, portal=None):
         """Open the 5-of-7 Unbound Chronicle biome draft dialog (Acts 1–5)."""
@@ -2146,17 +2317,33 @@ class GameState:
         return self.transition_to_act(2, legacy_act2_scaling=True)
 
     def _handle_victory_conditions(self, dt):
+        del dt
         if getattr(self.world, 'name', '') not in ("final_boss", "night_boss_arena"):
             return
 
         final_boss_dead = not any(getattr(e, 'name', '') == "The Final Author" for e in self.enemies)
-        if final_boss_dead and getattr(self.stats, 'data', {}).get("last_run_result") != "VICTORY":
+        last_res = getattr(self.stats, 'data', {}).get("last_run_result")
+        if final_boss_dead and last_res not in ("VICTORY", "STITCH_VICTORY"):
             if self.stats:
-                self.stats.data["last_run_result"] = "VICTORY"
+                from constants import SCRAPS_REWARD_FINAL_AUTHOR
+                from engine.binder_scripts import ensure_binder_persistence
+                _, story_flags = ensure_binder_persistence(self.stats)
+                if hasattr(self.stats, "add_margin_scraps"):
+                    self.stats.add_margin_scraps(SCRAPS_REWARD_FINAL_AUTHOR)
+                else:
+                    self.stats.data["margin_scraps"] = int(
+                        self.stats.data.get("margin_scraps", 0)
+                    ) + SCRAPS_REWARD_FINAL_AUTHOR
                 self.stats.increment("wins_chapters_cleared", 1)
                 self.weather_manager.trigger_dilution()
-                self.trigger_bloom("CHAPTER COMPLETE", priority=2)
-        if getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY":
+                if story_flags.get("perfect_stitch_completed", False):
+                    self.stats.data["last_run_result"] = "STITCH_VICTORY"
+                    story_flags["ink_bleed_halted"] = True
+                    self.trigger_bloom("THE INK-BLEED HALTED", priority=3)
+                else:
+                    self.stats.data["last_run_result"] = "VICTORY"
+                    self.trigger_bloom("CHAPTER COMPLETE", priority=2)
+        if getattr(self.stats, 'data', {}).get("last_run_result") in ("VICTORY", "STITCH_VICTORY"):
             if (self.bleed_state in ("DILUTION", "APPENDIX")) and self.weather_manager.timer <= 0:
                 if not (hasattr(self, 'warp_controller') and self.warp_controller.is_active()):
                     self.start_warp("sanctuary")
@@ -2187,7 +2374,7 @@ class GameState:
         
         self.player.weapons = [{"name": "Initial Quill", "damage": SWORD_DAMAGE}]
         self.player.active_weapon_idx = 0
-        
+        self.sync_player_binder_scripts(refill_in_sanctuary=True)
         self.player.hp = float(self.player.max_hp)
         self.player.flask_charges = int(FLASK_MAX_CHARGES)
         self.in_sanctuary = True
@@ -2201,6 +2388,7 @@ class GameState:
         self.world_debris = []
         self.destroyed_prop_ids.clear()
         self.chronicle_dialog = None
+        self.binder_dialog = None
         self.current_act = 0
         self.run_biomes = {f"act{i}": None for i in range(1, MAX_ACTS + 1)}
         self.act_worlds = {}
@@ -2355,11 +2543,12 @@ class GameState:
                 self.camera.world_h = len(self.world.grid) * TILE_SIZE
                 self.camera.instant_center(self.player.get_center())
             
-            self.player.hp = float(p_data.get("hp", PLAYER_MAX_HP))
             self.player.flask_charges = int(p_data.get("flask_charges", FLASK_MAX_CHARGES))
             self.player.active_weapon_idx = int(p_data.get("active_weapon_idx", 0))
             self.player.weapons = p_data.get("weapons", self.player.weapons)
             self.player.stats = p_data.get("stats", {})
+            self.sync_player_binder_scripts(refill_in_sanctuary=(world_name == "sanctuary"))
+            self.player.hp = min(float(self.player.max_hp), float(p_data.get("hp", self.player.max_hp)))
             self.enemies = [] if world_name == "sanctuary" else list(getattr(self.world, 'enemies', []))
             self.loot = []
             self.fading_entities = []
@@ -2396,6 +2585,7 @@ class GameState:
             self.active_choice = None
             self.active_respite = None
             self.chronicle_dialog = None
+            self.binder_dialog = None
             
             # Auto-Host Rule: Start hosting if resuming outside Sanctuary in Online mode
             if world_name not in ("sanctuary", "") and getattr(self, "online_mode", True):
@@ -2425,9 +2615,12 @@ class GameState:
             self.active_choice = None
             self.active_respite = None
             self.chronicle_dialog = None
+            self.binder_dialog = None
             if self.stats:
                 self.stats.data["run_state"] = None
                 self.stats.data["active_session_in_progress"] = False
+            self.sync_player_binder_scripts(refill_in_sanctuary=True)
+            self.player.hp = float(self.player.max_hp)
             from engine.world import LevelLoader
             LevelLoader.link_actors_to_routes(self)
 
@@ -2491,6 +2684,9 @@ class GameState:
         self.active_choice = None
         self.active_respite = None
         self.chronicle_dialog = None
+        self.binder_dialog = None
+        self.sync_player_binder_scripts(refill_in_sanctuary=True)
+        self.player.hp = float(self.player.max_hp)
         from engine.world import LevelLoader
         LevelLoader.link_actors_to_routes(self)
 

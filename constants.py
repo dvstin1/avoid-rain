@@ -407,6 +407,7 @@ TILE_KEY = {
     'M': TILE_LOTUS_FRAME,
     'X': TILE_WALL, # X also acts as a wall boundary
     'L': TILE_LORE,
+    '&': TILE_PROP, # The Binder NPC
     'h': TILE_PROP, # Heavy Bookcase
     'd': TILE_PROP, # Ink-Drip Urn
     'v': TILE_HAZARD, # Spilled Inkwell Puddle
@@ -621,6 +622,16 @@ CHRONICLER_MUMBLE_SFX = {
 DIALOGUE_MANIFEST = {
     "chronicler": [
         {
+            "id": "chr_stitch_victory",
+            "conditions": {"last_run_result": "STITCH_VICTORY"},
+            "priority": "120",
+            "emotion": "happy",
+            "text": (
+                "The margin holds! I felt the Binder's counter-stitch lock the spine together—"
+                "the ink-bleed cycle has truly halted. You have saved the Libram, Reader!"
+            ),
+        },
+        {
             "id": "chr_victory",
             "conditions": {"last_run_result": "VICTORY"},
             "priority": "100",
@@ -654,6 +665,48 @@ DIALOGUE_MANIFEST = {
             "emotion": "neutral",
             "text": "The pages are waiting whenever you are ready."
         }
+    ],
+    "binder": [
+        {
+            "id": "binder_stitch_victory",
+            "conditions": {"last_run_result": "STITCH_VICTORY"},
+            "priority": "130",
+            "emotion": "happy",
+            "text": (
+                "Three broken syntax seams, bound into a single counter-knot... "
+                "and the Author's quill shattered against it. The stitch is whole, Reader. The bleed is over."
+            ),
+        },
+        {
+            "id": "binder_perfect_ready",
+            "conditions": {"perfect_stitch_completed": True},
+            "priority": "110",
+            "emotion": "happy",
+            "text": (
+                "Listen to the margins hum! You resolved the three failed syntax seams in order. "
+                "Carry this Perfect Stitch to the Final Author and we will halt the ink-bleed forever."
+            ),
+        },
+        {
+            "id": "binder_victory",
+            "conditions": {"last_run_result": "VICTORY"},
+            "priority": "90",
+            "emotion": "neutral",
+            "text": (
+                "A clean wash, yet the spine still weeps. Force three syntax conflicts in sequence—"
+                "Hemming, Serif, then Gloss—if you wish to bind the Author's madness permanently."
+            ),
+        },
+        {
+            "id": "binder_fallback",
+            "conditions": {},
+            "priority": "0",
+            "emotion": "neutral",
+            "text": (
+                "Bring me Margin Scraps salvaged from the storm. Two scripts on the same stat will clash—"
+                "the stronger compiles, the weaker frays. Through deliberate conflicts, we perfect the stitch."
+            ),
+        },
     ],
     "lore_fragments": {
         "wellspring_origin": (
@@ -826,3 +879,112 @@ PATHFINDING_LOS_CACHE_INTERVAL = 0.40
 PATHFINDING_WAYPOINT_REACH_PX = 12.0
 PATROL_RETURN_SPEED_MULTIPLIER = 0.65
 PATROL_STALL_SKIP_TIME = 2.5
+
+# Section 7: Binder Scripts & Margin Scraps Economy Constants
+SCRAPS_REWARD_NIGHT_BOSS_BASE = 2
+SCRAPS_REWARD_NIGHT_BOSS_EMPOWERED = 3
+SCRAPS_REWARD_MARGINALIA_EVENT = 1
+SCRAPS_REWARD_FINAL_AUTHOR = 5
+BINDER_MAX_EQUIPPED_SCRIPTS = 4
+BINDER_MAX_DAMAGE_MITIGATION = 0.50
+BINDER_PERFECT_STITCH_SEQUENCE = ("max_hp", "attack", "damage_mitigation")
+BINDER_STITCH_STEP_LABELS = {
+    "max_hp": "Hemming (HP)",
+    "attack": "Serif (ATK)",
+    "damage_mitigation": "Gloss (MIT)",
+}
+
+BINDER_SCRIPT_CATALOG = (
+    {
+        "id": "hemming_minor",
+        "name": "Hemming Script",
+        "stat": "max_hp",
+        "value": 15.0,
+        "cost": 2,
+        "summary": "+15 Max HP",
+        "desc": "Double-stitched margin thread that reinforces the Reader's vitality.",
+    },
+    {
+        "id": "hemming_major",
+        "name": "Vellum Buckram Script",
+        "stat": "max_hp",
+        "value": 35.0,
+        "cost": 4,
+        "summary": "+35 Max HP",
+        "desc": "Heavy buckram backing that overrides weaker vitality hems.",
+    },
+    {
+        "id": "serif_minor",
+        "name": "Serifed Edge Script",
+        "stat": "attack",
+        "value": 4.0,
+        "cost": 2,
+        "summary": "+4 Attack",
+        "desc": "Sharpens terminal strokes so every quill slash bites deeper.",
+    },
+    {
+        "id": "serif_major",
+        "name": "Rubricated Nib Script",
+        "stat": "attack",
+        "value": 9.0,
+        "cost": 4,
+        "summary": "+9 Attack",
+        "desc": "Crimson rubrication compiler that overpowers lesser attack scripts.",
+    },
+    {
+        "id": "footnote_minor",
+        "name": "Running Footnote Script",
+        "stat": "speed",
+        "value": 18.0,
+        "cost": 2,
+        "summary": "+18 Move Speed",
+        "desc": "Low-margin cadence notes that hasten the Reader's stride.",
+    },
+    {
+        "id": "footnote_major",
+        "name": "Cursive Ligature Script",
+        "stat": "speed",
+        "value": 36.0,
+        "cost": 4,
+        "summary": "+36 Move Speed",
+        "desc": "Continuous joined glyph-strokes that eclipse minor footnote scripts.",
+    },
+    {
+        "id": "gloss_minor",
+        "name": "Marginal Gloss Script",
+        "stat": "damage_mitigation",
+        "value": 0.10,
+        "cost": 2,
+        "summary": "+10% Mitigation",
+        "desc": "Protective commentary that absorbs a tenth of incoming harm.",
+    },
+    {
+        "id": "gloss_major",
+        "name": "Palimpsest Ward Script",
+        "stat": "damage_mitigation",
+        "value": 0.20,
+        "cost": 4,
+        "summary": "+20% Mitigation",
+        "desc": "Layered parchment ward that overwrites thinner protective glosses.",
+    },
+    {
+        "id": "gall_minor",
+        "name": "Gall-Ink Thread Script",
+        "stat": "bleed",
+        "value": 3.0,
+        "cost": 2,
+        "summary": "+3.0 Bleed DPS",
+        "desc": "Corrosive iron-gall filament that inflicts lingering ink-bleed on hit.",
+    },
+    {
+        "id": "gall_major",
+        "name": "Vitriol Stitch Script",
+        "stat": "bleed",
+        "value": 6.5,
+        "cost": 4,
+        "summary": "+6.5 Bleed DPS",
+        "desc": "Caustic vitriol seam that dominates weaker bleed incisions.",
+    },
+)
+
+BINDER_SCRIPTS_BY_ID = {entry["id"]: entry for entry in BINDER_SCRIPT_CATALOG}

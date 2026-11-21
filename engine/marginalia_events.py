@@ -1049,6 +1049,14 @@ class MarginaliaEventEngine:
         player = getattr(state, "player", None)
         px, py = player.get_center() if player is not None else (ev.zone_center or (400.0, 400.0))
 
+        from constants import SCRAPS_REWARD_MARGINALIA_EVENT
+        stats_obj = getattr(state, "stats", None)
+        if stats_obj is not None and hasattr(stats_obj, "add_margin_scraps"):
+            stats_obj.add_margin_scraps(SCRAPS_REWARD_MARGINALIA_EVENT)
+        elif stats_obj is not None and hasattr(stats_obj, "data"):
+            cur_s = int(stats_obj.data.get("margin_scraps", 0))
+            stats_obj.data["margin_scraps"] = cur_s + SCRAPS_REWARD_MARGINALIA_EVENT
+
         if already_rewarded:
             return
 

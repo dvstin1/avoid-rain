@@ -57,6 +57,7 @@ SYMBOL_LORE = 'L'
 SYMBOL_WELLSPRING = 'F'
 SYMBOL_RESPITE = 'R'
 SYMBOL_CHRONICLER = 'C'
+SYMBOL_BINDER = '&'
 SYMBOL_WARP = 'W'
 SYMBOL_PLAYER = 'P'
 SYMBOL_ENEMY_BAT = 'A'
@@ -91,6 +92,7 @@ MAP_LEGEND: Dict[str, str] = {
     SYMBOL_WELLSPRING: "Wellspring",
     SYMBOL_RESPITE: "Respite",
     SYMBOL_CHRONICLER: "Chronicler",
+    SYMBOL_BINDER: "The Binder",
     SYMBOL_WARP: "Warp Point",
     SYMBOL_PLAYER: "Player Start",
     "1": "Patrol Marker 1",

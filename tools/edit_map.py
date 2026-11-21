@@ -141,6 +141,14 @@ MASTER_TOOL_REGISTRY = [
         "desc": "Friendly NPC. Interacting saves game progress."
     },
     {
+        "id": "tile_binder",
+        "char": "&",
+        "name": "The Binder",
+        "type": "tile",
+        "size": "40x40 px (1x1 tile)",
+        "desc": "Friendly artisan NPC. Weaves Binder Scripts into the player's frame."
+    },
+    {
         "id": "tile_wellspring",
         "char": "F",
         "name": "Wellspring",

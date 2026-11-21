@@ -46,10 +46,10 @@
 - **Quill Pressure (Stamina):** [Speculative] A resource meter that limits rapid-fire attacks and dashes, encouraging tactical positioning and deliberate timing.
 - **Advanced Stagger Mechanics:** [Speculative] Variable stagger thresholds based on weapon weight or impact force.
 
-## 7. Binder Scripts (Upgrade System)
-- **Concept:** The Binder NPC acts as a procedural artisan, weaving "Scripts" (operational metaphors like "Hemming Script" for HP buffs) into the player's frame using Torn Pages.
-- **Mechanics:** Scripts act as tiny compilers in the margins altering stat allocations. They can be combined but are subject to "syntax conflicts" where scripts touching the same stat will fight, with the stronger one winning.
-- **Lore Integration:** The Binder seeks to "perfect the stitch." Completing a specific sequence of failed scripts may offer a path to a different ending, halting the ink-bleed cycle.
+## 7. Binder Scripts (Upgrade System) [DONE]
+- **Concept (`[DONE]`):** **The Binder** NPC (`'&'` in `maps/sanctuary.json`, mirrored across `constants.py`, `engine/world.py`, `tools/edit_map.py`, `generate_maps.py`, and `assets/graphics/binder.png`) acts as a procedural artisan in Sanctuary, weaving **Scripts** (e.g., *Hemming Script*, *Vellum Buckram Script*, *Serifed Edge Script*, *Rubricated Nib Script*, *Marginal Gloss Script*, *Palimpsest Ward Script*) into the Reader's frame using persistent **Margin Scraps** (`margin_scraps`, earned from Night Bosses, Marginalia events, and *The Final Author* while preserving the Closed Volume Paradox where `pages_collected` resets to `0` on Sanctuary entry).
+- **Mechanics (`[DONE]`):** Implemented in `engine/binder_scripts.py` (`compile_binder_scripts`, `weave_script`, `toggle_equip_script`) and wired into `Player` (`max_hp`, `attack`, `speed`, `damage_mitigation`, `bleed`) and LAN Co-op (`get_full_player_state` / `cached_client_states`). Scripts act as tiny compilers in the margins altering stat allocations; when multiple equipped scripts touch the same stat, a **syntax conflict** occurs where the stronger magnitude wins (`ACTIVE`) and the weaker script fails (`CONFLICTED`, contributing `0`).
+- **Lore Integration & Alternate Ending (`[DONE]`):** Completing the Binder's required 3-step sequence of failed/conflicted scripts (`max_hp -> attack -> damage_mitigation`) sets `story_flags["perfect_stitch_completed"] = True`; defeating *The Final Author* with the Perfect Stitch woven triggers the alternate ending (`last_run_result = "STITCH_VICTORY"`, typographic bloom `"THE INK-BLEED HALTED"`, `story_flags["ink_bleed_halted"] = True`) and unlocks new Chronicler & Binder post-run dialogue.
 
 ## 8. Atmospheric Polish & Micro-Animations
 Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.

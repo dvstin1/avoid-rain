@@ -65,6 +65,17 @@ class StatisticsTracker:
                     "pages_collected": 0,
                 },
                 "discovered_bestiary": {},
+                "margin_scraps": 0,
+                "binder_scripts": {
+                    "unlocked": [],
+                    "equipped": [],
+                    "failed_sequence": [],
+                    "conflicts_triggered": 0,
+                },
+                "story_flags": {
+                    "perfect_stitch_completed": False,
+                    "ink_bleed_halted": False,
+                },
             }
         else:
             self.data = data
@@ -87,6 +98,30 @@ class StatisticsTracker:
                 self.data["debug_text_enabled"] = False
             if "screen_shake_enabled" not in self.data:
                 self.data["screen_shake_enabled"] = True
+            if "margin_scraps" not in self.data or not isinstance(self.data.get("margin_scraps"), (int, float)):
+                self.data["margin_scraps"] = 0
+            else:
+                self.data["margin_scraps"] = max(0, int(self.data["margin_scraps"]))
+            if not isinstance(self.data.get("binder_scripts"), dict):
+                self.data["binder_scripts"] = {
+                    "unlocked": [],
+                    "equipped": [],
+                    "failed_sequence": [],
+                    "conflicts_triggered": 0,
+                }
+            else:
+                self.data["binder_scripts"].setdefault("unlocked", [])
+                self.data["binder_scripts"].setdefault("equipped", [])
+                self.data["binder_scripts"].setdefault("failed_sequence", [])
+                self.data["binder_scripts"].setdefault("conflicts_triggered", 0)
+            if not isinstance(self.data.get("story_flags"), dict):
+                self.data["story_flags"] = {
+                    "perfect_stitch_completed": False,
+                    "ink_bleed_halted": False,
+                }
+            else:
+                self.data["story_flags"].setdefault("perfect_stitch_completed", False)
+                self.data["story_flags"].setdefault("ink_bleed_halted", False)
 
     @classmethod
     def has_compatible_save(cls, path: Path | str | None = None) -> bool:
@@ -109,6 +144,13 @@ class StatisticsTracker:
     def set_bestiary(self, enemy_id: str, discovered: bool = True) -> None:
         """Mark an enemy as discovered or undiscovered in the bestiary."""
         self.data["discovered_bestiary"][enemy_id] = bool(discovered)
+
+    def add_margin_scraps(self, amount: int) -> int:
+        """Add persistent Margin Scraps (clamped >= 0) and return the new total."""
+        current = int(self.data.get("margin_scraps", 0))
+        updated = max(0, current + int(amount))
+        self.data["margin_scraps"] = updated
+        return updated
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the internal data as a plain dictionary."""

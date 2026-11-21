@@ -206,3 +206,101 @@ def draw_chronicle_biome_menu(screen, font, state):
 
     hint = font.render("[UP/DOWN] Navigate   [ENTER/E] Bind Folio   [ESC] Cancel/Back", True, constants.COLOR_GREY)
     screen.blit(hint, (x + 25, y + h - 38))
+
+
+def draw_binder_weave_menu(screen, font, state):
+    """Render The Binder's Script Weaving Loom modal in Sanctuary."""
+    dialog = getattr(state, "binder_dialog", None)
+    if not dialog:
+        return
+
+    from engine.binder_scripts import (
+        compile_binder_scripts,
+        ensure_binder_persistence,
+        format_stitch_sequence_progress,
+    )
+
+    sw, sh = screen.get_size()
+    w = min(980, sw - 40)
+    h = min(650, sh - 30)
+    x = (sw - w) // 2
+    y = (sh - h) // 2
+
+    panel = pygame.Rect(x, y, w, h)
+    pygame.draw.rect(screen, (16, 12, 22), panel, border_radius=6)
+    pygame.draw.rect(screen, (218, 178, 92), panel, 2, border_radius=6)
+
+    stats = getattr(state, "stats", None)
+    binder_state, story_flags = ensure_binder_persistence(stats)
+    scraps = int(stats.data.get("margin_scraps", 0)) if stats else 0
+    equipped = list(binder_state.get("equipped") or [])
+    comp = compile_binder_scripts(equipped)
+    mods = comp["modifiers"]
+
+    header_str = (
+        f"THE BINDER'S LOOM  —  Margin Scraps: {scraps}  |  "
+        f"Equipped: {len(equipped)}/{constants.BINDER_MAX_EQUIPPED_SCRIPTS}"
+    )
+    screen.blit(font.render(header_str, True, constants.COLOR_SELECTION), (x + 24, y + 14))
+
+    stitch_str = format_stitch_sequence_progress(binder_state, story_flags)
+    stitch_col = (120, 245, 165) if story_flags.get("perfect_stitch_completed") else (220, 185, 110)
+    screen.blit(font.render(stitch_str, True, stitch_col), (x + 24, y + 42))
+
+    frame_str = (
+        f"Compiled Frame: +{int(mods['max_hp'])} HP   +{int(mods['attack'])} ATK   "
+        f"+{int(mods['speed'])} SPD   +{int(round(mods['damage_mitigation'] * 100))}% MIT   "
+        f"+{mods['bleed']:.1f} BLEED"
+    )
+    screen.blit(font.render(frame_str, True, constants.COLOR_WHITE), (x + 24, y + 68))
+
+    status_msg = str(dialog.get("status_msg", "") or "")
+    if len(status_msg) > 84:
+        status_msg = status_msg[:81] + "..."
+    msg_col = (245, 115, 115) if "CONFLICT" in status_msg else constants.COLOR_GREY
+    screen.blit(font.render(status_msg, True, msg_col), (x + 24, y + 94))
+
+    options = state.get_binder_dialog_options()
+    sel_idx = int(dialog.get("selection", 0))
+    y_off = 126
+    spacing = 36
+
+    for idx, opt in enumerate(options):
+        focused = idx == sel_idx
+        act = opt.get("action")
+        if act == "script":
+            name = opt["name"]
+            summary = opt["summary"]
+            if opt["equipped"]:
+                if opt["compile_status"] == "CONFLICTED":
+                    badge = f"[CONFLICTED -> {opt['overridden_by_name']}]"
+                    col = (245, 95, 95) if not focused else constants.COLOR_SELECTION
+                else:
+                    badge = "[STITCHED: ACTIVE]"
+                    col = (115, 240, 155) if not focused else constants.COLOR_SELECTION
+            elif opt["unlocked"]:
+                badge = "[WOVEN — Press ENTER to Stitch]"
+                col = constants.COLOR_WHITE if not focused else constants.COLOR_SELECTION
+            else:
+                cost = opt["cost"]
+                badge = f"[WEAVE: {cost} Scraps]"
+                can_afford = scraps >= cost
+                if focused:
+                    col = constants.COLOR_SELECTION
+                else:
+                    col = (210, 195, 145) if can_afford else (95, 90, 100)
+            row_str = f"{name} ({summary}) — {badge}"
+        else:
+            col = constants.COLOR_SELECTION if focused else constants.COLOR_GREY
+            row_str = f"{opt['name']} — {opt.get('summary', '')}"
+
+        prefix = "> " if focused else "  "
+        screen.blit(font.render(f"{prefix}{row_str}", True, col), (x + 28, y + y_off))
+        y_off += spacing
+
+    hint = font.render(
+        "[UP/DOWN] Navigate   [ENTER/E] Weave / Toggle Stitch   [ESC] Close Loom",
+        True,
+        constants.COLOR_GREY,
+    )
+    screen.blit(hint, (x + 24, y + h - 34))

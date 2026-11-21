@@ -43,6 +43,13 @@ class Player:
             "attack_modifier": 0,
             "max_hp_modifier": 0
         }
+        self.script_modifiers = {
+            "max_hp": 0.0,
+            "attack": 0.0,
+            "speed": 0.0,
+            "damage_mitigation": 0.0,
+            "bleed": 0.0,
+        }
         self.hp = PLAYER_MAX_HP
         self.flask_charges = FLASK_MAX_CHARGES
         # Dual-Weapon Inventory Management
@@ -83,6 +90,28 @@ class Player:
     def get_active_weapon(self):
         """Return the currently selected weapon dictionary."""
         return self.weapons[self.active_weapon_idx]
+
+    def apply_script_modifiers(self, mods: dict | None, refill_in_sanctuary: bool = False) -> None:
+        """Apply compiled Binder Script stat modifiers and clamp/refill HP safely."""
+        old_max = float(self.max_hp)
+        was_full = self.hp >= old_max - 1e-4
+        cleaned = {
+            "max_hp": 0.0,
+            "attack": 0.0,
+            "speed": 0.0,
+            "damage_mitigation": 0.0,
+            "bleed": 0.0,
+        }
+        if isinstance(mods, dict):
+            for k in cleaned:
+                if k in mods and isinstance(mods[k], (int, float)):
+                    cleaned[k] = float(mods[k])
+        self.script_modifiers = cleaned
+        new_max = float(self.max_hp)
+        if refill_in_sanctuary or (was_full and new_max >= old_max):
+            self.hp = new_max
+        else:
+            self.hp = min(float(self.hp), new_max)
 
     def get_all_modifiers(self):
         """Accumulates all modifiers from all weapons the player possesses."""
@@ -158,7 +187,8 @@ class Player:
                 self.state = PlayerStateEnum.IDLE
             else:
                 # Continue dash movement
-                current_speed = self.speed * speed_multiplier * DASH_SPEED_MULTIPLIER
+                eff_speed = self.speed + float(getattr(self, "script_modifiers", {}).get("speed", 0.0))
+                current_speed = eff_speed * speed_multiplier * DASH_SPEED_MULTIPLIER
                 self.vx = self.facing[0] * current_speed
                 self.vy = self.facing[1] * current_speed
                 self.x += self.vx * dt
@@ -227,7 +257,8 @@ class Player:
         # 3. Normalize movement
         magnitude = math.sqrt(dx*dx + dy*dy)
         if magnitude > 0:
-            current_speed = self.speed * speed_multiplier
+            eff_speed = self.speed + float(getattr(self, "script_modifiers", {}).get("speed", 0.0))
+            current_speed = eff_speed * speed_multiplier
             self.vx = (dx / magnitude) * current_speed
             self.vy = (dy / magnitude) * current_speed
             if not block_pressed:
@@ -271,8 +302,9 @@ class Player:
 
     @property
     def max_hp(self):
-        """Dynamic max HP including modifiers."""
+        """Dynamic max HP including modifiers and compiled Binder Scripts."""
         base = PLAYER_MAX_HP + self.stats.get("max_hp_modifier", 0)
+        base += float(getattr(self, "script_modifiers", {}).get("max_hp", 0.0))
         all_mods = self.get_all_modifiers()
         if "max_hp_boost" in all_mods:
             base += all_mods["max_hp_boost"]
@@ -345,6 +377,12 @@ class Player:
             amount *= BLOCK_DAMAGE_REDUCTION
             if audio_manager:
                 audio_manager.play_sfx("player_block.ogg")
+
+        # 1b. Apply compiled Binder Script damage mitigation
+        from constants import BINDER_MAX_DAMAGE_MITIGATION
+        script_mit = float(getattr(self, "script_modifiers", {}).get("damage_mitigation", 0.0))
+        if script_mit > 0.0:
+            amount *= (1.0 - min(BINDER_MAX_DAMAGE_MITIGATION, max(0.0, script_mit)))
 
         # 2. Apply passive Edification parsing (Global Level)
         prowess = self.stats.get("attack_modifier", 0)

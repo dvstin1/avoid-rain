@@ -328,6 +328,22 @@ class Chronicler(Actor):
             game_state.play_chronicler_mumble(emotion)
         print(f"[NPC] {self.name} triggered dialogue: {node['id']} (emotion={emotion})")
 
+
+class Binder(Actor):
+    """Sanctuary artisan NPC who weaves Binder Scripts into the player's frame."""
+    def __init__(self, position, dimensions=None, name="The Binder"):
+        del dimensions
+        super().__init__(position[0], position[1], 40, 40, 9999, name=name)
+        self.is_interactive = True
+        self.is_solid = True
+        self.is_stationary = True
+        self.patrol_speed_multiplier = 0.0
+
+    def execute_interaction(self, game_state):
+        """Open the Binder Script Weaving Loom modal in Sanctuary."""
+        if hasattr(game_state, "open_binder_dialog"):
+            game_state.open_binder_dialog(binder_npc=self)
+
 class Wellspring(GameObject):
     """Refill station for flasks."""
     def __init__(self, position, dimensions):
@@ -774,6 +790,11 @@ class LevelLoader:
                     # The Chronicler NPC
                     chronicler = Chronicler(pos, dim)
                     interactables.append(chronicler)
+
+                elif char == '&':
+                    # The Binder NPC
+                    binder = Binder(pos, dim)
+                    interactables.append(binder)
 
                 elif char == 'F':
                     # The Wellspring (Fountain)

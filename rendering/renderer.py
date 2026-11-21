@@ -15,7 +15,7 @@ import constants
 from engine.player import PlayerStateEnum
 from engine.camera import Camera
 from rendering.bitmap_font import load_font_or_sysfont
-from ui.menu import draw_respite_menu, draw_chronicle_biome_menu
+from ui.menu import draw_respite_menu, draw_chronicle_biome_menu, draw_binder_weave_menu
 
 class Renderer:
     """Coordinates rendering of the game state."""
@@ -604,6 +604,7 @@ class Renderer:
             ("respite.png", "Respite"),
             ("respite_corrupted.png", "RespiteCorrupted"),
             ("chronicler.png", "Chronicler"),
+            ("binder.png", "Binder"),
             ("swamp_fungus.png", "SwampFungus"),
             ("swamp_gas_vent.png", "SwampVent"),
             ("swamp_thorns.png", "SwampThorns"),
@@ -629,6 +630,13 @@ class Renderer:
             pygame.draw.circle(fungus, (142, 172, 44), (ts // 2 - 6, ts // 2 - 2), 3)
             pygame.draw.circle(fungus, (142, 172, 44), (ts // 2 + 7, ts // 2), 2)
             self.prop_cache["SwampFungus"] = fungus.convert_alpha() if display_init else fungus
+
+        if "Binder" not in self.prop_cache:
+            b_surf = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            pygame.draw.polygon(b_surf, (62, 32, 46), [(9, 33), (12, 14), (28, 14), (31, 33)])
+            pygame.draw.circle(b_surf, (78, 42, 58), (ts // 2, 11), 7)
+            pygame.draw.line(b_surf, (242, 214, 124), (29, 28), (34, 8), 2)
+            self.prop_cache["Binder"] = b_surf.convert_alpha() if display_init else b_surf
 
         if "SwampVent" not in self.prop_cache:
             vent = pygame.Surface((ts, ts), pygame.SRCALPHA)
@@ -2086,6 +2094,14 @@ class Renderer:
                     pygame.draw.rect(self.screen, (220, 220, 220), (sx_o, sy_o, obj.width, obj.height))
                     pygame.draw.rect(self.screen, (255, 200, 150), (sx_o + 5, sy_o + 5, obj.width - 10, 10))
                     pygame.draw.rect(self.screen, constants.COLOR_BLACK, (sx_o, sy_o, obj.width, obj.height), 1)
+            elif obj.name == "The Binder":
+                binder_img = self.prop_cache.get("Binder") or self.image_cache.get("binder.png")
+                if binder_img:
+                    bob_y = int(round(math.sin(now * 2.2) * 0.7))
+                    self.screen.blit(binder_img, (int(sx_o), int(sy_o) + bob_y))
+                else:
+                    pygame.draw.rect(self.screen, (164, 52, 74), (sx_o, sy_o, obj.width, obj.height))
+                    pygame.draw.rect(self.screen, constants.COLOR_BLACK, (sx_o, sy_o, obj.width, obj.height), 1)
             elif obj.name == "The Wellspring":
                 self.draw_wellspring(obj, ox, oy)
             elif obj.name == "Heavy Bookcase":
@@ -2265,6 +2281,8 @@ class Renderer:
 
         if getattr(state, 'chronicle_dialog', None):
             draw_chronicle_biome_menu(self.screen, self.font, state)
+        elif getattr(state, 'binder_dialog', None):
+            draw_binder_weave_menu(self.screen, self.font, state)
         elif getattr(state, 'active_respite', None):
             draw_respite_menu(self.screen, self.font, state)
         elif getattr(state, 'active_dialogue', None):

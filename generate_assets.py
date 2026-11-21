@@ -55,6 +55,7 @@ DEFAULT_CHRONICLE_PATH = os.path.join("assets", "graphics", "chronicle.png")
 DEFAULT_RESPITE_PATH = os.path.join("assets", "graphics", "respite.png")
 DEFAULT_RESPITE_CORRUPTED_PATH = os.path.join("assets", "graphics", "respite_corrupted.png")
 DEFAULT_CHRONICLER_PATH = os.path.join("assets", "graphics", "chronicler.png")
+DEFAULT_BINDER_PATH = os.path.join("assets", "graphics", "binder.png")
 DEFAULT_SWAMP_FUNGUS_PATH = os.path.join("assets", "graphics", "swamp_fungus.png")
 DEFAULT_SWAMP_VENT_PATH = os.path.join("assets", "graphics", "swamp_gas_vent.png")
 DEFAULT_SWAMP_THORNS_PATH = os.path.join("assets", "graphics", "swamp_thorns.png")
@@ -1849,6 +1850,52 @@ def generate_aqueduct_pillar(
     return surface
 
 
+def generate_binder(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 40x40 sprite for The Binder artisan NPC (robed bookbinder with gold needles & spools)."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx = width // 2
+
+    # 1. Ground shadow
+    pygame.draw.ellipse(surface, (14, 10, 18, 125), (8, height - 10, width - 16, 7))
+
+    # 2. Crimson-trimmed binding cloak & parchment apron
+    cloak_poly = [(cx - 11, 33), (cx - 8, 14), (cx + 8, 14), (cx + 11, 33)]
+    pygame.draw.polygon(surface, (62, 32, 46, 255), cloak_poly)
+    pygame.draw.polygon(surface, (164, 52, 74, 255), cloak_poly, 1)
+    pygame.draw.rect(surface, (206, 188, 148, 255), (cx - 5, 18, 10, 14), border_radius=2)
+
+    # 3. Crossed golden stitching thread across apron
+    pygame.draw.line(surface, (238, 198, 96, 255), (cx - 5, 20), (cx + 4, 30), 1)
+    pygame.draw.line(surface, (238, 198, 96, 255), (cx + 4, 20), (cx - 5, 30), 1)
+
+    # 4. Hooded artisan cowl & spectacles
+    pygame.draw.circle(surface, (78, 42, 58, 255), (cx, 11), 7)
+    pygame.draw.circle(surface, (26, 18, 28, 255), (cx, 12), 4)
+    pygame.draw.circle(surface, (245, 212, 118, 255), (cx - 2, 12), 1)
+    pygame.draw.circle(surface, (245, 212, 118, 255), (cx + 2, 12), 1)
+
+    # 5. Long brass bookbinding needle & trailing crimson thread
+    pygame.draw.line(surface, (242, 214, 124, 255), (cx + 9, 28), (cx + 14, 8), 2)
+    pygame.draw.line(surface, (218, 58, 84, 255), (cx + 14, 8), (cx + 6, 16), 1)
+
+    for _ in range(8):
+        px = rng.randint(cx - 8, cx + 8)
+        py = rng.randint(15, 32)
+        col = surface.get_at((px, py))
+        if col.a > 200:
+            jit = rng.randint(-6, 6)
+            surface.set_at((px, py), (_clamp(col.r + jit), _clamp(col.g + jit), _clamp(col.b + jit), 255))
+
+    return surface
+
+
 # ==============================================================================
 # GENERATIVE PIPELINE 9: 2.5D VERTICALITY & ELEVATION ASSETS
 # ==============================================================================
@@ -2839,6 +2886,7 @@ def generate_all_assets(
     respite_path: str = DEFAULT_RESPITE_PATH,
     respite_corrupted_path: str = DEFAULT_RESPITE_CORRUPTED_PATH,
     chronicler_path: str = DEFAULT_CHRONICLER_PATH,
+    binder_path: str = DEFAULT_BINDER_PATH,
     wall_cracked_path: str = DEFAULT_WALL_CRACKED_PATH,
     wall_mossy_path: str = DEFAULT_WALL_MOSSY_PATH,
     wall_webbed_path: str = DEFAULT_WALL_WEBBED_PATH,
@@ -2944,6 +2992,7 @@ def generate_all_assets(
             generate_respite(TILE_WIDTH, TILE_HEIGHT, rng=_rng("respite_corrupted"), corrupted=True),
         ),
         ("chronicler", chronicler_path, generate_chronicler(TILE_WIDTH, TILE_HEIGHT, rng=_rng("chronicler"))),
+        ("binder", binder_path, generate_binder(TILE_WIDTH, TILE_HEIGHT, rng=_rng("binder"))),
         ("swamp_fungus", swamp_fungus_path, generate_swamp_fungus(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_fungus"))),
         (
             "swamp_gas_vent",

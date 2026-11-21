@@ -340,12 +340,21 @@ class Actor:
 
     def _update_state_logic(self, dt, game_state):
         """Determine current behavior state."""
-        # NPCs (Chronicler) never CHASE. They only ENGAGE or PATROL.
-        if "Chronicler" in self.name:
-            if game_state.active_dialogue and game_state.active_dialogue.get("speaker") == self.name:
+        # NPCs (Chronicler, The Binder) never CHASE. They only ENGAGE or PATROL/IDLE.
+        if "Chronicler" in self.name or self.name == "The Binder":
+            if (
+                game_state.active_dialogue and game_state.active_dialogue.get("speaker") == self.name
+            ) or (
+                self.name == "The Binder" and getattr(game_state, "binder_dialog", None)
+            ):
                 self.state = ActorState.ENGAGED
                 self.vx, self.vy = 0, 0
                 return
+            if self.patrol_route and not self.is_stationary:
+                self.state = ActorState.PATROLLING
+            else:
+                self.state = ActorState.IDLE
+            return
         
         # Combat State Lock: If in a combat state, don't transition until timer ends
         if self.state in (ActorState.WIND_UP, ActorState.STRIKE, ActorState.RECOVERY):
