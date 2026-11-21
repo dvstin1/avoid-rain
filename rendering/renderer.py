@@ -880,6 +880,7 @@ class Renderer:
             ("highland_monolith.png", "HighlandMonolith", (ts, 60), True),
             ("tech_server_pylon.png", "TechServerPylon", (ts, 60), True),
             ("tech_canister.png", "TechCanister", (ts, ts), True),
+            ("swamp_spore_pod.png", "SwampSporePod", (ts, ts), True),
         )
         for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
             sx_path = os.path.join(base_path, sx_file)
@@ -2980,6 +2981,8 @@ class Renderer:
                 map_file = getattr(state.world, "map_filename", "").lower()
                 if obj_biome == "tech_tower" and "ruins" not in w_name and "ruins" not in map_file:
                     self._draw_tech_canister(sx_o, sy_o, obj, prop_cache)
+                elif obj_biome == "swamp_mire":
+                    self._draw_swamp_spore_pod(sx_o, sy_o, obj, prop_cache)
                 else:
                     img = self.image_cache.get("barrel_0.png")
                     if img:
@@ -3297,6 +3300,7 @@ class Renderer:
         self.draw_sanctuary_courtyard_atmosphere(state, ox, oy, now=now)
         self.draw_windy_ridge_atmosphere(state, ox, oy, now=now)
         self.draw_tech_tower_atmosphere(state, ox, oy, now=now)
+        self.draw_swamp_mire_atmosphere(state, ox, oy, now=now)
         self.draw_sanctuary_roofs_and_blackout(state, ox, oy)
 
         if getattr(state.player, 'current_interactable', None):
@@ -5262,6 +5266,98 @@ class Renderer:
                     core = (196, 248, 255, min(255, q_ma))
                 pygame.draw.circle(m_surf, halo, (4, 4), 3)
                 pygame.draw.rect(m_surf, core, (3, 3, 2, 2))
+                cache[m_key] = m_surf
+            self.screen.blit(m_surf, (mx - 4, my - 4))
+
+    def _draw_swamp_spore_pod(self, sx_o, sy_o, obj, prop_cache):
+        """Render a 40x40 bloated biomechanical SwampSporePod replacing barrels in swamp_mire."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        pod_surf = prop_cache.get("SwampSporePod")
+        if pod_surf is not None:
+            self.screen.blit(pod_surf, (tx_i, ty_i))
+        elif isinstance(self.screen, pygame.Surface):
+            sw_o = max(16, int(getattr(obj, "width", constants.TILE_SIZE)))
+            sh_o = max(16, int(getattr(obj, "height", constants.TILE_SIZE)))
+            cx_p = tx_i + sw_o // 2
+            pygame.draw.ellipse(self.screen, (26, 12, 30), (tx_i + 6, ty_i + sh_o - 10, sw_o - 12, 7))
+            pygame.draw.ellipse(self.screen, (76, 38, 76), (tx_i + 8, ty_i + 8, sw_o - 16, sh_o - 15))
+            pygame.draw.ellipse(self.screen, (20, 9, 24), (tx_i + 8, ty_i + 8, sw_o - 16, sh_o - 15), 1)
+            pygame.draw.line(self.screen, (138, 198, 52), (cx_p, ty_i + 10), (cx_p - 4, ty_i + 26), 2)
+            pygame.draw.circle(self.screen, (204, 174, 56), (cx_p + 4, ty_i + 20), 2)
+
+    def draw_swamp_mire_atmosphere(self, state, ox, oy, now=None):
+        """Render drifting translucent bog miasma wisps (alpha 20..34) and rising chartreuse/lilac spores."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        player = getattr(state, "player", None)
+        world = getattr(state, "world", None)
+        if player is None or world is None:
+            return
+        ts = constants.TILE_SIZE
+        px_c, py_c = player.get_center()
+        if self._resolve_tile_biome(state, int(px_c // ts), int(py_c // ts)) != "swamp_mire":
+            return
+
+        t_now = time.time() if now is None else float(now)
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        cache = self._fx_surface_cache
+
+        # 1. Slowly drifting translucent sickly-chartreuse / violet bog miasma wisps (alpha 20..34)
+        span_w = sw + 240
+        span_h = sh + 120
+        for idx in range(6):
+            w_len = 108 + (idx % 3) * 28
+            w_h = 34 + (idx % 2) * 8
+            drift_x = 18.0 + (idx % 3) * 6.0
+            wx = int(((idx * 241.0 + t_now * drift_x - ox * 0.78) % span_w) - 140)
+            wy = int(
+                ((idx * 149.0 - oy * 0.78 + math.sin(t_now * 0.7 + idx * 1.3) * 16.0) % span_h) - 50
+            )
+            pulse = (math.sin(t_now * 0.95 + idx * 1.4) + 1.0) * 0.5
+            q_alpha = 20 + int(pulse * 7) * 2  # 20..34
+            is_violet = idx % 3 == 2
+            w_key = ("swamp_mire_miasma", w_len, w_h, q_alpha, is_violet)
+            w_surf = cache.get(w_key)
+            if w_surf is None:
+                w_surf = pygame.Surface((w_len, w_h), pygame.SRCALPHA)
+                if is_violet:
+                    outer_rgb = (132, 84, 152)
+                    core_rgb = (168, 124, 190)
+                else:
+                    outer_rgb = (118, 158, 52)
+                    core_rgb = (158, 206, 78)
+                outer_a = max(12, (q_alpha * 2) // 3)
+                pygame.draw.ellipse(w_surf, (*outer_rgb, outer_a), (0, 4, w_len - 18, w_h - 8))
+                pygame.draw.ellipse(w_surf, (*outer_rgb, outer_a), (20, 2, w_len - 20, w_h - 6))
+                pygame.draw.ellipse(w_surf, (*core_rgb, q_alpha), (14, 8, w_len - 32, w_h - 16))
+                cache[w_key] = w_surf
+            self.screen.blit(w_surf, (wx, wy))
+
+        # 2. 14 gently rising bioluminescent chartreuse & pale-lilac spore motes
+        m_span_w = sw + 60
+        m_span_h = sh + 60
+        for idx in range(14):
+            sway_spd = 1.3 + (idx % 3) * 0.4
+            rise_y = 14.0 + (idx % 4) * 6.0
+            mx = int(
+                ((idx * 167.0 + math.sin(t_now * sway_spd + idx * 1.2) * 18.0 - ox * 0.90) % m_span_w) - 30
+            )
+            my = int(((idx * 113.0 - t_now * rise_y - oy * 0.90) % m_span_h) - 30)
+            m_pulse = (math.sin(t_now * 2.2 + idx * 1.6) + 1.0) * 0.5
+            q_ma = 84 + int(m_pulse * 7) * 12  # 84..168
+            is_lilac = idx % 3 == 2
+            m_key = ("swamp_mire_spore", is_lilac, q_ma)
+            m_surf = cache.get(m_key)
+            if m_surf is None:
+                m_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
+                if is_lilac:
+                    halo = (176, 134, 208, q_ma // 2)
+                    core = (224, 198, 244, min(255, q_ma))
+                else:
+                    halo = (132, 188, 52, q_ma // 2)
+                    core = (206, 244, 118, min(255, q_ma))
+                pygame.draw.circle(m_surf, halo, (4, 4), 3)
+                pygame.draw.circle(m_surf, core, (4, 4), 1)
                 cache[m_key] = m_surf
             self.screen.blit(m_surf, (mx - 4, my - 4))
 

@@ -3993,6 +3993,86 @@ def generate_tech_canister(
     return surf
 
 
+def generate_swamp_spore_pod(
+    width: int = TILE_WIDTH, height: int = TILE_HEIGHT, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate a 40x40 bloated bruised-violet chitin spore pod with chartreuse/amber veins and anchor roots."""
+    gen = rng if rng is not None else random.Random(2043)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    # Ground contact shadow under bloated sac
+    pygame.draw.ellipse(surf, (12, 6, 18, 128), (5, height - 10, width - 10, 8))
+
+    # Dark anchoring root tendrils gripping bog floor around base
+    root_dark = (26, 12, 30, 255)
+    root_mid = (52, 26, 56, 255)
+    tendrils = (
+        [(cx - 9, height - 12), (cx - 14, height - 8), (cx - 16, height - 5)],
+        [(cx - 4, height - 10), (cx - 7, height - 6), (cx - 9, height - 4)],
+        [(cx + 4, height - 10), (cx + 8, height - 6), (cx + 10, height - 4)],
+        [(cx + 9, height - 12), (cx + 14, height - 8), (cx + 16, height - 5)],
+    )
+    for pts in tendrils:
+        pygame.draw.lines(surf, root_dark, False, pts, 3)
+        pygame.draw.lines(surf, root_mid, False, pts[:2], 1)
+
+    # Bloated bulbous bruised-violet chitin sac
+    sac_rect = pygame.Rect(8, 8, width - 16, height - 15)
+    pygame.draw.ellipse(surf, (76, 38, 76, 255), sac_rect)
+    # Shaded right curvature & soft bruised-lilac upper-left dome highlight
+    pygame.draw.ellipse(surf, (52, 24, 54, 255), (cx - 1, 10, width // 2 - 8, height - 18))
+    pygame.draw.ellipse(surf, (108, 64, 112, 255), (11, 11, 10, 12))
+    pygame.draw.arc(surf, (158, 124, 168, 255), (10, 9, width - 20, height - 18), 1.4, 2.8, 1)
+    pygame.draw.ellipse(surf, (20, 9, 24, 255), sac_rect, 1)
+
+    # Subtle organic chitin surface grit
+    for _ in range(20):
+        gx = gen.randint(10, width - 11)
+        gy = gen.randint(11, height - 11)
+        col = surf.get_at((gx, gy))
+        if col.a > 200:
+            delta = gen.randint(-8, 8)
+            surf.set_at(
+                (gx, gy),
+                (
+                    max(0, min(255, col.r + delta)),
+                    max(0, min(255, col.g + delta // 2)),
+                    max(0, min(255, col.b + delta)),
+                    255,
+                ),
+            )
+
+    # Flared chitin crown / spore orifice at apex
+    crown_rect = pygame.Rect(cx - 6, 5, 12, 6)
+    pygame.draw.ellipse(surf, (48, 22, 52, 255), crown_rect)
+    pygame.draw.ellipse(surf, (20, 9, 24, 255), crown_rect, 1)
+    pygame.draw.ellipse(surf, (148, 212, 62, 255), (cx - 3, 7, 6, 3))
+    surf.set_at((cx, 8), (218, 248, 148, 255))
+
+    # Branching chartreuse & warm-amber bioluminescent spore veins across sac wall
+    vein_green = (138, 198, 52, 240)
+    vein_amber = (204, 174, 56, 235)
+    vein_core = (212, 246, 134, 255)
+    pygame.draw.lines(surf, vein_green, False, [(cx, 11), (cx - 4, 17), (cx - 7, 24), (cx - 5, 29)], 2)
+    pygame.draw.lines(surf, vein_amber, False, [(cx - 4, 17), (cx + 1, 21), (cx + 5, 27)], 1)
+    pygame.draw.lines(surf, vein_green, False, [(cx + 2, 12), (cx + 6, 18), (cx + 8, 24)], 1)
+
+    # Glowing spore pustule blisters along veins
+    for px, py, col in (
+        (cx - 4, 18, vein_core),
+        (cx + 5, 19, vein_amber),
+        (cx - 6, 25, vein_green),
+        (cx + 2, 24, vein_core),
+    ):
+        pygame.draw.circle(surf, (38, 18, 42, 255), (px, py), 3)
+        pygame.draw.circle(surf, col, (px, py), 2)
+        surf.set_at((px, py), (232, 252, 176, 255))
+
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -4331,6 +4411,10 @@ def generate_all_assets(
         (
             "tech_canister",
             generate_tech_canister(TILE_WIDTH, TILE_HEIGHT, rng=_rng("tech_canister")),
+        ),
+        (
+            "swamp_spore_pod",
+            generate_swamp_spore_pod(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_spore_pod")),
         ),
     )
     for sp_key, sp_surf in sanctuary_prop_specs:
