@@ -818,6 +818,8 @@ class Renderer:
             ("sanctuary_arch_doorway.png", "SanctuaryArchDoorway", (ts, ts), False),
             ("torn_page.png", "TornPage", (ts, ts), True),
             ("highland_monolith.png", "HighlandMonolith", (ts, 60), True),
+            ("tech_server_pylon.png", "TechServerPylon", (ts, 60), True),
+            ("tech_canister.png", "TechCanister", (ts, ts), True),
         )
         for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
             sx_path = os.path.join(base_path, sx_file)
@@ -2683,12 +2685,18 @@ class Renderer:
                         self.screen, constants.COLOR_CYAN, (int(dr.centerx), int(dr.centery)), inner_r, 1
                     )
             elif obj.name == "Barrel":
-                img = self.image_cache.get("barrel_0.png")
-                if img:
-                    self.screen.blit(img, (sx_o, sy_o))
+                obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
+                w_name = getattr(state.world, "name", "").lower()
+                map_file = getattr(state.world, "map_filename", "").lower()
+                if obj_biome == "tech_tower" and "ruins" not in w_name and "ruins" not in map_file:
+                    self._draw_tech_canister(sx_o, sy_o, obj, prop_cache)
                 else:
-                    pygame.draw.rect(self.screen, (100, 80, 40), (sx_o, sy_o, obj.width, obj.height))
-                    pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o, obj.width, obj.height), 2)
+                    img = self.image_cache.get("barrel_0.png")
+                    if img:
+                        self.screen.blit(img, (sx_o, sy_o))
+                    else:
+                        pygame.draw.rect(self.screen, (100, 80, 40), (sx_o, sy_o, obj.width, obj.height))
+                        pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o, obj.width, obj.height), 2)
             elif obj.name == "Structure":
                 obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
                 w_name = getattr(state.world, "name", "").lower()
@@ -2713,11 +2721,13 @@ class Renderer:
                 elif obj_biome == "windy_ridge":
                     self._draw_highland_monolith(sx_o, sy_o, prop_cache)
                 elif (
-                    obj_biome in ("tech_tower", "ruins")
+                    obj_biome == "ruins"
                     or "ruins" in w_name
                     or "ruins" in map_file
                 ) and "RuinsRubble" in prop_cache:
                     self.screen.blit(prop_cache["RuinsRubble"], (int(sx_o), int(sy_o)))
+                elif obj_biome == "tech_tower":
+                    self._draw_tech_server_pylon(sx_o, sy_o, prop_cache)
                 else:
                     tree_surf = prop_cache.get("Structure")
                     if tree_surf is not None:
@@ -2996,6 +3006,7 @@ class Renderer:
         self.update_sanctuary_interior_alpha(state, frame_dt)
         self.draw_sanctuary_courtyard_atmosphere(state, ox, oy, now=now)
         self.draw_windy_ridge_atmosphere(state, ox, oy, now=now)
+        self.draw_tech_tower_atmosphere(state, ox, oy, now=now)
         self.draw_sanctuary_roofs_and_blackout(state, ox, oy)
 
         if getattr(state.player, 'current_interactable', None):
@@ -4824,6 +4835,145 @@ class Renderer:
                 pygame.draw.circle(p_surf, (252, 244, 194, min(255, q_ma)), (5, 5), 2)
                 cache[p_key] = p_surf
             self.screen.blit(p_surf, (mx - 5, my - 5))
+
+    def _draw_tech_server_pylon(self, sx_o, sy_o, prop_cache):
+        """Render a 40x60 TechServerPylon anchored on its 40x40 base footprint with ground contact shadow."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        if isinstance(self.screen, pygame.Surface):
+            cache = getattr(self, "_fx_surface_cache", None)
+            s_key = ("tech_server_pylon_shadow", 34, 10)
+            sh_surf = cache.get(s_key) if cache is not None else None
+            if sh_surf is None:
+                sh_surf = pygame.Surface((34, 10), pygame.SRCALPHA)
+                pygame.draw.ellipse(sh_surf, (6, 12, 22, 104), (0, 0, 34, 10))
+                if cache is not None:
+                    cache[s_key] = sh_surf
+            self.screen.blit(sh_surf, (tx_i + 3, ty_i + 30))
+
+        pylon_surf = prop_cache.get("TechServerPylon")
+        if pylon_surf is not None:
+            self.screen.blit(pylon_surf, (tx_i, ty_i - 20))
+        elif isinstance(self.screen, pygame.Surface):
+            # Graceful procedural brushed-titanium server monolith fallback
+            chassis = [
+                (tx_i + 8, ty_i + 33),
+                (tx_i + 8, ty_i - 11),
+                (tx_i + 12, ty_i - 16),
+                (tx_i + 27, ty_i - 16),
+                (tx_i + 31, ty_i - 11),
+                (tx_i + 31, ty_i + 33),
+            ]
+            pygame.draw.polygon(self.screen, (74, 90, 110), chassis)
+            pygame.draw.polygon(self.screen, (20, 28, 40), chassis, 1)
+            pygame.draw.rect(self.screen, (24, 34, 48), (tx_i + 12, ty_i - 10, 16, 33), border_radius=2)
+            for ly in (ty_i - 6, ty_i - 1, ty_i + 12, ty_i + 17):
+                pygame.draw.line(self.screen, (12, 18, 28), (tx_i + 14, ly), (tx_i + 25, ly), 2)
+            pygame.draw.line(self.screen, (78, 228, 248), (tx_i + 14, ty_i + 6), (tx_i + 25, ty_i + 6), 2)
+            pygame.draw.rect(self.screen, (48, 212, 238), (tx_i + 10, ty_i - 4, 2, 10))
+            pygame.draw.rect(self.screen, (212, 76, 168), (tx_i + 28, ty_i - 4, 2, 10))
+
+    def _draw_tech_canister(self, sx_o, sy_o, obj, prop_cache):
+        """Render a 40x40 pressurized metallic TechCanister replacing barrels in tech_tower."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        canister_surf = prop_cache.get("TechCanister")
+        if canister_surf is not None:
+            self.screen.blit(canister_surf, (tx_i, ty_i))
+        elif isinstance(self.screen, pygame.Surface):
+            sw_o = max(16, int(getattr(obj, "width", constants.TILE_SIZE)))
+            sh_o = max(16, int(getattr(obj, "height", constants.TILE_SIZE)))
+            pygame.draw.rect(self.screen, (76, 92, 112), (tx_i + 8, ty_i + 7, sw_o - 16, sh_o - 14), border_radius=3)
+            pygame.draw.rect(self.screen, (52, 66, 84), (tx_i + 6, ty_i + 6, sw_o - 12, 5), border_radius=2)
+            pygame.draw.rect(self.screen, (52, 66, 84), (tx_i + 6, ty_i + sh_o - 11, sw_o - 12, 5), border_radius=2)
+            pygame.draw.rect(self.screen, (206, 162, 56), (tx_i + 10, ty_i + sh_o - 14, sw_o - 20, 3))
+            pygame.draw.rect(self.screen, (42, 214, 242), (tx_i + sw_o // 2 - 2, ty_i + 14, 4, 10))
+
+    def draw_tech_tower_atmosphere(self, state, ox, oy, now=None):
+        """Render faint vertical reactor-vent shimmer beams and drifting cyan/magenta data-dust motes on tech_tower."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        player = getattr(state, "player", None)
+        world = getattr(state, "world", None)
+        if player is None or world is None:
+            return
+        ts = constants.TILE_SIZE
+        px_c, py_c = player.get_center()
+        if self._resolve_tile_biome(state, int(px_c // ts), int(py_c // ts)) != "tech_tower":
+            return
+
+        t_now = time.time() if now is None else float(now)
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        cache = self._fx_surface_cache
+
+        # 1. Faint vertical reactor-vent shimmer beams (cached SRCALPHA, alpha 22..36)
+        span_w = sw + 160
+        span_h = sh + 180
+        for idx in range(5):
+            beam_w = 18 + (idx % 2) * 6
+            beam_h = 104 + (idx % 3) * 28
+            bx = int(((idx * 223.0 - ox * 0.80 + math.sin(t_now * 0.55 + idx) * 10.0) % span_w) - 80)
+            rise_spd = 22.0 + (idx % 3) * 7.0
+            by = int(((idx * 151.0 - t_now * rise_spd - oy * 0.80) % span_h) - 90)
+            pulse = (math.sin(t_now * 1.35 + idx * 1.5) + 1.0) * 0.5
+            q_alpha = 22 + int(pulse * 7) * 2  # 22..36
+            is_magenta = (idx % 4 == 3)
+            b_key = ("tech_tower_shimmer", beam_w, beam_h, q_alpha, is_magenta)
+            b_surf = cache.get(b_key)
+            if b_surf is None:
+                b_surf = pygame.Surface((beam_w, beam_h), pygame.SRCALPHA)
+                outer_rgb = (182, 92, 174) if is_magenta else (88, 212, 238)
+                core_rgb = (224, 154, 218) if is_magenta else (172, 242, 255)
+                cx_b = beam_w // 2
+                # Vertical shimmer column tapered at top and bottom via layered translucent bands
+                pygame.draw.rect(
+                    b_surf,
+                    (outer_rgb[0], outer_rgb[1], outer_rgb[2], max(12, q_alpha // 2)),
+                    (2, 10, beam_w - 4, beam_h - 20),
+                    border_radius=max(3, beam_w // 3),
+                )
+                pygame.draw.rect(
+                    b_surf,
+                    (outer_rgb[0], outer_rgb[1], outer_rgb[2], q_alpha),
+                    (cx_b - 3, 6, 6, beam_h - 12),
+                    border_radius=3,
+                )
+                pygame.draw.line(
+                    b_surf,
+                    (core_rgb[0], core_rgb[1], core_rgb[2], min(44, q_alpha + 6)),
+                    (cx_b, 12),
+                    (cx_b, beam_h - 13),
+                    1,
+                )
+                cache[b_key] = b_surf
+            self.screen.blit(b_surf, (bx, by))
+
+        # 2. 14 drifting holographic data-dust motes (pale cyan and muted magenta)
+        m_span_w = sw + 60
+        m_span_h = sh + 60
+        for idx in range(14):
+            drift_x = 12.0 + (idx % 3) * 6.0
+            rise_y = 24.0 + (idx % 4) * 9.0
+            mx = int(
+                ((idx * 149.0 + t_now * drift_x + math.sin(t_now * 1.8 + idx * 1.1) * 14.0 - ox * 0.90) % m_span_w)
+                - 30
+            )
+            my = int(((idx * 107.0 - t_now * rise_y - oy * 0.90) % m_span_h) - 30)
+            m_pulse = (math.sin(t_now * 2.6 + idx * 1.4) + 1.0) * 0.5
+            q_ma = 84 + int(m_pulse * 7) * 12  # 84..168
+            is_magenta = (idx % 3 == 2)
+            m_key = ("tech_tower_data_mote", is_magenta, q_ma)
+            m_surf = cache.get(m_key)
+            if m_surf is None:
+                m_surf = pygame.Surface((8, 8), pygame.SRCALPHA)
+                if is_magenta:
+                    halo = (196, 98, 176, q_ma // 2)
+                    core = (242, 178, 228, min(255, q_ma))
+                else:
+                    halo = (74, 214, 240, q_ma // 2)
+                    core = (196, 248, 255, min(255, q_ma))
+                pygame.draw.circle(m_surf, halo, (4, 4), 3)
+                pygame.draw.rect(m_surf, core, (3, 3, 2, 2))
+                cache[m_key] = m_surf
+            self.screen.blit(m_surf, (mx - 4, my - 4))
 
     def _draw_sanctuary_tree_canopy(self, obj, ox, oy, prop_cache):
         """Draw a SanctuaryTreeCanopy (80x100) anchored onto its 40x40 solid trunk footprint."""

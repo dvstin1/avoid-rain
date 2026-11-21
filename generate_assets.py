@@ -3806,6 +3806,193 @@ def generate_highland_monolith(
     return surf
 
 
+def generate_tech_server_pylon(
+    width: int = TILE_WIDTH, height: int = 60, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate a 40x60 brushed-titanium data-core server monolith with louvers and cyan/magenta telemetry LEDs."""
+    gen = rng if rng is not None else random.Random(2041)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    # Soft ground contact shadow under base pedestal
+    pygame.draw.ellipse(surf, (6, 12, 22, 118), (4, height - 10, width - 8, 8))
+
+    # Chamfered dark-steel base plinth anchored on bottom 40x40 footprint
+    plinth_pts = [
+        (5, height - 7),
+        (7, height - 14),
+        (width - 8, height - 14),
+        (width - 6, height - 7),
+    ]
+    pygame.draw.polygon(surf, (34, 46, 62, 255), plinth_pts)
+    pygame.draw.polygon(surf, (16, 22, 34, 255), plinth_pts, 1)
+    pygame.draw.line(surf, (88, 112, 138, 255), (8, height - 14), (width - 9, height - 14), 1)
+    for bx in (9, width - 10):
+        surf.set_at((bx, height - 11), (132, 158, 184, 255))
+
+    # Chamfered brushed-titanium server chassis
+    chassis_pts = [
+        (8, height - 14),
+        (8, 9),
+        (12, 4),
+        (width - 13, 4),
+        (width - 9, 9),
+        (width - 9, height - 14),
+    ]
+    pygame.draw.polygon(surf, (76, 92, 112, 255), chassis_pts)
+
+    # Shaded east metallic bevel & crisp left titanium highlight
+    east_panel = [
+        (cx + 4, 5),
+        (width - 13, 5),
+        (width - 9, 9),
+        (width - 9, height - 14),
+        (cx + 4, height - 14),
+    ]
+    pygame.draw.polygon(surf, (54, 68, 86, 255), east_panel)
+    pygame.draw.polygon(surf, (20, 28, 40, 255), chassis_pts, 1)
+    pygame.draw.lines(
+        surf,
+        (148, 174, 198, 255),
+        False,
+        [(9, height - 15), (9, 9), (12, 5), (width - 14, 5)],
+        1,
+    )
+
+    # Subtle horizontal brushed-titanium grain across chassis
+    for gy in range(7, height - 15, 2):
+        delta = gen.randint(-7, 7)
+        for gx in range(10, width - 10):
+            col = surf.get_at((gx, gy))
+            if col.a > 200:
+                surf.set_at(
+                    (gx, gy),
+                    (
+                        max(0, min(255, col.r + delta)),
+                        max(0, min(255, col.g + delta)),
+                        max(0, min(255, col.b + delta)),
+                        255,
+                    ),
+                )
+
+    # Recessed central core bay
+    bay_rect = pygame.Rect(12, 10, width - 24, height - 27)
+    pygame.draw.rect(surf, (24, 34, 48, 255), bay_rect, border_radius=2)
+    pygame.draw.rect(surf, (44, 58, 76, 255), bay_rect, 1, border_radius=2)
+
+    # Dark heatsink louver slats inside upper & lower bay
+    for ly in (14, 18, 22, 34, 38, 42):
+        pygame.draw.line(surf, (12, 18, 28, 255), (14, ly), (width - 15, ly), 2)
+        pygame.draw.line(surf, (62, 78, 98, 255), (14, ly + 1), (width - 15, ly + 1), 1)
+
+    # Central glowing cyan data-core slit
+    pygame.draw.rect(surf, (18, 66, 88, 255), (14, 26, width - 28, 5), border_radius=1)
+    pygame.draw.line(surf, (78, 228, 248, 255), (15, 28), (width - 16, 28), 1)
+    pygame.draw.line(surf, (192, 248, 255, 255), (18, 28), (width - 19, 28), 1)
+
+    # Vertical cyan & magenta status telemetry LED rails
+    cyan_glow = (48, 212, 238, 235)
+    cyan_core = (188, 250, 255, 255)
+    mag_glow = (212, 76, 168, 235)
+    mag_core = (248, 176, 224, 255)
+    for idx, py_led in enumerate((12, 17, 22, 32, 37, 42)):
+        # Left rail: cool cyan telemetry pips
+        pygame.draw.rect(surf, cyan_glow, (10, py_led, 2, 2))
+        if idx % 2 == 0:
+            surf.set_at((10, py_led), cyan_core)
+        # Right rail: magenta status pips (alternating active/dim)
+        if idx in (0, 2, 3, 5):
+            pygame.draw.rect(surf, mag_glow, (width - 12, py_led, 2, 2))
+            if idx in (0, 3):
+                surf.set_at((width - 12, py_led), mag_core)
+        else:
+            pygame.draw.rect(surf, (66, 40, 66, 255), (width - 12, py_led, 2, 2))
+
+    # Top antenna / status crown pip
+    pygame.draw.rect(surf, (46, 60, 78, 255), (cx - 4, 2, 8, 3))
+    pygame.draw.line(surf, (82, 224, 246, 255), (cx - 2, 3), (cx + 1, 3), 1)
+    return surf
+
+
+def generate_tech_canister(
+    width: int = TILE_WIDTH, height: int = TILE_HEIGHT, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate a 40x40 pressurized metallic coolant/ink canister with steel endcaps, hazard trim, and cyan gauge."""
+    gen = rng if rng is not None else random.Random(2042)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    # Ground contact shadow
+    pygame.draw.ellipse(surf, (8, 14, 24, 118), (6, height - 9, width - 12, 7))
+
+    # Cylindrical brushed-steel canister body
+    body_rect = pygame.Rect(9, 8, width - 18, height - 15)
+    pygame.draw.rect(surf, (78, 94, 114, 255), body_rect, border_radius=3)
+    # Cylindrical lighting: brighter left highlight, shaded right flank
+    pygame.draw.rect(surf, (112, 132, 154, 255), (11, 9, 5, height - 17))
+    pygame.draw.rect(surf, (52, 66, 84, 255), (cx + 3, 9, width - 13 - cx, height - 17))
+    pygame.draw.rect(surf, (20, 28, 40, 255), body_rect, 1, border_radius=3)
+
+    # Subtle metallic surface grain
+    for _ in range(18):
+        gx = gen.randint(10, width - 11)
+        gy = gen.randint(11, height - 11)
+        col = surf.get_at((gx, gy))
+        if col.a > 200:
+            delta = gen.randint(-8, 8)
+            surf.set_at(
+                (gx, gy),
+                (
+                    max(0, min(255, col.r + delta)),
+                    max(0, min(255, col.g + delta)),
+                    max(0, min(255, col.b + delta)),
+                    255,
+                ),
+            )
+
+    # Flanged steel top & bottom endcaps + pressure valve nozzle
+    top_cap = pygame.Rect(7, 6, width - 14, 5)
+    bot_cap = pygame.Rect(7, height - 11, width - 14, 5)
+    for cap_rect in (top_cap, bot_cap):
+        pygame.draw.rect(surf, (56, 70, 88, 255), cap_rect, border_radius=2)
+        pygame.draw.line(
+            surf,
+            (136, 158, 182, 255),
+            (cap_rect.left + 2, cap_rect.top + 1),
+            (cap_rect.right - 3, cap_rect.top + 1),
+            1,
+        )
+        pygame.draw.rect(surf, (18, 26, 38, 255), cap_rect, 1, border_radius=2)
+        surf.set_at((cap_rect.left + 2, cap_rect.top + 2), (168, 190, 212, 255))
+        surf.set_at((cap_rect.right - 3, cap_rect.top + 2), (168, 190, 212, 255))
+
+    # Top valve cap
+    pygame.draw.rect(surf, (44, 58, 74, 255), (cx - 4, 3, 8, 4), border_radius=1)
+    pygame.draw.line(surf, (132, 156, 180, 255), (cx - 3, 4), (cx + 2, 4), 1)
+    pygame.draw.rect(surf, (18, 26, 38, 255), (cx - 4, 3, 8, 4), 1, border_radius=1)
+
+    # Restrained industrial hazard trim strip above bottom flange
+    haz_y = height - 14
+    pygame.draw.rect(surf, (36, 40, 48, 255), (10, haz_y, width - 20, 3))
+    for hx in range(11, width - 12, 5):
+        pygame.draw.line(surf, (206, 162, 56, 255), (hx, haz_y + 2), (hx + 2, haz_y), 2)
+
+    # Glowing cyan pressurized level gauge in center
+    gauge_outer = pygame.Rect(cx - 4, 12, 8, 13)
+    pygame.draw.rect(surf, (16, 24, 36, 255), gauge_outer, border_radius=2)
+    pygame.draw.rect(surf, (44, 62, 82, 255), gauge_outer, 1, border_radius=2)
+    # Coolant fluid column (~75% full)
+    pygame.draw.rect(surf, (26, 178, 212, 255), (cx - 2, 15, 4, 9))
+    pygame.draw.rect(surf, (88, 236, 252, 255), (cx - 1, 15, 2, 9))
+    pygame.draw.line(surf, (206, 252, 255, 255), (cx - 2, 15), (cx + 1, 15), 1)
+    # Subtle glass graduation ticks
+    for ty in (16, 19, 22):
+        surf.set_at((cx + 2, ty), (132, 162, 184, 255))
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -4136,6 +4323,14 @@ def generate_all_assets(
         (
             "highland_monolith",
             generate_highland_monolith(TILE_WIDTH, 60, rng=_rng("highland_monolith")),
+        ),
+        (
+            "tech_server_pylon",
+            generate_tech_server_pylon(TILE_WIDTH, 60, rng=_rng("tech_server_pylon")),
+        ),
+        (
+            "tech_canister",
+            generate_tech_canister(TILE_WIDTH, TILE_HEIGHT, rng=_rng("tech_canister")),
         ),
     )
     for sp_key, sp_surf in sanctuary_prop_specs:
