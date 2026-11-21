@@ -2877,6 +2877,157 @@ def generate_base_enemy_sprite(
     return surf
 
 
+def generate_weapon_pickup_sprite(
+    variant: str,
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a distinct 40x40 pixel-art weapon pickup sprite for standard or anomalous drops."""
+    _ = rng
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    outline = (16, 12, 20, 255)
+
+    # Subtle ground drop shadow beneath every floor weapon
+    pygame.draw.ellipse(surf, (10, 8, 14, 115), (7, height - 10, width - 14, 7))
+
+    if variant == "weapon_quill_standard":
+        # Classic diagonal ivory calligraphy quill with ink-dipped nib & brass ferrule
+        plume = [(16, 22), (18, 11), (26, 5), (34, 5), (33, 13), (26, 20), (19, 24)]
+        pygame.draw.polygon(surf, outline, [(x, y) for x, y in plume])
+        pygame.draw.polygon(surf, (222, 212, 188, 255), [(17, 21), (19, 12), (26, 6), (33, 6), (32, 13), (25, 19)])
+        pygame.draw.polygon(surf, (246, 240, 224, 255), [(20, 16), (26, 8), (31, 7), (28, 13)])
+        # Feather notches
+        pygame.draw.line(surf, (132, 118, 96, 255), (22, 11), (25, 14), 1)
+        pygame.draw.line(surf, (132, 118, 96, 255), (27, 8), (29, 11), 1)
+        # Central rachis shaft
+        pygame.draw.line(surf, (112, 92, 68, 255), (14, 26), (31, 8), 2)
+        # Brass ferrule
+        pygame.draw.polygon(surf, (198, 154, 62, 255), [(12, 24), (16, 21), (19, 24), (15, 28)])
+        # Dark ink-dipped steel nib pointing SW
+        nib = [(6, 33), (12, 24), (16, 28)]
+        pygame.draw.polygon(surf, outline, [(5, 34), (12, 23), (17, 28)])
+        pygame.draw.polygon(surf, (66, 76, 94, 255), nib)
+        pygame.draw.circle(surf, (24, 18, 36, 255), (8, 31), 2)
+        return surf
+
+    if variant == "weapon_quill_refined":
+        # Elongated silver-and-gilt Archivist's fountain quill with twin vanes & cyan sheen
+        pygame.draw.circle(surf, (95, 220, 240, 52), (20, 20), 15)
+        plume_outer = [(15, 20), (16, 9), (25, 3), (35, 3), (35, 12), (27, 21), (19, 25)]
+        pygame.draw.polygon(surf, outline, plume_outer)
+        pygame.draw.polygon(surf, (192, 218, 232, 255), [(16, 19), (18, 10), (26, 4), (34, 4), (34, 12), (26, 20)])
+        pygame.draw.polygon(surf, (238, 248, 255, 255), [(19, 16), (25, 6), (32, 5), (29, 12)])
+        # Gilded filigree guard collar
+        pygame.draw.line(surf, (240, 196, 78, 255), (10, 20), (20, 30), 3)
+        pygame.draw.circle(surf, (255, 232, 130, 255), (15, 25), 3)
+        # Elongated gleaming silver nib-blade
+        pygame.draw.polygon(surf, outline, [(4, 35), (11, 22), (18, 29)])
+        pygame.draw.polygon(surf, (160, 228, 248, 255), [(6, 33), (12, 24), (16, 28)])
+        pygame.draw.line(surf, (245, 252, 255, 255), (7, 32), (14, 25), 1)
+        # Twin golden accent spine
+        pygame.draw.line(surf, (218, 174, 62, 255), (16, 24), (32, 7), 2)
+        return surf
+
+    if variant == "weapon_scriber_blade":
+        # Compact steel Scriber's Letter-Blade / dagger with leather grip & brass crossguard
+        blade_outer = [(16, 18), (33, 4), (35, 6), (22, 24)]
+        pygame.draw.polygon(surf, outline, [(15, 18), (34, 3), (36, 6), (22, 25)])
+        pygame.draw.polygon(surf, (176, 190, 206, 255), blade_outer)
+        pygame.draw.polygon(surf, (234, 242, 250, 255), [(18, 18), (33, 5), (31, 9), (20, 20)])
+        pygame.draw.line(surf, (112, 124, 140, 255), (19, 20), (31, 8), 1)
+        # Brass crossguard
+        pygame.draw.line(surf, outline, (11, 16), (24, 29), 5)
+        pygame.draw.line(surf, (212, 168, 66, 255), (12, 17), (23, 28), 3)
+        # Leather-wrapped grip & pommel
+        pygame.draw.line(surf, outline, (7, 33), (17, 23), 6)
+        pygame.draw.line(surf, (116, 68, 42, 255), (8, 32), (16, 24), 4)
+        pygame.draw.circle(surf, (218, 176, 74, 255), (7, 33), 3)
+        return surf
+
+    # Anomalous Weapons (4 passive-keyed + 1 arcane fallback)
+    anomalous_palettes = {
+        "weapon_anomalous_bleed": ((235, 55, 75), (165, 24, 48), (255, 140, 150)),
+        "weapon_anomalous_regen": ((80, 235, 150), (32, 134, 82), (188, 255, 214)),
+        "weapon_anomalous_negation": ((255, 195, 60), (166, 112, 24), (255, 238, 160)),
+        "weapon_anomalous_stout": ((185, 95, 255), (104, 44, 166), (232, 186, 255)),
+        "weapon_anomalous_default": ((175, 75, 250), (96, 38, 156), (226, 178, 255)),
+    }
+    aura_rgb, deep_rgb, hi_rgb = anomalous_palettes.get(
+        variant, anomalous_palettes["weapon_anomalous_default"]
+    )
+    # Soft arcane halo behind anomalous weapon
+    pygame.draw.circle(surf, (*aura_rgb, 68), (20, 19), 16)
+    pygame.draw.circle(surf, (*hi_rgb, 48), (20, 19), 11)
+
+    if variant == "weapon_anomalous_bleed":
+        # Jagged crimson Ink-Bleed quill-scythe with dripping ruby ink droplets
+        vane = [(14, 20), (16, 8), (24, 4), (35, 4), (31, 11), (34, 15), (25, 21), (18, 25)]
+        pygame.draw.polygon(surf, outline, vane)
+        pygame.draw.polygon(surf, (*deep_rgb, 255), [(15, 19), (17, 9), (25, 5), (34, 5), (30, 12), (24, 20)])
+        pygame.draw.polygon(surf, (*aura_rgb, 255), [(18, 16), (24, 7), (32, 6), (27, 13)])
+        pygame.draw.line(surf, (*hi_rgb, 255), (15, 24), (31, 8), 2)
+        # Hooked crimson blade-nib
+        pygame.draw.polygon(surf, outline, [(5, 34), (11, 22), (18, 28), (10, 32)])
+        pygame.draw.polygon(surf, (*aura_rgb, 255), [(7, 32), (12, 24), (16, 27)])
+        # Dripping crimson ink droplets
+        pygame.draw.circle(surf, (*aura_rgb, 255), (9, 36), 2)
+        pygame.draw.circle(surf, (*hi_rgb, 255), (14, 34), 1)
+    elif variant == "weapon_anomalous_regen":
+        # Verdant Life-Thread botanical stylus entwined with luminous emerald stitch-thread
+        leaf = [(15, 21), (15, 10), (24, 4), (34, 5), (32, 15), (24, 22), (18, 24)]
+        pygame.draw.polygon(surf, outline, leaf)
+        pygame.draw.polygon(surf, (*deep_rgb, 255), [(16, 20), (17, 11), (24, 5), (33, 6), (31, 14), (24, 21)])
+        pygame.draw.polygon(surf, (*aura_rgb, 255), [(19, 17), (24, 7), (31, 7), (28, 14)])
+        # Glowing emerald spine & wrapped thread rings
+        pygame.draw.line(surf, (*hi_rgb, 255), (9, 31), (31, 8), 2)
+        pygame.draw.arc(surf, (*hi_rgb, 255), (11, 13, 14, 14), 0.3, 3.2, 2)
+        pygame.draw.polygon(surf, outline, [(5, 34), (11, 24), (16, 29)])
+        pygame.draw.polygon(surf, (*aura_rgb, 255), [(7, 32), (11, 25), (15, 28)])
+        pygame.draw.circle(surf, (*hi_rgb, 255), (27, 11), 2)
+    elif variant == "weapon_anomalous_negation":
+        # Heavy forged golden Iron-Nib broad-blade with wide buckler crossguard
+        blade = [(17, 16), (31, 4), (35, 8), (24, 23)]
+        pygame.draw.polygon(surf, outline, [(15, 16), (31, 3), (36, 8), (24, 25)])
+        pygame.draw.polygon(surf, (*deep_rgb, 255), blade)
+        pygame.draw.polygon(surf, (*aura_rgb, 255), [(18, 16), (31, 5), (33, 8), (22, 20)])
+        pygame.draw.line(surf, (*hi_rgb, 255), (19, 18), (32, 7), 2)
+        # Wide gilded buckler crossguard
+        pygame.draw.line(surf, outline, (9, 15), (25, 31), 6)
+        pygame.draw.line(surf, (*aura_rgb, 255), (10, 16), (24, 30), 4)
+        pygame.draw.circle(surf, (*hi_rgb, 255), (17, 23), 3)
+        # Heavy pommel handle
+        pygame.draw.line(surf, outline, (7, 33), (16, 24), 6)
+        pygame.draw.line(surf, (*deep_rgb, 255), (8, 32), (15, 25), 3)
+        pygame.draw.circle(surf, (*hi_rgb, 255), (7, 33), 3)
+    elif variant == "weapon_anomalous_stout":
+        # Twin-pronged amethyst Stout-Draft manuscript spear-nib with crystal core
+        pygame.draw.line(surf, outline, (7, 33), (27, 13), 6)
+        pygame.draw.line(surf, (*deep_rgb, 255), (8, 32), (26, 14), 4)
+        # Twin spear prongs pointing NE
+        pygame.draw.polygon(surf, outline, [(20, 14), (27, 3), (30, 8), (24, 16)])
+        pygame.draw.polygon(surf, outline, [(24, 16), (32, 10), (36, 13), (26, 20)])
+        pygame.draw.polygon(surf, (*aura_rgb, 255), [(21, 14), (27, 5), (29, 8), (24, 15)])
+        pygame.draw.polygon(surf, (*aura_rgb, 255), [(25, 16), (32, 11), (35, 13), (26, 19)])
+        # Crystalline void core at collar
+        pygame.draw.polygon(surf, (*hi_rgb, 255), [(20, 16), (24, 12), (28, 16), (24, 20)])
+        pygame.draw.circle(surf, (*aura_rgb, 255), (8, 32), 3)
+    else:
+        # Arcane violet star-crested fallback quill
+        plume = [(15, 21), (17, 10), (26, 4), (35, 4), (33, 14), (25, 21), (18, 24)]
+        pygame.draw.polygon(surf, outline, plume)
+        pygame.draw.polygon(surf, (*deep_rgb, 255), [(16, 20), (18, 11), (26, 5), (34, 5), (32, 14), (25, 20)])
+        pygame.draw.polygon(surf, (*aura_rgb, 255), [(19, 17), (25, 7), (32, 6), (29, 13)])
+        pygame.draw.line(surf, (*hi_rgb, 255), (14, 25), (31, 8), 2)
+        pygame.draw.polygon(surf, outline, [(5, 34), (11, 23), (17, 28)])
+        pygame.draw.polygon(surf, (*hi_rgb, 255), [(7, 32), (12, 24), (15, 28)])
+        # Star crest sparkle
+        pygame.draw.line(surf, (*hi_rgb, 255), (26, 7), (26, 13), 1)
+        pygame.draw.line(surf, (*hi_rgb, 255), (23, 10), (29, 10), 1)
+
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -3146,6 +3297,22 @@ def generate_all_assets(
     for key, out_path, kind, w, h in base_enemy_specs:
         surf = generate_base_enemy_sprite(kind, w, h, rng=_rng(key))
         _emit(key, out_path, surf)
+
+    # Pipeline 14: Assorted Procedural Weapon Pickup Sprites (Standard & Anomalous)
+    weapon_pickup_specs = (
+        "weapon_quill_standard",
+        "weapon_quill_refined",
+        "weapon_scriber_blade",
+        "weapon_anomalous_bleed",
+        "weapon_anomalous_regen",
+        "weapon_anomalous_negation",
+        "weapon_anomalous_stout",
+        "weapon_anomalous_default",
+    )
+    for w_key in weapon_pickup_specs:
+        out_path = os.path.join("assets", "graphics", f"{w_key}.png")
+        surf = generate_weapon_pickup_sprite(w_key, TILE_WIDTH, TILE_HEIGHT, rng=_rng(w_key))
+        _emit(w_key, out_path, surf)
 
     if stats_out is not None:
         stats_out["updated"] = updated_count

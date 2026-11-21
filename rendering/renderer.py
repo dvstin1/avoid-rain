@@ -621,6 +621,30 @@ class Renderer:
                     self.image_cache[sp_file] = scaled_sp
                 except Exception as e:
                     print(f"[RENDER] Error loading {sp_file}: {e}")
+
+        # 7b. Assorted Weapon Pickup Sprites (Standard & Anomalous)
+        weapon_pickup_defs = (
+            ("weapon_quill_standard.png", "WeaponQuillStandard"),
+            ("weapon_quill_refined.png", "WeaponQuillRefined"),
+            ("weapon_scriber_blade.png", "WeaponScriberBlade"),
+            ("weapon_anomalous_bleed.png", "WeaponAnomalousBleed"),
+            ("weapon_anomalous_regen.png", "WeaponAnomalousRegen"),
+            ("weapon_anomalous_negation.png", "WeaponAnomalousNegation"),
+            ("weapon_anomalous_stout.png", "WeaponAnomalousStout"),
+            ("weapon_anomalous_default.png", "WeaponAnomalousDefault"),
+        )
+        for wp_file, wp_key in weapon_pickup_defs:
+            wp_path = os.path.join(base_path, wp_file)
+            if os.path.exists(wp_path):
+                try:
+                    wp_img = pygame.image.load(wp_path)
+                    if display_init:
+                        wp_img = wp_img.convert_alpha()
+                    scaled_wp = pygame.transform.scale(wp_img, (ts, ts))
+                    self.prop_cache[wp_key] = scaled_wp
+                    self.image_cache[wp_file] = scaled_wp
+                except Exception as e:
+                    print(f"[RENDER] Error loading {wp_file}: {e}")
         self._fx_surface_cache = {}
 
         if "SwampFungus" not in self.prop_cache:
@@ -2197,10 +2221,31 @@ class Renderer:
                     )
                 pygame.draw.circle(self.screen, (175, 48, 56), (fx + fw - 14, fy + fh - 12), 2)
             elif hasattr(obj, 'weapon_data'):
-                col = constants.COLOR_PURPLE if "modifiers" in obj.weapon_data else constants.COLOR_WHITE
-                pygame.draw.rect(self.screen, col, (sx_o, sy_o, obj.width, obj.height))
-                pygame.draw.rect(self.screen, constants.COLOR_BLACK, (sx_o, sy_o, obj.width, obj.height), 1)
-                pygame.draw.rect(self.screen, col, (sx_o - 2, sy_o - 2, obj.width + 4, obj.height + 4), 1)
+                wp_key = self._select_weapon_pickup_sprite_key(obj.weapon_data)
+                wp_surf = prop_cache.get(wp_key)
+                glow_col = constants.get_weapon_passive_color(obj.weapon_data)
+                wx, wy, ww, wh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
+                wcx, wcy = wx + ww // 2, wy + wh // 2
+                pulse = (math.sin(now * 3.5 + obj.x * 0.05) + 1.0) * 0.5
+                bob_y = int(round((pulse - 0.5) * 4.0))
+                is_anomalous = bool(obj.weapon_data.get("modifiers")) or "anomalous" in str(
+                    obj.weapon_data.get("name", "")
+                ).lower()
+                ring_r = int(14 + pulse * 3) if is_anomalous else int(12 + pulse * 2)
+                pygame.draw.circle(self.screen, glow_col, (wcx, wcy), ring_r, 1)
+                if wp_surf is not None:
+                    self.screen.blit(wp_surf, (wx, wy + bob_y))
+                else:
+                    # Clean procedural diagonal quill/blade fallback
+                    pygame.draw.line(
+                        self.screen, (220, 215, 200), (wx + 8, wy + wh - 8 + bob_y),
+                        (wx + ww - 8, wy + 8 + bob_y), 3,
+                    )
+                    pygame.draw.line(
+                        self.screen, glow_col, (wx + 12, wy + wh - 12 + bob_y),
+                        (wx + ww - 6, wy + 6 + bob_y), 2,
+                    )
+                    pygame.draw.circle(self.screen, (212, 168, 66), (wx + 11, wy + wh - 11 + bob_y), 3)
         for item in getattr(state, 'loot', []):
             if -64 <= item.x - ox <= sw + 64 and -64 <= item.y - oy <= sh + 64:
                 self.draw_loot(item, ox, oy)
@@ -3774,6 +3819,38 @@ class Renderer:
             
         self.screen.blit(tip_surf, (x, y - h))
         return h
+
+    @staticmethod
+    def _select_weapon_pickup_sprite_key(weapon_data):
+        """Deterministically pick a prop_cache weapon sprite key from weapon modifiers and name."""
+        data = weapon_data if isinstance(weapon_data, dict) else {}
+        mods = data.get("modifiers") or {}
+        name = str(data.get("name", "")).lower()
+
+        if mods or "anomalous" in name:
+            if "bleed" in mods or "ink_bleed" in mods or "bleed" in name:
+                return "WeaponAnomalousBleed"
+            if "slow_hp_regen" in mods or "vampirism" in mods or "regen" in mods or "life" in name:
+                return "WeaponAnomalousRegen"
+            if (
+                "damage_negation_on_hit" in mods
+                or "parry_window" in mods
+                or "negation" in mods
+                or "iron" in name
+            ):
+                return "WeaponAnomalousNegation"
+            if "max_hp_boost" in mods or "void_strike" in mods or "stout" in mods or "void" in name:
+                return "WeaponAnomalousStout"
+            return "WeaponAnomalousDefault"
+
+        if "refined" in name:
+            return "WeaponQuillRefined"
+        if any(tok in name for tok in ("blade", "dagger", "knife", "sword", "scriber")):
+            return "WeaponScriberBlade"
+        if "standard" in name:
+            return "WeaponQuillStandard"
+        standard_keys = ("WeaponQuillStandard", "WeaponQuillRefined", "WeaponScriberBlade")
+        return standard_keys[sum(ord(ch) for ch in name) % len(standard_keys)]
 
     def draw_loot(self, item, offset_x, offset_y):
         """Draw loot items."""

@@ -1662,6 +1662,196 @@ def generate_biome_segment_pools(
     return manifest
 
 
+def generate_colophon_sanctum(
+    width: int = DEFAULT_MAP_WIDTH,
+    height: int = DEFAULT_MAP_HEIGHT,
+    seed: Optional[int] = 404,
+) -> GeneratedMap:
+    """Generates the enclosed, atmospheric Scriptorium starting sanctum (maps/the_colophon.json)."""
+    rng = random.Random(seed)
+    grid = [[SYMBOL_WALL for _ in range(width)] for _ in range(height)]
+    mid_x = width // 2
+    mid_y = height // 2
+
+    # 1. Carve chamfered central Scriptorium arrival hall (leaving solid outer wall frame)
+    hall_margin = 5
+    chamfer = 4
+    hx0, hy0 = hall_margin, hall_margin
+    hx1, hy1 = width - hall_margin, height - hall_margin
+    for y in range(hy0, hy1):
+        for x in range(hx0, hx1):
+            is_corner = (
+                (x - hx0 + y - hy0 < chamfer)
+                or (hx1 - 1 - x + y - hy0 < chamfer)
+                or (x - hx0 + hy1 - 1 - y < chamfer)
+                or (hx1 - 1 - x + hy1 - 1 - y < chamfer)
+            )
+            if not is_corner:
+                grid[y][x] = SYMBOL_FLOOR
+
+    # 2. Carve wide cardinal egress halls connecting the sanctum to all 4 stitched edges
+    corridor_half = CONNECTOR_HALF_WIDTH
+    for y in range(1, height - 1):
+        for x in range(max(1, mid_x - corridor_half), min(width - 1, mid_x + corridor_half)):
+            grid[y][x] = SYMBOL_FLOOR
+    for x in range(1, width - 1):
+        for y in range(max(1, mid_y - corridor_half), min(height - 1, mid_y + corridor_half)):
+            grid[y][x] = SYMBOL_FLOOR
+
+    # 3. Symmetrical interior architectural pillars framing the arrival plaza
+    for py in (hy0 + 5, hy1 - 6):
+        for px in (hx0 + 5, hx1 - 6):
+            if grid[py][px] == SYMBOL_FLOOR:
+                grid[py][px] = SYMBOL_WALL
+
+    # 4. Central arrival plaza (guaranteed clear around spawn 'P' at mid_x, mid_y)
+    safe_plaza: Set[Tuple[int, int]] = {
+        (x, y)
+        for y in range(mid_y - 3, mid_y + 4)
+        for x in range(mid_x - 3, mid_x + 4)
+    }
+
+    # Flanking candelabras lighting the arrival dais and cardinal approaches
+    candelabra_spots = [
+        (mid_x - 4, mid_y - 4),
+        (mid_x + 4, mid_y - 4),
+        (mid_x - 4, mid_y + 4),
+        (mid_x + 4, mid_y + 4),
+    ]
+    for lx, ly in candelabra_spots:
+        if 1 <= lx < width - 1 and 1 <= ly < height - 1 and grid[ly][lx] == SYMBOL_FLOOR:
+            grid[ly][lx] = SYMBOL_CANDELABRA
+
+    # Decorative corner ink urns framing the sanctum hall
+    urn_spots = [
+        (hx0 + 3, hy0 + 3),
+        (hx1 - 4, hy0 + 3),
+        (hx0 + 3, hy1 - 4),
+        (hx1 - 4, hy1 - 4),
+    ]
+    for ux, uy in urn_spots:
+        if 1 <= ux < width - 1 and 1 <= uy < height - 1 and grid[uy][ux] == SYMBOL_FLOOR:
+            grid[uy][ux] = SYMBOL_INK_URN
+
+    # 5. Smart Scriptorium wall-perimeter dressing (bookcases, benches, barrels, clutter)
+    dist_map = _compute_wall_distances(grid)
+    occupied_solid, _ = _get_solid_prop_footprint(grid)
+    bookcase_reserved: Set[Tuple[int, int]] = set()
+    corridor_band_x = range(mid_x - corridor_half - 1, mid_x + corridor_half + 1)
+    corridor_band_y = range(mid_y - corridor_half - 1, mid_y + corridor_half + 1)
+
+    for y in range(hy0, hy1):
+        for x in range(hx0, hx1):
+            if (
+                grid[y][x] != SYMBOL_FLOOR
+                or (x, y) in safe_plaza
+                or (x, y) in bookcase_reserved
+                or x in corridor_band_x
+                or y in corridor_band_y
+            ):
+                continue
+            if dist_map[y][x] != 1:
+                continue
+            n_wall = grid[y - 1][x] == SYMBOL_WALL
+            s_wall = grid[y + 1][x] == SYMBOL_WALL
+            if (n_wall or s_wall) and rng.random() < 0.22:
+                can_bookcase = (
+                    x + 1 < hx1
+                    and grid[y][x + 1] == SYMBOL_FLOOR
+                    and (x + 1, y) not in safe_plaza
+                    and (x + 1, y) not in bookcase_reserved
+                    and (x + 1) not in corridor_band_x
+                    and _can_place_architectural_prop(grid, [(x, y), (x + 1, y)], occupied_solid)
+                )
+                if can_bookcase and rng.random() < 0.55:
+                    grid[y][x] = SYMBOL_BOOKCASE
+                    bookcase_reserved.add((x + 1, y))
+                    occupied_solid.add((x, y))
+                    occupied_solid.add((x + 1, y))
+                elif _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
+                    grid[y][x] = SYMBOL_BENCH
+                    occupied_solid.add((x, y))
+            elif rng.random() < 0.14 and _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
+                grid[y][x] = SYMBOL_BARREL
+                occupied_solid.add((x, y))
+            elif rng.random() < 0.12:
+                grid[y][x] = SYMBOL_CLUTTER
+
+    # Guarantee at least one of each signature Scriptorium prop if RNG skipped any
+    placed_syms = {cell for row in grid for cell in row}
+    for req_sym in (SYMBOL_BOOKCASE, SYMBOL_BENCH, SYMBOL_BARREL, SYMBOL_CLUTTER):
+        if req_sym in placed_syms:
+            continue
+        for y in range(hy0, hy1):
+            placed_one = False
+            for x in range(hx0, hx1):
+                if (
+                    grid[y][x] != SYMBOL_FLOOR
+                    or (x, y) in safe_plaza
+                    or (x, y) in bookcase_reserved
+                    or x in corridor_band_x
+                    or y in corridor_band_y
+                    or dist_map[y][x] != 1
+                ):
+                    continue
+                if req_sym == SYMBOL_BOOKCASE:
+                    if (
+                        x + 1 < hx1
+                        and grid[y][x + 1] == SYMBOL_FLOOR
+                        and (x + 1, y) not in safe_plaza
+                        and (x + 1, y) not in bookcase_reserved
+                        and _can_place_architectural_prop(grid, [(x, y), (x + 1, y)], occupied_solid)
+                    ):
+                        grid[y][x] = SYMBOL_BOOKCASE
+                        bookcase_reserved.add((x + 1, y))
+                        occupied_solid.add((x, y))
+                        occupied_solid.add((x + 1, y))
+                        placed_one = True
+                        break
+                elif req_sym == SYMBOL_CLUTTER:
+                    grid[y][x] = SYMBOL_CLUTTER
+                    placed_one = True
+                    break
+                elif _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
+                    grid[y][x] = req_sym
+                    occupied_solid.add((x, y))
+                    placed_one = True
+                    break
+            if placed_one:
+                break
+
+    # 6. Place Player Start 'P' at sanctum center, carve cardinal connectors, and validate prop connectivity
+    grid[mid_y][mid_x] = SYMBOL_PLAYER
+    connectors = carve_segment_connectors(grid)
+    doorway_edges = [(mid_x, 0), (mid_x, height - 1), (0, mid_y), (width - 1, mid_y)]
+    validate_and_carve_connectivity(grid, rng, mandatory_coords=connectors + [(mid_x, mid_y)])
+    validate_prop_walkable_connectivity(grid, mandatory_coords=connectors + doorway_edges + [(mid_x, mid_y)])
+
+    # 7. Compute 2.5D elevation & verticality layers with flat doorway thresholds
+    elevation_grid, stairs = build_elevation_grid(
+        grid, terrace_rect=(mid_x - 5, mid_y - 5, 10, 10)
+    )
+    for cx, cy in connectors + doorway_edges:
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                nx, ny = cx + dx, cy + dy
+                if 0 <= nx < width and 0 <= ny < height:
+                    elevation_grid[ny][nx] = ELEVATION_LOWER
+    verticality_layers = apply_verticality_post_pass(grid, elevation_grid, stairs)
+
+    return GeneratedMap(
+        map_id="the_colophon",
+        biome="the_colophon",
+        width=width,
+        height=height,
+        grid=grid,
+        entities={},
+        seed=seed,
+        elevation_grid=elevation_grid,
+        verticality_layers=verticality_layers,
+    )
+
+
 def generate_final_boss_arena(
     width: int = 72,
     height: int = 72,
@@ -1838,6 +2028,11 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Regenerate the expanded Final Boss Arena (maps/night_boss_arena.json).",
     )
+    parser.add_argument(
+        "--generate-colophon",
+        action="store_true",
+        help="Regenerate the enclosed Scriptorium starting sanctum (maps/the_colophon.json).",
+    )
     return parser.parse_args()
 
 
@@ -1879,6 +2074,17 @@ def main() -> None:
         print(f"  [+] Expanded Final Boss Arena -> {arena_path} ({arena_map.width}x{arena_map.height})")
         if args.preview:
             p_path = render_map_preview(arena_map, os.path.join(PREVIEWS_DIR, "night_boss_arena_preview.png"))
+            print(f"      Preview Saved -> {p_path}")
+        return
+
+    if args.generate_colophon:
+        colophon_seed = args.seed if args.seed is not None else 404
+        colophon_map = generate_colophon_sanctum(seed=colophon_seed)
+        colophon_path = args.output or os.path.join(MAPS_DIR, "the_colophon.json")
+        colophon_map.save(colophon_path, file_format="json")
+        print(f"  [+] Scriptorium Starting Sanctum -> {colophon_path} ({colophon_map.width}x{colophon_map.height})")
+        if args.preview:
+            p_path = render_map_preview(colophon_map, os.path.join(PREVIEWS_DIR, "the_colophon_preview.png"))
             print(f"      Preview Saved -> {p_path}")
         return
 

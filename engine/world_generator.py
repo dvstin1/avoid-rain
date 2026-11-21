@@ -245,7 +245,7 @@ class WorldGenerator:
                 s["active_plug"] = "maps/smallcave.json"
 
     def to_dict(self):
-        """Builds the serializable macro-world JSON dictionary."""
+        """Builds the serializable macro-world JSON dictionary with sealed 1-tile outer perimeter."""
         module_sockets = [
             {
                 "name": s["id"],
@@ -254,7 +254,9 @@ class WorldGenerator:
             }
             for s in self.sockets
         ]
-        base_grid = [" " * self.total_size for _ in range(self.total_size)]
+        border_row = "#" * self.total_size
+        inner_row = "#" + (" " * (self.total_size - 2)) + "#"
+        base_grid = [border_row] + [inner_row for _ in range(self.total_size - 2)] + [border_row]
         return {
             "map_id": self.world_id,
             "biome": self.biome,
@@ -264,6 +266,7 @@ class WorldGenerator:
             "grid": base_grid,
             "entities": {},
             "module_sockets": module_sockets,
+            "seal_outer_perimeter": True,
             "spawn_coords": {"x": self.spawn_x, "y": self.spawn_y},
             "boss_coords_list": self.boss_coords_list,
         }

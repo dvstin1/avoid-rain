@@ -679,6 +679,19 @@ class LevelLoader:
             except Exception as e:
                 print(f"[ERROR] Modular stitch failed for {active_plug}: {e}")
 
+        # 1b. Seal 1-tile outer perimeter border of stitched macro-worlds so no edge exposes raw void
+        if (module_sockets or data.get("seal_outer_perimeter")) and grid and grid[0]:
+            gh = len(grid)
+            gw = len(grid[0])
+            for x_b in range(gw):
+                grid[0][x_b] = "#"
+                grid[gh - 1][x_b] = "#"
+            for y_b in range(gh):
+                grid[y_b][0] = "#"
+                grid[y_b][gw - 1] = "#"
+                if gw >= 2 and grid[y_b][gw - 2] == "h":
+                    grid[y_b][gw - 2] = "."
+
         # 2. Conversion Pass: Symbols -> Entity Objects
         entity_data = {}
         for key, val in raw_entities.items():
