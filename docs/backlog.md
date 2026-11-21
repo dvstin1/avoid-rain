@@ -185,13 +185,15 @@ Registered `vitreous_basin` and `sunlit_aqueducts` in `CHRONICLE_BIOME_ROSTER`, 
   - Heavy Bookcases (`SYMBOL_BOOKCASE` / `'h'`, `80x40`) and Benches (`SYMBOL_BENCH` / `'S'`) placed by `generate_architectural_biome()` in Tech Tower hallways can block navigable paths and narrow corridors.
   - Add hallway/corridor clearance guards during architectural prop dressing to preserve guaranteed walkable throughput, re-verify BFS flood-fill connectivity across all `maps/segments/tech_tower/` rooms and corridors, and regenerate segment pools (`--generate-pools`).
 
-## 14. Combat & Progression Balance
-- **Attack-Up Scaling Too Strong (`constants.py`, `engine/binder_scripts.py`, `engine/world.py`, `engine/game_state.py`):**
-  - Rebalance flat attack-up bonuses across Respite Edification (`attack_modifier` in `Respite.execute_finalize_upgrades()` / `GameState._handle_upgrade()`), Choice of Fates attack boons (`GameState.trigger_choice_of_fates()`), and Binder Scripts (`"serif_minor"` and `"serif_major"` in `constants.py` / `engine/binder_scripts.py`) so early damage stacking does not trivialize encounters.
-- **Enemy & Boss HP Pools Too Low (`constants.py`, `engine/enemy.py`):**
-  - Increase base HP across standard enemy castes and bosses (`Miniboss`, `NightBoss`, and `FinalAuthor` / *The Final Author*) to sustain longer, more deliberate combat engagements.
-- **Uneven Boss Distribution Across Biomes (`generate_maps.py`, `maps/segments/`):**
-  - Some biomes currently spawn multiple mid-run bosses/minibosses (letting players over-farm Torn Pages, Margin Scraps, and upgrades) while other biomes spawn none. Normalize mid-run boss encounter budgets and spawn quotas across all 7 biome segment pools (`BIOME_SEGMENT_POOLS`).
+## 14. Combat & Progression Balance [DONE]
+- **Attack-Up Scaling Rebalanced (`[DONE]` — `constants.py`, `engine/world.py`, `engine/game_state.py`, `engine/player.py`, `ui/menu.py`, `rendering/renderer.py`):**
+  - Added `PROWESS_ATTACK_STEP` (`3`) and `FORTIFICATION_HP_STEP` (`10`) in `constants.py` and replaced hardcoded `* 5` / `// 5` Prowess math across Respite finalization (`Respite.execute_finalize_upgrades()`), staging/upgrades (`GameState.get_staged_respite_info()`, `GameState._handle_upgrade()`), passive Edification (`Player.take_damage()`), Respite menu labels (`ui/menu.py`), and Expanded Inspect HUD (`rendering/renderer.py`).
+  - Rebalanced Choice of Fates (`GameState.trigger_choice_of_fates()`) via `CHOICE_OF_FATES_ATTACK_BASE` (`3`), `CHOICE_OF_FATES_HP_BASE` (`5`), and `CHOICE_OF_FATES_MINOR_RATIO` (`0.25`), and toned down Binder Scripts `"serif_minor"` (`+2 Attack`) and `"serif_major"` (`+5 Attack`).
+- **Enemy & Boss HP Pools Increased (`[DONE]` — `constants.py`, `engine/enemy.py`):**
+  - Raised base HP constants across all standard castes (`SLUG_MAX_HP = 65`, `BAT_MAX_HP = 35`, `FLUTTER_MAX_HP = 15`, `BINDLING_MAX_HP = 80`, `SMEAR_MAX_HP = 95`, `SENTRY_MAX_HP = 70`, `WOLF_MAX_HP = 60`) and `MINIBOSS_MAX_HP = 450`.
+  - Added explicit `NIGHT_BOSS_MAX_HP = 950` and `FINAL_AUTHOR_MAX_HP = 1600` constants in `constants.py` wired directly into `NightBoss` and `FinalAuthor`.
+- **Normalized Boss Distribution Across All 7 Biomes (`[DONE]` — `constants.py`, `generate_maps.py`, `engine/world_generator.py`, `maps/segments/`):**
+  - Standardized `generate_organic_biome()`, `generate_architectural_biome()`, and `generate_biome_segment()` using `SEGMENT_MINIBOSS_MIN_DIM = 100` so all 7 biome pools share identical `[1, 0, 1, 0]` room miniboss quotas and `[0, 0, 0, 0]` corridor quotas, regenerated all 56 segments via `--generate-pools`, and updated `WorldGenerator.generate_layout()` to deal rooms to an exact `ACT_MINIBOSS_BUDGET = 4` minibosses per Act across all 7 biomes.
 
 ## 15. Respite Interaction & World Lifecycle Locks [DONE]
 - **Block Interaction When Hostiles Are Nearby (`[DONE]` — `constants.py`, `engine/world.py`):**

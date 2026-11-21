@@ -81,11 +81,12 @@ def test_respite_multi_upgrade_staging_and_finalize():
     state._handle_dialogue_ui(actions={}, attack_pressed=True, audio_manager=None)
 
     # 8. Verify upgrades are applied
-    # Prowess was staged 2 times (2 * +5 = +10 Attack)
-    assert state.player.stats.get("attack_modifier", 0) == 10
-    # Fortification was staged 1 time (1 * +10 = +10 Max HP)
-    assert state.player.stats.get("max_hp_modifier", 0) == 10
-    # Edification recalculated: (10 // 5) + (10 // 10) + 1 = 2 + 1 + 1 = 4
+    # Prowess was staged 2 times (2 * PROWESS_ATTACK_STEP = +6 Attack)
+    from constants import PROWESS_ATTACK_STEP, FORTIFICATION_HP_STEP
+    assert state.player.stats.get("attack_modifier", 0) == 2 * PROWESS_ATTACK_STEP
+    # Fortification was staged 1 time (1 * FORTIFICATION_HP_STEP = +10 Max HP)
+    assert state.player.stats.get("max_hp_modifier", 0) == FORTIFICATION_HP_STEP
+    # Edification recalculated: (6 // 3) + (10 // 10) + 1 = 2 + 1 + 1 = 4
     assert state.player.stats.get("edification", 1) == 4
 
     # Pages deducted correctly

@@ -12,7 +12,7 @@ def test_renderer_shows_inspect_upgrades(monkeypatch):
 
     # Customize player upgrades and modifiers
     state.player.stats = {
-        "attack_modifier": 15,  # level 4
+        "attack_modifier": 9,  # level 4 (steps of PROWESS_ATTACK_STEP = 3)
         "max_hp_modifier": 20,  # level 3
         "edification": 6
     }
@@ -77,6 +77,6 @@ def test_renderer_shows_inspect_upgrades(monkeypatch):
     # Assert that our upgrades are displayed in the inspect HUD panel
     assert 'CHARACTER' in recorded
     assert 'Understanding: Lvl 6' in recorded
-    assert 'Prowess: Lvl 4 (+15 Atk)' in recorded
+    assert 'Prowess: Lvl 4 (+9 Atk)' in recorded
     assert 'Fortification: Lvl 3 (+20 HP)' in recorded
     assert 'Slow regen: +2.0/s' in recorded

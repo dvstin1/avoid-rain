@@ -385,10 +385,11 @@ class Player:
             amount *= (1.0 - min(BINDER_MAX_DAMAGE_MITIGATION, max(0.0, script_mit)))
 
         # 2. Apply passive Edification parsing (Global Level)
+        from constants import PROWESS_ATTACK_STEP, FORTIFICATION_HP_STEP
         prowess = self.stats.get("attack_modifier", 0)
         fort = self.stats.get("max_hp_modifier", 0)
-        prowess_lvl = 1 + (prowess // 5)
-        fort_lvl = 1 + (fort // 10)
+        prowess_lvl = 1 + (prowess // PROWESS_ATTACK_STEP)
+        fort_lvl = 1 + (fort // FORTIFICATION_HP_STEP)
         edif = prowess_lvl + fort_lvl - 1
         
         hp_ratio = self.hp / self.max_hp if self.max_hp > 0 else 0

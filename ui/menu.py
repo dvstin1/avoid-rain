@@ -26,8 +26,8 @@ def draw_respite_menu(screen, font, state):
     # Calculate virtual levels
     prowess = player.stats.get("attack_modifier", 0)
     fort = player.stats.get("max_hp_modifier", 0)
-    prowess_lvl = 1 + (prowess // 5)
-    fort_lvl = 1 + (fort // 10)
+    prowess_lvl = 1 + (prowess // constants.PROWESS_ATTACK_STEP)
+    fort_lvl = 1 + (fort // constants.FORTIFICATION_HP_STEP)
 
     virtual_prowess_lvl = prowess_lvl + info["staged_prowess"]
     virtual_fort_lvl = fort_lvl + info["staged_fort"]
@@ -92,7 +92,7 @@ def draw_respite_menu(screen, font, state):
     if player.has_rested_this_session:
         draw_option(
             1,
-            "Level Up Prowess (+5 Attack)",
+            f"Level Up Prowess (+{constants.PROWESS_ATTACK_STEP} Attack)",
             info["staged_prowess"],
             virtual_prowess_lvl,
             info["next_prowess_cost"],
@@ -100,7 +100,7 @@ def draw_respite_menu(screen, font, state):
         )
         draw_option(
             2,
-            "Level Up Fortification (+10 Max HP)",
+            f"Level Up Fortification (+{constants.FORTIFICATION_HP_STEP} Max HP)",
             info["staged_fort"],
             virtual_fort_lvl,
             info["next_fort_cost"],

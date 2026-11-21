@@ -26,6 +26,8 @@ from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
 import pygame
 
+from constants import SEGMENT_MINIBOSS_MIN_DIM
+
 # ==============================================================================
 # CONFIGURABLE CONSTANTS & SCHEMA REGISTRY
 # ==============================================================================
@@ -639,6 +641,11 @@ def generate_organic_biome(
             grid[ly][lx] = SYMBOL_LORE
             entities[f"{lx},{ly}"] = {"fragment_id": f"{active_biome}_chronicle", "name": "Weathered Parchment"}
 
+        # Normalized mid-run miniboss anchor on large room-scale organic maps
+        if width >= SEGMENT_MINIBOSS_MIN_DIM and height >= SEGMENT_MINIBOSS_MIN_DIM and open_floors:
+            mx, my = open_floors.pop()
+            grid[my][mx] = SYMBOL_MINIBOSS_M1
+
         # Scatter themed organic enemies (balanced density for UDP sync & pacing)
         if is_vitreous:
             enemy_types = [
@@ -868,8 +875,8 @@ def generate_architectural_biome(
         fx, fy = open_floors.pop()
         grid[fy][fx] = SYMBOL_WELLSPRING if rng.random() < 0.5 else SYMBOL_LORE
 
-    # Tactical enemies: Sentries at corridors, Bindlings & Bats in wings, Miniboss in sanctum
-    if open_floors:
+    # Tactical enemies: Sentries at corridors, Bindlings & Bats in wings, Miniboss in large sanctums only
+    if width >= SEGMENT_MINIBOSS_MIN_DIM and height >= SEGMENT_MINIBOSS_MIN_DIM and open_floors:
         # Miniboss M1 near sanctum perimeter
         mx, my = open_floors.pop()
         grid[my][mx] = SYMBOL_MINIBOSS_M1
@@ -1295,6 +1302,31 @@ def generate_biome_segment(
         for x in range(width):
             if grid[y][x] in (SYMBOL_PLAYER, SYMBOL_WARP):
                 grid[y][x] = SYMBOL_FLOOR
+
+    # Normalize mid-run miniboss quotas across all 7 biome pools:
+    # - Corridors (< SEGMENT_MINIBOSS_MIN_DIM) always carry 0 minibosses.
+    # - Large rooms (>= SEGMENT_MINIBOSS_MIN_DIM) carry 1 miniboss on odd variants and 0 on even variants.
+    is_room_segment = width >= SEGMENT_MINIBOSS_MIN_DIM and height >= SEGMENT_MINIBOSS_MIN_DIM
+    target_minibosses = 1 if (is_room_segment and variant_index % 2 == 1) else 0
+    existing_minibosses = [
+        (x, y)
+        for y in range(height)
+        for x in range(width)
+        if grid[y][x] == SYMBOL_MINIBOSS_M1
+    ]
+    while len(existing_minibosses) > target_minibosses:
+        mx, my = existing_minibosses.pop()
+        grid[my][mx] = SYMBOL_FLOOR
+    if len(existing_minibosses) < target_minibosses:
+        candidate_floors = [
+            (x, y)
+            for y in range(4, height - 4)
+            for x in range(4, width - 4)
+            if grid[y][x] == SYMBOL_FLOOR
+        ]
+        if candidate_floors:
+            mx, my = rng.choice(candidate_floors)
+            grid[my][mx] = SYMBOL_MINIBOSS_M1
 
     connectors = carve_segment_connectors(grid)
     validate_and_carve_connectivity(grid, rng, mandatory_coords=connectors)

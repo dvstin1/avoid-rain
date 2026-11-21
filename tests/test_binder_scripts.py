@@ -158,7 +158,7 @@ def test_player_stat_wiring_and_lan_coop_sync(tmp_path):
     # At 100% HP (>95%), Pristine Concentration reduces by 0.5% (edif=1), plus 20% script mitigation
     assert 59.0 <= state.player.hp <= 61.0
 
-    # 3. Attack (+9) & Bleed (+6.5 DPS) apply on melee hit
+    # 3. Attack (+5) & Bleed (+6.5 DPS) apply on melee hit
     dummy = SlugEnemy(state.player.x + 24, state.player.y)
     dummy.hp = 200.0
     state.enemies = [dummy]
@@ -166,7 +166,8 @@ def test_player_stat_wiring_and_lan_coop_sync(tmp_path):
     state.player.facing = (1, 0)
     state.player.hit_entities_this_attack.clear()
     state.update_combat(0.016, False, {"move": (0, 0)}, None)
-    assert dummy.hp == 200.0 - (constants.SWORD_DAMAGE + 9)
+    expected_atk_bonus = constants.BINDER_SCRIPTS_BY_ID["serif_major"]["value"]
+    assert dummy.hp == 200.0 - (constants.SWORD_DAMAGE + expected_atk_bonus)
     assert dummy.bleed_timer == 5.0
     assert dummy.bleed_damage == 6.5
 

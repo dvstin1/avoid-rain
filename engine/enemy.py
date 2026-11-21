@@ -757,8 +757,8 @@ class PunctuationWolfEnemy(Enemy):
 class NightBoss(Miniboss):
     """Dual-encounter boss."""
     def __init__(self, x, y, hp=None, id=None):
-        from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
-        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP * 2
+        from constants import NIGHT_BOSS_MAX_HP, MINIBOSS_SPEED
+        initial_hp = hp if hp is not None else NIGHT_BOSS_MAX_HP
         super().__init__(x, y, initial_hp, id=id)
         self.name = "Night Boss"
         self.speed = MINIBOSS_SPEED * 0.9
@@ -767,9 +767,8 @@ class NightBoss(Miniboss):
 class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
-        from constants import MINIBOSS_MAX_HP, MINIBOSS_SPEED
-        # Triple the new Miniboss max HP (300 * 3 = 900)
-        initial_hp = hp if hp is not None else MINIBOSS_MAX_HP * 3
+        from constants import FINAL_AUTHOR_MAX_HP, MINIBOSS_SPEED
+        initial_hp = hp if hp is not None else FINAL_AUTHOR_MAX_HP
         super().__init__(x, y, 80, 80, initial_hp, id=id, name="The Final Author")
         self.speed = MINIBOSS_SPEED * 0.8
         self.detect_radius = 2000.0

@@ -13,6 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from constants import (
     get_generated_world_path,
+    ACT_MINIBOSS_BUDGET,
     BIOME_ACT_SEGMENT_POOLS,
     BIOME_FALLBACK_MAP,
     BIOME_SEGMENT_POOLS,
@@ -148,7 +149,9 @@ class WorldGenerator:
                         "active_plug": None
                     })
 
-        # 2. Hard Size Filter Pass (Purge legacy or mismatch files)
+        # 2. Hard Size Filter Pass (Purge legacy or mismatch files) & Miniboss Audit
+        segment_miniboss_counts = {}
+
         def validate_pool(file_list, expected_w, expected_h):
             valid = []
             for path in file_list:
@@ -159,6 +162,9 @@ class WorldGenerator:
                     dw, dh = data["dimensions"]["width"], data["dimensions"]["height"]
                     if dw == expected_w and dh == expected_h:
                         valid.append(path)
+                        segment_miniboss_counts[path] = sum(
+                            row.count("E") for row in data.get("grid", [])
+                        )
                     else:
                         print(f"[FILTER] Ignoring {path}: expected {expected_w}x{expected_h}, got {dw}x{dh}")
                 except Exception: continue
@@ -188,30 +194,55 @@ class WorldGenerator:
 
         
         # 5. The Pool Backfill Pass (Single cohesive biome deck across all sockets)
-        room_deck = []
-        corridor_deck = []
+        room_sockets = [s for s in self.sockets if s["active_plug"] is None and "120x120" in s["tags"]]
+        corridor_sockets = [s for s in self.sockets if s["active_plug"] is None and "120x120" not in s["tags"]]
         fallback_room = f"maps/{self.biome}.json"
-        for s in self.sockets:
-            if s["active_plug"] is None:
-                is_large = "120x120" in s["tags"]
-                if is_large:
-                    if not room_deck and filtered_120:
-                        room_deck = list(filtered_120)
-                        random.shuffle(room_deck)
-                    if room_deck:
-                        s["active_plug"] = room_deck.pop()
-                    elif os.path.exists(fallback_room):
-                        s["active_plug"] = fallback_room
-                    else:
-                        s["active_plug"] = "maps/smallcave.json"
+
+        boss_rooms = [p for p in filtered_120 if segment_miniboss_counts.get(p, 0) > 0]
+        standard_rooms = [p for p in filtered_120 if segment_miniboss_counts.get(p, 0) == 0]
+
+        def _deal_from_deck(pool, count):
+            picks = []
+            deck = []
+            for _ in range(count):
+                if not deck:
+                    deck = list(pool)
+                    random.shuffle(deck)
+                picks.append(deck.pop())
+            return picks
+
+        if boss_rooms and standard_rooms:
+            target_boss_rooms = min(len(room_sockets), ACT_MINIBOSS_BUDGET)
+            target_std_rooms = len(room_sockets) - target_boss_rooms
+            room_assignments = (
+                _deal_from_deck(boss_rooms, target_boss_rooms)
+                + _deal_from_deck(standard_rooms, target_std_rooms)
+            )
+            random.shuffle(room_assignments)
+            for s, plug in zip(room_sockets, room_assignments):
+                s["active_plug"] = plug
+        else:
+            room_deck = []
+            for s in room_sockets:
+                if not room_deck and filtered_120:
+                    room_deck = list(filtered_120)
+                    random.shuffle(room_deck)
+                if room_deck:
+                    s["active_plug"] = room_deck.pop()
+                elif os.path.exists(fallback_room):
+                    s["active_plug"] = fallback_room
                 else:
-                    if not corridor_deck and filtered_40:
-                        corridor_deck = list(filtered_40)
-                        random.shuffle(corridor_deck)
-                    if corridor_deck:
-                        s["active_plug"] = corridor_deck.pop()
-                    else:
-                        s["active_plug"] = "maps/smallcave.json"
+                    s["active_plug"] = "maps/smallcave.json"
+
+        corridor_deck = []
+        for s in corridor_sockets:
+            if not corridor_deck and filtered_40:
+                corridor_deck = list(filtered_40)
+                random.shuffle(corridor_deck)
+            if corridor_deck:
+                s["active_plug"] = corridor_deck.pop()
+            else:
+                s["active_plug"] = "maps/smallcave.json"
 
     def to_dict(self):
         """Builds the serializable macro-world JSON dictionary."""

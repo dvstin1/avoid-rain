@@ -557,16 +557,17 @@ class Respite(GameObject):
             game_state.stats.data["lifetime_stats"]["pages_collected"] -= total_cost
 
         # Apply prowess
+        from constants import PROWESS_ATTACK_STEP, FORTIFICATION_HP_STEP
         staged_prowess = info["staged_prowess"]
         if staged_prowess > 0:
             current_prowess = game_state.player.stats.get("attack_modifier", 0)
-            game_state.player.stats["attack_modifier"] = current_prowess + (staged_prowess * 5)
+            game_state.player.stats["attack_modifier"] = current_prowess + (staged_prowess * PROWESS_ATTACK_STEP)
 
         # Apply fort
         staged_fort = info["staged_fort"]
         if staged_fort > 0:
             current_fort = game_state.player.stats.get("max_hp_modifier", 0)
-            game_state.player.stats["max_hp_modifier"] = current_fort + (staged_fort * 10)
+            game_state.player.stats["max_hp_modifier"] = current_fort + (staged_fort * FORTIFICATION_HP_STEP)
 
         # Heal player to new max HP
         game_state.player.hp = game_state.player.max_hp
@@ -574,7 +575,7 @@ class Respite(GameObject):
         # Recalculate edification level
         prowess = game_state.player.stats.get("attack_modifier", 0)
         fort = game_state.player.stats.get("max_hp_modifier", 0)
-        game_state.player.stats["edification"] = (prowess // 5) + (fort // 10) + 1
+        game_state.player.stats["edification"] = (prowess // PROWESS_ATTACK_STEP) + (fort // FORTIFICATION_HP_STEP) + 1
 
         # Sync to persistent stats
         if game_state.stats:

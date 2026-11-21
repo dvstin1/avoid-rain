@@ -6,7 +6,7 @@ from constants import SCREEN_WIDTH, SCREEN_HEIGHT
 
 
 def test_renderer_shows_saved_indicator(monkeypatch):
-    state = GameState()
+    state = GameState(auto_load=False)
     state.last_save_elapsed = 0.5
 
     class DummyScreen:

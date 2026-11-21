@@ -3649,14 +3649,14 @@ class Renderer:
         
         # Prowess Level / modifier
         prowess_mod = player.stats.get("attack_modifier", 0)
-        prowess_lvl = 1 + (prowess_mod // 5)
+        prowess_lvl = 1 + (prowess_mod // constants.PROWESS_ATTACK_STEP)
         lines.append(self.small_font.render(
             f"Prowess: Lvl {prowess_lvl} (+{prowess_mod} Atk)", True, constants.COLOR_WHITE
         ))
-        
+
         # Fortification Level / modifier
         fort_mod = player.stats.get("max_hp_modifier", 0)
-        fort_lvl = 1 + (fort_mod // 10)
+        fort_lvl = 1 + (fort_mod // constants.FORTIFICATION_HP_STEP)
         lines.append(self.small_font.render(
             f"Fortification: Lvl {fort_lvl} (+{fort_mod} HP)", True, constants.COLOR_WHITE
         ))

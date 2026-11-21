@@ -172,7 +172,7 @@ def get_weapon_passive_color(weapon):
 
 
 # Low-tier Slug enemy configuration
-SLUG_MAX_HP = 40
+SLUG_MAX_HP = 65
 SLUG_SPEED = 80.0  # pixels per second (slow approach)
 SLUG_DETECT_METERS = 5  # detection radius in 'meters' (meters * TILE_SIZE)
 SLUG_DAMAGE = 10  # damage dealt on contact
@@ -181,21 +181,21 @@ STAGGER_THRESHOLD = 20 # Damage needed to stagger
 RECOVERY_TIME = 0.3 # Time spent in stagger/recovery
 
 # Fast-pursuit Bat enemy configuration
-BAT_MAX_HP = 20
+BAT_MAX_HP = 35
 BAT_SPEED = 150.0  # pixels per second (fast pursuit)
 BAT_DETECT_METERS = 7  # detection radius
 BAT_DAMAGE = 5  # damage dealt on contact
 BAT_DAMAGE_COOLDOWN = 0.5  # seconds between contact damage attempts
 
 # Skittish Flutter enemy configuration
-FLUTTER_MAX_HP = 5
+FLUTTER_MAX_HP = 15
 FLUTTER_SPEED = 200.0  # pixels per second (fast flee)
 FLUTTER_DETECT_METERS = 6  # detection radius for fleeing
 FLUTTER_DAMAGE = 2  # very low contact damage
 FLUTTER_DAMAGE_COOLDOWN = 1.0
 
 # Harasser Bindling enemy configuration
-BINDLING_MAX_HP = 50
+BINDLING_MAX_HP = 80
 BINDLING_SPEED = 120.0  # Moderate speed
 BINDLING_DETECT_METERS = 8
 BINDLING_DAMAGE = 8
@@ -205,7 +205,7 @@ BINDLING_HEAL_RADIUS = 2.0 # Tiles away from wall to trigger healing
 BINDLING_BIND_DURATION = 1.0 # Duration of movement penalty applied to player
 
 # Amorphous Smear enemy configuration
-SMEAR_MAX_HP = 60
+SMEAR_MAX_HP = 95
 SMEAR_SPEED = 60.0 # Slow, viscous movement
 SMEAR_DETECT_METERS = 6
 SMEAR_DAMAGE = 10
@@ -213,7 +213,7 @@ SMEAR_DAMAGE_COOLDOWN = 1.2
 SMEAR_PUDDLE_CHANCE = 0.5 # Chance per second to drop a puddle
 
 # Techno-Sentry Anchor/Artillery enemy configuration
-SENTRY_MAX_HP = 45
+SENTRY_MAX_HP = 70
 SENTRY_SPEED = 70.0
 SENTRY_DETECT_METERS = 9
 SENTRY_DAMAGE = 12
@@ -222,7 +222,7 @@ SENTRY_BEAM_RANGE = 160.0
 SENTRY_BEAM_WIDTH = 24.0
 
 # Punctuation Wolf pack-predator configuration
-WOLF_MAX_HP = 36
+WOLF_MAX_HP = 60
 WOLF_SPEED = 115.0
 WOLF_POUNCE_SPEED = 360.0
 WOLF_DETECT_METERS = 10
@@ -234,6 +234,11 @@ WOLF_DAMAGE_COOLDOWN = 1.15
 EDIFICATION_BASE_COST = 10
 EDIFICATION_COST_SCALE = 5
 EDIFICATION_MAX_LEVEL = 50
+PROWESS_ATTACK_STEP = 3
+FORTIFICATION_HP_STEP = 10
+CHOICE_OF_FATES_ATTACK_BASE = 3
+CHOICE_OF_FATES_HP_BASE = 5
+CHOICE_OF_FATES_MINOR_RATIO = 0.25
 RESPITE_HOSTILE_BLOCK_RADIUS = 320.0
 
 # Grid & World Configuration
@@ -249,11 +254,15 @@ GRID_HEIGHT = MACRO_MAP_SIZE
 # Higher values = snappier (1.0 means it will take ~1s to reach target)
 CAMERA_LERP_SPEED = 8.0
 
-# Miniboss configuration
-MINIBOSS_MAX_HP = 300
+# Miniboss & Boss configuration
+MINIBOSS_MAX_HP = 450
 MINIBOSS_SPEED = 100.0
 MINIBOSS_DAMAGE = 20
 MINIBOSS_DAMAGE_COOLDOWN = 1.5
+NIGHT_BOSS_MAX_HP = 950
+FINAL_AUTHOR_MAX_HP = 1600
+ACT_MINIBOSS_BUDGET = 4
+SEGMENT_MINIBOSS_MIN_DIM = 100
 
 # Autosave configuration
 # Interval (seconds) between automatic saves
@@ -918,18 +927,18 @@ BINDER_SCRIPT_CATALOG = (
         "id": "serif_minor",
         "name": "Serifed Edge Script",
         "stat": "attack",
-        "value": 4.0,
+        "value": 2.0,
         "cost": 2,
-        "summary": "+4 Attack",
+        "summary": "+2 Attack",
         "desc": "Sharpens terminal strokes so every quill slash bites deeper.",
     },
     {
         "id": "serif_major",
         "name": "Rubricated Nib Script",
         "stat": "attack",
-        "value": 9.0,
+        "value": 5.0,
         "cost": 4,
-        "summary": "+9 Attack",
+        "summary": "+5 Attack",
         "desc": "Crimson rubrication compiler that overpowers lesser attack scripts.",
     },
     {

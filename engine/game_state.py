@@ -2812,17 +2812,34 @@ class GameState:
         except Exception: pass
 
     def trigger_choice_of_fates(self):
+        from constants import (
+            CHOICE_OF_FATES_ATTACK_BASE,
+            CHOICE_OF_FATES_HP_BASE,
+            CHOICE_OF_FATES_MINOR_RATIO,
+        )
         level_scale = 1
         if self.stats:
             try: level_scale = 1 + (self.stats.data["lifetime_stats"].get("pages_collected", 0) // 100)
             except Exception: pass
-        base_x = 5 * level_scale
-        minor_y = int(base_x * 0.25)
+        atk_major = CHOICE_OF_FATES_ATTACK_BASE * level_scale
+        hp_major = CHOICE_OF_FATES_HP_BASE * level_scale
+        hp_minor = max(1, int(hp_major * CHOICE_OF_FATES_MINOR_RATIO))
+        atk_minor = max(1, int(atk_major * CHOICE_OF_FATES_MINOR_RATIO))
         self.active_choice = {
             "title": "The Choice of Fates",
             "options": [
-                {"name": "The Quill", "bias": "Offense", "modifiers": {"attack_modifier": base_x, "max_hp_modifier": minor_y}, "description": f"+{base_x} Attack, +{minor_y} Max HP"},
-                {"name": "The Binding", "bias": "Defense", "modifiers": {"max_hp_modifier": base_x, "attack_modifier": minor_y}, "description": f"+{base_x} Max HP, +{minor_y} Attack"}
+                {
+                    "name": "The Quill",
+                    "bias": "Offense",
+                    "modifiers": {"attack_modifier": atk_major, "max_hp_modifier": hp_minor},
+                    "description": f"+{atk_major} Attack, +{hp_minor} Max HP",
+                },
+                {
+                    "name": "The Binding",
+                    "bias": "Defense",
+                    "modifiers": {"max_hp_modifier": hp_major, "attack_modifier": atk_minor},
+                    "description": f"+{hp_major} Max HP, +{atk_minor} Attack",
+                },
             ],
             "selected_index": 0
         }
@@ -2872,36 +2889,41 @@ class GameState:
 
     def get_staged_respite_info(self):
         """Calculate levels, staged counts, next costs, and total costs for respite upgrades."""
-        from constants import EDIFICATION_BASE_COST, EDIFICATION_COST_SCALE
-        
-        # 1. Prowess (Attack modifier, steps of 5)
+        from constants import (
+            EDIFICATION_BASE_COST,
+            EDIFICATION_COST_SCALE,
+            PROWESS_ATTACK_STEP,
+            FORTIFICATION_HP_STEP,
+        )
+
+        # 1. Prowess (Attack modifier, steps of PROWESS_ATTACK_STEP)
         prowess = self.player.stats.get("attack_modifier", 0)
-        prowess_lvl = 1 + (prowess // 5)
+        prowess_lvl = 1 + (prowess // PROWESS_ATTACK_STEP)
         staged_prowess = self.respite_upgrades.get(1, 0)
-        
+
         prowess_staged_cost = 0
         for i in range(staged_prowess):
             lvl = prowess_lvl + i
             prowess_staged_cost += EDIFICATION_BASE_COST + ((lvl - 1) * EDIFICATION_COST_SCALE)
-            
+
         next_prowess_lvl = prowess_lvl + staged_prowess
         next_prowess_cost = EDIFICATION_BASE_COST + ((next_prowess_lvl - 1) * EDIFICATION_COST_SCALE)
-        
-        # 2. Fortification (HP modifier, steps of 10)
+
+        # 2. Fortification (HP modifier, steps of FORTIFICATION_HP_STEP)
         fort = self.player.stats.get("max_hp_modifier", 0)
-        fort_lvl = 1 + (fort // 10)
+        fort_lvl = 1 + (fort // FORTIFICATION_HP_STEP)
         staged_fort = self.respite_upgrades.get(2, 0)
-        
+
         fort_staged_cost = 0
         for i in range(staged_fort):
             lvl = fort_lvl + i
             fort_staged_cost += EDIFICATION_BASE_COST + ((lvl - 1) * EDIFICATION_COST_SCALE)
-            
+
         next_fort_lvl = fort_lvl + staged_fort
         next_fort_cost = EDIFICATION_BASE_COST + ((next_fort_lvl - 1) * EDIFICATION_COST_SCALE)
-        
+
         total_staged_cost = prowess_staged_cost + fort_staged_cost
-        
+
         return {
             "prowess_lvl": prowess_lvl,
             "staged_prowess": staged_prowess,
@@ -2913,27 +2935,32 @@ class GameState:
         }
 
     def _handle_upgrade(self, stat_name, amount):
-        from constants import EDIFICATION_BASE_COST, EDIFICATION_COST_SCALE
+        from constants import (
+            EDIFICATION_BASE_COST,
+            EDIFICATION_COST_SCALE,
+            PROWESS_ATTACK_STEP,
+            FORTIFICATION_HP_STEP,
+        )
         current_val = self.player.stats.get(stat_name, 0)
-        
+
         # Calculate current 1-based level
         current_level = 1 + (current_val // amount) if amount > 0 else 1
-        
+
         # Correct Formula: Base + ((Level - 1) * Scale)
         cost = EDIFICATION_BASE_COST + ((current_level - 1) * EDIFICATION_COST_SCALE)
-        
+
         pages = self.stats.data["lifetime_stats"].get("pages_collected", 0)
         if pages >= cost:
             self.stats.data["lifetime_stats"]["pages_collected"] -= cost
             self.player.stats[stat_name] = current_val + amount
-            
+
             if stat_name == "max_hp_modifier":
                 self.player.hp = self.player.max_hp
-            
+
             # Recalculate Global Edification Level
             prowess = self.player.stats.get("attack_modifier", 0)
             fort = self.player.stats.get("max_hp_modifier", 0)
-            self.player.stats["edification"] = (prowess // 5) + (fort // 10) + 1
+            self.player.stats["edification"] = (prowess // PROWESS_ATTACK_STEP) + (fort // FORTIFICATION_HP_STEP) + 1
 
             # Sync to persistent stats for UI parity
             if self.stats:

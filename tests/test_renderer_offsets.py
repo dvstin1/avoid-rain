@@ -12,7 +12,7 @@ from constants import SCREEN_WIDTH, SCREEN_HEIGHT
 
 def test_renderer_uses_camera_offset(monkeypatch):
     # Prepare a game state with player far from origin
-    state = GameState()
+    state = GameState(auto_load=False)
     state.player.x = 1000
     state.player.y = 800
     # Center camera on player instantly to set internal offset
