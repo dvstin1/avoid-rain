@@ -3028,6 +3028,479 @@ def generate_weapon_pickup_sprite(
     return surf
 
 
+def _clamp_rgb_delta(base: Tuple[int, int, int], dr: int, dg: int, db: int, limit: int = 12) -> Tuple[int, int, int]:
+    """Offset a base RGB color while strictly bounding each channel delta to <= +-limit."""
+    return (
+        max(0, min(255, base[0] + max(-limit, min(limit, dr)))),
+        max(0, min(255, base[1] + max(-limit, min(limit, dg)))),
+        max(0, min(255, base[2] + max(-limit, min(limit, db)))),
+    )
+
+
+def generate_sanctuary_flagstone_tile(
+    variant_index: int = 0,
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a low-contrast weathered Sanctuary courtyard flagstone tile (delta <= +-12 RGB)."""
+    gen = rng if rng is not None else random.Random(4100 + variant_index * 37)
+    base = (66, 61, 55)
+    surf = pygame.Surface((width, height))
+    surf.fill(base)
+
+    # 1. Subtle low-contrast stone grain across the tile (+-6 RGB)
+    for y in range(height):
+        for x in range(width):
+            grain = gen.randint(-6, 6)
+            tint = gen.randint(-2, 2)
+            surf.set_at((x, y), _clamp_rgb_delta(base, grain + tint, grain, grain - tint, limit=12))
+
+    # 2. Soft staggered courtyard flagstone seams (within -10..+6 RGB, no harsh gridlines)
+    seam_col = _clamp_rgb_delta(base, -10, -10, -9, limit=12)
+    hi_col = _clamp_rgb_delta(base, 6, 6, 5, limit=12)
+    h_split = 18 + (variant_index % 2) * 4
+    v_top = 14 + (variant_index * 7) % 14
+    v_bot = (v_top + 18) % (width - 8) + 4
+
+    pygame.draw.line(surf, seam_col, (0, h_split), (width - 1, h_split), 1)
+    pygame.draw.line(surf, hi_col, (0, min(height - 1, h_split + 1)), (width - 1, min(height - 1, h_split + 1)), 1)
+    pygame.draw.line(surf, seam_col, (v_top, 0), (v_top, h_split), 1)
+    pygame.draw.line(surf, seam_col, (v_bot, h_split), (v_bot, height - 1), 1)
+
+    # 3. Delicate hairline stone cracks on odd variants
+    if variant_index in (1, 3):
+        crack_col = _clamp_rgb_delta(base, -11, -11, -10, limit=12)
+        cx = 8 + variant_index * 6
+        cy = 6 + (variant_index % 2) * 14
+        pts = [(cx, cy), (cx + 4, cy + 3), (cx + 6, cy + 8), (cx + 10, cy + 10)]
+        pygame.draw.lines(surf, crack_col, False, pts, 1)
+
+    # 4. Subtle muted moss speckles along joints on variants 2 and 3 (strictly <= +-12 RGB)
+    if variant_index in (2, 3):
+        moss_col = _clamp_rgb_delta(base, -10, 9, -8, limit=12)
+        for _ in range(10 + variant_index * 3):
+            mx = gen.randint(2, width - 3)
+            my = h_split + gen.randint(-2, 2) if gen.random() < 0.7 else gen.randint(2, height - 3)
+            my = max(0, min(height - 1, my))
+            surf.set_at((mx, my), moss_col)
+
+    return surf
+
+
+def generate_sanctuary_dirt_path_tile(
+    variant_index: int = 0,
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a low-contrast worn Sanctuary garden dirt path tile (delta <= +-12 RGB)."""
+    gen = rng if rng is not None else random.Random(4200 + variant_index * 41)
+    base = (82, 66, 50)
+    surf = pygame.Surface((width, height))
+    surf.fill(base)
+
+    # 1. Soft organic earth grit with faint horizontal foot-worn streaks
+    for y in range(height):
+        row_shift = -2 if (y + variant_index * 3) % 7 < 2 else 0
+        for x in range(width):
+            grain = gen.randint(-6, 6) + row_shift
+            surf.set_at((x, y), _clamp_rgb_delta(base, grain, grain - 1, grain - 2, limit=12))
+
+    # 2. Scattered low-contrast pebbles & worn depressions
+    pebble_hi = _clamp_rgb_delta(base, 10, 9, 8, limit=12)
+    pebble_lo = _clamp_rgb_delta(base, -10, -10, -9, limit=12)
+    for _ in range(7 + variant_index * 2):
+        px = gen.randint(2, width - 4)
+        py = gen.randint(2, height - 4)
+        surf.set_at((px, py), pebble_hi)
+        surf.set_at((px + 1, py + 1), pebble_lo)
+
+    # 3. Sparse mossy/grass edge flecks on variants 2 and 3
+    if variant_index in (2, 3):
+        fleck = _clamp_rgb_delta(base, -10, 10, -8, limit=12)
+        for _ in range(9):
+            fx = gen.randint(1, width - 2)
+            fy = gen.randint(1, height - 2)
+            surf.set_at((fx, fy), fleck)
+
+    return surf
+
+
+def generate_sanctuary_wood_floor_tile(
+    variant_index: int = 0,
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a low-contrast warm Scriptorium wooden floorboard tile (delta <= +-12 RGB)."""
+    gen = rng if rng is not None else random.Random(4300 + variant_index * 53)
+    base = (78, 57, 41)
+    surf = pygame.Surface((width, height))
+    surf.fill(base)
+
+    plank_h = 10
+    seam_col = _clamp_rgb_delta(base, -11, -10, -9, limit=12)
+    hi_col = _clamp_rgb_delta(base, 7, 6, 4, limit=12)
+    nail_col = _clamp_rgb_delta(base, -12, -12, -11, limit=12)
+
+    for plank_idx in range(height // plank_h):
+        y0 = plank_idx * plank_h
+        plank_shift = ((plank_idx + variant_index) % 3 - 1) * 3
+        for y in range(y0, min(height, y0 + plank_h)):
+            streak = ((y - y0) % 3 - 1) * 2
+            for x in range(width):
+                grain = plank_shift + streak + gen.randint(-3, 3)
+                surf.set_at((x, y), _clamp_rgb_delta(base, grain, grain, grain - 1, limit=12))
+        # Soft plank joint and top highlight
+        pygame.draw.line(surf, seam_col, (0, y0), (width - 1, y0), 1)
+        if y0 + 1 < height:
+            pygame.draw.line(surf, hi_col, (0, y0 + 1), (width - 1, y0 + 1), 1)
+        # Staggered vertical plank end-seam with subtle nail dots
+        joint_x = (8 + plank_idx * 13 + variant_index * 9) % (width - 6) + 3
+        pygame.draw.line(surf, seam_col, (joint_x, y0), (joint_x, min(height - 1, y0 + plank_h - 1)), 1)
+        if joint_x + 2 < width and y0 + 3 < height:
+            surf.set_at((joint_x + 2, y0 + 3), nail_col)
+        if joint_x + 2 < width and y0 + plank_h - 3 < height:
+            surf.set_at((joint_x + 2, y0 + plank_h - 3), nail_col)
+
+    return surf
+
+
+def generate_sanctuary_roof_tile(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 weathered dark slate roof shingle tile with moss patches."""
+    gen = rng if rng is not None else random.Random(4401)
+    base = (42, 46, 56)
+    surf = pygame.Surface((width, height))
+    surf.fill(base)
+
+    course_h = 10
+    for row_idx in range(height // course_h):
+        y0 = row_idx * course_h
+        offset_x = (row_idx % 2) * 10
+        for y in range(y0, min(height, y0 + course_h)):
+            shade = -6 if y >= y0 + course_h - 2 else (6 if y == y0 else 0)
+            for x in range(width):
+                n = gen.randint(-4, 4) + shade
+                surf.set_at((x, y), _clamp_rgb_delta(base, n, n + 1, n + 3, limit=18))
+        # Overlapping shingle course shadow & top highlight
+        bot_y = min(height - 1, y0 + course_h - 1)
+        pygame.draw.line(surf, (24, 27, 35), (0, bot_y), (width - 1, bot_y), 1)
+        pygame.draw.line(surf, (58, 64, 78), (0, y0), (width - 1, y0), 1)
+        # Shingle vertical dividers
+        for sx in range(offset_x, width, 20):
+            pygame.draw.line(surf, (28, 31, 40), (sx, y0), (sx, bot_y), 1)
+
+    # Moss patches clinging to weathered slate courses
+    for mx, my, mr in ((9, 10, 3), (28, 20, 4), (16, 30, 3), (33, 36, 2)):
+        pygame.draw.circle(surf, (48, 68, 44), (mx, my), mr)
+        pygame.draw.circle(surf, (66, 92, 56), (mx - 1, my - 1), max(1, mr - 1))
+
+    return surf
+
+
+def generate_sanctuary_chimney(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT * 2,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x80 SRCALPHA stone chimney stack with corbeled cap and faint hearth smoke."""
+    gen = rng if rng is not None else random.Random(4402)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    outline = (18, 16, 22, 255)
+
+    # Soft wispy smoke plumes curling above the flue
+    for sx, sy, sr, alpha in ((20, 12, 6, 62), (24, 7, 5, 48), (18, 4, 4, 34)):
+        pygame.draw.circle(surf, (175, 178, 188, alpha), (sx, sy), sr)
+
+    # Main masonry stack rising from lower roof anchor (y=24..76)
+    stack_rect = pygame.Rect(8, 24, width - 16, height - 28)
+    pygame.draw.rect(surf, outline, stack_rect.inflate(2, 2))
+    pygame.draw.rect(surf, (76, 72, 68, 255), stack_rect)
+
+    # Brick/stone courses and mortar joints
+    for cy in range(28, height - 4, 6):
+        pygame.draw.line(surf, (44, 41, 40, 255), (stack_rect.left, cy), (stack_rect.right - 1, cy), 1)
+        off = 4 if ((cy // 6) % 2 == 0) else 10
+        for cx in range(stack_rect.left + off, stack_rect.right - 2, 10):
+            pygame.draw.line(surf, (44, 41, 40, 255), (cx, cy - 6), (cx, cy), 1)
+    # Stone grit & left-side highlight
+    for _ in range(36):
+        gx = gen.randint(stack_rect.left + 1, stack_rect.right - 2)
+        gy = gen.randint(stack_rect.top + 1, stack_rect.bottom - 2)
+        delta = gen.randint(-12, 12)
+        grit_rgb = _clamp_rgb_delta((76, 72, 68), delta, delta, delta, limit=12)
+        surf.set_at((gx, gy), (*grit_rgb, 255))
+    pygame.draw.line(
+        surf,
+        (108, 102, 96, 255),
+        (stack_rect.left + 1, stack_rect.top),
+        (stack_rect.left + 1, stack_rect.bottom - 1),
+        2,
+    )
+
+    # Corbeled stone chimney cap & dark soot flue
+    cap_rect = pygame.Rect(5, 16, width - 10, 9)
+    pygame.draw.rect(surf, outline, cap_rect.inflate(2, 2))
+    pygame.draw.rect(surf, (94, 90, 86, 255), cap_rect)
+    pygame.draw.line(surf, (124, 120, 114, 255), (cap_rect.left, cap_rect.top), (cap_rect.right - 1, cap_rect.top), 2)
+    pygame.draw.rect(surf, (24, 22, 26, 255), (12, 17, width - 24, 4))
+
+    # Moss tuft near the roof flashing base
+    pygame.draw.ellipse(surf, (54, 78, 48, 255), (8, height - 10, 12, 5))
+    pygame.draw.ellipse(surf, (72, 100, 60, 255), (10, height - 9, 7, 3))
+    return surf
+
+
+def generate_sanctuary_tree_canopy(
+    width: int = TILE_WIDTH * 2,
+    height: int = 100,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate an 80x100 SRCALPHA multi-tile gnarled Sanctuary oak/willow anchored on a 40x40 base."""
+    gen = rng if rng is not None else random.Random(4403)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx = width // 2
+
+    # 1. Soft dappled ground shadow beneath base footprint (y=78..98)
+    pygame.draw.ellipse(surf, (12, 16, 12, 115), (14, height - 22, width - 28, 18))
+
+    # 2. Gnarled buttress roots & twisted oak trunk anchored in lower 40x40 (x=20..60, y=54..92)
+    trunk_pts = [
+        (cx - 14, height - 10),
+        (cx - 8, height - 24),
+        (cx - 7, height - 46),
+        (cx + 7, height - 46),
+        (cx + 8, height - 24),
+        (cx + 14, height - 10),
+        (cx + 5, height - 13),
+        (cx, height - 8),
+        (cx - 5, height - 13),
+    ]
+    pygame.draw.polygon(surf, (24, 18, 14, 255), trunk_pts)
+    inner_trunk = [
+        (cx - 10, height - 12),
+        (cx - 6, height - 24),
+        (cx - 5, height - 46),
+        (cx + 5, height - 46),
+        (cx + 6, height - 24),
+        (cx + 10, height - 12),
+    ]
+    pygame.draw.polygon(surf, (68, 48, 34, 255), inner_trunk)
+    pygame.draw.line(surf, (94, 70, 48, 255), (cx - 4, height - 44), (cx - 5, height - 16), 2)
+    pygame.draw.line(surf, (44, 30, 22, 255), (cx + 2, height - 42), (cx + 3, height - 14), 2)
+    # Moss creeping up trunk base
+    pygame.draw.ellipse(surf, (56, 86, 48, 255), (cx - 10, height - 20, 10, 6))
+
+    # 3. Layered gnarled oak/willow canopy crown (y=6..66)
+    deep_leaf = (28, 52, 34, 255)
+    mid_leaf = (46, 82, 48, 255)
+    lit_leaf = (76, 118, 66, 255)
+    sun_leaf = (108, 146, 82, 255)
+
+    # Dark outer silhouette lobes
+    outer_lobes = [
+        (cx, 34, 34),
+        (cx - 18, 38, 20),
+        (cx + 18, 38, 20),
+        (cx - 14, 22, 18),
+        (cx + 14, 22, 18),
+        (cx, 18, 18),
+    ]
+    for lx, ly, lr in outer_lobes:
+        pygame.draw.circle(surf, (18, 32, 22, 255), (lx, ly), lr + 2)
+    for lx, ly, lr in outer_lobes:
+        pygame.draw.circle(surf, deep_leaf, (lx, ly), lr)
+
+    # Midtone foliage clusters
+    mid_lobes = [
+        (cx - 16, 34, 15),
+        (cx + 15, 35, 14),
+        (cx - 10, 20, 14),
+        (cx + 12, 21, 13),
+        (cx, 28, 18),
+    ]
+    for lx, ly, lr in mid_lobes:
+        pygame.draw.circle(surf, mid_leaf, (lx, ly), lr)
+
+    # Sunlit upper-left canopy highlights & dappled leaf specks
+    for lx, ly, lr in ((cx - 12, 18, 10), (cx + 6, 16, 9), (cx - 18, 30, 8), (cx + 2, 26, 9)):
+        pygame.draw.circle(surf, lit_leaf, (lx, ly), lr)
+    for _ in range(42):
+        sx = gen.randint(12, width - 13)
+        sy = gen.randint(10, 52)
+        if surf.get_at((sx, sy))[3] > 0:
+            surf.set_at((sx, sy), sun_leaf if gen.random() < 0.45 else lit_leaf)
+
+    # Drooping willow tendrils framing left & right canopy skirt
+    for vx in (14, 20, 26, 54, 60, 66):
+        vy0 = 46 + (vx % 5)
+        vlen = gen.randint(10, 17)
+        pygame.draw.line(surf, mid_leaf, (vx, vy0), (vx + gen.randint(-1, 1), vy0 + vlen), 2)
+        pygame.draw.line(surf, lit_leaf, (vx, vy0), (vx, vy0 + vlen // 2), 1)
+
+    return surf
+
+
+def generate_pond_lily_reeds(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 SRCALPHA water lily & cattail reed cluster for the Sanctuary pond."""
+    _ = rng
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # Soft translucent water ripple rings
+    pygame.draw.ellipse(surf, (130, 188, 198, 90), (4, 16, 26, 18), 1)
+    pygame.draw.ellipse(surf, (150, 212, 220, 70), (8, 20, 18, 11), 1)
+
+    # Two notched emerald lily pads
+    for cx, cy, r in ((15, 25, 8), (24, 19, 6)):
+        pygame.draw.circle(surf, (24, 54, 34, 255), (cx, cy), r + 1)
+        pygame.draw.circle(surf, (46, 104, 58, 255), (cx, cy), r)
+        pygame.draw.circle(surf, (74, 138, 76, 255), (cx - 1, cy - 1), max(2, r - 3))
+        # Classic V-notch wedge
+        pygame.draw.polygon(surf, (0, 0, 0, 0), [(cx, cy), (cx + r + 1, cy - 2), (cx + r + 1, cy + 3)])
+
+    # Pale cream-rose water lily blossom on primary pad
+    bx, by = 14, 24
+    for dx, dy in ((-3, 0), (3, 0), (0, -3), (0, 3), (-2, -2), (2, -2)):
+        pygame.draw.circle(surf, (238, 216, 220, 255), (bx + dx, by + dy), 2)
+    pygame.draw.circle(surf, (245, 205, 95, 255), (bx, by), 2)
+
+    # Swaying cattail reeds on the right flank
+    for rx, top_y in ((31, 6), (35, 10), (28, 12)):
+        pygame.draw.line(surf, (42, 84, 44, 255), (rx, height - 4), (rx - 2, top_y), 2)
+        pygame.draw.line(surf, (76, 124, 62, 255), (rx - 1, height - 4), (rx - 3, top_y + 4), 1)
+    # Velvet brown cattail heads
+    pygame.draw.rect(surf, (96, 56, 34, 255), (28, 8, 3, 8), border_radius=1)
+    pygame.draw.rect(surf, (112, 68, 42, 255), (32, 12, 3, 7), border_radius=1)
+    return surf
+
+
+def generate_garden_flora(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 SRCALPHA fern and courtyard wildflower cluster for Sanctuary gardens."""
+    gen = rng if rng is not None else random.Random(4405)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx, cy = width // 2, height // 2 + 2
+
+    # Soft ground shadow
+    pygame.draw.ellipse(surf, (14, 22, 14, 95), (6, height - 13, width - 12, 9))
+
+    # Radiating dark-emerald fern fronds
+    frond_tips = [
+        (6, 12), (12, 6), (22, 5), (32, 9), (35, 19), (32, 30), (20, 33), (9, 29), (5, 21),
+    ]
+    for tx, ty in frond_tips:
+        pygame.draw.line(surf, (28, 62, 36, 255), (cx, cy), (tx, ty), 3)
+        pygame.draw.line(surf, (56, 108, 56, 255), (cx, cy), (tx, ty), 1)
+        mid_x, mid_y = (cx + tx) // 2, (cy + ty) // 2
+        pygame.draw.circle(surf, (48, 96, 48, 255), (mid_x, mid_y), 3)
+
+    # Layered clover/herb foliage core
+    for _ in range(10):
+        lx = cx + gen.randint(-9, 9)
+        ly = cy + gen.randint(-7, 7)
+        pygame.draw.circle(surf, (70, 126, 62, 255), (lx, ly), 3)
+
+    # Muted gold & lavender-cream courtyard wildflowers
+    blossoms = [
+        ((13, 14), (235, 198, 96, 255)),
+        ((26, 13), (212, 196, 232, 255)),
+        ((23, 25), (235, 198, 96, 255)),
+        ((14, 24), (226, 218, 238, 255)),
+        ((20, 17), (242, 212, 118, 255)),
+    ]
+    for (fx, fy), col in blossoms:
+        pygame.draw.circle(surf, col, (fx, fy), 2)
+        surf.set_at((fx, fy), (255, 248, 226, 255))
+    return surf
+
+
+def generate_locked_shed_door(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 SRCALPHA weathered timber shed door secured by a brass padlock."""
+    _ = rng
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    outline = (20, 15, 14, 255)
+
+    # Stone jamb & lintel frame
+    pygame.draw.rect(surf, outline, (4, 2, width - 8, height - 3), border_radius=2)
+    pygame.draw.rect(surf, (82, 78, 74, 255), (5, 3, width - 10, height - 5), border_radius=2)
+    pygame.draw.line(surf, (112, 108, 102, 255), (5, 3), (width - 6, 3), 2)
+
+    # Recessed weathered wooden door planks
+    door = pygame.Rect(9, 7, width - 18, height - 10)
+    pygame.draw.rect(surf, (76, 52, 34, 255), door)
+    for px in range(door.left + 5, door.right, 5):
+        pygame.draw.line(surf, (46, 30, 20, 255), (px, door.top), (px, door.bottom - 1), 1)
+    # Cross-brace timber bars
+    pygame.draw.rect(surf, (62, 42, 28, 255), (door.left, door.top + 5, door.width, 4))
+    pygame.draw.rect(surf, (62, 42, 28, 255), (door.left, door.bottom - 9, door.width, 4))
+
+    # Wrought-iron strap hinges on left edge
+    for hy in (12, 27):
+        pygame.draw.rect(surf, (38, 40, 46, 255), (door.left, hy, 10, 3))
+        surf.set_at((door.left + 8, hy + 1), (96, 100, 110, 255))
+
+    # Iron hasp + prominent tarnished brass padlock on right side
+    pygame.draw.rect(surf, (46, 48, 54, 255), (door.right - 10, 18, 9, 4))
+    pygame.draw.arc(surf, (148, 154, 166, 255), (door.right - 9, 17, 7, 7), 0.0, 3.14, 2)
+    pygame.draw.rect(surf, outline, (door.right - 10, 21, 9, 9), border_radius=1)
+    pygame.draw.rect(surf, (206, 162, 58, 255), (door.right - 9, 22, 7, 7), border_radius=1)
+    pygame.draw.line(surf, (242, 212, 116, 255), (door.right - 9, 22), (door.right - 3, 22), 1)
+    surf.set_at((door.right - 6, 25), (32, 24, 16, 255))
+    return surf
+
+
+def generate_mossy_gravestone(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 SRCALPHA weathered mossy gravestone marker for the Sanctuary courtyard."""
+    _ = rng
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    outline = (22, 22, 26, 255)
+
+    # Ground shadow & base plinth
+    pygame.draw.ellipse(surf, (12, 14, 12, 110), (7, height - 10, width - 14, 7))
+    pygame.draw.rect(surf, outline, (8, height - 12, width - 16, 6), border_radius=1)
+    pygame.draw.rect(surf, (78, 78, 76, 255), (9, height - 11, width - 18, 4))
+
+    # Arched weathered stone tablet
+    pygame.draw.circle(surf, outline, (width // 2, 15), 10)
+    pygame.draw.rect(surf, outline, (10, 15, width - 20, height - 26))
+    pygame.draw.circle(surf, (104, 102, 98, 255), (width // 2, 15), 9)
+    pygame.draw.rect(surf, (104, 102, 98, 255), (11, 15, width - 22, height - 26))
+    # Subtle beveled highlight along left rim
+    pygame.draw.line(surf, (136, 134, 128, 255), (12, 14), (12, height - 12), 1)
+
+    # Worn carved inscription lines & diagonal crack
+    for iy in (15, 19, 23):
+        pygame.draw.line(surf, (66, 64, 62, 255), (15, iy), (width - 16, iy), 1)
+    pygame.draw.lines(surf, (50, 50, 52, 255), False, [(26, 13), (23, 17), (25, 21)], 1)
+
+    # Creeping moss cap on top-left shoulder & base grass tufts
+    pygame.draw.ellipse(surf, (52, 86, 46, 255), (10, 7, 13, 7))
+    pygame.draw.ellipse(surf, (76, 118, 62, 255), (12, 8, 8, 4))
+    for gx in (9, 12, 28, 31):
+        pygame.draw.line(surf, (54, 96, 48, 255), (gx, height - 8), (gx + (-1 if gx < 20 else 1), height - 13), 2)
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -3313,6 +3786,34 @@ def generate_all_assets(
         out_path = os.path.join("assets", "graphics", f"{w_key}.png")
         surf = generate_weapon_pickup_sprite(w_key, TILE_WIDTH, TILE_HEIGHT, rng=_rng(w_key))
         _emit(w_key, out_path, surf)
+
+    # Pipeline 15: Sanctuary Visual Assets & Low-Contrast Ground Texture Polish
+    for idx in range(4):
+        for prefix, gen_fn in (
+            ("sanctuary_flagstone", generate_sanctuary_flagstone_tile),
+            ("sanctuary_dirt_path", generate_sanctuary_dirt_path_tile),
+            ("sanctuary_wood_floor", generate_sanctuary_wood_floor_tile),
+        ):
+            s_key = f"{prefix}_{idx}"
+            out_path = os.path.join("assets", "graphics", f"{s_key}.png")
+            surf = gen_fn(idx, TILE_WIDTH, TILE_HEIGHT, rng=_rng(s_key))
+            _emit(s_key, out_path, surf)
+
+    sanctuary_prop_specs = (
+        ("sanctuary_roof_tile", generate_sanctuary_roof_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_roof_tile"))),
+        ("sanctuary_chimney", generate_sanctuary_chimney(TILE_WIDTH, TILE_HEIGHT * 2, rng=_rng("sanctuary_chimney"))),
+        (
+            "sanctuary_tree_canopy",
+            generate_sanctuary_tree_canopy(TILE_WIDTH * 2, 100, rng=_rng("sanctuary_tree_canopy")),
+        ),
+        ("pond_lily_reeds", generate_pond_lily_reeds(TILE_WIDTH, TILE_HEIGHT, rng=_rng("pond_lily_reeds"))),
+        ("garden_flora", generate_garden_flora(TILE_WIDTH, TILE_HEIGHT, rng=_rng("garden_flora"))),
+        ("locked_shed_door", generate_locked_shed_door(TILE_WIDTH, TILE_HEIGHT, rng=_rng("locked_shed_door"))),
+        ("mossy_gravestone", generate_mossy_gravestone(TILE_WIDTH, TILE_HEIGHT, rng=_rng("mossy_gravestone"))),
+    )
+    for sp_key, sp_surf in sanctuary_prop_specs:
+        out_path = os.path.join("assets", "graphics", f"{sp_key}.png")
+        _emit(sp_key, out_path, sp_surf)
 
     if stats_out is not None:
         stats_out["updated"] = updated_count

@@ -53,6 +53,9 @@ class Renderer:
         self._puff_cache = {}
         self._actor_scratch_surf = None
         self.floor_variants = []
+        self.sanctuary_flagstone_variants = []
+        self.sanctuary_dirt_path_variants = []
+        self.sanctuary_wood_floor_variants = []
         self.wall_tile_surf = None
         self.grass_natural_surf = None
         self._load_barrel_assets()
@@ -281,6 +284,29 @@ class Renderer:
                 self.image_cache["tile_floor.png"] = self.floor_variants[0]
             except Exception as e:
                 print(f"[RENDER] Error loading {floor_path}: {e}")
+
+        # 3b. Low-Contrast Sanctuary Floor Texture Variations (flagstone, dirt path, wood floorboards)
+        for prefix, attr_name in (
+            ("sanctuary_flagstone", "sanctuary_flagstone_variants"),
+            ("sanctuary_dirt_path", "sanctuary_dirt_path_variants"),
+            ("sanctuary_wood_floor", "sanctuary_wood_floor_variants"),
+        ):
+            loaded_variants = []
+            for idx in range(4):
+                v_fname = f"{prefix}_{idx}.png"
+                v_path = os.path.join(base_path, v_fname)
+                if os.path.exists(v_path):
+                    try:
+                        v_img = pygame.image.load(v_path)
+                        if display_init:
+                            v_img = v_img.convert()
+                        if v_img.get_size() != (constants.TILE_SIZE, constants.TILE_SIZE):
+                            v_img = pygame.transform.scale(v_img, (constants.TILE_SIZE, constants.TILE_SIZE))
+                        loaded_variants.append(v_img)
+                        self.image_cache[v_fname] = v_img
+                    except Exception as e:
+                        print(f"[RENDER] Error loading {v_path}: {e}")
+            setattr(self, attr_name, loaded_variants)
 
         self.biome_tiles = {}
         self._generate_biome_tile_cache()
@@ -645,6 +671,30 @@ class Renderer:
                     self.image_cache[wp_file] = scaled_wp
                 except Exception as e:
                     print(f"[RENDER] Error loading {wp_file}: {e}")
+
+        # 7c. Sanctuary Courtyard, Pond, Roof & Prop Assets (Pass 1 preload; graceful fallback if absent)
+        sanctuary_extra_defs = (
+            ("sanctuary_roof_tile.png", "SanctuaryRoofTile", (ts, ts), False),
+            ("sanctuary_chimney.png", "SanctuaryChimney", (ts, ts * 2), True),
+            ("sanctuary_tree_canopy.png", "SanctuaryTreeCanopy", (ts * 2, 100), True),
+            ("pond_lily_reeds.png", "PondLilyReeds", (ts, ts), True),
+            ("garden_flora.png", "GardenFlora", (ts, ts), True),
+            ("locked_shed_door.png", "LockedShedDoor", (ts, ts), True),
+            ("mossy_gravestone.png", "MossyGravestone", (ts, ts), True),
+        )
+        for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
+            sx_path = os.path.join(base_path, sx_file)
+            if os.path.exists(sx_path):
+                try:
+                    sx_img = pygame.image.load(sx_path)
+                    if display_init:
+                        sx_img = sx_img.convert_alpha() if has_alpha else sx_img.convert()
+                    if sx_img.get_size() != sx_size:
+                        sx_img = pygame.transform.scale(sx_img, sx_size)
+                    self.prop_cache[sx_key] = sx_img
+                    self.image_cache[sx_file] = sx_img
+                except Exception as e:
+                    print(f"[RENDER] Error loading {sx_file}: {e}")
         self._fx_surface_cache = {}
 
         if "SwampFungus" not in self.prop_cache:
@@ -1230,12 +1280,13 @@ class Renderer:
         prev_clip = target_surf.get_clip()
         target_surf.set_clip(pygame.Rect(sx, sy, ts, ts))
 
-        # In sanctuary, use subtle 2x2 flagstone joints for sandbox testing
+        # In sanctuary, let low-contrast flagstone textures carry cohesive stone read without stark 2x2 gridlines
         if biome == "sanctuary":
-            bx, by = x % 2, y % 2
-            if bx == 0 and by == 0:
-                target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 1))
-                target_surf.fill(pal["wall_mortar"], (sx, sy, 1, ts))
+            if not getattr(self, "sanctuary_flagstone_variants", None):
+                bx, by = x % 2, y % 2
+                if bx == 0 and by == 0:
+                    target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 1))
+                    target_surf.fill(pal["wall_mortar"], (sx, sy, 1, ts))
             target_surf.set_clip(prev_clip)
             return
 
@@ -1634,6 +1685,13 @@ class Renderer:
             target_surf.fill(inner_lip, (sx + ts - 4, sy + ts - 4, 4, 4))
             target_surf.fill(rim_lo, (sx + ts - 2, sy + ts - 2, 2, 2))
 
+    @staticmethod
+    def _sanctuary_floor_variant_index(x, y, count):
+        """Deterministically hash tile coordinates to select a low-contrast Sanctuary floor variant."""
+        if count <= 1:
+            return 0
+        return (((int(x) * 73856093) ^ (int(y) * 19349663)) & 0x7FFFFFFF) % count
+
     def _draw_static_tile_to_surface(self, target_surf, state, coords, dr):
         """Render static tile to surface."""
         x, y, _, _ = coords
@@ -1651,14 +1709,17 @@ class Renderer:
         sx, sy = int(dr[0]), int(dr[1])
         ts = constants.TILE_SIZE
 
-        # Sanctuary biome: Sandbox testing grounds for PNG assets and autotiling
+        # Sanctuary biome: cohesive low-contrast flagstone & courtyard assets
         if biome == "sanctuary":
             # 1. Base ground fill - 100% opaque to eliminate any white background bleed
             if isinstance(target_surf, pygame.Surface):
                 target_surf.fill(constants.COLOR_SEPIA_AMBER, (sx, sy, ts, ts))
-            if getattr(self, "floor_variants", None):
-                v_idx = ((x * 17) ^ (y * 31) ^ (x * y * 7)) % len(self.floor_variants)
-                target_surf.blit(self.floor_variants[v_idx], (sx, sy))
+            sanctuary_floors = getattr(self, "sanctuary_flagstone_variants", None) or getattr(
+                self, "floor_variants", None
+            )
+            if sanctuary_floors:
+                v_idx = self._sanctuary_floor_variant_index(x, y, len(sanctuary_floors))
+                target_surf.blit(sanctuary_floors[v_idx], (sx, sy))
             elif b_pack:
                 strata_list = b_pack.get("strata_floors")
                 tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
