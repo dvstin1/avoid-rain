@@ -195,8 +195,9 @@ def test_renderer_draw_warp_sequence_and_actor_fading(game_state, mock_renderer)
     for _ in range(5):
         game_state.warp_controller.update(0.016, game_state)
 
-    # Render with active warp: must execute and populate puff cache
-    mock_renderer.draw_warp_sequence(game_state, 0, 0)
+    # Render with active warp using the camera offset so the player's puffs are in view
+    ox, oy = game_state.camera.get_offset()
+    mock_renderer.draw_warp_sequence(game_state, ox, oy)
     assert len(mock_renderer._puff_cache) > 0
 
     # Test actor alpha rendering (dissolved vs partial alpha)

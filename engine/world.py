@@ -26,6 +26,7 @@ class GameObject:
         self.is_breakable = False
         self.health = 100.0
         self.name = "Object"
+        self.prop_type = None
 
     def update(self, dt, game_state):
         """Standard per-frame logic hook."""
@@ -343,6 +344,24 @@ class Binder(Actor):
         """Open the Binder Script Weaving Loom modal in Sanctuary."""
         if hasattr(game_state, "open_binder_dialog"):
             game_state.open_binder_dialog(binder_npc=self)
+
+class FlavorProp(GameObject):
+    """Atmospheric Sanctuary prop displaying flavor dialogue on inspect with zero mechanical reward."""
+    def __init__(self, position, dimensions, name, dialogue_text, prop_type=None, is_solid=True):
+        super().__init__(position, dimensions)
+        self.name = name
+        self.dialogue_text = dialogue_text
+        self.prop_type = prop_type
+        self.is_solid = is_solid
+        self.is_interactive = True
+
+    def execute_interaction(self, game_state):
+        """Display non-reward atmospheric flavor text in active_dialogue."""
+        game_state.active_dialogue = {
+            "speaker": self.name,
+            "text": self.dialogue_text,
+        }
+
 
 class Wellspring(GameObject):
     """Refill station for flasks."""
@@ -727,6 +746,17 @@ class LevelLoader:
         return grid, interactables, warp_tiles, player_start, enemies, boss_coords_list, module_sockets
 
     @staticmethod
+    def load_map_zones(file_path):
+        """Return optional 'zones' metadata dict from a JSON map file (e.g., Sanctuary floor/roof zones)."""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            zones = data.get("zones")
+            return zones if isinstance(zones, dict) else {}
+        except Exception:
+            return {}
+
+    @staticmethod
     def parse_map(
         prototype_array,
         entity_data=None,
@@ -850,11 +880,31 @@ class LevelLoader:
                     interactables.append(respite)
 
                 elif char == 'T':
-                    # Static Obstacle / Tree
-                    tree = GameObject(pos, dim)
-                    tree.is_solid = True
-                    tree.name = "Structure"
-                    interactables.append(tree)
+                    # Static Obstacle / Tree / Sanctuary prop_type override (in-place, no duplicates)
+                    edata = entity_data.get((x, y), {})
+                    ptype = edata.get("prop_type") if isinstance(edata, dict) else None
+                    if ptype in ("locked_shed_door", "mossy_gravestone"):
+                        default_name = "Weathered Shed Door" if ptype == "locked_shed_door" else "Mossy Gravestone"
+                        default_dlg = (
+                            "A heavy brass padlock holds the shed shut."
+                            if ptype == "locked_shed_door"
+                            else "Weathered stone covered in quiet moss."
+                        )
+                        prop_obj = FlavorProp(
+                            pos,
+                            dim,
+                            name=edata.get("name", default_name),
+                            dialogue_text=edata.get("dialogue", default_dlg),
+                            prop_type=ptype,
+                            is_solid=True,
+                        )
+                        interactables.append(prop_obj)
+                    else:
+                        tree = GameObject(pos, dim)
+                        tree.is_solid = True
+                        tree.prop_type = ptype
+                        tree.name = "SanctuaryTreeCanopy" if ptype == "sanctuary_tree" else "Structure"
+                        interactables.append(tree)
 
                 elif char == 'C':
                     # The Chronicler NPC
@@ -909,10 +959,13 @@ class LevelLoader:
                     interactables.append(urn)
 
                 elif char == 'v':
-                    # Spilled Inkwell Puddle - 1x1 Hazard
+                    # Spilled Inkwell Puddle or Sanctuary Pond Lily/Reeds prop_type override
+                    edata = entity_data.get((x, y), {})
+                    ptype = edata.get("prop_type") if isinstance(edata, dict) else None
                     puddle = GameObject(pos, dim)
                     puddle.is_solid = False
-                    puddle.name = "Inkwell Puddle"
+                    puddle.prop_type = ptype
+                    puddle.name = "PondLilyReeds" if ptype == "pond_lily_reeds" else "Inkwell Puddle"
                     interactables.append(puddle)
 
                 elif char == 'l':
@@ -930,10 +983,13 @@ class LevelLoader:
                     interactables.append(bench)
 
                 elif char == 'K':
-                    # Rock - decorative element layering on top of floor
+                    # Rock or Sanctuary GardenFlora prop_type override (in-place, non-solid)
+                    edata = entity_data.get((x, y), {})
+                    ptype = edata.get("prop_type") if isinstance(edata, dict) else None
                     rock = GameObject(pos, dim)
                     rock.is_solid = False
-                    rock.name = "Rock"
+                    rock.prop_type = ptype
+                    rock.name = "GardenFlora" if ptype == "garden_flora" else "Rock"
                     interactables.append(rock)
 
                 elif char == 'P':
@@ -1071,12 +1127,53 @@ class World:
         self.module_sockets = []
         self.boss_coords_list = []
         self.grass_decorations = {}
+        self.sanctuary_zones = {}
+        self._zone_cache_id = None
+        self._zone_tile_sets = {}
         self._spatial_sig = None
         self._solid_buckets = {}
         self._interactive_buckets = {}
         self._puddle_buckets = {}
         self._dynamic_actors = []
         self._gated_respites = []
+
+    def _ensure_zone_index(self):
+        """Build cached tile sets from self.sanctuary_zones for O(1) floor/roof zone lookup."""
+        zones = self.sanctuary_zones if isinstance(self.sanctuary_zones, dict) else {}
+        sig = (id(zones), tuple((k, len(v) if isinstance(v, list) else 0) for k, v in zones.items()))
+        if self._zone_cache_id == sig:
+            return
+        self._zone_cache_id = sig
+        tile_sets = {}
+        for z_name in ("pond_water", "wood_floor", "dirt_path", "roof_zones"):
+            coords = set()
+            for entry in zones.get(z_name, ()):
+                if isinstance(entry, dict) and all(k in entry for k in ("x", "y", "w", "h")):
+                    ex, ey, ew, eh = int(entry["x"]), int(entry["y"]), int(entry["w"]), int(entry["h"])
+                    for ty in range(ey, ey + eh):
+                        for tx in range(ex, ex + ew):
+                            coords.add((tx, ty))
+                elif isinstance(entry, (list, tuple)):
+                    if len(entry) == 2:
+                        coords.add((int(entry[0]), int(entry[1])))
+                    elif len(entry) == 4:
+                        ex, ey, ew, eh = int(entry[0]), int(entry[1]), int(entry[2]), int(entry[3])
+                        for ty in range(ey, ey + eh):
+                            for tx in range(ex, ex + ew):
+                                coords.add((tx, ty))
+            tile_sets[z_name] = coords
+        self._zone_tile_sets = tile_sets
+
+    def get_sanctuary_zone_type(self, tx, ty):
+        """Return 'pond_water', 'wood_floor', 'dirt_path', or None for Sanctuary tile (tx, ty)."""
+        if not self.sanctuary_zones:
+            return None
+        self._ensure_zone_index()
+        pt = (int(tx), int(ty))
+        for z_name in ("pond_water", "wood_floor", "dirt_path"):
+            if pt in self._zone_tile_sets.get(z_name, ()):
+                return z_name
+        return None
 
     def _ensure_spatial_index(self):
         """Build or refresh spatial hash buckets when self.interactables changes."""

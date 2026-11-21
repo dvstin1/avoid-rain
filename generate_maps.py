@@ -254,6 +254,7 @@ class GeneratedMap:
         seed: Optional[int] = None,
         elevation_grid: Optional[List[List[int]]] = None,
         verticality_layers: Optional[dict] = None,
+        zones: Optional[Dict[str, list]] = None,
     ):
         self.map_id = map_id
         self.biome = biome
@@ -267,10 +268,11 @@ class GeneratedMap:
             [ELEVATION_LOWER for _ in range(width)] for _ in range(height)
         ]
         self.verticality_layers = verticality_layers or {}
+        self.zones = zones
 
     def to_dict(self) -> dict:
         """Serializes the map into the canonical Avoid Rain JSON schema dictionary."""
-        return {
+        payload = {
             "map_id": self.map_id,
             "biome": self.biome,
             "dimensions": {
@@ -284,6 +286,9 @@ class GeneratedMap:
             "elevation_grid": self.elevation_grid,
             "verticality_layers": self.verticality_layers,
         }
+        if self.zones is not None:
+            payload["zones"] = self.zones
+        return payload
 
     def to_json(self, indent: int = 2) -> str:
         """Exports the map as a formatted JSON string."""
@@ -1662,6 +1667,272 @@ def generate_biome_segment_pools(
     return manifest
 
 
+def generate_sanctuary(
+    width: int = 56,
+    height: int = 40,
+    seed: Optional[int] = 108,
+) -> GeneratedMap:
+    """Generates the expanded Sanctuary hub (maps/sanctuary.json) with courtyard, pond, shed, and Scriptorium."""
+    rng = random.Random(seed)
+    grid = [[SYMBOL_FLOOR for _ in range(width)] for _ in range(height)]
+    entities: Dict[str, dict] = {}
+
+    # 1. Solid outer perimeter frame (guarantees grid[0][0] == '#')
+    for x in range(width):
+        grid[0][x] = SYMBOL_WALL
+        grid[height - 1][x] = SYMBOL_WALL
+    for y in range(height):
+        grid[y][0] = SYMBOL_WALL
+        grid[y][width - 1] = SYMBOL_WALL
+
+    # 2. Northwest Corner — Locked 5x5 Stone Shed (x=4..8, y=4..8) & Mossy Gravestone
+    # Fill the locked shed interior with '#' so it is solid masonry behind the padlocked door
+    shed_x, shed_y, shed_w, shed_h = 4, 4, 5, 5
+    for y in range(shed_y, shed_y + shed_h):
+        for x in range(shed_x, shed_x + shed_w):
+            grid[y][x] = SYMBOL_WALL
+    shed_door_x, shed_door_y = shed_x + 2, shed_y + shed_h - 1
+    grid[shed_door_y][shed_door_x] = SYMBOL_STRUCTURE
+    entities[f"{shed_door_x},{shed_door_y}"] = {
+        "prop_type": "locked_shed_door",
+        "name": "Weathered Shed Door",
+        "dialogue": (
+            "A heavy brass padlock seals the shed. Whatever garden tools or forgotten drafts "
+            "rest inside are kept well away from the rain."
+        ),
+    }
+
+    # Mossy gravestone tucked beside the shed clearing
+    grave_x, grave_y = 12, 6
+    grid[grave_y][grave_x] = SYMBOL_STRUCTURE
+    entities[f"{grave_x},{grave_y}"] = {
+        "prop_type": "mossy_gravestone",
+        "name": "Mossy Gravestone",
+        "dialogue": (
+            "Velvet moss has nearly swallowed the epitaph. Only a weathered colophon glyph "
+            "remains legible beneath the lichen."
+        ),
+    }
+
+    # 3. East Wing — Cozy Multi-Candle Oak-Floored Scriptorium Hall (x=28..49, y=7..21)
+    hall_x, hall_y, hall_w, hall_h = 28, 7, 22, 15
+    for y in range(hall_y, hall_y + hall_h):
+        for x in range(hall_x, hall_x + hall_w):
+            if x in (hall_x, hall_x + hall_w - 1) or y in (hall_y, hall_y + hall_h - 1):
+                grid[y][x] = SYMBOL_WALL
+
+    # Southern 3-tile Scriptorium entrance doorway at x=37..39, y=21
+    for dx in range(37, 40):
+        grid[hall_y + hall_h - 1][dx] = SYMBOL_FLOOR
+
+    # Bookcases ('h', 2x1 horizontal, reserving open right-half floor) along north interior wall
+    for bx, by in ((30, 8), (34, 8), (41, 8), (45, 8)):
+        grid[by][bx] = SYMBOL_BOOKCASE
+
+    # 6 warm candelabras illuminating the Scriptorium hall
+    for lx, ly in ((32, 9), (38, 9), (44, 9), (30, 16), (47, 16), (35, 19)):
+        grid[ly][lx] = SYMBOL_CANDELABRA
+
+    # Flanking Ink Urns & reading benches inside the Scriptorium
+    for ux, uy in ((29, 10), (48, 10), (29, 19), (48, 19)):
+        grid[uy][ux] = SYMBOL_INK_URN
+    for sx, sy in ((31, 19), (45, 19)):
+        grid[sy][sx] = SYMBOL_BENCH
+
+    # Core Sanctuary NPCs, Stations, Lore, and Player Start:
+    # - Player start 'P' at (38, 14) with unobstructed open floor immediately west (37, 14)
+    spawn_x, spawn_y = 38, 14
+    grid[spawn_y][spawn_x] = SYMBOL_PLAYER
+
+    # - The Chronicle Warp Portal ('W') centered south of spawn
+    grid[16][38] = SYMBOL_WARP
+    entities["38,16"] = {
+        "target": "macro_world",
+        "name": "The Chronicle",
+        "spawn_x": 680,
+        "spawn_y": 280,
+    }
+
+    # - The Chronicler ('C') + research patrol route
+    grid[13][34] = SYMBOL_CHRONICLER
+    grid[12][31] = "1"
+    entities["31,12"] = {
+        "type": "PatrolPoint",
+        "route_id": "chron_research",
+        "caste_filter": ["Chronicler"],
+        "wait_min": 10.0,
+        "wait_max": 20.0,
+    }
+    grid[12][44] = "2"
+    entities["44,12"] = {
+        "type": "PatrolPoint",
+        "route_id": "chron_research",
+        "caste_filter": ["Chronicler"],
+        "wait_min": 15.0,
+        "wait_max": 30.0,
+    }
+
+    # - The Binder ('&') — exactly 1 in Sanctuary
+    grid[15][44] = SYMBOL_BINDER
+
+    # - The Wellspring ('F') — spaced clear of player spawn
+    grid[14][42] = SYMBOL_WELLSPRING
+
+    # - LoreFragment ('L') — chronicler_nature / Faded Note (first and only LoreFragment)
+    grid[14][31] = SYMBOL_LORE
+    entities["31,14"] = {
+        "fragment_id": "chronicler_nature",
+        "name": "Faded Note",
+    }
+
+    # 4. West Courtyard — Organic Pond Basin & Lily/Reed Accents
+    pond_tiles: List[List[int]] = []
+    pond_cx, pond_cy = 12.5, 24.0
+    for y in range(19, 30):
+        for x in range(6, 20):
+            nx = (x - pond_cx) / 6.2
+            ny = (y - pond_cy) / 4.2
+            wobble = 0.14 * ((x * 5 + y * 3) % 3 - 1)
+            if nx * nx + ny * ny + wobble <= 1.0:
+                pond_tiles.append([x, y])
+
+    pond_set = {(px, py) for px, py in pond_tiles}
+    for rx, ry in ((9, 22), (14, 22), (11, 25), (16, 25), (13, 27)):
+        if (rx, ry) in pond_set:
+            grid[ry][rx] = SYMBOL_INK_PUDDLE
+            entities[f"{rx},{ry}"] = {"prop_type": "pond_lily_reeds"}
+
+    # 5. Winding Dirt Garden Paths & Courtyard Benches / Barrels
+    dirt_rects = [
+        {"x": 20, "y": 23, "w": 19, "h": 3},  # Courtyard approach from Scriptorium south doorway to pond
+        {"x": 20, "y": 9, "w": 3, "h": 15},   # North garden lane up toward shed & gravestone
+        {"x": 6, "y": 9, "w": 15, "h": 2},    # Path fronting Weathered Shed Door & Mossy Gravestone
+        {"x": 11, "y": 30, "w": 12, "h": 2},  # Southern pond overlook garden path
+        {"x": 20, "y": 25, "w": 3, "h": 7},   # Spur connecting east path to south pond overlook
+    ]
+    dirt_set: Set[Tuple[int, int]] = set()
+    for rect in dirt_rects:
+        for y in range(rect["y"], rect["y"] + rect["h"]):
+            for x in range(rect["x"], rect["x"] + rect["w"]):
+                if (x, y) not in pond_set:
+                    dirt_set.add((x, y))
+
+    # Courtyard benches & barrels outside the Scriptorium
+    for sx, sy in ((23, 21), (15, 32), (43, 24)):
+        if grid[sy][sx] == SYMBOL_FLOOR:
+            grid[sy][sx] = SYMBOL_BENCH
+    for bx, by in ((26, 10), (26, 11), (51, 12), (51, 13), (3, 12)):
+        if grid[by][bx] == SYMBOL_FLOOR:
+            grid[by][bx] = SYMBOL_BARREL
+
+    # 6. Perimeter Woodland Gnarled Trees & Overgrown Garden Flora
+    reserved_clear: Set[Tuple[int, int]] = set(dirt_set) | pond_set
+    for y in range(hall_y - 1, hall_y + hall_h + 2):
+        for x in range(hall_x - 1, hall_x + hall_w + 2):
+            reserved_clear.add((x, y))
+    for y in range(shed_y - 1, shed_y + shed_h + 2):
+        for x in range(shed_x - 1, shed_x + shed_w + 2):
+            reserved_clear.add((x, y))
+
+    tree_coords = [
+        # North & Northwest woodland edge
+        (2, 2), (16, 2), (22, 2), (28, 2), (35, 2), (42, 2), (49, 2), (53, 3),
+        # West woodland framing the garden & pond
+        (2, 13), (2, 19), (2, 26), (2, 33), (5, 36),
+        # South woodland framing
+        (11, 36), (18, 36), (26, 36), (34, 36), (42, 36), (49, 36), (53, 35),
+        # East woodland framing behind the Scriptorium
+        (53, 9), (53, 17), (53, 24), (53, 30),
+        # Courtyard accent trees
+        (16, 14), (24, 31), (46, 29),
+    ]
+    for tx, ty in tree_coords:
+        if (
+            1 < tx < width - 1
+            and 1 < ty < height - 1
+            and grid[ty][tx] == SYMBOL_FLOOR
+            and (tx, ty) not in reserved_clear
+        ):
+            grid[ty][tx] = SYMBOL_STRUCTURE
+            entities[f"{tx},{ty}"] = {"prop_type": "sanctuary_tree"}
+
+    # Grass patches & garden wildflower/fern flora around pond, gravestone, and woodland edges
+    garden_flora_coords = [
+        (10, 6), (14, 6), (11, 13), (15, 16), (6, 17), (19, 17), (5, 23), (5, 28),
+        (8, 31), (18, 32), (27, 29), (33, 28), (41, 30), (48, 26), (24, 6), (32, 4), (47, 4),
+    ]
+    for fx, fy in garden_flora_coords:
+        if 1 <= fx < width - 1 and 1 <= fy < height - 1 and grid[fy][fx] == SYMBOL_FLOOR and (fx, fy) not in pond_set:
+            grid[fy][fx] = SYMBOL_CLUTTER
+            entities[f"{fx},{fy}"] = {"prop_type": "garden_flora"}
+
+    # Soft grass tufts in open garden meadow around the pond and southern courtyard
+    for y in range(2, height - 2):
+        for x in range(2, width - 2):
+            if grid[y][x] != SYMBOL_FLOOR or (x, y) in reserved_clear:
+                continue
+            near_pond = abs(x - pond_cx) <= 10 and abs(y - pond_cy) <= 8
+            near_edge = x <= 4 or x >= width - 5 or y <= 4 or y >= height - 5
+            if (near_pond or near_edge) and rng.random() < 0.24:
+                grid[y][x] = SYMBOL_GRASS if rng.random() < 0.8 else SYMBOL_THICKET
+
+    # 7. Validate walkable connectivity across Scriptorium interior + courtyard + garden paths
+    mandatory = [
+        (spawn_x, spawn_y),
+        (spawn_x - 1, spawn_y),
+        (38, 21),
+        (21, 24),
+        (21, 10),
+        (shed_door_x, shed_door_y + 1),
+        (grave_x, grave_y + 1),
+        (15, 31),
+    ]
+    validate_prop_walkable_connectivity(grid, mandatory_coords=mandatory)
+
+    zones = {
+        "wood_floor": [
+            {"name": "scriptorium_interior", "x": hall_x + 1, "y": hall_y + 1, "w": hall_w - 2, "h": hall_h - 2},
+        ],
+        "dirt_path": dirt_rects,
+        "pond_water": pond_tiles,
+        "roof_zones": [
+            {
+                "name": "scriptorium_roof",
+                "x": hall_x,
+                "y": hall_y,
+                "w": hall_w,
+                "h": hall_h,
+                "interior": [hall_x + 1, hall_y + 1, hall_w - 2, hall_h - 2],
+                "chimney": [hall_x + hall_w - 4, hall_y],
+            },
+            {
+                "name": "shed_roof",
+                "x": shed_x,
+                "y": shed_y,
+                "w": shed_w,
+                "h": shed_h,
+                "interior": [shed_x + 1, shed_y + 1, shed_w - 2, shed_h - 2],
+            },
+        ],
+    }
+
+    elevation_grid = [[ELEVATION_LOWER for _ in range(width)] for _ in range(height)]
+    verticality_layers = apply_verticality_post_pass(grid, elevation_grid, [])
+
+    return GeneratedMap(
+        map_id="sanctuary",
+        biome="sanctuary",
+        width=width,
+        height=height,
+        grid=grid,
+        entities=entities,
+        seed=seed,
+        elevation_grid=elevation_grid,
+        verticality_layers=verticality_layers,
+        zones=zones,
+    )
+
+
 def generate_colophon_sanctum(
     width: int = DEFAULT_MAP_WIDTH,
     height: int = DEFAULT_MAP_HEIGHT,
@@ -2033,6 +2304,11 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Regenerate the enclosed Scriptorium starting sanctum (maps/the_colophon.json).",
     )
+    parser.add_argument(
+        "--generate-sanctuary",
+        action="store_true",
+        help="Regenerate the expanded Sanctuary hub layout (maps/sanctuary.json).",
+    )
     return parser.parse_args()
 
 
@@ -2085,6 +2361,17 @@ def main() -> None:
         print(f"  [+] Scriptorium Starting Sanctum -> {colophon_path} ({colophon_map.width}x{colophon_map.height})")
         if args.preview:
             p_path = render_map_preview(colophon_map, os.path.join(PREVIEWS_DIR, "the_colophon_preview.png"))
+            print(f"      Preview Saved -> {p_path}")
+        return
+
+    if args.generate_sanctuary:
+        sanctuary_seed = args.seed if args.seed is not None else 108
+        sanctuary_map = generate_sanctuary(seed=sanctuary_seed)
+        sanctuary_path = args.output or os.path.join(MAPS_DIR, "sanctuary.json")
+        sanctuary_map.save(sanctuary_path, file_format="json")
+        print(f"  [+] Expanded Sanctuary Hub -> {sanctuary_path} ({sanctuary_map.width}x{sanctuary_map.height})")
+        if args.preview:
+            p_path = render_map_preview(sanctuary_map, os.path.join(PREVIEWS_DIR, "sanctuary_preview.png"))
             print(f"      Preview Saved -> {p_path}")
         return
 

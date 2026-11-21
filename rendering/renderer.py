@@ -1709,21 +1709,55 @@ class Renderer:
         sx, sy = int(dr[0]), int(dr[1])
         ts = constants.TILE_SIZE
 
-        # Sanctuary biome: cohesive low-contrast flagstone & courtyard assets
+        # Sanctuary biome: cohesive low-contrast flagstone, dirt path, oak wood, & pond water zones
         if biome == "sanctuary":
             # 1. Base ground fill - 100% opaque to eliminate any white background bleed
             if isinstance(target_surf, pygame.Surface):
                 target_surf.fill(constants.COLOR_SEPIA_AMBER, (sx, sy, ts, ts))
-            sanctuary_floors = getattr(self, "sanctuary_flagstone_variants", None) or getattr(
-                self, "floor_variants", None
+            zone_type = (
+                state.world.get_sanctuary_zone_type(x, y)
+                if hasattr(state.world, "get_sanctuary_zone_type")
+                else None
             )
-            if sanctuary_floors:
-                v_idx = self._sanctuary_floor_variant_index(x, y, len(sanctuary_floors))
-                target_surf.blit(sanctuary_floors[v_idx], (sx, sy))
-            elif b_pack:
-                strata_list = b_pack.get("strata_floors")
-                tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
-                target_surf.blit(tier_floors[(x * 7 + y * 13) % len(tier_floors)], (sx, sy))
+            if zone_type == "pond_water":
+                if isinstance(target_surf, pygame.Surface):
+                    target_surf.fill((30, 66, 84), (sx, sy, ts, ts))
+                    # Subtle bank rim & translucent horizontal water shimmer
+                    for dx_n, dy_n, rx, ry, rw, rh in (
+                        (0, -1, sx, sy, ts, 3),
+                        (0, 1, sx, sy + ts - 3, ts, 3),
+                        (-1, 0, sx, sy, 3, ts),
+                        (1, 0, sx + ts - 3, sy, 3, ts),
+                    ):
+                        if state.world.get_sanctuary_zone_type(x + dx_n, y + dy_n) != "pond_water":
+                            target_surf.fill((48, 86, 82), (rx, ry, rw, rh))
+                    wave_off = ((x * 11 + y * 7) % 10) + 6
+                    pygame.draw.line(
+                        target_surf, (56, 108, 126), (sx + 6, sy + wave_off), (sx + ts - 8, sy + wave_off), 1
+                    )
+                    pygame.draw.line(
+                        target_surf,
+                        (44, 90, 108),
+                        (sx + 10, sy + min(ts - 5, wave_off + 14)),
+                        (sx + ts - 6, sy + min(ts - 5, wave_off + 14)),
+                        1,
+                    )
+            else:
+                if zone_type == "wood_floor" and getattr(self, "sanctuary_wood_floor_variants", None):
+                    sanctuary_floors = self.sanctuary_wood_floor_variants
+                elif zone_type == "dirt_path" and getattr(self, "sanctuary_dirt_path_variants", None):
+                    sanctuary_floors = self.sanctuary_dirt_path_variants
+                else:
+                    sanctuary_floors = getattr(self, "sanctuary_flagstone_variants", None) or getattr(
+                        self, "floor_variants", None
+                    )
+                if sanctuary_floors:
+                    v_idx = self._sanctuary_floor_variant_index(x, y, len(sanctuary_floors))
+                    target_surf.blit(sanctuary_floors[v_idx], (sx, sy))
+                elif b_pack:
+                    strata_list = b_pack.get("strata_floors")
+                    tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
+                    target_surf.blit(tier_floors[(x * 7 + y * 13) % len(tier_floors)], (sx, sy))
 
             # 2. Autotiled floor surfaces & multi-tile sandbox footprints
             if b_pack:
@@ -2007,9 +2041,44 @@ class Renderer:
         prop_cache = getattr(self, "prop_cache", {}) if is_real_surface else {}
         for obj in getattr(state.world, 'interactables', []):
             sx_o, sy_o = obj.x - ox, obj.y - oy
-            if sx_o + obj.width < -64 or sx_o > sw + 64 or sy_o + obj.height < -64 or sy_o > sh + 64:
+            if sx_o + obj.width < -96 or sx_o > sw + 96 or sy_o + obj.height < -96 or sy_o > sh + 96:
                 continue
-            if obj.name == "Exit Ladder":
+            obj_ptype = getattr(obj, "prop_type", None)
+            if obj_ptype == "sanctuary_tree" or obj.name == "SanctuaryTreeCanopy":
+                canopy_surf = prop_cache.get("SanctuaryTreeCanopy")
+                if canopy_surf is not None:
+                    # Anchor 80x100 canopy onto its 40x40 solid base footprint
+                    self.screen.blit(canopy_surf, (int(sx_o) - 20, int(sy_o) - 60))
+                else:
+                    tx_i, ty_i = int(sx_o), int(sy_o)
+                    pygame.draw.rect(self.screen, (68, 48, 34), (tx_i + 13, ty_i + 4, 14, 34), border_radius=2)
+                    pygame.draw.circle(self.screen, (42, 78, 44), (tx_i + 20, ty_i - 8), 26)
+            elif obj_ptype == "pond_lily_reeds" or obj.name == "PondLilyReeds":
+                lily_surf = prop_cache.get("PondLilyReeds")
+                if lily_surf is not None:
+                    self.screen.blit(lily_surf, (int(sx_o), int(sy_o)))
+                else:
+                    pygame.draw.circle(self.screen, (48, 108, 58), (int(sx_o) + 16, int(sy_o) + 22), 8)
+            elif obj_ptype == "garden_flora" or obj.name == "GardenFlora":
+                flora_surf = prop_cache.get("GardenFlora")
+                if flora_surf is not None:
+                    self.screen.blit(flora_surf, (int(sx_o), int(sy_o)))
+                else:
+                    pygame.draw.circle(self.screen, (56, 108, 56), (int(sx_o) + 20, int(sy_o) + 20), 10)
+            elif obj_ptype == "locked_shed_door" or obj.name == "LockedShedDoor":
+                door_surf = prop_cache.get("LockedShedDoor")
+                if door_surf is not None:
+                    self.screen.blit(door_surf, (int(sx_o), int(sy_o)))
+                else:
+                    pygame.draw.rect(self.screen, (76, 52, 34), (int(sx_o) + 6, int(sy_o) + 4, 28, 34))
+                    pygame.draw.rect(self.screen, (206, 162, 58), (int(sx_o) + 24, int(sy_o) + 20, 7, 7))
+            elif obj_ptype == "mossy_gravestone" or obj.name == "MossyGravestone":
+                grave_surf = prop_cache.get("MossyGravestone")
+                if grave_surf is not None:
+                    self.screen.blit(grave_surf, (int(sx_o), int(sy_o)))
+                else:
+                    pygame.draw.rect(self.screen, (104, 102, 98), (int(sx_o) + 10, int(sy_o) + 10, 20, 24))
+            elif obj.name == "Exit Ladder":
                 lx, ly, lw, lh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
                 pygame.draw.rect(self.screen, (24, 18, 14), (lx + 4, ly + 2, lw - 8, lh - 4), border_radius=4)
                 pygame.draw.rect(self.screen, (215, 180, 95), (lx + 8, ly + 4, 4, lh - 8))

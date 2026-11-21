@@ -68,6 +68,7 @@ def create_world(
             hp_multiplier=hp_multiplier,
             damage_multiplier=damage_multiplier,
         )
+        world.sanctuary_zones = LevelLoader.load_map_zones(json_path)
         return world
 
     # Fallback to programmatic/hardcoded prototypes

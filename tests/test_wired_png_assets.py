@@ -401,8 +401,8 @@ def test_respite_and_chronicler_sprites_cached_and_rendered(monkeypatch):
     respite = Respite((40, 40), (40, 40))
     chronicler = Chronicler((200, 40))
     state.world.interactables = [respite, chronicler]
-    state.camera.x = 0.0
-    state.camera.y = 0.0
+    state.camera.offset_x = 0.0
+    state.camera.offset_y = 0.0
 
     # Render with Respite inside safe zone
     state.weather_manager.bleed_state = "BLEED"
