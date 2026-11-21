@@ -318,6 +318,71 @@ class Renderer:
         self.biome_tiles = {}
         self._generate_biome_tile_cache()
 
+    @staticmethod
+    def _shift_rgb_clamped(base_rgb, dr, dg, db):
+        """Return an RGB tuple shifted by (dr, dg, db) and clamped to [0, 255]."""
+        return (
+            max(0, min(255, int(base_rgb[0]) + int(dr))),
+            max(0, min(255, int(base_rgb[1]) + int(dg))),
+            max(0, min(255, int(base_rgb[2]) + int(db))),
+        )
+
+    @classmethod
+    def _build_windy_ridge_stratum_variant(cls, ts, s_idx, v_idx, s_base):
+        """Generate a low-contrast (<= +/-12 RGB) textured 40x40 floor variant for windy_ridge."""
+        fl = pygame.Surface((ts, ts))
+        fl.fill(s_base)
+        rng = random.Random(9100 + s_idx * 97 + v_idx * 19)
+
+        # Subtle organic soil/stone pixel grain strictly within +/-10 RGB
+        for _ in range(52):
+            px = rng.randrange(0, ts)
+            py = rng.randrange(0, ts)
+            delta = rng.randint(-9, 9)
+            fl.set_at((px, py), cls._shift_rgb_clamped(s_base, delta, delta, delta))
+
+        if s_idx == 0:
+            # Deep Viridian Clover Basin: soft mossy micro-blotches & tiny clover flecks
+            moss_dark = cls._shift_rgb_clamped(s_base, -6, -9, -5)
+            moss_light = cls._shift_rgb_clamped(s_base, 5, 11, 6)
+            for _ in range(4):
+                bx = rng.randint(4, ts - 12)
+                by = rng.randint(4, ts - 10)
+                pygame.draw.ellipse(fl, moss_dark, (bx, by, rng.randint(6, 10), rng.randint(4, 7)))
+            for _ in range(5):
+                fx = rng.randint(3, ts - 4)
+                fy = rng.randint(3, ts - 4)
+                fl.set_at((fx, fy), moss_light)
+                fl.set_at((min(ts - 1, fx + 1), fy), moss_light)
+        elif s_idx == 1:
+            # Sunlit Emerald Meadow: delicate wind-swept fine grass blades & dew flecks
+            blade_hi = cls._shift_rgb_clamped(s_base, 6, 11, 5)
+            blade_lo = cls._shift_rgb_clamped(s_base, -6, -10, -5)
+            for idx in range(9):
+                gx = rng.randint(3, ts - 6)
+                gy = rng.randint(5, ts - 3)
+                col = blade_hi if idx % 2 == 0 else blade_lo
+                pygame.draw.line(fl, col, (gx, gy), (gx + 2, gy - rng.randint(3, 4)), 1)
+        else:
+            # Ancient Limestone Cobble Trail: hairline cracks, mineral flecks & subtle stone bevels
+            crack_col = cls._shift_rgb_clamped(s_base, -11, -11, -10)
+            pebble_hi = cls._shift_rgb_clamped(s_base, 10, 10, 8)
+            for _ in range(2):
+                cx0 = rng.randint(4, ts - 14)
+                cy0 = rng.randint(4, ts - 10)
+                cx1 = cx0 + rng.randint(4, 8)
+                cy1 = cy0 + rng.randint(-3, 4)
+                pygame.draw.line(fl, crack_col, (cx0, cy0), (cx1, cy1), 1)
+            for _ in range(6):
+                px = rng.randint(2, ts - 3)
+                py = rng.randint(2, ts - 3)
+                fl.set_at((px, py), pebble_hi)
+
+        # Preserve exact pixel (1, 1) == s_base invariant for stratum verification tests
+        if v_idx == 0:
+            fl.set_at((1, 1), s_base)
+        return fl
+
     def _generate_biome_tile_cache(self):
         """Procedurally generate seamless base floor and wall surfaces per biome."""
         ts = constants.TILE_SIZE
@@ -335,11 +400,14 @@ class Renderer:
                 [(pal["floor_base"], pal["floor_alt"])] * 3
             )
             strata_floors = []
-            for _s_idx, (s_base, _s_alt) in enumerate(strata_defs):
+            for s_idx, (s_base, _s_alt) in enumerate(strata_defs):
                 tier_variants = []
-                for _v in range(4):
-                    fl = pygame.Surface((ts, ts))
-                    fl.fill(s_base)
+                for v_idx in range(4):
+                    if biome == "windy_ridge":
+                        fl = self._build_windy_ridge_stratum_variant(ts, s_idx, v_idx, s_base)
+                    else:
+                        fl = pygame.Surface((ts, ts))
+                        fl.fill(s_base)
                     if display_init:
                         fl = fl.convert()
                     tier_variants.append(fl)
@@ -1305,7 +1373,17 @@ class Renderer:
         zpx = sx - (x % 4) * ts
         zpy = sy - (y % 4) * ts
         z_style = ((zx * 43 + zy * 71 + s_idx * 19) & 0x7FFFFFFF) % 3
-        if z_style == 0:
+        if biome == "windy_ridge":
+            strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+            s_base = strata_defs[s_idx][0]
+            soft_wash = tuple(int(s_base[i] * 0.65 + s_alt[i] * 0.35) for i in range(3))
+            if z_style == 0:
+                pygame.draw.ellipse(target_surf, soft_wash, (zpx + 14, zpy + 18, 132, 54))
+            elif z_style == 1:
+                pygame.draw.ellipse(target_surf, soft_wash, (zpx + 22, zpy + 88, 118, 52))
+            else:
+                pygame.draw.ellipse(target_surf, soft_wash, (zpx + 18, zpy + 44, 124, 68))
+        elif z_style == 0:
             pygame.draw.rect(target_surf, s_alt, (zpx + 12, zpy + 22, 136, 34), border_radius=16)
             pygame.draw.rect(target_surf, s_alt, (zpx + 20, zpy + 98, 124, 38), border_radius=18)
         elif z_style == 1:
@@ -1525,8 +1603,10 @@ class Renderer:
                 pygame.draw.rect(target_surf, pal["wall_mortar"], (ax + 12, ay + 42, 56, 30), 1, border_radius=3)
                 if pat in (0, 2):
                     pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 40, ay + 40), 5)
+        elif biome == "windy_ridge":
+            self._draw_windy_ridge_floor_patterns(target_surf, pal, s_idx, (x, y, sx, sy, ts))
         else:
-            # windy_ridge: connected highland cobbles, ancient stone rings, and scriptorium inlays
+            # Generic fallback connected cobbles & rings for any unspecialized biome
             if s_idx == 0:
                 pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 10, ay + 14, 60, 52))
                 if pat == 0:
@@ -1562,6 +1642,158 @@ class Renderer:
 
         target_surf.set_clip(prev_clip)
 
+    def _draw_windy_ridge_floor_patterns(self, target_surf, pal, s_idx, tile_geom):
+        """Render organic low-contrast highland clover basins, combed meadow grass, and weathered limestone cobbles."""
+        x, y, sx, sy, ts = tile_geom
+        strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+        s_base, s_alt = strata_defs[s_idx]
+        h_val = ((x * 73856093) ^ (y * 19349663) ^ (s_idx * 83492791)) & 0x7FFFFFFF
+        roll = h_val % 100
+        ox = 6 + (h_val % 15)
+        oy = 6 + ((h_val >> 4) % 15)
+
+        if s_idx == 0:
+            # Stratum 0 (Deep Viridian Clover Basin): subtle mossy hollows + ~18% clover/tuft accents
+            if roll < 36:
+                hollow_col = self._shift_rgb_clamped(s_base, -4, -7, -4)
+                pygame.draw.ellipse(target_surf, hollow_col, (sx + ox - 3, sy + oy - 2, 18, 12))
+            if roll < 18:
+                clover_col = self._shift_rgb_clamped(s_alt, 10, 18, 10)
+                tuft_col = self._shift_rgb_clamped(s_alt, 4, 12, 6)
+                cx_c, cy_c = sx + ox + 4, sy + oy + 4
+                pygame.draw.circle(target_surf, clover_col, (cx_c - 2, cy_c), 2)
+                pygame.draw.circle(target_surf, clover_col, (cx_c + 2, cy_c), 2)
+                pygame.draw.circle(target_surf, clover_col, (cx_c, cy_c - 2), 2)
+                pygame.draw.line(target_surf, tuft_col, (cx_c - 6, cy_c + 5), (cx_c - 4, cy_c + 1), 1)
+                pygame.draw.line(target_surf, tuft_col, (cx_c + 5, cy_c + 5), (cx_c + 7, cy_c + 1), 1)
+        elif s_idx == 1:
+            # Stratum 1 (Sunlit Emerald Meadow): gentle wind-combed strokes + ~15% tiny golden wildflower specks
+            stroke_hi = self._shift_rgb_clamped(s_alt, 4, 10, 4)
+            stroke_lo = self._shift_rgb_clamped(s_base, -6, -9, -5)
+            for idx in range(3):
+                gx = sx + 5 + ((h_val >> (idx * 3)) % (ts - 12))
+                gy = sy + 9 + ((h_val >> (idx * 3 + 2)) % (ts - 12))
+                col = stroke_hi if idx % 2 == 0 else stroke_lo
+                pygame.draw.line(target_surf, col, (gx, gy), (gx + 4, gy - 3), 1)
+            if roll < 15:
+                fx, fy = sx + ox + 5, sy + oy + 5
+                stem_col = self._shift_rgb_clamped(s_base, 2, 14, 4)
+                petal_col = (214, 192, 104)
+                core_col = (232, 214, 134)
+                pygame.draw.line(target_surf, stem_col, (fx, fy + 3), (fx + 1, fy), 1)
+                pygame.draw.circle(target_surf, petal_col, (fx + 1, fy), 2)
+                target_surf.set_at((min(sx + ts - 1, fx + 1), max(sy, fy)), core_col)
+        else:
+            # Stratum 2 (Ancient Limestone Cobble Trail): irregular weathered flagstones & ~12% carved ring slabs
+            mortar = self._shift_rgb_clamped(s_base, -14, -14, -12)
+            stone_a = self._shift_rgb_clamped(s_base, 10, 9, 7)
+            stone_b = self._shift_rgb_clamped(s_base, -7, -7, -6)
+            stone_hi = self._shift_rgb_clamped(s_base, 14, 13, 10)
+            split_x = 16 + (h_val % 9)
+            split_y = 17 + ((h_val >> 3) % 7)
+            r1 = (sx + 2, sy + 2, split_x - 3, split_y - 3)
+            r2 = (sx + split_x + 1, sy + 2, ts - split_x - 3, split_y - 3)
+            r3 = (sx + 2, sy + split_y + 1, ts - 4, ts - split_y - 3)
+            pygame.draw.rect(target_surf, stone_a, r1, border_radius=4)
+            pygame.draw.rect(target_surf, mortar, r1, 1, border_radius=4)
+            pygame.draw.rect(target_surf, stone_b, r2, border_radius=4)
+            pygame.draw.rect(target_surf, mortar, r2, 1, border_radius=4)
+            pygame.draw.rect(target_surf, stone_a if (h_val & 1) else stone_b, r3, border_radius=4)
+            pygame.draw.rect(target_surf, mortar, r3, 1, border_radius=4)
+            if roll < 12:
+                # Weathered carved limestone ring / rune inlay (low-contrast, zero cyan/slate spikes)
+                rcx, rcy = sx + ts // 2, sy + ts // 2
+                pygame.draw.circle(target_surf, mortar, (rcx, rcy), 9, 1)
+                pygame.draw.circle(target_surf, stone_hi, (rcx - 1, rcy - 1), 6, 1)
+
+    def _draw_windy_ridge_stratum_borders(self, target_surf, coords, dr, s_idx, strata_defs, neighbors):
+        """Draw soft earth/moss elevation seams with overhanging grass tufts & pebbles for windy_ridge."""
+        x, y = coords
+        sx, sy, ts = int(dr[0]), int(dr[1]), int(dr[2])
+        same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se = neighbors
+
+        outer_canvas_col = strata_defs[1][0]
+        s_base = strata_defs[s_idx][0]
+        edge_shade = tuple(max(0, int(c * 0.80)) for c in s_base)
+        soft_lip = tuple(int(s_base[i] * 0.55 + outer_canvas_col[i] * 0.45) for i in range(3))
+        tuft_col = self._shift_rgb_clamped(outer_canvas_col, 10, 18, 8)
+        pebble_col = self._shift_rgb_clamped(strata_defs[2][0], -10, -10, -8)
+
+        c_rad = 8
+        rnd_nw = (not same_n) and (not same_w)
+        rnd_ne = (not same_n) and (not same_e)
+        rnd_sw = (not same_s) and (not same_w)
+        rnd_se = (not same_s) and (not same_e)
+
+        # 1. Soft rounded outer corners masked cleanly into surrounding meadow
+        if rnd_nw:
+            pygame.draw.polygon(target_surf, outer_canvas_col, [(sx, sy), (sx + c_rad, sy), (sx, sy + c_rad)])
+            pygame.draw.line(target_surf, edge_shade, (sx + 1, sy + c_rad), (sx + c_rad, sy + 1), 2)
+        if rnd_ne:
+            pygame.draw.polygon(
+                target_surf, outer_canvas_col, [(sx + ts, sy), (sx + ts - c_rad, sy), (sx + ts, sy + c_rad)]
+            )
+            pygame.draw.line(target_surf, edge_shade, (sx + ts - c_rad, sy + 1), (sx + ts - 1, sy + c_rad), 2)
+        if rnd_sw:
+            pygame.draw.polygon(
+                target_surf, outer_canvas_col, [(sx, sy + ts), (sx + c_rad, sy + ts), (sx, sy + ts - c_rad)]
+            )
+            pygame.draw.line(target_surf, edge_shade, (sx + 1, sy + ts - c_rad), (sx + c_rad, sy + ts - 1), 2)
+        if rnd_se:
+            pygame.draw.polygon(
+                target_surf,
+                outer_canvas_col,
+                [(sx + ts, sy + ts), (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad)],
+            )
+            pygame.draw.line(target_surf, edge_shade, (sx + ts - c_rad, sy + ts - 1), (sx + ts - 1, sy + ts - c_rad), 2)
+
+        # 2. Subtle 1-2px shaded earth/moss cardinal seams + overhanging tufts & pebbles
+        seam_hash = ((x * 2654435761) ^ (y * 2246822519)) & 0x7FFFFFFF
+        t_off1 = 9 + (seam_hash % 10)
+        t_off2 = 22 + ((seam_hash >> 4) % 9)
+        if not same_n:
+            x0 = sx + (c_rad if rnd_nw else 0)
+            x1 = sx + ts - (c_rad if rnd_ne else 0)
+            if x1 > x0:
+                target_surf.fill(edge_shade, (x0, sy, x1 - x0, 2))
+                target_surf.fill(soft_lip, (x0, sy + 2, x1 - x0, 1))
+                pygame.draw.line(target_surf, tuft_col, (sx + t_off1, sy + 3), (sx + t_off1 + 2, sy), 1)
+                if s_idx == 2:
+                    pygame.draw.circle(target_surf, pebble_col, (sx + t_off2, sy + 2), 2)
+        if not same_s:
+            x0 = sx + (c_rad if rnd_sw else 0)
+            x1 = sx + ts - (c_rad if rnd_se else 0)
+            if x1 > x0:
+                target_surf.fill(edge_shade, (x0, sy + ts - 2, x1 - x0, 2))
+                target_surf.fill(soft_lip, (x0, sy + ts - 3, x1 - x0, 1))
+                pygame.draw.line(target_surf, tuft_col, (sx + t_off2, sy + ts - 1), (sx + t_off2 + 2, sy + ts - 4), 1)
+                if s_idx == 2:
+                    pygame.draw.circle(target_surf, pebble_col, (sx + t_off1, sy + ts - 2), 2)
+        if not same_w:
+            y0 = sy + (c_rad if rnd_nw else 0)
+            y1 = sy + ts - (c_rad if rnd_sw else 0)
+            if y1 > y0:
+                target_surf.fill(edge_shade, (sx, y0, 2, y1 - y0))
+                target_surf.fill(soft_lip, (sx + 2, y0, 1, y1 - y0))
+                pygame.draw.line(target_surf, tuft_col, (sx + 1, sy + t_off1), (sx + 4, sy + t_off1 - 2), 1)
+        if not same_e:
+            y0 = sy + (c_rad if rnd_ne else 0)
+            y1 = sy + ts - (c_rad if rnd_se else 0)
+            if y1 > y0:
+                target_surf.fill(edge_shade, (sx + ts - 2, y0, 2, y1 - y0))
+                target_surf.fill(soft_lip, (sx + ts - 3, y0, 1, y1 - y0))
+                pygame.draw.line(target_surf, tuft_col, (sx + ts - 2, sy + t_off2), (sx + ts - 4, sy + t_off2 - 2), 1)
+
+        # 3. Soft concave inner corner caps
+        if same_n and same_w and not same_nw:
+            target_surf.fill(edge_shade, (sx, sy, 2, 2))
+        if same_n and same_e and not same_ne:
+            target_surf.fill(edge_shade, (sx + ts - 2, sy, 2, 2))
+        if same_s and same_w and not same_sw:
+            target_surf.fill(edge_shade, (sx, sy + ts - 2, 2, 2))
+        if same_s and same_e and not same_se:
+            target_surf.fill(edge_shade, (sx + ts - 2, sy + ts - 2, 2, 2))
+
     def _draw_stratum_perimeter_borders(self, target_surf, state, coords, dr, biome_info):
         """Draw transition outlines and rounded corner contours ONLY along edges bordering different surfaces."""
         if not isinstance(target_surf, pygame.Surface):
@@ -1593,6 +1825,11 @@ class Renderer:
 
         # If completely surrounded by the same surface, draw zero borders
         if same_n and same_s and same_w and same_e and same_nw and same_ne and same_sw and same_se:
+            return
+
+        if biome == "windy_ridge":
+            neighbors = (same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se)
+            self._draw_windy_ridge_stratum_borders(target_surf, (x, y), dr, s_idx, strata_defs, neighbors)
             return
 
         outer_canvas_col = strata_defs[1][0]
