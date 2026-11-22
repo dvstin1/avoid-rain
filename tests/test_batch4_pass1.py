@@ -14,7 +14,7 @@ from engine.enemy import NightBoss, SlugEnemy
 from engine.game_state import GameState
 from engine.player import Player, PlayerStateEnum
 from engine.stats import StatisticsTracker
-from engine.world import LoreFragment, World
+from engine.world import LoreFragment, Respite, World
 
 
 def _make_state(tmp_path):
@@ -81,42 +81,48 @@ def test_warding_rain_balance_no_flat_negation_immunity():
     assert player.hp == pytest.approx(60.0 - expected_stacked, abs=1e-4)
 
 
-def test_enemy_2_second_stuck_and_oob_nearest_floor_recovery(tmp_path):
-    """Verify an OOB or wall-trapped enemy recovers onto the nearest valid floor tile after 2.0 seconds."""
+def test_respite_enemy_respawn_walkability_verification(tmp_path):
+    """Verify Respite.execute_rest() respawns enemies on valid walkable floor tiles outside walls."""
     state = _make_state(tmp_path)
     prototype = [
         "########",
-        "#......#",
+        "#R....Z#",
         "#..##..#",
         "#..##..#",
-        "#......#",
+        "#Z.....#",
         "########",
     ]
-    state.world = World("recovery_test")
+    state.world = World("respite_walkability_test")
     state.world.load_from_prototype(prototype)
+    state.enemies = list(state.world.enemies)
     state.in_sanctuary = False
-    state.player.x, state.player.y = 160.0, 160.0
 
-    # Place a SlugEnemy out of bounds at (-80, -80)
-    oob_slug = SlugEnemy(-80.0, -80.0)
-    state.enemies = [oob_slug]
+    # Also inject a corrupted spawn entry inside an interior wall block (3*40, 2*40)
+    state.world.initial_enemy_spawns.append(
+        {
+            "cls": SlugEnemy,
+            "type": "SlugEnemy",
+            "x": 3.0 * constants.TILE_SIZE,
+            "y": 2.0 * constants.TILE_SIZE,
+            "id": "wall_spawn_test",
+            "is_miniboss": False,
+            "is_stationary": False,
+        }
+    )
 
-    for _ in range(35):
-        oob_slug.update(0.1, state)
+    state.enemies.clear()
+    respite = next(obj for obj in state.world.interactables if isinstance(obj, Respite))
+    respite.execute_rest(state)
 
-    assert not oob_slug._is_oob_or_in_wall(state.world)
-    assert oob_slug.x >= constants.TILE_SIZE
-    assert oob_slug.y >= constants.TILE_SIZE
-
-    # Place a SlugEnemy directly inside an interior wall block at (3 * 40, 2 * 40) = (120, 80)
-    wall_slug = SlugEnemy(120.0, 80.0)
-    state.enemies = [wall_slug]
-    assert wall_slug._is_oob_or_in_wall(state.world) is True
-
-    for _ in range(30):
-        wall_slug.update(0.1, state)
-
-    assert wall_slug._is_oob_or_in_wall(state.world) is False
+    assert len(state.enemies) == 3
+    for enemy in state.enemies:
+        tx0 = int(enemy.x // constants.TILE_SIZE)
+        ty0 = int(enemy.y // constants.TILE_SIZE)
+        tx1 = int((enemy.x + enemy.width - 1e-4) // constants.TILE_SIZE)
+        ty1 = int((enemy.y + enemy.height - 1e-4) // constants.TILE_SIZE)
+        for ty in range(ty0, ty1 + 1):
+            for tx in range(tx0, tx1 + 1):
+                assert state.world.grid[ty][tx] != constants.TILE_WALL
 
 
 def test_steeper_later_act_difficulty_curve_end_to_end(tmp_path, monkeypatch):

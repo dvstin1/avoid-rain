@@ -122,6 +122,7 @@ class Actor:
             return True
         if self.name in ("Night Boss", "The Final Author", "The Chronicler") or self.__class__.__name__ in (
             "NightBoss",
+            "SlugBoss",
             "FinalAuthor",
         ):
             return True
@@ -132,7 +133,7 @@ class Actor:
 
         runners = self.get_active_runner_positions(game_state)
         if not runners:
-            return True
+            return False
         cx, cy = self.get_center()
         sim_rad_sq = (ACTOR_ACTIVE_SIMULATION_RADIUS_TILES * TILE_SIZE) ** 2
         for rx, ry in runners:

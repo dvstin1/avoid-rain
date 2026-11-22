@@ -654,9 +654,15 @@ class Respite(GameObject):
         game_state.active_respite = self
 
     def execute_rest(self, game_state, audio_manager=None):
-        """Restore player and respawn standard enemies."""
-        from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES
-        
+        """Restore player and respawn standard enemies from world.initial_enemy_spawns."""
+        from constants import (
+            ACT2_DAMAGE_MULTIPLIER,
+            ACT2_HP_MULTIPLIER,
+            FLASK_MAX_CHARGES,
+            get_act_saturation,
+        )
+        from engine.enemy import ENEMY_REGISTRY
+
         # 0. Trigger SFX
         if audio_manager:
             audio_manager.play_sfx("respite_rest.ogg")
@@ -669,20 +675,132 @@ class Respite(GameObject):
         # Phase 4: Network Notify
         if game_state.network_manager.network_mode == "CLIENT":
             game_state.network_manager.send_respite_event("REST")
-            return # Exit early: Host will handle world respawn and sync back
+            return  # Exit early: Host will handle world respawn and sync back
 
-        # 2. World Re-population
-        print(f"[DEBUG] Respite resting: Re-manifesting threats in {game_state.world.name}")
+        # 2. World Re-population from world.initial_enemy_spawns
+        world = getattr(game_state, "world", None)
+        world_name = getattr(world, "name", "unknown") if world is not None else "unknown"
+        print(f"[DEBUG] Respite resting: Re-manifesting threats in {world_name}")
 
-        from engine.maps import create_world
-        temp_world = create_world(game_state.world.name, defeated_ids=game_state.defeated_miniboss_ids)
-        
-        game_state.enemies = temp_world.enemies
+        if world is not None and not getattr(world, "initial_enemy_spawns", None):
+            seed_enemies = getattr(game_state, "enemies", None) or getattr(world, "enemies", None) or []
+            if seed_enemies:
+                world.initial_enemy_spawns = World.build_initial_enemy_spawns(seed_enemies)
+            elif getattr(world, "name", "") not in ("", "sanctuary"):
+                from engine.maps import create_world
+                temp_world = create_world(
+                    world.name, defeated_ids=getattr(game_state, "defeated_miniboss_ids", None)
+                )
+                if getattr(temp_world, "initial_enemy_spawns", None):
+                    world.initial_enemy_spawns = list(temp_world.initial_enemy_spawns)
+
+        preserved_bosses = [
+            e
+            for e in getattr(game_state, "enemies", [])
+            if not e.is_dead()
+            and (
+                getattr(e, "name", "") == "Night Boss"
+                or getattr(e, "is_slug_boss", False)
+                or e.__class__.__name__ in ("NightBoss", "SlugBoss")
+            )
+        ]
+
+        current_act = int(getattr(game_state, "current_act", 0) or 0)
+        empowered_act = bool(getattr(game_state, "empowered_act", False))
+        hp_mult = 1.0
+        dmg_mult = 1.0
+        spd_mult = 1.0
+        cd_mult = 1.0
+        emp_flag = None
+        if current_act >= 1 or empowered_act:
+            sat = get_act_saturation(max(1, current_act if current_act >= 1 else 2))
+            spd_mult = float(sat.get("speed_multiplier", 1.0))
+            cd_mult = float(sat.get("cooldown_multiplier", 1.0))
+            if empowered_act and current_act <= 2:
+                hp_mult = float(max(ACT2_HP_MULTIPLIER, float(sat["hp_multiplier"])))
+                dmg_mult = float(max(ACT2_DAMAGE_MULTIPLIER, float(sat["damage_multiplier"])))
+                emp_flag = True
+            else:
+                hp_mult = float(sat["hp_multiplier"])
+                dmg_mult = float(sat["damage_multiplier"])
+                emp_flag = bool(sat["empowered"])
+
+        defeated_ids = getattr(game_state, "defeated_miniboss_ids", None) or set()
+        respawned_enemies = []
+        next_enemy_id = 0
+
+        def get_next_id():
+            nonlocal next_enemy_id
+            id_val = next_enemy_id
+            next_enemy_id += 1
+            return id_val
+
+        for spec in (getattr(world, "initial_enemy_spawns", None) or ()):
+            enemy_cls = spec.get("cls")
+            if enemy_cls is None:
+                enemy_cls = ENEMY_REGISTRY.get(spec.get("type"))
+            if enemy_cls is None:
+                continue
+            enemy_id = spec.get("id") if spec.get("id") is not None else spec.get("enemy_id")
+            raw_x = float(spec.get("x", 0.0))
+            raw_y = float(spec.get("y", 0.0))
+            temp_enemy = enemy_cls(raw_x, raw_y, id=enemy_id)
+            if spec.get("is_stationary"):
+                temp_enemy.is_stationary = True
+            if (temp_enemy.is_miniboss or spec.get("is_miniboss")) and enemy_id and enemy_id in defeated_ids:
+                continue
+
+            if world is not None and hasattr(world, "find_nearest_walkable_spawn"):
+                wx, wy = world.find_nearest_walkable_spawn(
+                    temp_enemy.x, temp_enemy.y, temp_enemy.width, temp_enemy.height
+                )
+            elif world is not None:
+                wx, wy = World.find_walkable_spawn_in_grid(
+                    world.grid,
+                    world.interactables,
+                    temp_enemy.x,
+                    temp_enemy.y,
+                    temp_enemy.width,
+                    temp_enemy.height,
+                )
+            else:
+                wx, wy = temp_enemy.x, temp_enemy.y
+
+            temp_enemy.x, temp_enemy.y = float(wx), float(wy)
+            temp_enemy.origin_x, temp_enemy.origin_y = float(wx), float(wy)
+
+            if (
+                hp_mult != 1.0
+                or dmg_mult != 1.0
+                or emp_flag is not None
+                or spd_mult != 1.0
+                or cd_mult != 1.0
+            ):
+                temp_enemy.apply_act_scaling(
+                    hp_mult,
+                    dmg_mult,
+                    empowered=emp_flag,
+                    speed_multiplier=spd_mult,
+                    cooldown_multiplier=cd_mult,
+                )
+
+            temp_enemy.network_id = get_next_id()
+            respawned_enemies.append(temp_enemy)
+
+        for idx, boss in enumerate(preserved_bosses):
+            if getattr(boss, "network_id", -1) < 0:
+                boss.network_id = 9000 + idx
+            respawned_enemies.append(boss)
+
+        game_state.enemies = respawned_enemies
+        if world is not None:
+            world._enemies = list(respawned_enemies)
+
         # Re-link routes after respawn
         LevelLoader.link_actors_to_routes(game_state)
         if hasattr(game_state, "marginalia_engine") and game_state.marginalia_engine:
             game_state.marginalia_engine.on_respite_rest(game_state)
-        
+
         print(f"[DEBUG] Rest complete. {len(game_state.enemies)} threats re-manifested.")
         game_state.save_stats(wait=True)
 
@@ -1187,6 +1305,28 @@ class LevelLoader:
         return grid, interactables, warp_tiles, player_start, enemies
 
     @staticmethod
+    def _tile_line_clear_of_walls(grid, x0_px, y0_px, x1_px, y1_px) -> bool:
+        """Return True if the straight tile line between two pixel positions contains no TILE_WALL."""
+        if not grid or not grid[0]:
+            return True
+        grid_h = len(grid)
+        grid_w = len(grid[0])
+        tx0, ty0 = int(x0_px // TILE_SIZE), int(y0_px // TILE_SIZE)
+        tx1, ty1 = int(x1_px // TILE_SIZE), int(y1_px // TILE_SIZE)
+        steps = max(abs(tx1 - tx0), abs(ty1 - ty0), 1) * 4
+        for i in range(steps + 1):
+            t = i / float(steps)
+            px = x0_px + (x1_px - x0_px) * t
+            py = y0_px + (y1_px - y0_px) * t
+            tx = int(px // TILE_SIZE)
+            ty = int(py // TILE_SIZE)
+            if tx < 0 or ty < 0 or tx >= grid_w or ty >= grid_h:
+                return False
+            if grid[ty][tx] in (TILE_WALL, "#", "X"):
+                return False
+        return True
+
+    @staticmethod
     def link_actors_to_routes(game_state):
         """Find and assign patrol routes to nearby actors using proximity discovery."""
         all_actors = list(game_state.enemies)
@@ -1194,10 +1334,12 @@ class LevelLoader:
         for obj in game_state.world.interactables:
             if isinstance(obj, Actor):
                 all_actors.append(obj)
-        
+
         markers = [obj for obj in game_state.world.interactables if isinstance(obj, PatrolPoint)]
         if not markers:
             return
+
+        grid = getattr(game_state.world, "grid", None)
 
         route_by_id = {}
         for m in markers:
@@ -1215,15 +1357,19 @@ class LevelLoader:
             ax, ay = actor.get_center()
             # 1. Find nearest marker (within 20 tiles for robustness)
             nearest = None
-            min_dist_sq = (20 * TILE_SIZE)**2
+            min_dist_sq = (20 * TILE_SIZE) ** 2
 
             for m in markers:
                 # Caste Filter Check
                 if m.caste_filter and actor.__class__.__name__ not in m.caste_filter:
                     continue
 
-                mx, my = m.x + m.width/2, m.y + m.height/2
-                dist_sq = (ax - mx)**2 + (ay - my)**2
+                mx, my = m.x + m.width / 2, m.y + m.height / 2
+                if m.route_id == "default" and not LevelLoader._tile_line_clear_of_walls(
+                    grid, ax, ay, mx, my
+                ):
+                    continue
+                dist_sq = (ax - mx) ** 2 + (ay - my) ** 2
                 if dist_sq < min_dist_sq:
                     min_dist_sq = dist_sq
                     nearest = m
@@ -1234,22 +1380,36 @@ class LevelLoader:
                     route = list(route_by_id.get(nearest.route_id, [nearest]))
                 else:
                     # Spatially Connected Discovery:
-                    # Find all 'default' markers reachable in steps of 10 tiles
+                    # Find all 'default' markers reachable in steps of 10 tiles without crossing a wall
                     route = []
                     to_check = [nearest]
                     while to_check:
                         curr = to_check.pop(0)
-                        if curr in route: continue
+                        if curr in route:
+                            continue
                         route.append(curr)
 
-                        cx, cy = curr.x + curr.width/2, curr.y + curr.height/2
+                        cx, cy = curr.x + curr.width / 2, curr.y + curr.height / 2
                         for m in markers:
                             if m.route_id == "default" and m not in route:
-                                mx, my = m.x + m.width/2, m.y + m.height/2
-                                d_sq = (cx - mx)**2 + (cy - my)**2
-                                if d_sq <= (10 * TILE_SIZE)**2:
+                                mx, my = m.x + m.width / 2, m.y + m.height / 2
+                                d_sq = (cx - mx) ** 2 + (cy - my) ** 2
+                                if d_sq <= (10 * TILE_SIZE) ** 2 and LevelLoader._tile_line_clear_of_walls(
+                                    grid, cx, cy, mx, my
+                                ):
                                     to_check.append(m)
                     route.sort(key=lambda x: x.symbol_idx)
+                    if len(route) > 1:
+                        chained = [route[0]]
+                        for cand in route[1:]:
+                            prev = chained[-1]
+                            pcx, pcy = prev.x + prev.width / 2, prev.y + prev.height / 2
+                            mcx, mcy = cand.x + cand.width / 2, cand.y + cand.height / 2
+                            if LevelLoader._tile_line_clear_of_walls(grid, pcx, pcy, mcx, mcy):
+                                chained.append(cand)
+                        if nearest not in chained:
+                            chained = [nearest]
+                        route = chained
 
                 actor.patrol_route = route
                 # Start at the nearest marker
@@ -1257,6 +1417,7 @@ class LevelLoader:
                 linked_count += 1
         if linked_count:
             print(f"[STANZA] Linked {linked_count} actors to patrol routes.")
+
 
 class World:
     """Manages the tile-based world map.
@@ -1271,7 +1432,8 @@ class World:
         self.grid = [[TILE_EMPTY for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.warp_tiles = {}  # Legacy mapping (x,y) -> (target_name, spawn_x_px, spawn_y_px)
         self.interactables = []
-        self.enemies = []
+        self._enemies = []
+        self.initial_enemy_spawns = []
         self.player_start = (PLAYER_START_X, PLAYER_START_Y)
         self.module_sockets = []
         self.boss_coords_list = []
@@ -1285,6 +1447,38 @@ class World:
         self._puddle_buckets = {}
         self._dynamic_actors = []
         self._gated_respites = []
+
+    @property
+    def enemies(self):
+        """Return active enemies in this World."""
+        return self._enemies
+
+    @enemies.setter
+    def enemies(self, value):
+        """Set active enemies and record initial_enemy_spawns on first population."""
+        self._enemies = list(value) if value is not None else []
+        if self._enemies and not self.initial_enemy_spawns:
+            self.initial_enemy_spawns = self.build_initial_enemy_spawns(self._enemies)
+
+    @staticmethod
+    def build_initial_enemy_spawns(enemies):
+        """Capture spawn descriptors for enemies so Respite.execute_rest() can re-manifest them cleanly."""
+        spawns = []
+        for enemy in (enemies or ()):
+            if getattr(enemy, "name", "") == "Night Boss" or getattr(enemy, "is_slug_boss", False):
+                continue
+            spawns.append(
+                {
+                    "cls": enemy.__class__,
+                    "type": enemy.__class__.__name__,
+                    "x": float(getattr(enemy, "origin_x", enemy.x)),
+                    "y": float(getattr(enemy, "origin_y", enemy.y)),
+                    "id": getattr(enemy, "id", None),
+                    "is_miniboss": bool(getattr(enemy, "is_miniboss", False)),
+                    "is_stationary": bool(getattr(enemy, "is_stationary", False)),
+                }
+            )
+        return spawns
 
     @staticmethod
     def find_walkable_spawn_in_grid(grid, interactables, x, y, width, height, max_radius_tiles=6):
@@ -1476,8 +1670,10 @@ class World:
         """
         Populates the world from a string array using LevelLoader.
         """
+        self.initial_enemy_spawns = []
         self.grid, self.interactables, self.warp_tiles, self.player_start, self.enemies = \
             LevelLoader.parse_map(prototype_array, entity_data, saved_enemies)
+        self.initial_enemy_spawns = self.build_initial_enemy_spawns(self.enemies)
         self.generate_grass_decorations()
 
     def generate_grass_decorations(self):
