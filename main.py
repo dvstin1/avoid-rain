@@ -159,8 +159,25 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
                     else:
                         pause_menu.close()
             else:
-                if event.button == 0: attack = True # Confirm/Swing
-                if event.button == 1: dash = True   # Cancel/Dash
+                if event.button == 0:
+                    if getattr(state, 'active_respite', None) or getattr(state, 'binder_dialog', None):
+                        state.input_ratchet_latched = False
+                    attack = True # Confirm/Swing
+                if event.button == 1:
+                    if getattr(state, 'chronicle_dialog', None):
+                        state.cancel_chronicle_dialog()
+                        continue
+                    if getattr(state, 'binder_dialog', None):
+                        state.close_binder_dialog()
+                        continue
+                    if getattr(state, 'active_respite', None):
+                        state.close_respite_menu()
+                        state.save_stats(wait=True)
+                        continue
+                    if getattr(state, 'active_dialogue', None):
+                        state.active_dialogue = None
+                        continue
+                    dash = True   # Cancel/Dash
                 if event.button == 3: flask = True  # Flask
                 if event.button == 4: swap = True   # L1 Swap
                 if event.button == 5: inspect = True # R1 Inspect
@@ -197,11 +214,11 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
             ) and event.key in (
                 pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_e
             ):
-                if getattr(state, 'active_respite', None):
+                if getattr(state, 'active_respite', None) or getattr(state, 'binder_dialog', None):
                     state.input_ratchet_latched = False
                 attack = True
             if event.key == pygame.K_SPACE:
-                if getattr(state, 'active_respite', None):
+                if getattr(state, 'active_respite', None) or getattr(state, 'binder_dialog', None):
                     state.input_ratchet_latched = False
                 attack = True
             if event.key == pygame.K_1: flask = True

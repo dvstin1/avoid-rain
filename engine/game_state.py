@@ -1949,8 +1949,11 @@ class GameState:
         ensure_binder_persistence(getattr(self, "stats", None))
         node = select_binder_dialogue_node(getattr(self, "stats", None))
         self.binder_dialog = {
+            "mode": "prompt",
+            "prompt_selection": 0,
             "selection": 0,
             "status_msg": node.get("text", ""),
+            "weave_feedback": "",
             "dialogue_id": node.get("id", "binder_default"),
             "emotion": node.get("emotion", "neutral"),
             "npc": binder_npc,
@@ -1974,7 +1977,7 @@ class GameState:
         self.save_stats(wait=True)
 
     def get_binder_dialog_options(self):
-        """Return interactive rows for the Binder Weaving UI (10 scripts + Speak + Close)."""
+        """Return interactive rows for the Binder Weaving UI (10 scripts + Close Loom)."""
         from engine.binder_scripts import get_catalog_view
         rows = get_catalog_view(getattr(self, "stats", None))
         options = []
@@ -1995,25 +1998,63 @@ class GameState:
                     "overridden_by_name": row["overridden_by_name"],
                 }
             )
-        options.append({"action": "speak", "name": "Consult The Binder", "summary": "Hear the Binder's counsel"})
         options.append({"action": "close", "name": "Close Loom", "summary": "Return to the Scriptorium"})
         return options
 
     def _handle_binder_dialog_ui(self, actions, attack_pressed, audio_manager=None):
-        """Handle keyboard/gamepad navigation inside the Binder Script Weaving Loom modal."""
+        """Handle keyboard/gamepad navigation inside the 3-mode Binder modal (prompt / consult / weave)."""
         dialog = getattr(self, "binder_dialog", None)
         if not dialog:
-            return
-        options = self.get_binder_dialog_options()
-        if not options:
-            self.close_binder_dialog()
             return
 
         if actions.get("cancel"):
             self.close_binder_dialog()
             return
 
+        mode = str(dialog.get("mode", "weave") or "weave")
         move_dir = actions.get("move", (0, 0))
+
+        if mode == "prompt":
+            if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
+                if move_dir[1] > 0.6:
+                    dialog["prompt_selection"] = (int(dialog.get("prompt_selection", 0)) + 1) % 2
+                    self.input_ratchet_latched = True
+                    self.menu_nav_cooldown = 0.18
+                elif move_dir[1] < -0.6:
+                    dialog["prompt_selection"] = (int(dialog.get("prompt_selection", 0)) - 1) % 2
+                    self.input_ratchet_latched = True
+                    self.menu_nav_cooldown = 0.18
+
+            if attack_pressed and not self.input_ratchet_latched:
+                from engine.binder_scripts import select_binder_dialogue_node
+                self.input_ratchet_latched = True
+                prompt_sel = int(dialog.get("prompt_selection", 0)) % 2
+                if prompt_sel == 0:
+                    node = select_binder_dialogue_node(getattr(self, "stats", None))
+                    dialog["status_msg"] = node.get("text", dialog.get("status_msg", ""))
+                    dialog["dialogue_id"] = node.get("id", dialog.get("dialogue_id", "binder_default"))
+                    dialog["emotion"] = node.get("emotion", dialog.get("emotion", "neutral"))
+                    dialog["mode"] = "consult"
+                    self.play_chronicler_mumble(dialog["emotion"])
+                else:
+                    dialog["mode"] = "weave"
+                    dialog["selection"] = 0
+                    dialog["weave_feedback"] = ""
+                if audio_manager:
+                    audio_manager.play_sfx("menu_confirm.ogg")
+            return
+
+        if mode == "consult":
+            if attack_pressed and not self.input_ratchet_latched:
+                self.input_ratchet_latched = True
+                self.close_binder_dialog()
+            return
+
+        options = self.get_binder_dialog_options()
+        if not options:
+            self.close_binder_dialog()
+            return
+
         if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
             if move_dir[1] > 0.6:
                 dialog["selection"] = (int(dialog.get("selection", 0)) + 1) % len(options)
@@ -2025,7 +2066,7 @@ class GameState:
                 self.menu_nav_cooldown = 0.18
 
         if attack_pressed and not self.input_ratchet_latched:
-            from engine.binder_scripts import select_binder_dialogue_node, toggle_equip_script, weave_script
+            from engine.binder_scripts import toggle_equip_script, weave_script
             self.input_ratchet_latched = True
             sel_idx = min(max(0, int(dialog.get("selection", 0))), len(options) - 1)
             chosen = options[sel_idx]
@@ -2033,13 +2074,6 @@ class GameState:
 
             if act == "close":
                 self.close_binder_dialog()
-                return
-            if act == "speak":
-                node = select_binder_dialogue_node(getattr(self, "stats", None))
-                dialog["status_msg"] = node.get("text", "")
-                dialog["dialogue_id"] = node.get("id", "binder_default")
-                dialog["emotion"] = node.get("emotion", "neutral")
-                self.play_chronicler_mumble(dialog["emotion"])
                 return
 
             sid = chosen["script_id"]
@@ -2061,6 +2095,7 @@ class GameState:
                     in_sanctuary=getattr(self, "in_sanctuary", True),
                 )
             dialog["status_msg"] = msg
+            dialog["weave_feedback"] = msg
             if ok and audio_manager:
                 audio_manager.play_sfx("menu_confirm.ogg")
             if hasattr(self, "network_manager") and self.network_manager.network_mode == "CLIENT":

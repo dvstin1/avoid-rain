@@ -221,13 +221,13 @@ def test_binder_consult_wraps_without_truncation_or_overlap():
     assert "Hemming -> Serif -> Gloss" in fallback_text
     assert "True Stitch" in fallback_text
 
-    state.binder_dialog = {"selection": 0, "status_msg": fallback_text}
+    state.binder_dialog = {"mode": "consult", "selection": 0, "status_msg": fallback_text}
 
     screen = pygame.Surface((1280, 720))
     font = load_font_or_sysfont("ink_sans", 2, "Arial", 24)
 
-    wrapped = _wrap_text_lines(font, fallback_text, 980 - 48)
-    assert 2 <= len(wrapped) <= 4
+    wrapped = _wrap_text_lines(font, fallback_text, 720 - 48)
+    assert 2 <= len(wrapped) <= 6
     assert " ".join(wrapped) == " ".join(fallback_text.split())
 
     blitted = []
@@ -270,11 +270,13 @@ def test_binder_consult_wraps_without_truncation_or_overlap():
 
     status_blits = [item for item in blitted if item[0] in wrapped]
     option_blits = [item for item in blitted if item[0].startswith(("> ", "  "))]
+    footer_blits = [item for item in blitted if "Close" in item[0]]
 
     assert len(status_blits) == len(wrapped)
     assert not any("..." in item[0] for item in status_blits)
-    assert option_blits, "Expected option rows to be rendered"
+    assert not option_blits, "Consult view should display only dialogue prose without upgrade options"
+    assert footer_blits, "Expected footer close hint to be rendered"
 
     lowest_status_bottom = max(pos[1] + h for _, pos, h in status_blits)
-    first_option_top = min(pos[1] for _, pos, _ in option_blits)
-    assert first_option_top > lowest_status_bottom
+    footer_top = min(pos[1] for _, pos, _ in footer_blits)
+    assert footer_top > lowest_status_bottom

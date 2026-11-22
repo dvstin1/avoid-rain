@@ -243,10 +243,71 @@ def _wrap_text_lines(font, text, max_width_px):
 
 
 def draw_binder_weave_menu(screen, font, state):
-    """Render The Binder's Script Weaving Loom modal in Sanctuary."""
+    """Render The Binder's 3-mode Sanctuary modal ('prompt', 'consult', or compact 'weave' Loom)."""
     dialog = getattr(state, "binder_dialog", None)
     if not dialog:
-        return
+        return None
+
+    mode = str(dialog.get("mode", "weave") or "weave")
+    sw, sh = screen.get_size()
+
+    if mode == "prompt":
+        w = min(540, sw - 40)
+        h = min(220, sh - 30)
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        panel = pygame.Rect(x, y, w, h)
+        pygame.draw.rect(screen, (16, 12, 22), panel, border_radius=6)
+        pygame.draw.rect(screen, (218, 178, 92), panel, 2, border_radius=6)
+
+        screen.blit(font.render("THE BINDER", True, constants.COLOR_SELECTION), (x + 24, y + 18))
+        screen.blit(
+            font.render("Choose how to engage the Scriptorium artisan:", True, constants.COLOR_GREY),
+            (x + 24, y + 48),
+        )
+
+        prompt_options = ("Consult", "Present margin scraps")
+        prompt_sel = int(dialog.get("prompt_selection", 0)) % len(prompt_options)
+        for idx, label in enumerate(prompt_options):
+            focused = idx == prompt_sel
+            col = constants.COLOR_SELECTION if focused else constants.COLOR_WHITE
+            prefix = "> " if focused else "  "
+            screen.blit(font.render(f"{prefix}{label}", True, col), (x + 28, y + 88 + idx * 34))
+
+        hint = font.render(
+            "[UP/DOWN] Select   [X / ENTER] Confirm   [Circle / ESC] Cancel",
+            True,
+            constants.COLOR_GREY,
+        )
+        screen.blit(hint, (x + 24, y + h - 34))
+        return panel
+
+    if mode == "consult":
+        w = min(720, sw - 40)
+        h = min(260, sh - 30)
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        panel = pygame.Rect(x, y, w, h)
+        pygame.draw.rect(screen, (16, 12, 22), panel, border_radius=6)
+        pygame.draw.rect(screen, (218, 178, 92), panel, 2, border_radius=6)
+
+        screen.blit(font.render("THE BINDER", True, constants.COLOR_SELECTION), (x + 24, y + 18))
+        status_msg = str(dialog.get("status_msg", "") or "")
+        wrapped_status = _wrap_text_lines(font, status_msg, max(200, w - 48))
+        font_h = font.get_height() if hasattr(font, "get_height") else 22
+        line_step = max(20, min(26, int(font_h)))
+        status_y = 54
+        for line in wrapped_status:
+            screen.blit(font.render(line, True, constants.COLOR_WHITE), (x + 24, y + status_y))
+            status_y += line_step
+
+        hint = font.render(
+            "[X / Circle] Close",
+            True,
+            constants.COLOR_GREY,
+        )
+        screen.blit(hint, (x + 24, y + h - 34))
+        return panel
 
     from engine.binder_scripts import (
         compile_binder_scripts,
@@ -254,9 +315,8 @@ def draw_binder_weave_menu(screen, font, state):
         format_stitch_sequence_progress,
     )
 
-    sw, sh = screen.get_size()
-    w = min(980, sw - 40)
-    h = min(650, sh - 30)
+    w = min(780, sw - 40)
+    h = min(490, sh - 30)
     x = (sw - w) // 2
     y = (sh - h) // 2
 
@@ -279,30 +339,28 @@ def draw_binder_weave_menu(screen, font, state):
 
     stitch_str = format_stitch_sequence_progress(binder_state, story_flags)
     stitch_col = (120, 245, 165) if story_flags.get("perfect_stitch_completed") else (220, 185, 110)
-    screen.blit(font.render(stitch_str, True, stitch_col), (x + 24, y + 42))
+    screen.blit(font.render(stitch_str, True, stitch_col), (x + 24, y + 38))
 
     frame_str = (
         f"Compiled Frame: +{int(mods['max_hp'])} HP   +{int(mods['attack'])} ATK   "
         f"+{int(mods['speed'])} SPD   +{int(round(mods['damage_mitigation'] * 100))}% MIT   "
         f"+{mods['bleed']:.1f} BLEED"
     )
-    screen.blit(font.render(frame_str, True, constants.COLOR_WHITE), (x + 24, y + 68))
+    screen.blit(font.render(frame_str, True, constants.COLOR_WHITE), (x + 24, y + 62))
 
-    status_msg = str(dialog.get("status_msg", "") or "")
-    msg_col = (245, 115, 115) if "CONFLICT" in status_msg else constants.COLOR_GREY
-    wrapped_status = _wrap_text_lines(font, status_msg, max(200, w - 48))
-    font_h = font.get_height() if hasattr(font, "get_height") else 22
-    line_step = max(20, min(26, int(font_h)))
-    status_y = 90
-    for line in wrapped_status:
-        screen.blit(font.render(line, True, msg_col), (x + 24, y + status_y))
-        status_y += line_step
+    weave_feedback = str(dialog.get("weave_feedback", "") or "")
+    y_off = 94
+    if weave_feedback:
+        fb_col = (245, 115, 115) if "CONFLICT" in weave_feedback else (120, 235, 165)
+        fb_lines = _wrap_text_lines(font, weave_feedback, max(200, w - 48))
+        if fb_lines:
+            screen.blit(font.render(fb_lines[0], True, fb_col), (x + 24, y + 86))
+            y_off = 112
 
     options = state.get_binder_dialog_options()
     sel_idx = int(dialog.get("selection", 0))
-    y_off = max(126, status_y + 10)
-    avail_h = max(120, (h - 40) - y_off)
-    spacing = min(36, max(24, avail_h // max(1, len(options))))
+    avail_h = max(120, (h - 38) - y_off)
+    spacing = min(32, max(24, avail_h // max(1, len(options))))
 
     for idx, opt in enumerate(options):
         focused = idx == sel_idx
@@ -342,4 +400,5 @@ def draw_binder_weave_menu(screen, font, state):
         True,
         constants.COLOR_GREY,
     )
-    screen.blit(hint, (x + 24, y + h - 34))
+    screen.blit(hint, (x + 24, y + h - 32))
+    return panel
