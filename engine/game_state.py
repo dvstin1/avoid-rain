@@ -38,6 +38,7 @@ class GameState:
         self.loot = []
         self.fading_entities = []
         self.world_debris = []
+        self.slime_pools = []
         self.damage_numbers = []
         self.defeated_miniboss_ids = set()
         self.destroyed_prop_ids = set()
@@ -1205,6 +1206,7 @@ class GameState:
             
         self._update_ui_and_menus(dt, actions, attack_pressed, audio_manager)
         self._update_sanctuary_door_state()
+        self._update_slime_pools(dt)
 
         # 5. CAMERA & VIEWPORT
         if hasattr(self, 'camera') and self.player:
@@ -1250,6 +1252,63 @@ class GameState:
                 self.audio_manager.play_sfx(SANCTUARY_DOOR_OPEN_SFX)
         self.sanctuary_door_open = door_open
 
+    def spawn_slime_pool(self, x, y, radius=None, duration=None, damage=None):
+        """Spawn a timed damaging ground slime pool secreted by SlugBoss."""
+        from constants import (
+            SLUG_BOSS_SLIME_POOL_DAMAGE,
+            SLUG_BOSS_SLIME_POOL_DURATION,
+            SLUG_BOSS_SLIME_POOL_RADIUS,
+        )
+        r_val = float(SLUG_BOSS_SLIME_POOL_RADIUS if radius is None else radius)
+        dur_val = float(SLUG_BOSS_SLIME_POOL_DURATION if duration is None else duration)
+        dmg_val = float(SLUG_BOSS_SLIME_POOL_DAMAGE if damage is None else damage)
+        pool = {
+            "x": float(x),
+            "y": float(y),
+            "radius": r_val,
+            "timer": dur_val,
+            "max_duration": dur_val,
+            "damage": dmg_val,
+            "tick_timer": 0.0,
+        }
+        self.slime_pools.append(pool)
+        return pool
+
+    def _update_slime_pools(self, dt):
+        """Advance ground slime pools, expire finished pools, and tick damage on standing players."""
+        if not getattr(self, "slime_pools", None):
+            return
+        from constants import SLUG_BOSS_SLIME_POOL_TICK_INTERVAL
+
+        player = getattr(self, "player", None)
+        can_damage = (
+            player is not None
+            and getattr(player, "hp", 0.0) > 0.0
+            and getattr(self, "death_timer", 0.0) <= 0.0
+            and getattr(self, "active_respite", None) is None
+            and getattr(self.network_manager, "network_mode", "OFFLINE") != "CLIENT"
+        )
+        px, py = player.get_center() if can_damage else (0.0, 0.0)
+        alive_pools = []
+        for pool in self.slime_pools:
+            pool["timer"] -= dt
+            if pool["timer"] <= 0.0:
+                continue
+            if pool["tick_timer"] > 0.0:
+                pool["tick_timer"] = max(0.0, pool["tick_timer"] - dt)
+            if can_damage and pool["tick_timer"] <= 0.0:
+                dist = math.hypot(px - pool["x"], py - pool["y"])
+                if dist <= pool["radius"] + 12.0:
+                    player.take_damage(
+                        pool["damage"],
+                        bypass_stagger=True,
+                        audio_manager=getattr(self, "audio_manager", None),
+                        game_state=self,
+                    )
+                    pool["tick_timer"] = float(SLUG_BOSS_SLIME_POOL_TICK_INTERVAL)
+            alive_pools.append(pool)
+        self.slime_pools = alive_pools
+
     def _update_world_events(self, dt):
         """Host-only logic for boss spawns and environmental transitions."""
         from constants import TILE_SIZE, TILE_STRUCTURE, TILE_RESPITE
@@ -1277,7 +1336,7 @@ class GameState:
         if self.weather_manager.is_boss_spawn_ready():
             boss_alive = any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
             if not boss_alive and self.weather_manager.bleed_state == "CLAMPED":
-                from engine.enemy import NightBoss
+                from engine.enemy import NightBoss, SlugBoss
                 idx = self.weather_manager.current_boss_idx
                 boss_list = getattr(self.world, 'boss_coords_list', [])
                 if idx < len(boss_list):
@@ -1289,7 +1348,11 @@ class GameState:
                         get_act_saturation,
                     )
                     bx, by = coords['x'] * TILE_SIZE, coords['y'] * TILE_SIZE
-                    new_boss = NightBoss(bx, by)
+                    active_biome = self._resolve_active_biome_key()
+                    if active_biome == "swamp_mire":
+                        new_boss = SlugBoss(bx, by)
+                    else:
+                        new_boss = NightBoss(bx, by)
                     if hasattr(self.world, "find_nearest_walkable_spawn"):
                         bx, by = self.world.find_nearest_walkable_spawn(
                             bx, by, new_boss.width, new_boss.height
@@ -2355,6 +2418,7 @@ class GameState:
 
         if reset_progress:
             self.world_debris = []
+            self.slime_pools = []
             self.loot = []
             self.destroyed_prop_ids.clear()
             self.defeated_miniboss_ids.clear()
@@ -2635,6 +2699,7 @@ class GameState:
         # Purification: Clear run state and persistent world changes when entering Hub
         from constants import MAX_ACTS
         self.world_debris = []
+        self.slime_pools = []
         self.destroyed_prop_ids.clear()
         self.chronicle_dialog = None
         self.binder_dialog = None
@@ -2731,6 +2796,7 @@ class GameState:
     def deallocate(self):
         self.player = self.world = None
         self.enemies = self.loot = self.world_debris = []
+        self.slime_pools = []
         self.destroyed_prop_ids = set()
         self.active_dialogue = self.active_choice = self.active_respite = None
 
@@ -2866,6 +2932,7 @@ class GameState:
             self.loot = []
             self.fading_entities = []
             self.world_debris = []
+            self.slime_pools = []
             self.damage_numbers = []
             from engine.weather import WeatherManager
             self.weather_manager = WeatherManager(boss_coords_list=getattr(self.world, 'boss_coords_list', None))
@@ -2921,6 +2988,7 @@ class GameState:
         self.enemies = list(getattr(self.world, 'enemies', []))
         self.fading_entities = []
         self.world_debris = []
+        self.slime_pools = []
         self.pending_remote_sfx = []
         self._remote_combat_seqs = {}
         self.local_swing_seq = 0

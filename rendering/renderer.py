@@ -881,6 +881,13 @@ class Renderer:
             ("tech_server_pylon.png", "TechServerPylon", (ts, 60), True),
             ("tech_canister.png", "TechCanister", (ts, ts), True),
             ("swamp_spore_pod.png", "SwampSporePod", (ts, ts), True),
+            ("slug_boss.png", "SlugBoss", (constants.SLUG_BOSS_SIZE, constants.SLUG_BOSS_SIZE), True),
+            (
+                "slug_boss_crown.png",
+                "SlugBossCrown",
+                (constants.SLUG_BOSS_CROWN_WIDTH, constants.SLUG_BOSS_CROWN_HEIGHT),
+                True,
+            ),
         )
         for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
             sx_path = os.path.join(base_path, sx_file)
@@ -2975,6 +2982,8 @@ class Renderer:
                     pygame.draw.circle(
                         self.screen, constants.COLOR_CYAN, (int(dr.centerx), int(dr.centery)), inner_r, 1
                     )
+            elif obj.name == "SlugBossCrown":
+                self._draw_slug_boss_crown(sx_o, sy_o, prop_cache)
             elif obj.name == "Barrel":
                 obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
                 w_name = getattr(state.world, "name", "").lower()
@@ -3251,6 +3260,8 @@ class Renderer:
             s.fill((100, 80, 40, alpha))
             self.screen.blit(s, (obj.x - ox, obj.y - oy))
 
+        self.draw_slime_pools(state, ox, oy)
+
         try:
             for enemy in getattr(state, 'enemies', []):
                 if (
@@ -3511,9 +3522,10 @@ class Renderer:
         packet = actor.get_visual_packet()
         rect = pygame.Rect(actor.x - ox, actor.y - oy, actor.width, actor.height)
         
-        from engine.enemy import BatEnemy, SlugEnemy
+        from engine.enemy import BatEnemy, SlugBoss, SlugEnemy
         actor_tag = actor.name.lower()
-        is_slug = isinstance(actor, SlugEnemy) or "slug" in actor_tag
+        is_slug_boss = bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss)
+        is_slug = (not is_slug_boss) and (isinstance(actor, SlugEnemy) or "slug" in actor_tag)
         is_bat = isinstance(actor, BatEnemy) or "bat" in actor_tag
 
         # --- Boss Attack Hitbox / Warning Telegraph Overlay ---
@@ -3522,6 +3534,7 @@ class Renderer:
             and hasattr(actor, 'get_attack_hitbox')
             and not is_slug
             and not is_bat
+            and not is_slug_boss
         ):
             hb = actor.get_attack_hitbox()
             sx = hb[0] - ox
@@ -3689,10 +3702,10 @@ class Renderer:
                 pygame.draw.rect(self.screen, (50, 50, 50), (bx, by, bar_w, 4))
                 pygame.draw.rect(self.screen, constants.COLOR_WHITE, (bx, by, int(bar_w * progress), 4))
 
-        # 7. Boss Attack Weapon/Limb Visuals (Bat uses crisp claw slash; Slug has no weapon visual)
+        # 7. Boss Attack Weapon/Limb Visuals (Bat uses crisp claw slash; Slug/SlugBoss have no greatblade)
         if is_bat:
             self._draw_bat_claw_slash(actor, ox, oy)
-        elif not is_slug and hasattr(actor, 'get_attack_hitbox'):
+        elif not is_slug and not is_slug_boss and hasattr(actor, 'get_attack_hitbox'):
             self.draw_boss_weapon(actor, ox, oy)
 
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
@@ -3700,8 +3713,11 @@ class Renderer:
         from engine.enemy import (
             BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy,
             Miniboss, MinibossM2, MinibossM3, NightBoss, PunctuationWolfEnemy,
-            SentryEnemy, SmearEnemy,
+            SentryEnemy, SlugBoss, SmearEnemy,
         )
+        if bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss):
+            self._draw_slug_boss(actor, draw_rect, packet)
+            return True
         actor_tag = actor.name.lower()
         cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
         w, h = int(draw_rect.width), int(draw_rect.height)
@@ -4150,9 +4166,13 @@ class Renderer:
         if not hasattr(actor, 'state') or not hasattr(actor, 'combat_timer'):
             return
 
-        from engine.enemy import BatEnemy, SlugEnemy
+        from engine.enemy import BatEnemy, SlugBoss, SlugEnemy
         actor_tag = str(getattr(actor, 'name', '')).lower()
-        if isinstance(actor, SlugEnemy) or "slug" in actor_tag:
+        if (
+            bool(getattr(actor, "is_slug_boss", False))
+            or isinstance(actor, (SlugBoss, SlugEnemy))
+            or "slug" in actor_tag
+        ):
             return
         if isinstance(actor, BatEnemy) or "bat" in actor_tag:
             self._draw_bat_claw_slash(actor, ox, oy)
@@ -5338,6 +5358,117 @@ class Renderer:
             pygame.draw.ellipse(self.screen, (20, 9, 24), (tx_i + 8, ty_i + 8, sw_o - 16, sh_o - 15), 1)
             pygame.draw.line(self.screen, (138, 198, 52), (cx_p, ty_i + 10), (cx_p - 4, ty_i + 26), 2)
             pygame.draw.circle(self.screen, (204, 174, 56), (cx_p + 4, ty_i + 20), 2)
+
+    def _draw_slug_boss(self, actor, draw_rect, packet):
+        """Render the 112x112 crowned yellow/pink sword-pierced SlugBoss with squash/stretch & slime swell."""
+        fx = float(packet.get("facing", (1.0, 0.0))[0])
+        base_state = packet.get("base", "IDLE")
+        attack_mode = packet.get("attack_mode", getattr(actor, "attack_mode", "CHARGE"))
+        anim_t = float(packet.get("anim_timer", 0.0))
+        w = max(16, int(draw_rect.width))
+        h = max(16, int(draw_rect.height))
+
+        # Subtle movement / charge squash-and-stretch + stationary slime-swell pulse
+        scale_x, scale_y = 1.0, 1.0
+        if base_state == "STRIKE" and attack_mode == "CHARGE":
+            scale_x, scale_y = 1.08, 0.92
+        elif base_state in ("WIND_UP", "STRIKE") and attack_mode == "SLIME":
+            swell = 0.07 * (0.5 + 0.5 * math.sin(anim_t * 14.0))
+            scale_x, scale_y = 1.0 + swell, 1.0 - swell * 0.6
+        elif base_state == "RUN":
+            wob = 0.04 * math.sin(anim_t * 7.0)
+            scale_x, scale_y = 1.0 + wob, 1.0 - wob
+
+        sw_s = max(16, int(round(w * scale_x)))
+        sh_s = max(16, int(round(h * scale_y)))
+        dst_rect = pygame.Rect(0, 0, sw_s, sh_s)
+        dst_rect.midbottom = draw_rect.midbottom
+
+        # Stationary slime-swell halo beneath the boss during SLIME wind-up / strike
+        if (
+            isinstance(self.screen, pygame.Surface)
+            and base_state in ("WIND_UP", "STRIKE")
+            and attack_mode == "SLIME"
+        ):
+            halo_r = max(24, sw_s // 2 + 10)
+            halo = pygame.Surface((halo_r * 2, halo_r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(halo, (148, 215, 68, 56), (halo_r, halo_r), halo_r)
+            pygame.draw.circle(halo, (224, 86, 158, 92), (halo_r, halo_r), halo_r - 2, 2)
+            self.screen.blit(halo, (dst_rect.centerx - halo_r, dst_rect.centery - halo_r))
+
+        sprite = self.prop_cache.get("SlugBoss") or self.image_cache.get("slug_boss.png")
+        if sprite is not None:
+            if sprite.get_size() != (sw_s, sh_s):
+                sprite = pygame.transform.scale(sprite, (sw_s, sh_s))
+            if fx < 0:
+                sprite = pygame.transform.flip(sprite, True, False)
+            self.screen.blit(sprite, dst_rect.topleft)
+        elif isinstance(self.screen, pygame.Surface):
+            # Graceful procedural fallback: yellow slug body, pink dorsal stripe, crown
+            pygame.draw.ellipse(self.screen, (212, 174, 52), dst_rect)
+            stripe = pygame.Rect(dst_rect.centerx - sw_s // 8, dst_rect.top + sh_s // 4, sw_s // 4, sh_s // 2)
+            pygame.draw.ellipse(self.screen, (224, 86, 158), stripe)
+            crown_r = pygame.Rect(dst_rect.centerx - 16, dst_rect.top + 6, 32, 14)
+            pygame.draw.rect(self.screen, (214, 174, 58), crown_r, border_radius=2)
+
+    def _draw_slug_boss_crown(self, sx_o, sy_o, prop_cache):
+        """Render the persistent non-interactive tarnished golden crown left after SlugBoss death."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        crown_surf = prop_cache.get("SlugBossCrown") or self.image_cache.get("slug_boss_crown.png")
+        if crown_surf is not None:
+            self.screen.blit(crown_surf, (tx_i, ty_i))
+        elif isinstance(self.screen, pygame.Surface):
+            pts = [
+                (tx_i + 8, ty_i + 24),
+                (tx_i + 6, ty_i + 10),
+                (tx_i + 15, ty_i + 16),
+                (tx_i + 22, ty_i + 5),
+                (tx_i + 29, ty_i + 16),
+                (tx_i + 38, ty_i + 9),
+                (tx_i + 36, ty_i + 24),
+            ]
+            pygame.draw.polygon(self.screen, (206, 166, 54), pts)
+            pygame.draw.polygon(self.screen, (78, 56, 18), pts, 2)
+
+    def draw_slime_pools(self, state, ox, oy):
+        """Render active damaging SlugBoss ground slime pools beneath actors."""
+        pools = getattr(state, "slime_pools", None)
+        if not pools or not isinstance(self.screen, pygame.Surface):
+            return
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        cache = self._fx_surface_cache
+        now_t = time.time()
+        for idx, pool in enumerate(pools):
+            rad = max(8, int(round(float(pool.get("radius", constants.SLUG_BOSS_SLIME_POOL_RADIUS)))))
+            sx = int(round(float(pool["x"]) - ox))
+            sy = int(round(float(pool["y"]) - oy))
+            if sx + rad < 0 or sx - rad > sw or sy + rad < 0 or sy - rad > sh:
+                continue
+            max_dur = max(0.1, float(pool.get("max_duration", constants.SLUG_BOSS_SLIME_POOL_DURATION)))
+            ratio = max(0.0, min(1.0, float(pool.get("timer", 0.0)) / max_dur))
+            fade = min(1.0, ratio * 3.0)  # Hold solid until final third, then fade smoothly
+            q_alpha = max(16, (int(round(fade * 140)) // 10) * 10)
+            p_key = ("slug_boss_slime_pool", rad, q_alpha)
+            p_surf = cache.get(p_key)
+            if p_surf is None:
+                p_surf = pygame.Surface((rad * 2 + 4, rad * 2 + 4), pygame.SRCALPHA)
+                cx_p, cy_p = rad + 2, rad + 2
+                # Chartreuse translucent ooze body with bruised-pink rim highlight
+                pygame.draw.ellipse(
+                    p_surf, (214, 78, 152, min(200, q_alpha + 24)), (2, 6, rad * 2, int(rad * 1.72))
+                )
+                pygame.draw.ellipse(
+                    p_surf, (132, 196, 48, min(210, q_alpha + 16)), (5, 9, rad * 2 - 6, int(rad * 1.60))
+                )
+                pygame.draw.ellipse(
+                    p_surf, (186, 232, 82, min(190, q_alpha)), (rad // 2, rad // 2 + 4, rad, int(rad * 0.7))
+                )
+                pygame.draw.circle(p_surf, (238, 146, 198, min(220, q_alpha + 30)), (cx_p - rad // 3, cy_p), 4)
+                cache[p_key] = p_surf
+            self.screen.blit(p_surf, (sx - rad - 2, sy - rad - 2))
+            # Live gentle bubbling dot
+            b_rad = 2 + int(((math.sin(now_t * 5.0 + idx * 1.9) + 1.0) * 0.5) * 3)
+            pygame.draw.circle(self.screen, (218, 246, 134), (sx + (idx % 3 - 1) * 10, sy - 2), b_rad, 1)
 
     def draw_swamp_mire_atmosphere(self, state, ox, oy, now=None):
         """Render drifting translucent bog miasma wisps (alpha 20..34) and rising chartreuse/lilac spores."""

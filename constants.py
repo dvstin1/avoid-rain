@@ -186,6 +186,21 @@ SLUG_ATTACK_HITBOX_OFFSET = 10.0  # Forward shift toward target/facing direction
 STAGGER_THRESHOLD = 20 # Damage needed to stagger
 RECOVERY_TIME = 0.3 # Time spent in stagger/recovery
 
+# Swamp Biome Night Boss (SlugBoss) configuration
+SLUG_BOSS_SIZE = 112  # 3.5x regular 32x32 slug
+SLUG_BOSS_CROWN_WIDTH = 44
+SLUG_BOSS_CROWN_HEIGHT = 32
+SLUG_BOSS_SPEED = 95.0
+SLUG_BOSS_CHARGE_SPEED_MULTIPLIER = 2.6
+SLUG_BOSS_CHARGE_HITBOX_OFFSET = 26.0
+SLUG_BOSS_CHARGE_HITBOX_SIZE = 92.0
+SLUG_BOSS_SLIME_POOL_DURATION = 4.5
+SLUG_BOSS_SLIME_POOL_RADIUS = 44.0
+SLUG_BOSS_SLIME_POOL_DAMAGE = 8.0
+SLUG_BOSS_SLIME_POOL_TICK_INTERVAL = 0.55
+SLUG_BOSS_SLIME_POOL_COUNT = 3
+SLUG_BOSS_SLIME_SFX = "slug_boss_slime.ogg"
+
 # Fast-pursuit Bat enemy configuration
 BAT_MAX_HP = 35
 BAT_SPEED = 150.0  # pixels per second (fast pursuit)

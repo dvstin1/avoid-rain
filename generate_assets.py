@@ -4073,6 +4073,172 @@ def generate_swamp_spore_pod(
     return surf
 
 
+def generate_slug_boss(
+    width: int = 112, height: int = 112, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate a 112x112 crowned yellow/pink sword-pierced Swamp Night Boss slug sprite."""
+    gen = rng if rng is not None else random.Random(2044)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    # Ground slime shadow under massive slug belly
+    pygame.draw.ellipse(surf, (18, 12, 24, 130), (10, height - 26, width - 20, 20))
+    pygame.draw.ellipse(surf, (88, 128, 36, 90), (16, height - 22, width - 32, 14))
+
+    # Muscular ochre-yellow slug foot & bloated domed body
+    foot_rect = pygame.Rect(14, height - 38, width - 28, 24)
+    body_rect = pygame.Rect(14, 28, width - 28, height - 50)
+    pygame.draw.ellipse(surf, (166, 126, 30, 255), foot_rect)
+    pygame.draw.ellipse(surf, (212, 174, 52, 255), body_rect)
+    # Shaded lower-right belly & glossy yellow upper-left flank highlight
+    pygame.draw.ellipse(surf, (176, 136, 36, 255), (cx - 10, 46, width // 2 - 4, height - 70))
+    pygame.draw.ellipse(surf, (242, 214, 102, 255), (22, 36, 26, 20))
+    pygame.draw.ellipse(surf, (56, 38, 16, 255), body_rect, 2)
+
+    # Organic mucus mottling on ochre body
+    for _ in range(36):
+        gx = gen.randint(20, width - 21)
+        gy = gen.randint(36, height - 28)
+        col = surf.get_at((gx, gy))
+        if col.a > 200:
+            delta = gen.randint(-12, 12)
+            surf.set_at(
+                (gx, gy),
+                (
+                    max(0, min(255, col.r + delta)),
+                    max(0, min(255, col.g + delta)),
+                    max(0, min(255, col.b + delta // 2)),
+                    255,
+                ),
+            )
+
+    # Vibrant bruised-pink dorsal stripe running down center back
+    stripe_outer = [
+        (cx - 12, 31), (cx + 12, 31),
+        (cx + 16, 56), (cx + 13, 82),
+        (cx, 88), (cx - 13, 82),
+        (cx - 16, 56),
+    ]
+    stripe_inner = [
+        (cx - 6, 35), (cx + 6, 35),
+        (cx + 8, 58), (cx + 5, 80),
+        (cx - 5, 80), (cx - 8, 58),
+    ]
+    pygame.draw.polygon(surf, (168, 46, 112, 255), stripe_outer)
+    pygame.draw.polygon(surf, (224, 86, 158, 255), stripe_inner)
+    pygame.draw.line(surf, (248, 158, 206, 255), (cx, 38), (cx, 78), 2)
+
+    # Multiple embedded swords protruding at angles from back and flanks
+    blade_metal = (176, 186, 198, 255)
+    blade_dark = (74, 82, 96, 255)
+    hilt_gold = (196, 158, 62, 255)
+    hilt_wrap = (82, 42, 48, 255)
+    swords = (
+        ((30, 56), (12, 32), (-1, -1)),
+        ((82, 54), (100, 30), (1, -1)),
+        ((26, 74), (8, 62), (-1, 0)),
+        ((86, 72), (104, 60), (1, 0)),
+    )
+    for (ex, ey), (hx, hy), (sx_d, _sy_d) in swords:
+        # Oozing entry wound bead
+        pygame.draw.ellipse(surf, (124, 188, 52, 255), (ex - 5, ey - 3, 10, 6))
+        # Blade stub entering flesh
+        mx, my = (ex + hx) // 2, (ey + hy) // 2
+        pygame.draw.line(surf, blade_dark, (ex, ey), (mx, my), 5)
+        pygame.draw.line(surf, blade_metal, (ex, ey), (mx, my), 3)
+        # Crossguard perpendicular to blade
+        dx, dy = hx - ex, hy - ey
+        mag = math.hypot(dx, dy) or 1.0
+        px, py = -dy / mag, dx / mag
+        gx1, gy1 = int(mx - px * 7), int(my - py * 7)
+        gx2, gy2 = int(mx + px * 7), int(my + py * 7)
+        pygame.draw.line(surf, hilt_gold, (gx1, gy1), (gx2, gy2), 3)
+        # Grip & pommel
+        pygame.draw.line(surf, hilt_wrap, (mx, my), (hx, hy), 3)
+        pygame.draw.circle(surf, hilt_gold, (hx, hy), 3)
+        if sx_d < 0:
+            surf.set_at((mx, my), (232, 240, 248, 255))
+
+    # Expressive eye-stalks & angry sunken eyes at head front
+    for side in (-1, 1):
+        ex_b = cx + side * 14
+        ey_b = 34
+        ex_t = cx + side * 20
+        ey_t = 18
+        pygame.draw.line(surf, (166, 126, 30, 255), (ex_b, ey_b), (ex_t, ey_t), 5)
+        pygame.draw.line(surf, (226, 190, 64, 255), (ex_b, ey_b), (ex_t, ey_t), 3)
+        pygame.draw.circle(surf, (44, 28, 20, 255), (ex_t, ey_t), 5)
+        pygame.draw.circle(surf, (242, 236, 188, 255), (ex_t, ey_t), 3)
+        surf.set_at((ex_t + side, ey_t), (24, 14, 24, 255))
+
+    # Tarnished golden crown perched atop the slug's head
+    crown_pts = [
+        (cx - 16, 28),
+        (cx - 18, 12),
+        (cx - 8, 20),
+        (cx, 8),
+        (cx + 8, 20),
+        (cx + 18, 12),
+        (cx + 16, 28),
+    ]
+    pygame.draw.polygon(surf, (214, 174, 58, 255), crown_pts)
+    pygame.draw.polygon(surf, (132, 98, 28, 255), crown_pts, 2)
+    pygame.draw.line(surf, (250, 228, 134, 255), (cx - 14, 25), (cx + 14, 25), 2)
+    for jx, jy, jcol in (
+        (cx, 20, (218, 62, 138, 255)),
+        (cx - 10, 24, (138, 212, 62, 255)),
+        (cx + 10, 24, (138, 212, 62, 255)),
+    ):
+        pygame.draw.circle(surf, jcol, (jx, jy), 2)
+
+    return surf
+
+
+def generate_slug_boss_crown(
+    width: int = 44, height: int = 32, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate a 44x32 tarnished golden crown resting tilted on the ground after SlugBoss death."""
+    _ = rng
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    # Soft ground shadow & tiny residual chartreuse slime puddle beneath fallen crown
+    pygame.draw.ellipse(surf, (14, 8, 20, 124), (5, height - 10, width - 10, 8))
+    pygame.draw.ellipse(surf, (112, 158, 46, 95), (9, height - 9, width - 18, 6))
+
+    # Slightly tilted tarnished medieval crown circlet
+    crown_pts = [
+        (8, height - 8),
+        (6, 10),
+        (15, 16),
+        (cx, 5),
+        (width - 15, 16),
+        (width - 6, 9),
+        (width - 8, height - 8),
+    ]
+    pygame.draw.polygon(surf, (206, 166, 54, 255), crown_pts)
+    # Tarnished right-side shadow & oxidized patina
+    tarnish_pts = [
+        (cx, height - 8),
+        (cx, 6),
+        (width - 15, 16),
+        (width - 6, 9),
+        (width - 8, height - 8),
+    ]
+    pygame.draw.polygon(surf, (154, 118, 34, 255), tarnish_pts)
+    pygame.draw.polygon(surf, (78, 56, 18, 255), crown_pts, 2)
+    pygame.draw.line(surf, (248, 224, 128, 255), (10, height - 10), (cx + 4, height - 10), 2)
+
+    # Crown jewel studs
+    pygame.draw.circle(surf, (216, 66, 142, 255), (cx, 17), 3)
+    pygame.draw.circle(surf, (248, 174, 212, 255), (cx - 1, 16), 1)
+    pygame.draw.circle(surf, (132, 204, 58, 255), (13, 19), 2)
+    pygame.draw.circle(surf, (132, 204, 58, 255), (width - 13, 19), 2)
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -4415,6 +4581,14 @@ def generate_all_assets(
         (
             "swamp_spore_pod",
             generate_swamp_spore_pod(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_spore_pod")),
+        ),
+        (
+            "slug_boss",
+            generate_slug_boss(112, 112, rng=_rng("slug_boss")),
+        ),
+        (
+            "slug_boss_crown",
+            generate_slug_boss_crown(44, 32, rng=_rng("slug_boss_crown")),
         ),
     )
     for sp_key, sp_surf in sanctuary_prop_specs:

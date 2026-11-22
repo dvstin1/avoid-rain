@@ -1152,6 +1152,232 @@ class NightBoss(Miniboss):
         self.speed = MINIBOSS_SPEED * 0.9
         self.loot_tier = 1
 
+
+class SlugBoss(NightBoss):
+    """Swamp biome Night Boss: crowned yellow/pink sword-pierced sovereign with charge & slime-pool attacks."""
+
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import SLUG_BOSS_SIZE, SLUG_BOSS_SPEED
+        super().__init__(x, y, hp=hp, id=id)
+        self.width = SLUG_BOSS_SIZE
+        self.height = SLUG_BOSS_SIZE
+        self.name = "Night Boss"
+        self.is_slug_boss = True
+        self.speed = SLUG_BOSS_SPEED
+        self.attack_type = "LUNGE"
+        self.attack_mode = "CHARGE"  # Alternates "CHARGE" <-> "SLIME"
+        self.wind_up_duration = 0.65
+        self.strike_duration = 0.45
+        self.recovery_duration = 0.85
+        self._charge_dir = (1.0, 0.0)
+        self._charge_locked = False
+        self._slime_released = False
+
+    def get_visual_packet(self):
+        packet = super().get_visual_packet()
+        packet["color_hint"] = (212, 174, 52)
+        packet["attack_mode"] = self.attack_mode
+        return packet
+
+    def _lock_charge_vector(self):
+        """Lock a normalized charge vector toward active_target or current facing."""
+        if self.active_target:
+            tx, ty = self.active_target
+            cx, cy = self.get_center()
+            dx, dy = tx - cx, ty - cy
+            mag = math.hypot(dx, dy)
+            if mag > 0.001:
+                self._charge_dir = (dx / mag, dy / mag)
+                self.facing = self._charge_dir
+                self._charge_locked = True
+                return
+        fx, fy = self.facing
+        mag = math.hypot(fx, fy)
+        self._charge_dir = (fx / mag, fy / mag) if mag > 0.001 else (1.0, 0.0)
+        self.facing = self._charge_dir
+        self._charge_locked = True
+
+    def get_attack_hitbox(self):
+        """Return a 92x92 forward charge hitbox during CHARGE STRIKE (112x112 body rect otherwise)."""
+        if self.state == ActorState.STRIKE and self.attack_mode == "CHARGE":
+            from constants import SLUG_BOSS_CHARGE_HITBOX_OFFSET, SLUG_BOSS_CHARGE_HITBOX_SIZE
+            cx, cy = self.get_center()
+            dx, dy = self._charge_dir if self._charge_locked else self.facing
+            mag = math.hypot(dx, dy)
+            ux, uy = (dx / mag, dy / mag) if mag > 0.001 else (1.0, 0.0)
+            size = float(SLUG_BOSS_CHARGE_HITBOX_SIZE)
+            off = float(SLUG_BOSS_CHARGE_HITBOX_OFFSET)
+            return (cx + ux * off - size / 2.0, cy + uy * off - size / 2.0, size, size)
+        return self.get_rect()
+
+    def _release_slime_pools(self, game_state):
+        """Play slug_boss_slime.ogg once and secrete damaging slime pools onto the ground."""
+        if self._slime_released:
+            return
+        self._slime_released = True
+        from constants import (
+            SLUG_BOSS_SLIME_POOL_COUNT,
+            SLUG_BOSS_SLIME_POOL_DAMAGE,
+            SLUG_BOSS_SLIME_POOL_DURATION,
+            SLUG_BOSS_SLIME_POOL_RADIUS,
+            SLUG_BOSS_SLIME_SFX,
+        )
+        audio = getattr(game_state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx(SLUG_BOSS_SLIME_SFX)
+            except Exception:
+                pass
+        spawn_fn = getattr(game_state, "spawn_slime_pool", None)
+        if not callable(spawn_fn):
+            return
+        cx, cy = self.get_center()
+        fx, fy = self.facing
+        mag = math.hypot(fx, fy)
+        ux, uy = (fx / mag, fy / mag) if mag > 0.001 else (1.0, 0.0)
+        px, py = -uy, ux
+        # Forward center pool + two flanking pools around the bloated slug
+        offsets = (
+            (ux * 68.0, uy * 68.0),
+            (ux * 34.0 + px * 58.0, uy * 34.0 + py * 58.0),
+            (ux * 34.0 - px * 58.0, uy * 34.0 - py * 58.0),
+        )
+        for ox_p, oy_p in offsets[:SLUG_BOSS_SLIME_POOL_COUNT]:
+            spawn_fn(
+                cx + ox_p,
+                cy + oy_p,
+                radius=SLUG_BOSS_SLIME_POOL_RADIUS,
+                duration=SLUG_BOSS_SLIME_POOL_DURATION,
+                damage=SLUG_BOSS_SLIME_POOL_DAMAGE,
+            )
+
+    def _update_chase(self, dt, state):
+        """Pursue target and initiate CHARGE or stationary SLIME attack within boss spacing."""
+        if self.active_target and self.cooldown_timer <= 0:
+            cx, cy = self.get_center()
+            tx, ty = self.active_target
+            dist = math.hypot(tx - cx, ty - cy)
+            if dist <= TILE_SIZE * 4.5:
+                self.state = ActorState.WIND_UP
+                self.combat_timer = self.wind_up_duration
+                self.vx, self.vy = 0.0, 0.0
+                self.has_hit_this_attack = False
+                self._charge_locked = False
+                self._slime_released = False
+                if dist > 0.1:
+                    self.facing = ((tx - cx) / dist, (ty - cy) / dist)
+                self._clear_nav_path()
+                audio = getattr(state, "audio_manager", None)
+                if audio is not None:
+                    try:
+                        audio.play_sfx("enemy_telegraph.ogg")
+                    except Exception:
+                        pass
+                return
+        super()._update_chase(dt, state)
+
+    def _update_wind_up(self, dt, game_state):
+        """Halt during wind-up, locking charge direction if in CHARGE mode."""
+        self.vx, self.vy = 0.0, 0.0
+        if self.attack_mode == "CHARGE" and not self._charge_locked:
+            self._lock_charge_vector()
+        super()._update_wind_up(dt, game_state)
+
+    def _on_start_strike(self, game_state):
+        """Launch a fast charging lunge or halt and secrete damaging slime pools."""
+        if self.attack_mode == "CHARGE":
+            from constants import SLUG_BOSS_CHARGE_SPEED_MULTIPLIER
+            if not self._charge_locked:
+                self._lock_charge_vector()
+            ux, uy = self._charge_dir
+            charge_spd = self.speed * SLUG_BOSS_CHARGE_SPEED_MULTIPLIER
+            self.vx = ux * charge_spd
+            self.vy = uy * charge_spd
+        else:
+            self.vx, self.vy = 0.0, 0.0
+            self._release_slime_pools(game_state)
+
+    def _update_strike(self, dt, game_state):
+        """Execute charging lunge movement or stationary slime secretion, then alternate mode."""
+        if self.attack_mode == "CHARGE":
+            self.x += self.vx * dt
+            self.y += self.vy * dt
+            if getattr(game_state, "world", None):
+                walls = game_state.world.get_nearby_walls(self.get_rect())
+                self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+            if not self.has_hit_this_attack and self.attempt_damage_player(game_state):
+                self.has_hit_this_attack = True
+        else:
+            self.vx, self.vy = 0.0, 0.0
+            self._release_slime_pools(game_state)
+
+        super()._update_strike(dt, game_state)
+        if self.state != ActorState.STRIKE:
+            self.vx, self.vy = 0.0, 0.0
+            self._charge_locked = False
+            self._slime_released = False
+            self.attack_mode = "SLIME" if self.attack_mode == "CHARGE" else "CHARGE"
+
+    def on_death(self, state):
+        """Leave a persistent non-interactive SlugBossCrown and scatter two distinct weapon pickups."""
+        from constants import SLUG_BOSS_CROWN_HEIGHT, SLUG_BOSS_CROWN_WIDTH
+        from engine.world import SlugBossCrown, WeaponPickup
+
+        world = getattr(state, "world", None)
+        if world is None:
+            return
+
+        cx, cy = self.get_center()
+        crown_x = cx - SLUG_BOSS_CROWN_WIDTH / 2.0
+        crown_y = cy - SLUG_BOSS_CROWN_HEIGHT / 2.0
+        if hasattr(world, "find_nearest_walkable_spawn"):
+            crown_x, crown_y = world.find_nearest_walkable_spawn(
+                crown_x, crown_y, SLUG_BOSS_CROWN_WIDTH, SLUG_BOSS_CROWN_HEIGHT
+            )
+        world.interactables.append(SlugBossCrown((crown_x, crown_y)))
+
+        weapon_pool = [
+            {
+                "name": "Anomalous Ink-Bleed",
+                "damage": 24,
+                "modifiers": {"bleed": 5.0},
+                "description": "Inflicts ink-bleed, dealing 5 damage per second on hit.",
+            },
+            {
+                "name": "Anomalous Life-Thread",
+                "damage": 22,
+                "modifiers": {"slow_hp_regen": 1.0},
+                "description": "Slowly mends the Reader, regenerating 1 HP per second.",
+            },
+            {
+                "name": "Anomalous Iron-Nib",
+                "damage": 23,
+                "modifiers": {"damage_negation_on_hit": 5.0},
+                "description": "Taking damage temporarily reduces next damage taken by 5.",
+            },
+            {
+                "name": "Anomalous Stout-Draft",
+                "damage": 25,
+                "modifiers": {"max_hp_boost": 20.0},
+                "description": "Gives the Reader a small boost of +20 Max HP.",
+            },
+        ]
+        chosen_pair = random.sample(weapon_pool, 2)
+        scatter_offsets = ((-48.0, 12.0), (48.0, -12.0))
+        for weapon_template, (ox_w, oy_w) in zip(chosen_pair, scatter_offsets):
+            wx, wy = cx + ox_w - TILE_SIZE / 2.0, cy + oy_w - TILE_SIZE / 2.0
+            if hasattr(world, "find_nearest_walkable_spawn"):
+                wx, wy = world.find_nearest_walkable_spawn(wx, wy, TILE_SIZE, TILE_SIZE)
+            weapon_copy = {
+                "name": weapon_template["name"],
+                "damage": weapon_template["damage"],
+                "modifiers": dict(weapon_template["modifiers"]),
+                "description": weapon_template["description"],
+            }
+            world.interactables.append(WeaponPickup((wx, wy), weapon_copy))
+        print("[LOOT] SlugBoss dropped tarnished crown and 2 scattered weapons.")
+
+
 class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
@@ -1171,7 +1397,7 @@ ENEMY_REGISTRY = {
     "BindlingEnemy": BindlingEnemy, "Miniboss": Miniboss, "MinibossM2": MinibossM2,
     "MinibossM3": MinibossM3, "SmearEnemy": SmearEnemy, "SentryEnemy": SentryEnemy,
     "PunctuationWolfEnemy": PunctuationWolfEnemy,
-    "NightBoss": NightBoss, "FinalAuthor": FinalAuthor
+    "NightBoss": NightBoss, "SlugBoss": SlugBoss, "FinalAuthor": FinalAuthor
 }
 
 SYMBOL_REGISTRY = {

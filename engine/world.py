@@ -75,8 +75,10 @@ class WarpPortal(GameObject):
             from engine.maps import create_world
             print(f"[DEBUG] WarpPortal targeting: {self.target_name}")
             
-            # Universal Reset: Clear visual debris on every map transition
+            # Universal Reset: Clear visual debris & active slime pools on every map transition
             game_state.world_debris = []
+            if hasattr(game_state, "slime_pools"):
+                game_state.slime_pools = []
 
             from constants import ACT2_HP_MULTIPLIER, ACT2_DAMAGE_MULTIPLIER, get_act_saturation
             cur_act = int(getattr(game_state, 'current_act', 0) or 0)
@@ -542,6 +544,21 @@ class WeaponPickup(GameObject):
             self.name = old_weapon.get("name", "Unknown Quill")
             print(f"[PLAYER] Swapped {self.name} onto floor, picked up {player.weapons[current_idx]['name']}")
             # NOTE: self is NOT removed from interactables in this case
+
+
+class SlugBossCrown(GameObject):
+    """Non-interactive tarnished golden crown left permanently on the floor after SlugBoss death."""
+    def __init__(self, position):
+        from constants import SLUG_BOSS_CROWN_HEIGHT, SLUG_BOSS_CROWN_WIDTH
+        super().__init__(position, (SLUG_BOSS_CROWN_WIDTH, SLUG_BOSS_CROWN_HEIGHT))
+        self.name = "SlugBossCrown"
+        self.is_interactive = False
+        self.is_solid = False
+
+    def execute_interaction(self, game_state):
+        """Non-interactive floor trophy prop: intentionally performs no action."""
+        return None
+
 
 class Respite(GameObject):
     """Ancient anchor fragment that allows resting and character edification."""

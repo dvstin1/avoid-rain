@@ -943,6 +943,43 @@ def preset_door_open(rng: random.Random, p: Dict):
     )
 
 
+def preset_slug_boss_slime(rng: random.Random, p: Dict):
+    """Low resonant gastropod bellow + viscous bubbling slime squelch (~0.55s)."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+
+    # 1. Low guttural gastropod bellow with warbling throat modulation
+    bellow_osc = oscillator(freq_curve(p["bellow_start_hz"], p["bellow_end_hz"], n), "saw")
+    bellow_sub = oscillator(freq_curve(p["bellow_start_hz"] * 0.5, p["bellow_end_hz"] * 0.5, n), "sine")
+    bellow_body = normalize(biquad(mix((bellow_osc, 0.8), (bellow_sub, 0.7)), "bandpass", p["bellow_formant_hz"], 1.8))
+    bellow_env = multiply(arch(n, 0.28, 1.3, 1.8), lfo(n, p["warble_hz"], 0.32))
+    bellow = multiply(soft_clip(bellow_body, 1.8), bellow_env)
+
+    # 2. Wet viscous slime secretion squelch sweep
+    squelch_start = min(dur * 0.14, 0.08)
+    sq_len = max(16, n - n_samples(squelch_start))
+    sq_noise = normalize(biquad(pink_noise(sq_len, rng), "bandpass", p["squelch_hz"], 2.2))
+    sq_high = normalize(biquad(white_noise(sq_len, rng), "bandpass", p["squelch_hz"] * 2.1, 2.8))
+    sq_env = multiply(arch(sq_len, 0.35, 1.4, 1.9), lfo(sq_len, 14.0, 0.35))
+    squelch = multiply(mix((sq_noise, 0.9), (sq_high, 0.55)), sq_env)
+
+    # 3. Viscous popping slime bubbles trailing the secretion
+    layers = [
+        (bellow, p["bellow_level"], 0.0),
+        (squelch, p["squelch_level"], squelch_start),
+    ]
+    b_count = max(2, int(p["bubble_count"]))
+    for idx in range(b_count):
+        b_len = n_samples(0.055)
+        f0 = rng.uniform(260.0, 480.0)
+        f1 = f0 * rng.uniform(1.6, 2.2)
+        bub = multiply(oscillator(freq_curve(f0, f1, b_len), "sine"), exp_decay(b_len, 0.018, attack=0.002))
+        t_off = squelch_start + (idx / max(1, b_count)) * max(0.05, dur - squelch_start - 0.06)
+        layers.append((bub, p["bubble_level"], t_off))
+
+    return mix(*layers)
+
+
 PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
     "slash": (preset_slash, {
         "duration": 0.32, "sweep_start_hz": 700.0, "sweep_end_hz": 5200.0, "sweep_q": 1.4, "peak_pos": 0.35,
@@ -1043,6 +1080,12 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "creak_start_hz": 165.0, "creak_end_hz": 215.0, "creak_body_hz": 440.0,
         "creak_flutter_hz": 24.0, "creak_level": 0.65, "wood_level": 0.45, "peak": 0.68,
     }, "Wooden latch click + low oak hinge creak"),
+    "slug_boss_slime": (preset_slug_boss_slime, {
+        "duration": 0.55, "bellow_start_hz": 74.0, "bellow_end_hz": 44.0,
+        "bellow_formant_hz": 220.0, "warble_hz": 17.0, "bellow_level": 0.85,
+        "squelch_hz": 780.0, "squelch_level": 0.75, "bubble_count": 5, "bubble_level": 0.42,
+        "peak": 0.80,
+    }, "Low resonant gastropod bellow + viscous slime squelch"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1102,6 +1145,7 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "menu_confirm.ogg": ("ui_select", {"duration": 0.3, "tone_hz": 880.0, "tone_level": 0.35, "stamp": True,
                                        "peak": 0.75}),
     "door_open.ogg": ("door_open", {"duration": 0.35, "peak": 0.68}),
+    "slug_boss_slime.ogg": ("slug_boss_slime", {"duration": 0.55, "peak": 0.80}),
 }
 
 # Keyword heuristics for unknown missing references (first match wins)
