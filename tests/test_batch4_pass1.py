@@ -180,7 +180,7 @@ def test_steeper_later_act_difficulty_curve_end_to_end(tmp_path, monkeypatch):
     state.weather_manager.bleed_state = "CLAMPED"
     state._update_world_events(0.016)
     nb = next(e for e in state.enemies if isinstance(e, NightBoss))
-    base_nb = NightBoss(0, 0)
+    base_nb = nb.__class__(0, 0)
     assert nb.max_hp == pytest.approx(base_nb.max_hp * sat4["hp_multiplier"])
     assert nb.damage == pytest.approx(base_nb.damage * sat4["damage_multiplier"])
     assert nb.speed == pytest.approx(base_nb.speed * sat4["speed_multiplier"])

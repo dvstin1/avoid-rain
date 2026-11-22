@@ -574,6 +574,20 @@ class MeadowCensorScythe(GameObject):
         return None
 
 
+class RimecrestHalberd(GameObject):
+    """Non-interactive shattered mirror-ice halberd planted upright in rime slate after RimecrestArbiterBoss death."""
+    def __init__(self, position):
+        from constants import RIMECREST_ARBITER_HALBERD_HEIGHT, RIMECREST_ARBITER_HALBERD_WIDTH
+        super().__init__(position, (RIMECREST_ARBITER_HALBERD_WIDTH, RIMECREST_ARBITER_HALBERD_HEIGHT))
+        self.name = "RimecrestHalberd"
+        self.is_interactive = False
+        self.is_solid = False
+
+    def execute_interaction(self, game_state):
+        """Non-interactive floor trophy prop: intentionally performs no action."""
+        return None
+
+
 class Respite(GameObject):
     """Ancient anchor fragment that allows resting and character edification."""
     def __init__(self, position, dimensions):
@@ -716,7 +730,8 @@ class Respite(GameObject):
                 getattr(e, "name", "") == "Night Boss"
                 or getattr(e, "is_slug_boss", False)
                 or getattr(e, "is_meadow_censor", False)
-                or e.__class__.__name__ in ("NightBoss", "SlugBoss", "MeadowCensorBoss")
+                or getattr(e, "is_rimecrest_arbiter", False)
+                or e.__class__.__name__ in ("NightBoss", "SlugBoss", "MeadowCensorBoss", "RimecrestArbiterBoss")
             )
         ]
 
@@ -1484,6 +1499,7 @@ class World:
                 getattr(enemy, "name", "") == "Night Boss"
                 or getattr(enemy, "is_slug_boss", False)
                 or getattr(enemy, "is_meadow_censor", False)
+                or getattr(enemy, "is_rimecrest_arbiter", False)
             ):
                 continue
             spawns.append(

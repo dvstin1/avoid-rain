@@ -80,6 +80,44 @@ class Player:
         
         self.flask_latched = False
 
+        # Frozen Peaks frost exposure & Ice Block encasement state
+        self.frost_exposure = 0.0
+        self.frozen_hits_remaining = 0
+        self.frozen_dash_latched = False
+        self.just_cracked_ice = False
+        self.just_shattered_ice = False
+        self._last_dash_held = False
+
+    def reset_frost_state(self):
+        """Clear all frost exposure and Ice Block encasement state."""
+        self.frost_exposure = 0.0
+        self.frozen_hits_remaining = 0
+        self.frozen_dash_latched = False
+        self.just_cracked_ice = False
+        self.just_shattered_ice = False
+        self._last_dash_held = False
+
+    def apply_frost_exposure(self, amount, dash_held=None):
+        """Accumulate frost exposure; at >= 1.0 encase the player in a 3-Dash Ice Block."""
+        if self.frozen_hits_remaining > 0 or amount <= 0.0:
+            return False
+        from constants import FROZEN_ICE_BLOCK_HITS
+        self.frost_exposure = max(0.0, float(self.frost_exposure) + float(amount))
+        if self.frost_exposure >= 1.0:
+            self.frost_exposure = 0.0
+            self.frozen_hits_remaining = int(FROZEN_ICE_BLOCK_HITS)
+            held = self._last_dash_held if dash_held is None else bool(dash_held)
+            self.frozen_dash_latched = bool(held)
+            self.just_cracked_ice = True
+            self.vx = 0.0
+            self.vy = 0.0
+            self.state = PlayerStateEnum.IDLE
+            self.stagger_timer = 0.0
+            self.attack_timer = 0.0
+            self.dash_timer = 0.0
+            return True
+        return False
+
     def swap_weapon(self, audio_manager=None):
         """Toggle the active weapon slot if the player is not currently attacking."""
         if self.state != PlayerStateEnum.ATTACKING and len(self.weapons) > 1:
@@ -169,15 +207,44 @@ class Player:
             DASH_SUBSTEP_MAX_PX,
             BLOCK_SPEED_MULTIPLIER,
             PARRY_WINDOW,
+            FROZEN_EXPOSURE_DECAY_RATE,
         )
         world_pixel_width = world_width if world_width is not None else GRID_WIDTH * TILE_SIZE
         world_pixel_height = world_height if world_height is not None else GRID_HEIGHT * TILE_SIZE
 
         healed = False
-        
+        self.just_cracked_ice = False
+        self.just_shattered_ice = False
+        self._last_dash_held = bool(dash_pressed)
+
         # 0. Parry Timer Update
         if self.parry_timer > 0:
             self.parry_timer -= dt
+
+        # 0b. Frozen Ice Block Encasement: lock movement/attacks/block/normal-dash & step 3-Dash breakout
+        if self.frozen_hits_remaining > 0:
+            self.vx = 0.0
+            self.vy = 0.0
+            self.state = PlayerStateEnum.IDLE
+            self.stagger_timer = 0.0
+            self.attack_timer = 0.0
+            self.dash_timer = 0.0
+            if dash_pressed:
+                if not self.frozen_dash_latched:
+                    self.frozen_dash_latched = True
+                    self.frozen_hits_remaining = max(0, self.frozen_hits_remaining - 1)
+                    if self.frozen_hits_remaining > 0:
+                        self.just_cracked_ice = True
+                    else:
+                        self.just_shattered_ice = True
+            else:
+                self.frozen_dash_latched = False
+            return False
+
+        # Decay frost exposure when not encased
+        if self.frost_exposure > 0.0:
+            self.frost_exposure = max(0.0, self.frost_exposure - FROZEN_EXPOSURE_DECAY_RATE * dt)
+        self.frozen_dash_latched = False
 
         if self.state == PlayerStateEnum.STAGGERED:
             self.stagger_timer -= dt
@@ -387,8 +454,9 @@ class Player:
             else:
                 amount = max(0.0, amount - self.negation_amount)
 
-        # 0. Damage Immunity (i-frames) during Stagger or Dash
-        if self.state in (PlayerStateEnum.STAGGERED, PlayerStateEnum.DASHING):
+        # 0. Damage Immunity (i-frames) during Stagger or Dash (bypassed while encased in Ice Block)
+        is_frozen = getattr(self, "frozen_hits_remaining", 0) > 0
+        if not is_frozen and self.state in (PlayerStateEnum.STAGGERED, PlayerStateEnum.DASHING):
             if not bypass_stagger: # Hazards like rain still tick
                 return
 
@@ -445,8 +513,11 @@ class Player:
                 self.negation_timer = 3.0
                 self.negation_amount = all_mods["damage_negation_on_hit"]
         
-        # Only stagger if they took actual damage and stagger isn't bypassed
-        if not bypass_stagger and self.hp > 0 and amount > 0:
+        # Only stagger if they took actual damage, stagger isn't bypassed, and not encased in Ice Block
+        if not bypass_stagger and not is_frozen and self.hp > 0 and amount > 0:
             self.state = PlayerStateEnum.STAGGERED
             self.stagger_timer = STAGGER_DURATION
             self.vx, self.vy = 0, 0
+        elif is_frozen and self.hp > 0:
+            self.state = PlayerStateEnum.IDLE
+            self.vx, self.vy = 0.0, 0.0

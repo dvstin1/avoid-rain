@@ -1020,6 +1020,22 @@ class Renderer:
             ),
             ("frozen_script_monolith.png", "FrozenScriptMonolith", (ts, 60), True),
             ("frozen_rime_cask.png", "FrozenRimeCask", (ts, ts), True),
+            (
+                "rimecrest_arbiter_boss.png",
+                "RimecrestArbiterBoss",
+                (constants.RIMECREST_ARBITER_SIZE, constants.RIMECREST_ARBITER_SIZE),
+                True,
+            ),
+            (
+                "rimecrest_halberd.png",
+                "RimecrestHalberd",
+                (constants.RIMECREST_ARBITER_HALBERD_WIDTH, constants.RIMECREST_ARBITER_HALBERD_HEIGHT),
+                True,
+            ),
+            ("frozen_ice_block_0.png", "FrozenIceBlock0", (64, 64), True),
+            ("frozen_ice_block_1.png", "FrozenIceBlock1", (64, 64), True),
+            ("frozen_ice_block_2.png", "FrozenIceBlock2", (64, 64), True),
+            ("ice_rubble_pile.png", "IceRubblePile", (48, 36), True),
         )
         for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
             sx_path = os.path.join(base_path, sx_file)
@@ -3038,14 +3054,42 @@ class Renderer:
                     dr = (x * ts - ox, y * ts - oy, ts, ts)
                     self._draw_world_tile(state, (x, y, w, h), dr)
 
-        # World Debris (Persistent visual remnants, culled to viewport)
+        # World Debris (Persistent & timed visual remnants, culled to viewport)
         for debris in getattr(state, 'world_debris', []):
-            if debris['name'] == 'BarrelRubble':
-                dx_s, dy_s = debris['pos'][0] - ox, debris['pos'][1] - oy
-                if -64 <= dx_s <= sw + 64 and -64 <= dy_s <= sh + 64:
-                    img = self.image_cache.get("barrel_3.png")
-                    if img:
-                        self.screen.blit(img, (dx_s, dy_s))
+            if not isinstance(debris, dict):
+                continue
+            d_name = debris.get('name')
+            d_pos = debris.get('pos')
+            if not d_pos:
+                continue
+            dx_s, dy_s = d_pos[0] - ox, d_pos[1] - oy
+            if not (-64 <= dx_s <= sw + 64 and -64 <= dy_s <= sh + 64):
+                continue
+            if d_name == 'BarrelRubble':
+                img = self.image_cache.get("barrel_3.png")
+                if img:
+                    self.screen.blit(img, (dx_s, dy_s))
+            elif d_name == 'IceRubble' and is_real_surface:
+                rem_t = float(debris.get('time', constants.ICE_RUBBLE_DURATION))
+                max_t = max(1e-3, float(debris.get('max_time', constants.ICE_RUBBLE_DURATION)))
+                ratio = min(1.0, max(0.0, rem_t / max_t))
+                if ratio <= 0.0:
+                    continue
+                q_alpha = 255 if ratio >= 0.999 else max(16, (int(ratio * 255) // 16) * 16)
+                rubble_src = self.prop_cache.get("IceRubblePile") or self.image_cache.get("ice_rubble_pile.png")
+                r_key = ("ice_rubble_fade", q_alpha, rubble_src is not None)
+                r_surf = self._fx_surface_cache.get(r_key)
+                if r_surf is None:
+                    r_surf = pygame.Surface((48, 36), pygame.SRCALPHA)
+                    if rubble_src is not None:
+                        r_surf.blit(rubble_src, (0, 0))
+                        if q_alpha < 255:
+                            r_surf.fill((255, 255, 255, q_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+                    else:
+                        pygame.draw.polygon(r_surf, (132, 214, 252, q_alpha), [(8, 22), (16, 10), (24, 24)])
+                        pygame.draw.polygon(r_surf, (186, 236, 255, q_alpha), [(22, 24), (32, 12), (40, 26)])
+                    self._fx_surface_cache[r_key] = r_surf
+                self.screen.blit(r_surf, (int(dx_s), int(dy_s)))
 
         prop_cache = getattr(self, "prop_cache", {}) if is_real_surface else {}
         player_obj = getattr(state, "player", None)
@@ -3156,6 +3200,8 @@ class Renderer:
                 self._draw_slug_boss_crown(sx_o, sy_o, prop_cache)
             elif obj.name == "MeadowCensorScythe":
                 self._draw_meadow_censor_scythe(sx_o, sy_o, prop_cache)
+            elif obj.name == "RimecrestHalberd":
+                self._draw_rimecrest_halberd(sx_o, sy_o, prop_cache)
             elif obj.name == "Barrel":
                 obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
                 w_name = getattr(state.world, "name", "").lower()
@@ -3930,13 +3976,16 @@ class Renderer:
         from engine.enemy import (
             BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy,
             MeadowCensorBoss, Miniboss, MinibossM2, MinibossM3, NightBoss,
-            PunctuationWolfEnemy, SentryEnemy, SlugBoss, SmearEnemy,
+            PunctuationWolfEnemy, RimecrestArbiterBoss, SentryEnemy, SlugBoss, SmearEnemy,
         )
         if bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss):
             self._draw_slug_boss(actor, draw_rect, packet)
             return True
         if bool(getattr(actor, "is_meadow_censor", False)) or isinstance(actor, MeadowCensorBoss):
             self._draw_meadow_censor_boss(actor, draw_rect, packet)
+            return True
+        if bool(getattr(actor, "is_rimecrest_arbiter", False)) or isinstance(actor, RimecrestArbiterBoss):
+            self._draw_rimecrest_arbiter_boss(actor, draw_rect, packet)
             return True
         actor_tag = actor.name.lower()
         cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
@@ -4278,6 +4327,38 @@ class Renderer:
             ty = hy + int(fy * 22) + int(perp_y * 3)
             self._draw_tapered_blade((hx, hy), (tx, ty), 3.5, edge_col)
 
+        # 6. Frozen Peaks frost exposure rim tint OR 3-stage cracked Ice Block encasement overlay
+        frozen_hits = int(getattr(actor, "frozen_hits_remaining", 0) or 0)
+        if frozen_hits > 0 and isinstance(self.screen, pygame.Surface):
+            stage = max(0, min(2, int(constants.FROZEN_ICE_BLOCK_HITS) - frozen_hits))
+            ice_key = f"FrozenIceBlock{stage}"
+            ice_surf = self.prop_cache.get(ice_key) or self.image_cache.get(f"frozen_ice_block_{stage}.png")
+            if ice_surf is not None:
+                self.screen.blit(ice_surf, (cx - ice_surf.get_width() // 2, cy - ice_surf.get_height() // 2))
+            else:
+                fb = pygame.Surface((64, 64), pygame.SRCALPHA)
+                pygame.draw.rect(fb, (124, 218, 255, 132), (8, 8, 48, 48), border_radius=8)
+                pygame.draw.rect(fb, (232, 250, 255, 235), (8, 8, 48, 48), 2, border_radius=8)
+                if stage >= 1:
+                    pygame.draw.line(fb, (245, 253, 255, 240), (32, 32), (14, 14), 2)
+                    pygame.draw.line(fb, (245, 253, 255, 240), (32, 32), (50, 48), 2)
+                if stage >= 2:
+                    pygame.draw.line(fb, (24, 62, 112, 235), (32, 32), (50, 14), 3)
+                    pygame.draw.line(fb, (24, 62, 112, 235), (32, 32), (14, 50), 3)
+                self.screen.blit(fb, (cx - 32, cy - 32))
+        else:
+            exposure = float(getattr(actor, "frost_exposure", 0.0) or 0.0)
+            if exposure > 0.01 and isinstance(self.screen, pygame.Surface):
+                q_exp = max(24, min(192, (int(min(1.0, exposure) * 180) // 16) * 16))
+                rim_key = ("player_frost_rim", q_exp)
+                rim_surf = self._fx_surface_cache.get(rim_key)
+                if rim_surf is None:
+                    rim_surf = pygame.Surface((52, 52), pygame.SRCALPHA)
+                    pygame.draw.circle(rim_surf, (148, 232, 255, q_exp // 3), (26, 26), 24)
+                    pygame.draw.circle(rim_surf, (206, 246, 255, q_exp), (26, 26), 23, 2)
+                    self._fx_surface_cache[rim_key] = rim_surf
+                self.screen.blit(rim_surf, (cx - 26, cy - 26))
+
         return True
 
     def draw_player_weapon_attack(self, player, ox, oy):
@@ -4386,12 +4467,13 @@ class Renderer:
         if not hasattr(actor, 'state') or not hasattr(actor, 'combat_timer'):
             return
 
-        from engine.enemy import BatEnemy, MeadowCensorBoss, SlugBoss, SlugEnemy
+        from engine.enemy import BatEnemy, MeadowCensorBoss, RimecrestArbiterBoss, SlugBoss, SlugEnemy
         actor_tag = str(getattr(actor, 'name', '')).lower()
         if (
             bool(getattr(actor, "is_slug_boss", False))
             or bool(getattr(actor, "is_meadow_censor", False))
-            or isinstance(actor, (SlugBoss, SlugEnemy, MeadowCensorBoss))
+            or bool(getattr(actor, "is_rimecrest_arbiter", False))
+            or isinstance(actor, (SlugBoss, SlugEnemy, MeadowCensorBoss, RimecrestArbiterBoss))
             or "slug" in actor_tag
         ):
             return
@@ -4956,6 +5038,15 @@ class Renderer:
                 "time": f"{player.bind_timer:.1f}s",
                 "color": (255, 100, 100),  # Pink/Red
                 "bg": (60, 20, 20)
+            })
+        frozen_hits_hud = int(getattr(player, "frozen_hits_remaining", 0) or 0)
+        if frozen_hits_hud > 0:
+            active_statuses.append({
+                "name": "FROZEN",
+                "val": f"{frozen_hits_hud} DASH",
+                "time": "",
+                "color": (140, 235, 255),  # Ice cyan
+                "bg": (18, 46, 72)
             })
 
         all_mods = player.get_all_modifiers()
@@ -5779,6 +5870,137 @@ class Renderer:
             pygame.draw.line(self.screen, (118, 76, 42), (tx_i + 20, ty_i + 48), (tx_i + 27, ty_i + 10), 4)
             blade = [(tx_i + 27, ty_i + 10), (tx_i + 42, ty_i + 14), (tx_i + 38, ty_i + 34), (tx_i + 28, ty_i + 30)]
             pygame.draw.polygon(self.screen, (186, 196, 210), blade)
+
+    def _draw_rimecrest_arbiter_boss(self, actor, draw_rect, packet):
+        """Render the 104x104 Rimecrest Arbiter with Phase 2 crystalline aura, Frost Breath cone & halberd arc."""
+        fx, fy = packet.get("facing", (1.0, 0.0))
+        fx = float(fx)
+        fy = float(fy)
+        base_state = packet.get("base", "IDLE")
+        attack_mode = packet.get("attack_mode", getattr(actor, "attack_mode", "HALBERD"))
+        anim_t = float(packet.get("anim_timer", 0.0))
+        w = max(16, int(draw_rect.width))
+        h = max(16, int(draw_rect.height))
+
+        bob_y = int(round(math.sin(anim_t * 5.8) * 3.0)) if base_state == "RUN" else 0
+        dst_rect = pygame.Rect(0, 0, w, h)
+        dst_rect.midbottom = (draw_rect.midbottom[0], draw_rect.midbottom[1] + bob_y)
+
+        # Phase 2 crystalline cyan/white aura beneath/around RimecrestArbiterBoss (<= 50% HP)
+        max_hp = float(getattr(actor, "max_hp", 0.0) or 0.0)
+        cur_hp = float(getattr(actor, "hp", 0.0) or 0.0)
+        is_phase2 = getattr(actor, "phase", 1) >= 2 or (
+            max_hp > 0.0 and 0.0 < cur_hp <= max_hp * constants.RIMECREST_ARBITER_PHASE2_HP_RATIO
+        )
+        if isinstance(self.screen, pygame.Surface) and is_phase2:
+            pulse = 0.5 + 0.5 * math.sin(anim_t * 11.0)
+            aura_r = max(32, w // 2 + int(12 + pulse * 8))
+            aura = pygame.Surface((aura_r * 2 + 4, aura_r * 2 + 4), pygame.SRCALPHA)
+            acx, acy = aura_r + 2, aura_r + 2
+            pygame.draw.circle(aura, (92, 206, 255, int(44 + pulse * 30)), (acx, acy), aura_r)
+            pygame.draw.circle(aura, (226, 248, 255, int(48 + pulse * 28)), (acx, acy), max(12, aura_r - 10))
+            pygame.draw.circle(aura, (140, 235, 255, int(145 + pulse * 60)), (acx, acy), aura_r - 1, 2)
+            pygame.draw.circle(aura, (246, 254, 255, int(160 + pulse * 60)), (acx, acy), max(10, aura_r - 7), 2)
+            for idx in range(6):
+                ang = anim_t * 3.8 + (idx * math.pi / 3.0)
+                sx_e = int(acx + math.cos(ang) * (aura_r - 4))
+                sy_e = int(acy + math.sin(ang) * (aura_r - 4))
+                pygame.draw.polygon(
+                    aura,
+                    (242, 252, 255, 210),
+                    [(sx_e, sy_e - 4), (sx_e + 3, sy_e), (sx_e, sy_e + 4), (sx_e - 3, sy_e)],
+                )
+            self.screen.blit(aura, (dst_rect.centerx - acx, dst_rect.centery - acy))
+
+        # Directional icy cyan/white Frost Breath cone during FROST_BREATH WIND_UP / STRIKE
+        if (
+            isinstance(self.screen, pygame.Surface)
+            and base_state in ("WIND_UP", "STRIKE")
+            and attack_mode == "FROST_BREATH"
+        ):
+            base_ang = math.atan2(fy, fx) if (abs(fx) + abs(fy)) > 1e-3 else 0.0
+            cx_s, cy_s = float(dst_rect.centerx), float(dst_rect.centery)
+            half_a = float(constants.RIMECREST_ARBITER_BREATH_HALF_ANGLE)
+            cone_r = float(constants.RIMECREST_ARBITER_BREATH_RANGE)
+            if base_state == "WIND_UP":
+                l_pt = (int(cx_s + math.cos(base_ang - half_a) * 68.0), int(cy_s + math.sin(base_ang - half_a) * 68.0))
+                r_pt = (int(cx_s + math.cos(base_ang + half_a) * 68.0), int(cy_s + math.sin(base_ang + half_a) * 68.0))
+                pygame.draw.line(self.screen, (168, 238, 255), (int(cx_s), int(cy_s)), l_pt, 2)
+                pygame.draw.line(self.screen, (168, 238, 255), (int(cx_s), int(cy_s)), r_pt, 2)
+            else:
+                cone_surf = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+                outer_pts = [(cx_s, cy_s)]
+                inner_pts = [(cx_s, cy_s)]
+                for idx in range(9):
+                    ang = base_ang - half_a + (2.0 * half_a * idx / 8.0)
+                    outer_pts.append((cx_s + math.cos(ang) * cone_r, cy_s + math.sin(ang) * cone_r))
+                    inner_pts.append((cx_s + math.cos(ang) * (cone_r * 0.72), cy_s + math.sin(ang) * (cone_r * 0.72)))
+                pygame.draw.polygon(cone_surf, (118, 218, 255, 96), outer_pts)
+                pygame.draw.polygon(cone_surf, (236, 252, 255, 118), inner_pts)
+                pygame.draw.lines(cone_surf, (226, 248, 255, 220), True, outer_pts, 2)
+                self.screen.blit(cone_surf, (0, 0))
+
+        sprite = self.prop_cache.get("RimecrestArbiterBoss") or self.image_cache.get("rimecrest_arbiter_boss.png")
+        if sprite is not None:
+            if sprite.get_size() != (w, h):
+                sprite = pygame.transform.scale(sprite, (w, h))
+            if fx < 0:
+                sprite = pygame.transform.flip(sprite, True, False)
+            self.screen.blit(sprite, dst_rect.topleft)
+        elif isinstance(self.screen, pygame.Surface):
+            # Graceful procedural fallback: faceted cobalt armor + crystalline crown
+            pygame.draw.ellipse(self.screen, (52, 118, 184), dst_rect.inflate(-22, -14))
+            pygame.draw.ellipse(self.screen, (212, 244, 255), dst_rect.inflate(-22, -14), 2)
+            crown = [
+                (dst_rect.centerx - 14, dst_rect.top + 26),
+                (dst_rect.centerx, dst_rect.top + 6),
+                (dst_rect.centerx + 14, dst_rect.top + 26),
+            ]
+            pygame.draw.polygon(self.screen, (166, 232, 255), crown)
+
+        # Wide mirror-ice halberd sweep arc during HALBERD WIND_UP / STRIKE
+        if (
+            isinstance(self.screen, pygame.Surface)
+            and base_state in ("WIND_UP", "STRIKE")
+            and attack_mode == "HALBERD"
+        ):
+            base_ang = math.atan2(fy, fx) if (abs(fx) + abs(fy)) > 1e-3 else 0.0
+            sweep_r = 82.0
+            cx_s, cy_s = float(dst_rect.centerx), float(dst_rect.centery)
+            if base_state == "WIND_UP":
+                arc_pts = [
+                    (
+                        int(cx_s + math.cos(base_ang - 1.35 + i * 0.16) * (sweep_r * 0.84)),
+                        int(cy_s + math.sin(base_ang - 1.35 + i * 0.16) * (sweep_r * 0.84)),
+                    )
+                    for i in range(7)
+                ]
+                pygame.draw.lines(self.screen, (164, 236, 255), False, arc_pts, 2)
+            else:
+                outer_pts = []
+                inner_pts = []
+                for i in range(11):
+                    ang = base_ang - 1.50 + (3.0 * i / 10.0)
+                    outer_pts.append((cx_s + math.cos(ang) * sweep_r, cy_s + math.sin(ang) * sweep_r))
+                    inner_pts.append((cx_s + math.cos(ang) * (sweep_r * 0.60), cy_s + math.sin(ang) * (sweep_r * 0.60)))
+                crescent = outer_pts + list(reversed(inner_pts))
+                arc_surf = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+                pygame.draw.polygon(arc_surf, (96, 198, 248, 96), crescent)
+                pygame.draw.lines(arc_surf, (242, 252, 255, 235), False, outer_pts, 3)
+                pygame.draw.lines(arc_surf, (152, 232, 255, 195), False, inner_pts, 2)
+                self.screen.blit(arc_surf, (0, 0))
+
+    def _draw_rimecrest_halberd(self, sx_o, sy_o, prop_cache):
+        """Render the persistent non-interactive shattered mirror-ice halberd planted upright after death."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        halb_surf = prop_cache.get("RimecrestHalberd") or self.image_cache.get("rimecrest_halberd.png")
+        if halb_surf is not None:
+            self.screen.blit(halb_surf, (tx_i, ty_i))
+        elif isinstance(self.screen, pygame.Surface):
+            pygame.draw.ellipse(self.screen, (168, 222, 252), (tx_i + 10, ty_i + 44, 28, 8))
+            pygame.draw.line(self.screen, (48, 66, 94), (tx_i + 20, ty_i + 48), (tx_i + 28, ty_i + 8), 4)
+            blade = [(tx_i + 27, ty_i + 10), (tx_i + 42, ty_i + 14), (tx_i + 40, ty_i + 30), (tx_i + 25, ty_i + 34)]
+            pygame.draw.polygon(self.screen, (132, 214, 252), blade)
 
     def draw_slime_pools(self, state, ox, oy):
         """Render active damaging SlugBoss ('slime') and MeadowCensorBoss ('tar') ground hazard pools."""

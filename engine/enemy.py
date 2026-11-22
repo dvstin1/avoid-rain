@@ -1685,6 +1685,307 @@ class MeadowCensorBoss(NightBoss):
         print("[LOOT] MeadowCensorBoss planted hooked scythe, 2 scattered weapons, and Choice of Fates.")
 
 
+class RimecrestArbiterBoss(NightBoss):
+    """Frozen Peaks Night Boss: mirror-ice sentinel with frost halberd sweep & freezing Frost Breath cone."""
+
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import RIMECREST_ARBITER_HP, RIMECREST_ARBITER_SIZE, RIMECREST_ARBITER_SPEED
+        initial_hp = hp if hp is not None else RIMECREST_ARBITER_HP
+        super().__init__(x, y, hp=initial_hp, id=id)
+        self.width = RIMECREST_ARBITER_SIZE
+        self.height = RIMECREST_ARBITER_SIZE
+        self.name = "Night Boss"
+        self.is_rimecrest_arbiter = True
+        self.speed = RIMECREST_ARBITER_SPEED
+        self.damage = 28.0
+        self.wind_up_duration = 0.72
+        self.strike_duration = 0.85
+        self.recovery_duration = 0.72
+        self.attack_mode = "HALBERD"  # Alternates between "HALBERD" and "FROST_BREATH"
+        self.phase = 1
+        self.minions_summoned = False
+        self._breath_sfx_played = False
+
+    def get_visual_packet(self):
+        """Include RimecrestArbiterBoss attack mode & phase so renderer draws halberd arcs, frost cone, and aura."""
+        packet = super().get_visual_packet()
+        packet["attack_mode"] = self.attack_mode
+        packet["phase"] = self.phase
+        return packet
+
+    def get_attack_hitbox(self):
+        """Return wide frost-halberd cleave hitbox during HALBERD strike; zero-size rect during FROST_BREATH."""
+        if self.attack_mode == "FROST_BREATH":
+            return (self.x, self.y, 0.0, 0.0)
+        cx, cy = self.get_center()
+        fx, fy = self.facing
+        reach = self.width * 0.62
+        box_w = self.width * 1.12
+        box_h = self.height * 1.12
+        return (cx + fx * reach - box_w / 2.0, cy + fy * reach - box_h / 2.0, box_w, box_h)
+
+    def _is_point_in_frost_cone(self, px, py):
+        """Return True if world point (px, py) lies within the active Frost Breath directional cone."""
+        from constants import RIMECREST_ARBITER_BREATH_HALF_ANGLE, RIMECREST_ARBITER_BREATH_RANGE
+        cx, cy = self.get_center()
+        dx, dy = px - cx, py - cy
+        dist = math.hypot(dx, dy)
+        if dist > float(RIMECREST_ARBITER_BREATH_RANGE) + 18.0:
+            return False
+        if dist < 1e-3:
+            return True
+        fx, fy = self.facing
+        f_mag = math.hypot(fx, fy)
+        if f_mag < 1e-3:
+            fx, fy = 1.0, 0.0
+        else:
+            fx, fy = fx / f_mag, fy / f_mag
+        dot = max(-1.0, min(1.0, (dx / dist) * fx + (dy / dist) * fy))
+        return math.acos(dot) <= float(RIMECREST_ARBITER_BREATH_HALF_ANGLE)
+
+    def _apply_frost_breath_tick(self, dt, game_state):
+        """Project Frost Breath cone: build player frost_exposure and deal light chill damage."""
+        from constants import RIMECREST_ARBITER_BREATH_DPS, RIMECREST_ARBITER_EXPOSURE_RATE
+        player = getattr(game_state, "player", None)
+        if player is None or getattr(player, "hp", 0) <= 0:
+            return
+        if getattr(game_state, "in_sanctuary", False) or getattr(game_state, "active_respite", None):
+            return
+        px, py = player.get_center()
+        if not self._is_point_in_frost_cone(px, py):
+            return
+        if hasattr(player, "apply_frost_exposure"):
+            player.apply_frost_exposure(float(RIMECREST_ARBITER_EXPOSURE_RATE) * dt)
+        chill_dmg = float(RIMECREST_ARBITER_BREATH_DPS) * dt
+        if chill_dmg > 0.0:
+            player.take_damage(
+                chill_dmg,
+                bypass_stagger=True,
+                audio_manager=getattr(game_state, "audio_manager", None),
+                game_state=game_state,
+            )
+
+    def _summon_phase2_vanguard(self, state):
+        """Summon 3 walkable, Act-scaled SmearEnemy / FlutterEnemy glacial vanguard minions."""
+        from constants import (
+            ACT2_DAMAGE_MULTIPLIER,
+            ACT2_HP_MULTIPLIER,
+            RIMECREST_ARBITER_MINION_COUNT,
+            get_act_saturation,
+        )
+
+        enemies = getattr(state, "enemies", None)
+        if enemies is None:
+            return
+        world = getattr(state, "world", None)
+
+        current_act = int(getattr(state, "current_act", 0) or 0)
+        empowered_act = bool(getattr(state, "empowered_act", False))
+        hp_mult = 1.0
+        dmg_mult = 1.0
+        spd_mult = 1.0
+        cd_mult = 1.0
+        emp_flag = None
+        if current_act >= 1 or empowered_act:
+            sat = get_act_saturation(max(1, current_act if current_act >= 1 else 2))
+            spd_mult = float(sat.get("speed_multiplier", 1.0))
+            cd_mult = float(sat.get("cooldown_multiplier", 1.0))
+            if empowered_act and current_act <= 2:
+                hp_mult = float(max(ACT2_HP_MULTIPLIER, float(sat["hp_multiplier"])))
+                dmg_mult = float(max(ACT2_DAMAGE_MULTIPLIER, float(sat["damage_multiplier"])))
+                emp_flag = True
+            else:
+                hp_mult = float(sat["hp_multiplier"])
+                dmg_mult = float(sat["damage_multiplier"])
+                emp_flag = bool(sat["empowered"])
+
+        next_net_id = max((getattr(e, "network_id", -1) for e in enemies), default=0) + 1
+        cx, cy = self.get_center()
+        count = int(RIMECREST_ARBITER_MINION_COUNT)
+        minion_classes = (SmearEnemy, FlutterEnemy, SmearEnemy)
+
+        for idx in range(count):
+            angle = (2.0 * math.pi * idx) / max(1, count) + (math.pi / 6.0)
+            ring_r = 104.0
+            cls_m = minion_classes[idx % len(minion_classes)]
+            minion = cls_m(cx + math.cos(angle) * ring_r - 20.0, cy + math.sin(angle) * ring_r - 20.0)
+            if world is not None and hasattr(world, "find_nearest_walkable_spawn"):
+                wx, wy = world.find_nearest_walkable_spawn(minion.x, minion.y, minion.width, minion.height)
+                minion.x, minion.y = float(wx), float(wy)
+                minion.origin_x, minion.origin_y = float(wx), float(wy)
+            if (
+                hp_mult != 1.0
+                or dmg_mult != 1.0
+                or emp_flag is not None
+                or spd_mult != 1.0
+                or cd_mult != 1.0
+            ):
+                minion.apply_act_scaling(
+                    hp_mult,
+                    dmg_mult,
+                    empowered=emp_flag,
+                    speed_multiplier=spd_mult,
+                    cooldown_multiplier=cd_mult,
+                )
+            minion.network_id = next_net_id
+            next_net_id += 1
+            enemies.append(minion)
+
+        if world is not None:
+            world._enemies = list(enemies)
+
+    def update(self, dt, state):
+        """Advance RimecrestArbiterBoss AI and trigger Phase 2 gale + 3-minion glacial vanguard at <= 50% HP."""
+        super().update(dt, state)
+        from constants import FROST_BREATH_SFX, RIMECREST_ARBITER_PHASE2_HP_RATIO
+        if (
+            not self.minions_summoned
+            and self.hp > 0
+            and self.max_hp > 0
+            and self.hp <= self.max_hp * RIMECREST_ARBITER_PHASE2_HP_RATIO
+        ):
+            self.phase = 2
+            self.minions_summoned = True
+            audio = getattr(state, "audio_manager", None)
+            if audio is not None:
+                try:
+                    audio.play_sfx(FROST_BREATH_SFX)
+                except Exception:
+                    pass
+            net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+            if net_mode != "CLIENT":
+                self._summon_phase2_vanguard(state)
+
+    def _update_chase(self, dt, state):
+        """Pursue target and initiate HALBERD sweep or FROST_BREATH cone within engagement range."""
+        if self.active_target and self.cooldown_timer <= 0:
+            cx, cy = self.get_center()
+            tx, ty = self.active_target
+            dist = math.hypot(tx - cx, ty - cy)
+            if dist <= TILE_SIZE * 4.8:
+                self.state = ActorState.WIND_UP
+                self.combat_timer = self.wind_up_duration
+                self.vx, self.vy = 0.0, 0.0
+                self.has_hit_this_attack = False
+                self._breath_sfx_played = False
+                if dist > 0.1:
+                    self.facing = ((tx - cx) / dist, (ty - cy) / dist)
+                self._clear_nav_path()
+                audio = getattr(state, "audio_manager", None)
+                if audio is not None:
+                    try:
+                        audio.play_sfx("enemy_telegraph.ogg")
+                    except Exception:
+                        pass
+                return
+        super()._update_chase(dt, state)
+
+    def _update_wind_up(self, dt, game_state):
+        """Hold stance cleanly during telegraph wind-up."""
+        self.vx, self.vy = 0.0, 0.0
+        super()._update_wind_up(dt, game_state)
+
+    def _on_start_strike(self, game_state):
+        """Play Frost Breath gale SFX when entering FROST_BREATH strike."""
+        self.vx, self.vy = 0.0, 0.0
+        if self.attack_mode == "FROST_BREATH" and not self._breath_sfx_played:
+            self._breath_sfx_played = True
+            from constants import FROST_BREATH_SFX
+            audio = getattr(game_state, "audio_manager", None)
+            if audio is not None:
+                try:
+                    audio.play_sfx(FROST_BREATH_SFX)
+                except Exception:
+                    pass
+
+    def _update_strike(self, dt, game_state):
+        """Execute frost-bound HALBERD cleave (+0.35 exposure) or directional FROST_BREATH cone, then alternate."""
+        self.vx, self.vy = 0.0, 0.0
+        if self.attack_mode == "HALBERD":
+            if not self.has_hit_this_attack and self.attempt_damage_player(game_state):
+                self.has_hit_this_attack = True
+                if self.stagger_timer <= 0.0:
+                    from constants import RIMECREST_ARBITER_HALBERD_EXPOSURE
+                    player = getattr(game_state, "player", None)
+                    if player is not None and hasattr(player, "apply_frost_exposure"):
+                        player.apply_frost_exposure(RIMECREST_ARBITER_HALBERD_EXPOSURE)
+        else:
+            if not self._breath_sfx_played:
+                self._on_start_strike(game_state)
+            self._apply_frost_breath_tick(dt, game_state)
+            self.has_hit_this_attack = True
+
+        super()._update_strike(dt, game_state)
+        if self.state != ActorState.STRIKE:
+            self.vx, self.vy = 0.0, 0.0
+            self._breath_sfx_played = False
+            self.attack_mode = "FROST_BREATH" if self.attack_mode == "HALBERD" else "HALBERD"
+
+    def on_death(self, state):
+        """Plant persistent non-interactive RimecrestHalberd, scatter 2 glacial weapons, and drop ChoiceOfFates."""
+        from constants import RIMECREST_ARBITER_HALBERD_HEIGHT, RIMECREST_ARBITER_HALBERD_WIDTH
+        from engine.loot import ChoiceOfFates
+        from engine.world import RimecrestHalberd, WeaponPickup
+
+        world = getattr(state, "world", None)
+        if world is None:
+            return
+
+        cx, cy = self.get_center()
+        hx = cx - RIMECREST_ARBITER_HALBERD_WIDTH / 2.0
+        hy = cy - RIMECREST_ARBITER_HALBERD_HEIGHT / 2.0
+        if hasattr(world, "find_nearest_walkable_spawn"):
+            hx, hy = world.find_nearest_walkable_spawn(
+                hx, hy, RIMECREST_ARBITER_HALBERD_WIDTH, RIMECREST_ARBITER_HALBERD_HEIGHT
+            )
+        world.interactables.append(RimecrestHalberd((hx, hy)))
+
+        weapon_pool = [
+            {
+                "name": "Anomalous Rimecrest Glaive",
+                "damage": 26,
+                "modifiers": {"bleed": 5.5},
+                "description": "Mirror-ice halberd edge inflicting 5.5 frost-bleed damage per second.",
+            },
+            {
+                "name": "Anomalous Glacier Ward",
+                "damage": 23,
+                "modifiers": {"damage_negation_on_hit": 5.5},
+                "description": "Taking damage temporarily reduces next damage taken by 5.5.",
+            },
+            {
+                "name": "Anomalous Thaw-Quill",
+                "damage": 22,
+                "modifiers": {"slow_hp_regen": 1.3},
+                "description": "Warms the Reader's inkflow, regenerating 1.3 HP per second.",
+            },
+            {
+                "name": "Anomalous Permafrost Plate",
+                "damage": 25,
+                "modifiers": {"max_hp_boost": 25.0},
+                "description": "Fortifies the Reader with +25 Max HP.",
+            },
+        ]
+        chosen_pair = random.sample(weapon_pool, 2)
+        scatter_offsets = ((-48.0, 12.0), (48.0, -12.0))
+        for weapon_template, (ox_w, oy_w) in zip(chosen_pair, scatter_offsets):
+            wx, wy = cx + ox_w - TILE_SIZE / 2.0, cy + oy_w - TILE_SIZE / 2.0
+            if hasattr(world, "find_nearest_walkable_spawn"):
+                wx, wy = world.find_nearest_walkable_spawn(wx, wy, TILE_SIZE, TILE_SIZE)
+            weapon_copy = {
+                "name": weapon_template["name"],
+                "damage": weapon_template["damage"],
+                "modifiers": dict(weapon_template["modifiers"]),
+                "description": weapon_template["description"],
+            }
+            world.interactables.append(WeaponPickup((wx, wy), weapon_copy))
+
+        loot_list = getattr(state, "loot", None)
+        if isinstance(loot_list, list) and not any(isinstance(i, ChoiceOfFates) for i in loot_list):
+            loot_list.append(ChoiceOfFates(cx, cy))
+        print("[LOOT] RimecrestArbiterBoss planted mirror-ice halberd, 2 scattered weapons, and Choice of Fates.")
+
+
 class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
@@ -1705,6 +2006,7 @@ ENEMY_REGISTRY = {
     "MinibossM3": MinibossM3, "SmearEnemy": SmearEnemy, "SentryEnemy": SentryEnemy,
     "PunctuationWolfEnemy": PunctuationWolfEnemy,
     "NightBoss": NightBoss, "SlugBoss": SlugBoss, "MeadowCensorBoss": MeadowCensorBoss,
+    "RimecrestArbiterBoss": RimecrestArbiterBoss,
     "FinalAuthor": FinalAuthor,
 }
 

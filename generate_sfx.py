@@ -1019,6 +1019,89 @@ def preset_meadow_censor_whistle(rng: random.Random, p: Dict):
     return mix((pipe, float(p["pipe_level"])), (air, float(p["air_level"])))
 
 
+def preset_frost_breath(rng: random.Random, p: Dict):
+    """Howling sub-zero gale + shimmering crystalline freeze chime (~0.60s)."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+
+    # Howling sub-zero wind sweep (band-passed pink/white gale with airy hiss)
+    gale_raw = mix((pink_noise(n, rng), 0.72), (white_noise(n, rng), 0.35))
+    gale = normalize(biquad(gale_raw, "bandpass", float(p["gale_hz"]), 1.8))
+    gale = multiply(gale, adsr(n, 0.05, 0.14, 0.74, 0.18))
+    frost_hiss = normalize(biquad(white_noise(n, rng), "highpass", float(p["hiss_hz"]), 1.1))
+    frost_hiss = multiply(frost_hiss, adsr(n, 0.03, 0.12, 0.52, 0.20))
+
+    # Crystalline freeze chime (bell-like inharmonic ice partials with slow shimmer)
+    chime_hz = float(p["chime_hz"])
+    c1 = multiply(oscillator(constant(chime_hz, n), "sine"), exp_decay(n, 0.24))
+    c2 = multiply(oscillator(constant(chime_hz * 1.498, n), "sine"), exp_decay(n, 0.19))
+    c3 = multiply(oscillator(constant(chime_hz * 2.756, n), "sine"), exp_decay(n, 0.12))
+    chime = multiply(mix((c1, 0.65), (c2, 0.48), (c3, 0.32)), lfo(n, 14.0, 0.22))
+
+    return mix(
+        (gale, float(p["gale_level"])),
+        (frost_hiss, float(p["hiss_level"])),
+        (chime, float(p["chime_level"])),
+    )
+
+
+def preset_ice_crack(rng: random.Random, p: Dict):
+    """Brittle high-frequency ice fracture snap + short glassy crystal ring (~0.22s)."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+
+    # Sharp brittle crack transient (2 micro-snaps offset by ~18ms)
+    snap1 = normalize(biquad(white_noise(n, rng), "highpass", float(p["crack_hp_hz"]), 1.2))
+    snap1 = multiply(snap1, exp_decay(n, 0.014))
+    snap2_len = max(1, n - offset_samples(0.018))
+    snap2 = normalize(biquad(white_noise(snap2_len, rng), "bandpass", float(p["crack_bp_hz"]), 2.8))
+    snap2 = multiply(snap2, exp_decay(snap2_len, 0.018))
+    layers = [
+        (snap1, float(p["snap_level"])),
+        (snap2, float(p["snap_level"]) * 0.72, 0.018),
+    ]
+
+    # Glassy stress fracture ping
+    ring_hz = float(p["ring_hz"])
+    ping_a = multiply(oscillator(constant(ring_hz, n), "sine"), exp_decay(n, 0.065))
+    ping_b = multiply(oscillator(constant(ring_hz * 1.62, n), "sine"), exp_decay(n, 0.042))
+    ring = mix((ping_a, 0.70), (ping_b, 0.45))
+    layers.append((ring, float(p["ring_level"])))
+    return mix(*layers)
+
+
+def preset_ice_shatter(rng: random.Random, p: Dict):
+    """Cascading multi-shard ice-crystal burst + frosty scatter tail (~0.45s)."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+
+    # Initial explosive ice burst + low-mid thud
+    burst = normalize(biquad(white_noise(n, rng), "highpass", 2400.0, 1.0))
+    burst = multiply(burst, exp_decay(n, 0.048))
+    thud = multiply(oscillator(pitch_drop(n, 210.0, 62.0, 0.03), "sine"), exp_decay(n, 0.055))
+    layers = [
+        (burst, float(p["burst_level"])),
+        (thud, float(p["thud_level"])),
+    ]
+
+    # Cascading crystalline glass/ice shard tinkles scattered over the tail
+    shard_count = int(p["shard_count"])
+    for idx in range(shard_count):
+        off_s = 0.012 + (idx / max(1, shard_count)) * (dur * 0.58) + rng.uniform(0.0, 0.018)
+        rem = n - offset_samples(off_s)
+        if rem <= 32:
+            continue
+        f_shard = rng.uniform(1900.0, 5400.0)
+        tau = rng.uniform(0.024, 0.072)
+        s_len = min(rem, n_samples(tau * 4.0))
+        tone = multiply(oscillator(constant(f_shard, s_len), "sine"), exp_decay(s_len, tau))
+        over = multiply(oscillator(constant(f_shard * 1.54, s_len), "sine"), exp_decay(s_len, tau * 0.7))
+        shard = mix((tone, 0.72), (over, 0.38))
+        layers.append((shard, float(p["shard_level"]) * rng.uniform(0.45, 0.95), off_s))
+
+    return mix(*layers)
+
+
 PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
     "slash": (preset_slash, {
         "duration": 0.32, "sweep_start_hz": 700.0, "sweep_end_hz": 5200.0, "sweep_q": 1.4, "peak_pos": 0.35,
@@ -1129,6 +1212,18 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "duration": 0.45, "base_hz": 1820.0, "high_hz": 2540.0, "trill_hz": 26.0,
         "air_hz": 2850.0, "pipe_level": 0.88, "air_level": 0.34, "peak": 0.78,
     }, "Shrill carved-bone shepherd's culling whistle"),
+    "frost_breath": (preset_frost_breath, {
+        "duration": 0.60, "gale_hz": 920.0, "hiss_hz": 3600.0, "chime_hz": 1760.0,
+        "gale_level": 0.78, "hiss_level": 0.42, "chime_level": 0.56, "peak": 0.80,
+    }, "Howling sub-zero gale + crystalline freeze chime"),
+    "ice_crack": (preset_ice_crack, {
+        "duration": 0.22, "crack_hp_hz": 3200.0, "crack_bp_hz": 4800.0, "ring_hz": 2380.0,
+        "snap_level": 0.92, "ring_level": 0.58, "peak": 0.82,
+    }, "Brittle ice fracture snap + glassy stress ping"),
+    "ice_shatter": (preset_ice_shatter, {
+        "duration": 0.45, "burst_level": 0.88, "thud_level": 0.40, "shard_count": 9,
+        "shard_level": 0.52, "peak": 0.84,
+    }, "Cascading multi-shard ice-crystal burst"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1190,6 +1285,9 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "door_open.ogg": ("door_open", {"duration": 0.35, "peak": 0.68}),
     "slug_boss_slime.ogg": ("slug_boss_slime", {"duration": 0.55, "peak": 0.80}),
     "meadow_censor_whistle.ogg": ("meadow_censor_whistle", {"duration": 0.45, "peak": 0.78}),
+    "frost_breath.ogg": ("frost_breath", {"duration": 0.60, "peak": 0.80}),
+    "ice_crack.ogg": ("ice_crack", {"duration": 0.22, "peak": 0.82}),
+    "ice_shatter.ogg": ("ice_shatter", {"duration": 0.45, "peak": 0.84}),
 }
 
 # Keyword heuristics for unknown missing references (first match wins)
@@ -2143,11 +2241,171 @@ def generate_pastoral_boss_phase2_music(seed: int = DEFAULT_SEED):
     return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
 
 
+def _synth_ice_chime_note(n: int, freq_hz: float, decay_s: float = 0.42):
+    """Crystalline glacial chime bell with frosty inharmonic overtone."""
+    f1 = multiply(oscillator(constant(freq_hz, n), "sine"), exp_decay(n, decay_s))
+    f2 = multiply(oscillator(constant(freq_hz * 2.0, n), "sine"), exp_decay(n, decay_s * 0.65))
+    f3 = multiply(oscillator(constant(freq_hz * 3.01, n), "sine"), exp_decay(n, decay_s * 0.35))
+    return multiply(mix((f1, 0.76), (f2, 0.34), (f3, 0.18)), adsr(n, 0.004, 0.03, 0.85, 0.05))
+
+
+def generate_frozen_boss_phase1_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~15.0s loopable austere crystalline chime & glacier sub-drone dirge for Rimecrest Arbiter Phase 1."""
+    rng = random.Random(seed ^ 0xF02E0001)
+    bpm = 96.0
+    eighth_s = 60.0 / bpm / 2.0  # 0.3125s per 8th -> 8 eighths = 2.50s/bar
+    total_bars = 6  # 6 bars = 15.000s exact seamless loop
+    total_samples = n_samples(total_bars * 8 * eighth_s)
+
+    chime_buf = silence(total_samples)
+    pad_buf = silence(total_samples)
+    bass_buf = silence(total_samples)
+    perc_buf = silence(total_samples)
+
+    # Austere D-minor / Dorian glacial progression: (chime_arp_midi, bass_root_midi)
+    bars = (
+        ((74, 77, 81, 86, 81, 77, 74, 72), 38),  # Dm
+        ((72, 76, 79, 84, 79, 76, 72, 74), 36),  # C
+        ((70, 74, 77, 82, 77, 74, 70, 72), 34),  # Bb
+        ((69, 72, 76, 81, 76, 72, 69, 71), 33),  # Am
+        ((70, 74, 77, 81, 77, 74, 70, 72), 34),  # Bbmaj7
+        ((69, 73, 76, 81, 79, 76, 73, 69), 33),  # A7 glacial turnaround
+    )
+
+    cavern_kick = _synth_music_kick(n_samples(0.24), 92.0, 40.0, 0.065, drive=1.4)
+    ice_tick = _synth_music_noise_hit(n_samples(0.055), rng, 3400.0, 8200.0, 0.018, bits=6, hold=1)
+
+    for bar_idx, (chime_notes, bass_root) in enumerate(bars):
+        bar_eighth = bar_idx * 8
+        bar_pos = offset_samples(bar_eighth * eighth_s)
+
+        # Deep glacier sub-drone + fifth harmonic pad sustaining across the bar
+        bar_n = n_samples(7.8 * eighth_s)
+        _ring_add(bass_buf, _synth_bowed_bass_note(bar_n, _midi_to_hz(bass_root)), bar_pos, 0.84)
+        _ring_add(pad_buf, _synth_bowed_bass_note(bar_n, _midi_to_hz(bass_root + 19)), bar_pos, 0.28)
+
+        # Austere crystalline chime arpeggios
+        for e_i, midi_note in enumerate(chime_notes):
+            pos = offset_samples((bar_eighth + e_i) * eighth_s)
+            accent = 0.72 if e_i in (0, 3) else 0.50
+            chime = _synth_ice_chime_note(n_samples(eighth_s * 2.2), _midi_to_hz(midi_note), decay_s=0.44)
+            _ring_add(chime_buf, chime, pos, accent)
+
+        # Slow resonant cavern pulse
+        _ring_add(perc_buf, cavern_kick, bar_pos, 0.78)
+        _ring_add(perc_buf, cavern_kick, offset_samples((bar_eighth + 4) * eighth_s), 0.54)
+        for t_i in (2, 6):
+            _ring_add(perc_buf, ice_tick, offset_samples((bar_eighth + t_i) * eighth_s), 0.34)
+
+    bass_deep = biquad(bass_buf, "lowpass", 220.0, order=2)
+    pad_frost = biquad(pad_buf, "bandpass", 640.0, 1.2)
+    chime_crisp = biquad(chime_buf, "lowpass", 7800.0)
+    combined = mix(
+        (chime_crisp, 0.64),
+        (pad_frost, 0.42),
+        (bass_deep, 0.66),
+        (perc_buf, 0.48),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
+def generate_frozen_boss_phase2_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~15.2s loopable 158 BPM high-tempo crystalline frost-shatter arpeggio & percussion breakout."""
+    rng = random.Random(seed ^ 0xF02E0002)
+    bpm = 158.0
+    step_s = 60.0 / bpm / 4.0  # 16th note (~0.09494s) -> 1.519s/bar
+    total_bars = 10  # 10 bars = ~15.19s exact seamless loop
+    total_samples = n_samples(total_bars * 16 * step_s)
+
+    lead_buf = silence(total_samples)
+    arp_buf = silence(total_samples)
+    bass_buf = silence(total_samples)
+    drum_buf = silence(total_samples)
+
+    # Driving D-minor frost-shatter progression: (chord_arp_4, bass_root)
+    prog = (
+        ((62, 65, 69, 74), 38),  # Dm
+        ((62, 65, 69, 74), 38),  # Dm
+        ((58, 62, 65, 70), 34),  # Bb
+        ((60, 64, 67, 72), 36),  # C
+        ((57, 61, 64, 69), 33),  # A7
+        ((62, 65, 69, 74), 38),  # Dm
+        ((65, 69, 72, 77), 41),  # F
+        ((58, 62, 65, 70), 34),  # Bb
+        ((60, 64, 67, 72), 36),  # C
+        ((57, 61, 64, 69), 33),  # A7 turnaround
+    )
+
+    lead_phrases = (
+        ((0, 74, 2), (2, 77, 2), (4, 81, 2), (6, 86, 2), (8, 84, 2), (10, 81, 2), (12, 79, 2), (14, 77, 2)),
+        ((0, 81, 3), (3, 79, 1), (4, 77, 2), (6, 74, 2), (8, 76, 2), (10, 77, 2), (12, 81, 4)),
+        ((0, 82, 2), (2, 81, 2), (4, 77, 2), (6, 74, 2), (8, 77, 2), (10, 81, 2), (12, 82, 4)),
+        ((0, 84, 2), (2, 82, 2), (4, 79, 2), (6, 76, 2), (8, 79, 2), (10, 84, 2), (12, 86, 4)),
+        ((0, 85, 2), (2, 81, 2), (4, 79, 2), (6, 76, 2), (8, 81, 2), (10, 85, 2), (12, 88, 4)),
+        ((0, 86, 2), (2, 84, 2), (4, 81, 2), (6, 77, 2), (8, 81, 2), (10, 84, 2), (12, 86, 4)),
+        ((0, 89, 2), (2, 86, 2), (4, 84, 2), (6, 81, 2), (8, 84, 2), (10, 86, 2), (12, 89, 4)),
+        ((0, 86, 2), (2, 82, 2), (4, 81, 2), (6, 77, 2), (8, 74, 2), (10, 77, 2), (12, 82, 4)),
+        ((0, 84, 2), (2, 81, 2), (4, 79, 2), (6, 76, 2), (8, 79, 2), (10, 82, 2), (12, 84, 4)),
+        ((0, 85, 2), (2, 81, 2), (4, 76, 2), (6, 81, 2), (8, 85, 2), (10, 88, 2), (12, 85, 2), (14, 81, 2)),
+    )
+
+    kick_sig = _synth_music_kick(n_samples(0.14), 152.0, 44.0, 0.032, drive=1.9)
+    snare_sig = _synth_music_noise_hit(n_samples(0.11), rng, 1900.0, 7400.0, 0.032, bits=5, hold=1)
+    shard_hat = _synth_music_noise_hit(n_samples(0.042), rng, 5200.0, 10400.0, 0.012, bits=6, hold=1)
+
+    for bar_idx, (chord, bass_root) in enumerate(prog):
+        bar_step = bar_idx * 16
+
+        # Ch 1: Shimmering ice-pulse lead doubled with crystalline chime attack
+        for s_off, midi_n, dur_steps in lead_phrases[bar_idx]:
+            pos = offset_samples((bar_step + s_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.92)
+            pulse_n = _synth_pulse_note(dur_n, _midi_to_hz(midi_n), duty=0.125)
+            bell_n = _synth_ice_chime_note(dur_n, _midi_to_hz(midi_n), decay_s=0.18)
+            _ring_add(lead_buf, mix((pulse_n, 0.56), (bell_n, 0.54)), pos, 0.70)
+
+        # Ch 2: Rapid 16th-note frost-shatter crystalline arpeggio
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            midi_a = chord[s_i % 4] + (12 if (s_i // 4) % 2 == 1 else 0)
+            arp_n = _synth_ice_chime_note(n_samples(step_s * 1.15), _midi_to_hz(midi_a), decay_s=0.095)
+            _ring_add(arp_buf, arp_n, pos, 0.44 if s_i % 4 == 0 else 0.30)
+
+        # Ch 3: Driving octave-pumping triangle bass
+        for s_i in range(0, 16, 2):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            b_midi = bass_root + (12 if (s_i % 4 == 2) else 0)
+            tri = _synth_nes_triangle_note(n_samples(step_s * 1.8), _midi_to_hz(b_midi))
+            _ring_add(bass_buf, tri, pos, 0.84)
+
+        # Ch 4: Crisp frost-shatter percussion breakout
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            if s_i in (0, 6, 8, 14):
+                _ring_add(drum_buf, kick_sig, pos, 0.86)
+            if s_i in (4, 12) or (bar_idx in (4, 9) and s_i in (13, 14, 15)):
+                _ring_add(drum_buf, snare_sig, pos, 0.68 if s_i in (4, 12) else 0.56)
+            _ring_add(drum_buf, shard_hat, pos, 0.34 if s_i % 2 == 0 else 0.18)
+
+    lead_clean = biquad(lead_buf, "lowpass", 9200.0)
+    arp_clean = biquad(arp_buf, "lowpass", 8400.0)
+    bass_clean = biquad(bass_buf, "lowpass", 1800.0)
+    combined = mix(
+        (lead_clean, 0.62),
+        (arp_clean, 0.46),
+        (bass_clean, 0.66),
+        (drum_buf, 0.56),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
 MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "slug_boss_phase1.ogg": generate_slug_boss_phase1_music,
     "slug_boss_phase2.ogg": generate_slug_boss_phase2_music,
     "pastoral_boss_phase1.ogg": generate_pastoral_boss_phase1_music,
     "pastoral_boss_phase2.ogg": generate_pastoral_boss_phase2_music,
+    "frozen_boss_phase1.ogg": generate_frozen_boss_phase1_music,
+    "frozen_boss_phase2.ogg": generate_frozen_boss_phase2_music,
 }
 
 

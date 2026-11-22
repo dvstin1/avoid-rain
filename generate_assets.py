@@ -4662,6 +4662,275 @@ def generate_frozen_rime_cask(
     return surf
 
 
+def generate_rimecrest_arbiter_boss(
+    width: int = 104,
+    height: int = 104,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate the 104x104 Rimecrest Arbiter boss sprite in faceted mirror-ice armor with frost halberd."""
+    if rng is None:
+        rng = random.Random(DEFAULT_ASSET_SEED + 620)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx = width // 2
+
+    # Glacial frost aura shadow at base
+    pygame.draw.ellipse(surf, (16, 40, 74, 128), (18, height - 18, width - 36, 14))
+    pygame.draw.ellipse(surf, (124, 212, 248, 86), (22, height - 16, width - 44, 10))
+
+    # Tattered rime-frosted surcoat / lower armor skirt
+    cloak_poly = [
+        (cx - 24, 42),
+        (cx + 24, 42),
+        (cx + 30, height - 12),
+        (cx + 12, height - 16),
+        (cx, height - 10),
+        (cx - 12, height - 16),
+        (cx - 30, height - 12),
+    ]
+    pygame.draw.polygon(surf, (34, 72, 124, 255), cloak_poly)
+    pygame.draw.polygon(surf, (132, 206, 246, 220), cloak_poly, 2)
+
+    # Faceted mirror-ice breastplate & greaves
+    torso_poly = [
+        (cx - 19, 34),
+        (cx + 19, 34),
+        (cx + 15, 70),
+        (cx, 78),
+        (cx - 15, 70),
+    ]
+    pygame.draw.polygon(surf, (88, 168, 226, 252), torso_poly)
+    right_chest = [(cx, 34), (cx + 19, 34), (cx + 15, 70), (cx, 78)]
+    pygame.draw.polygon(surf, (52, 114, 178, 250), right_chest)
+    pygame.draw.polygon(surf, (218, 246, 255, 245), torso_poly, 2)
+    # Glowing core crystal sigil in breastplate
+    sigil = [(cx, 43), (cx + 7, 54), (cx, 65), (cx - 7, 54)]
+    pygame.draw.polygon(surf, (186, 246, 255, 255), sigil)
+    pygame.draw.polygon(surf, (248, 254, 255, 255), [(cx, 47), (cx + 3, 54), (cx, 61), (cx - 3, 54)])
+
+    # Jagged crystalline ice pauldrons (left & right shoulders)
+    left_pauldron = [(cx - 34, 46), (cx - 26, 28), (cx - 14, 32), (cx - 16, 48)]
+    right_pauldron = [(cx + 34, 46), (cx + 26, 28), (cx + 14, 32), (cx + 16, 48)]
+    pygame.draw.polygon(surf, (118, 198, 244, 250), left_pauldron)
+    pygame.draw.polygon(surf, (68, 138, 198, 250), right_pauldron)
+    pygame.draw.polygon(surf, (226, 248, 255, 245), left_pauldron, 2)
+    pygame.draw.polygon(surf, (216, 244, 255, 245), right_pauldron, 2)
+
+    # Crystalline crown helm & glowing ice-cyan visor slit
+    helm_poly = [
+        (cx - 13, 33),
+        (cx - 14, 19),
+        (cx - 9, 9),
+        (cx - 4, 16),
+        (cx, 5),
+        (cx + 4, 16),
+        (cx + 9, 9),
+        (cx + 14, 19),
+        (cx + 13, 33),
+    ]
+    pygame.draw.polygon(surf, (124, 204, 248, 255), helm_poly)
+    pygame.draw.polygon(surf, (238, 252, 255, 255), helm_poly, 2)
+    pygame.draw.rect(surf, (16, 36, 68, 255), (cx - 9, 22, 18, 6), border_radius=2)
+    pygame.draw.line(surf, (176, 248, 255, 255), (cx - 7, 25), (cx + 7, 25), 2)
+
+    # Long frost-bound mirror-ice halberd held diagonally on the right
+    shaft_start = (cx + 12, height - 10)
+    shaft_end = (width - 14, 10)
+    pygame.draw.line(surf, (46, 64, 92, 255), shaft_start, shaft_end, 4)
+    pygame.draw.line(surf, (176, 228, 252, 235), (shaft_start[0] - 1, shaft_start[1]), (shaft_end[0] - 1, shaft_end[1]), 1)
+    # Halberd crescent glacier axe head + spear tip
+    axe_head = [
+        (width - 17, 15),
+        (width - 4, 18),
+        (width - 3, 36),
+        (width - 15, 42),
+        (width - 21, 31),
+    ]
+    pygame.draw.polygon(surf, (132, 214, 252, 250), axe_head)
+    pygame.draw.polygon(surf, (242, 252, 255, 255), axe_head, 2)
+    spear_tip = [(width - 16, 13), (width - 10, 2), (width - 9, 15)]
+    pygame.draw.polygon(surf, (212, 246, 255, 255), spear_tip)
+
+    # Fine frost-crystal glints across the armor
+    for _ in range(18):
+        gx = rng.randint(cx - 26, cx + 26)
+        gy = rng.randint(16, height - 18)
+        if surf.get_at((gx, gy)).a > 160:
+            surf.set_at((gx, gy), (240, 252, 255, 245))
+    return surf
+
+
+def generate_rimecrest_halberd(
+    width: int = 48,
+    height: int = 56,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 48x56 shattered mirror-ice halberd planted upright in cracked rime slate."""
+    if rng is None:
+        rng = random.Random(DEFAULT_ASSET_SEED + 621)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx = width // 2
+
+    # Cracked rime slate base & frost pool
+    pygame.draw.ellipse(surf, (26, 56, 94, 155), (6, height - 14, width - 12, 11))
+    pygame.draw.ellipse(surf, (172, 224, 252, 225), (10, height - 12, width - 20, 7))
+
+    # Planted iron-frost shaft tilted slightly upright
+    pygame.draw.line(surf, (44, 62, 92, 255), (cx - 4, height - 8), (cx + 4, 7), 4)
+    pygame.draw.line(surf, (186, 232, 255, 235), (cx - 5, height - 9), (cx + 3, 7), 1)
+
+    # Shattered crystalline mirror-ice halberd head
+    blade_poly = [
+        (cx + 3, 10),
+        (width - 6, 14),
+        (width - 7, 30),
+        (cx + 1, 34),
+        (cx - 2, 22),
+    ]
+    pygame.draw.polygon(surf, (112, 198, 246, 245), blade_poly)
+    pygame.draw.polygon(surf, (238, 252, 255, 255), blade_poly, 2)
+    # Jagged fracture notch in the blade & spear point
+    pygame.draw.line(surf, (30, 64, 112, 240), (cx + 4, 20), (width - 9, 25), 2)
+    pygame.draw.polygon(surf, (206, 244, 255, 255), [(cx + 1, 9), (cx + 6, 2), (cx + 8, 11)])
+
+    # Broken crystalline frost splinters resting around the base
+    for sx, sy, sr in ((cx - 11, height - 11, 3), (cx + 9, height - 10, 4), (cx + 2, height - 7, 2)):
+        pts = [(sx - sr, sy), (sx, sy - sr - 2), (sx + sr, sy + 1)]
+        pygame.draw.polygon(surf, (188, 236, 255, 240), pts)
+    for _ in range(6):
+        fx = rng.randint(10, width - 10)
+        fy = rng.randint(height - 14, height - 5)
+        surf.set_at((fx, fy), (242, 252, 255, 235))
+    return surf
+
+
+def generate_frozen_ice_block_stage(
+    stage: int = 0,
+    width: int = 64,
+    height: int = 64,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 64x64 translucent crystalline Ice Block overlay for stage 0 (pristine), 1 (cracked), or 2 (shattering)."""
+    stage = max(0, min(2, int(stage)))
+    if rng is None:
+        rng = random.Random(DEFAULT_ASSET_SEED + 622 + stage * 13)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx, cy = width // 2, height // 2
+
+    # Translucent faceted crystal block outline (slightly notched at stage 2)
+    if stage < 2:
+        block_poly = [
+            (10, 14),
+            (22, 5),
+            (46, 6),
+            (55, 16),
+            (57, 48),
+            (48, 58),
+            (15, 58),
+            (7, 47),
+        ]
+    else:
+        block_poly = [
+            (11, 16),
+            (20, 7),
+            (32, 11),
+            (45, 7),
+            (54, 18),
+            (56, 46),
+            (47, 57),
+            (16, 57),
+            (8, 46),
+        ]
+
+    # Translucent body so encased Scholar remains clearly visible inside
+    fill_alpha = (138, 126, 112)[stage]
+    pygame.draw.polygon(surf, (118, 212, 252, fill_alpha), block_poly)
+    # Bevel highlights along top-left facet & deep cobalt shade along bottom-right
+    pygame.draw.polygon(
+        surf,
+        (210, 246, 255, 120),
+        [(10, 14), (22, 5), (46, 6), (34, 22), (14, 28)],
+    )
+    pygame.draw.polygon(
+        surf,
+        (46, 118, 184, 96),
+        [(55, 16), (57, 48), (48, 58), (34, 54), (44, 30)],
+    )
+    # Diagonal specular ice streaks
+    pygame.draw.line(surf, (246, 254, 255, 190), (16, 16), (29, 32), 2)
+    pygame.draw.line(surf, (246, 254, 255, 160), (26, 12), (41, 28), 1)
+    pygame.draw.polygon(surf, (226, 248, 255, 235), block_poly, 2)
+
+    # Stage 1+: fractured web cracks radiating from center
+    if stage >= 1:
+        crack_col = (242, 252, 255, 240)
+        shadow_col = (26, 70, 124, 215)
+        web_lines = [
+            ((cx - 2, cy - 2), (16, 16)),
+            ((cx - 2, cy - 2), (48, 14)),
+            ((cx - 2, cy - 2), (14, 46)),
+            ((cx - 2, cy - 2), (50, 48)),
+            ((24, 24), (11, 30)),
+            ((40, 24), (53, 28)),
+        ]
+        for p0, p1 in web_lines:
+            pygame.draw.line(surf, shadow_col, (p0[0] + 1, p0[1] + 1), (p1[0] + 1, p1[1] + 1), 2)
+            pygame.draw.line(surf, crack_col, p0, p1, 1)
+
+    # Stage 2: deep shattered fissures + flying crystalline frost splinters
+    if stage >= 2:
+        deep_fissures = [
+            ((cx, cy), (cx - 18, 8)),
+            ((cx, cy), (cx + 16, 56)),
+            ((cx, cy), (8, cy + 4)),
+            ((cx, cy), (56, cy - 6)),
+            ((22, 40), (34, 54)),
+            ((42, 36), (30, 12)),
+        ]
+        for p0, p1 in deep_fissures:
+            pygame.draw.line(surf, (18, 52, 98, 235), p0, p1, 3)
+            pygame.draw.line(surf, (248, 254, 255, 250), p0, p1, 1)
+        for sx, sy in ((5, 11), (58, 12), (4, 52), (59, 51)):
+            pts = [(sx, sy), (sx + 3, sy - 4), (sx + 4, sy + 2)]
+            pygame.draw.polygon(surf, (216, 246, 255, 235), pts)
+    for _ in range(8):
+        fx = rng.randint(12, width - 12)
+        fy = rng.randint(12, height - 12)
+        if surf.get_at((fx, fy)).a > 40:
+            surf.set_at((fx, fy), (245, 253, 255, 220))
+    return surf
+
+
+def generate_ice_rubble_pile(
+    width: int = 48,
+    height: int = 36,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 48x36 scattered pile of jagged translucent ice shards on the ground."""
+    if rng is None:
+        rng = random.Random(DEFAULT_ASSET_SEED + 626)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # Frost dust bed
+    pygame.draw.ellipse(surf, (166, 222, 250, 110), (4, 8, width - 8, height - 12))
+    shards = [
+        [(7, 22), (14, 11), (21, 18), (15, 27)],
+        [(18, 14), (28, 6), (35, 16), (25, 22)],
+        [(26, 24), (36, 15), (43, 24), (33, 30)],
+        [(12, 27), (22, 21), (27, 29), (18, 32)],
+        [(5, 15), (10, 9), (13, 15)],
+        [(36, 11), (42, 8), (44, 15)],
+    ]
+    for idx, poly in enumerate(shards):
+        col = (128, 214, 252, 226) if idx % 2 == 0 else (84, 174, 232, 220)
+        pygame.draw.polygon(surf, col, poly)
+        pygame.draw.polygon(surf, (238, 252, 255, 245), poly, 1)
+    for _ in range(14):
+        fx = rng.randint(6, width - 7)
+        fy = rng.randint(7, height - 6)
+        surf.set_at((fx, fy), (240, 252, 255, 225))
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -5036,6 +5305,30 @@ def generate_all_assets(
         (
             "frozen_rime_cask",
             generate_frozen_rime_cask(TILE_WIDTH, TILE_HEIGHT, rng=_rng("frozen_rime_cask")),
+        ),
+        (
+            "rimecrest_arbiter_boss",
+            generate_rimecrest_arbiter_boss(104, 104, rng=_rng("rimecrest_arbiter_boss")),
+        ),
+        (
+            "rimecrest_halberd",
+            generate_rimecrest_halberd(48, 56, rng=_rng("rimecrest_halberd")),
+        ),
+        (
+            "frozen_ice_block_0",
+            generate_frozen_ice_block_stage(0, 64, 64, rng=_rng("frozen_ice_block_0")),
+        ),
+        (
+            "frozen_ice_block_1",
+            generate_frozen_ice_block_stage(1, 64, 64, rng=_rng("frozen_ice_block_1")),
+        ),
+        (
+            "frozen_ice_block_2",
+            generate_frozen_ice_block_stage(2, 64, 64, rng=_rng("frozen_ice_block_2")),
+        ),
+        (
+            "ice_rubble_pile",
+            generate_ice_rubble_pile(48, 36, rng=_rng("ice_rubble_pile")),
         ),
     )
     for sp_key, sp_surf in sanctuary_prop_specs:

@@ -124,6 +124,7 @@ class Actor:
             "NightBoss",
             "SlugBoss",
             "MeadowCensorBoss",
+            "RimecrestArbiterBoss",
             "FinalAuthor",
         ):
             return True

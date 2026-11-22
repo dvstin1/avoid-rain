@@ -1337,7 +1337,7 @@ class GameState:
         if self.weather_manager.is_boss_spawn_ready():
             boss_alive = any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
             if not boss_alive and self.weather_manager.bleed_state == "CLAMPED":
-                from engine.enemy import MeadowCensorBoss, NightBoss, SlugBoss
+                from engine.enemy import MeadowCensorBoss, NightBoss, RimecrestArbiterBoss, SlugBoss
                 idx = self.weather_manager.current_boss_idx
                 boss_list = getattr(self.world, 'boss_coords_list', [])
                 if idx < len(boss_list):
@@ -1354,6 +1354,8 @@ class GameState:
                         new_boss = SlugBoss(bx, by)
                     elif active_biome == "pastoral_valley":
                         new_boss = MeadowCensorBoss(bx, by)
+                    elif active_biome == "frozen_peaks":
+                        new_boss = RimecrestArbiterBoss(bx, by)
                     else:
                         new_boss = NightBoss(bx, by)
                     if hasattr(self.world, "find_nearest_walkable_spawn"):
@@ -1675,6 +1677,20 @@ class GameState:
                 world.interactables[:] = kept_interactables
                 world._spatial_sig = None
 
+        # Tick timed world_debris entries (e.g., 5.0s fading IceRubble piles)
+        if getattr(self, "world_debris", None):
+            kept_debris = []
+            debris_changed = False
+            for entry in self.world_debris:
+                if isinstance(entry, dict) and "time" in entry:
+                    entry["time"] = float(entry["time"]) - dt
+                    if entry["time"] <= 0.0:
+                        debris_changed = True
+                        continue
+                kept_debris.append(entry)
+            if debris_changed:
+                self.world_debris[:] = kept_debris
+
         for effect in self.parry_effects[:]:
             effect['time'] -= dt
             if effect['time'] <= 0: self.parry_effects.remove(effect)
@@ -1771,11 +1787,30 @@ class GameState:
             world_h = None
 
         prev_player_state = self.player.state
+        encased_crack = bool(getattr(self.player, "just_cracked_ice", False))
         healed = self.player.update(
             dt, move_dir, walls, actions, attack_pressed, flask_pressed,
             dash_pressed, block_pressed, speed_multiplier,
             world_width=world_w, world_height=world_h,
         )
+        sfx_mgr = audio_manager or getattr(self, "audio_manager", None)
+        if encased_crack or getattr(self.player, "just_cracked_ice", False):
+            if sfx_mgr is not None:
+                from constants import ICE_CRACK_SFX
+                sfx_mgr.play_sfx(ICE_CRACK_SFX, pitch_jitter=0.05)
+        if getattr(self.player, "just_shattered_ice", False):
+            from constants import ICE_RUBBLE_DURATION, ICE_SHATTER_SFX
+            if sfx_mgr is not None:
+                sfx_mgr.play_sfx(ICE_SHATTER_SFX, pitch_jitter=0.04)
+            px_c, py_c = self.player.get_center()
+            self.world_debris.append(
+                {
+                    "name": "IceRubble",
+                    "pos": (px_c - 24.0, py_c - 12.0),
+                    "time": float(ICE_RUBBLE_DURATION),
+                    "max_time": float(ICE_RUBBLE_DURATION),
+                }
+            )
         if self.player.state == PlayerStateEnum.DASHING and prev_player_state != PlayerStateEnum.DASHING:
             self.local_dash_seq += 1
             if audio_manager:
@@ -2693,6 +2728,8 @@ class GameState:
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, SWORD_DAMAGE
         self.player.is_exposed = False
         self.player.alpha = 255
+        if hasattr(self.player, "reset_frost_state"):
+            self.player.reset_frost_state()
         
         # Reset stats/level to starting levels
         self.player.stats = {
@@ -3227,6 +3264,9 @@ class GameState:
             MEADOW_CENSOR_PHASE1_MUSIC,
             MEADOW_CENSOR_PHASE2_HP_RATIO,
             MEADOW_CENSOR_PHASE2_MUSIC,
+            RIMECREST_ARBITER_PHASE1_MUSIC,
+            RIMECREST_ARBITER_PHASE2_HP_RATIO,
+            RIMECREST_ARBITER_PHASE2_MUSIC,
             SLUG_BOSS_PHASE1_MUSIC,
             SLUG_BOSS_PHASE2_HP_RATIO,
             SLUG_BOSS_PHASE2_MUSIC,
@@ -3273,6 +3313,15 @@ class GameState:
                             max_hp > 0.0 and 0.0 < cur_hp <= max_hp * MEADOW_CENSOR_PHASE2_HP_RATIO
                         )
                         near_biome_boss_track = MEADOW_CENSOR_PHASE2_MUSIC if in_phase2 else MEADOW_CENSOR_PHASE1_MUSIC
+                    elif getattr(enemy, "is_rimecrest_arbiter", False):
+                        max_hp = float(getattr(enemy, "max_hp", 0.0) or 0.0)
+                        cur_hp = float(getattr(enemy, "hp", 0.0) or 0.0)
+                        in_phase2 = getattr(enemy, "phase", 1) >= 2 or (
+                            max_hp > 0.0 and 0.0 < cur_hp <= max_hp * RIMECREST_ARBITER_PHASE2_HP_RATIO
+                        )
+                        near_biome_boss_track = (
+                            RIMECREST_ARBITER_PHASE2_MUSIC if in_phase2 else RIMECREST_ARBITER_PHASE1_MUSIC
+                        )
                     elif ename == "Night Boss":
                         near_night_boss = True
                     else:
@@ -3401,6 +3450,8 @@ class GameState:
         self.player.x, self.player.y = float(self.world.player_start[0]), float(self.world.player_start[1])
         self.player.hp = self.player.max_hp
         self.player.state = PlayerStateEnum.IDLE
+        if hasattr(self.player, "reset_frost_state"):
+            self.player.reset_frost_state()
         self.death_timer = 0.0
         
         if hasattr(self, 'camera'): self.camera.instant_center(self.player.get_center())
