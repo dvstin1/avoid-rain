@@ -580,7 +580,7 @@ def test_generate_all_assets_is_idempotent_on_second_run(tmp_path):
     expected_sizes = {
         "wellspring": (40, 40),
         "lotus_frame": (40, 40),
-        "bench": (40, 40),
+        "bench": (80, 40),
         "heavy_bookcase": (80, 40),
         "ink_urn": (40, 40),
         "inkwell_puddle": (40, 40),

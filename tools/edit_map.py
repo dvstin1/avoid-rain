@@ -65,8 +65,8 @@ MASTER_TOOL_REGISTRY = [
         "char": "S",
         "name": "Bench",
         "type": "tile",
-        "size": "40x40 px (1x1 tile)",
-        "desc": "Solid sitting bench prop (1x1 tile)."
+        "size": "80x40 px (2x1 tiles)",
+        "desc": "Solid sitting bench prop. Spans 2 tiles horizontally."
     },
     {
         "id": "tile_candelabra",

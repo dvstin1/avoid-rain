@@ -808,7 +808,7 @@ class Renderer:
         ts = constants.TILE_SIZE
         display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None) and pygame.display.get_surface() is not None
 
-        # 1. Structure (Default Biome Tree PNG with procedural fallback)
+        # 1. Structure (Default Biome Tree PNG variants 0..3 with procedural fallback)
         tree_path = os.path.join(base_path, "tree_structure.png")
         if os.path.exists(tree_path):
             try:
@@ -819,6 +819,18 @@ class Renderer:
                 self.image_cache["tree_structure.png"] = t_img
             except Exception as e:
                 print(f"[RENDER] Error loading tree_structure.png: {e}")
+        for t_var in (1, 2, 3):
+            tv_file = f"tree_structure_{t_var}.png"
+            tv_path = os.path.join(base_path, tv_file)
+            if os.path.exists(tv_path):
+                try:
+                    tv_img = pygame.image.load(tv_path)
+                    if display_init:
+                        tv_img = tv_img.convert_alpha()
+                    self.prop_cache[f"Structure_{t_var}"] = tv_img
+                    self.image_cache[tv_file] = tv_img
+                except Exception as e:
+                    print(f"[RENDER] Error loading {tv_file}: {e}")
         if "Structure" not in self.prop_cache:
             tree = pygame.Surface((ts, ts), pygame.SRCALPHA)
             cx_t, cy_t = ts // 2, ts // 2 - 4
@@ -984,6 +996,9 @@ class Renderer:
         # 7c. Sanctuary Courtyard, Pond, Roof & Prop Assets (Pass 1 preload; graceful fallback if absent)
         sanctuary_extra_defs = (
             ("sanctuary_roof_tile.png", "SanctuaryRoofTile", (ts, ts), False),
+            ("sanctuary_roof_tile_1.png", "SanctuaryRoofTile_1", (ts, ts), False),
+            ("sanctuary_roof_tile_2.png", "SanctuaryRoofTile_2", (ts, ts), False),
+            ("sanctuary_roof_tile_3.png", "SanctuaryRoofTile_3", (ts, ts), False),
             ("sanctuary_chimney.png", "SanctuaryChimney", (ts, ts * 2), True),
             ("sanctuary_tree_canopy.png", "SanctuaryTreeCanopy", (ts * 2, 100), True),
             ("pond_lily_reeds.png", "PondLilyReeds", (ts, ts), True),
@@ -996,6 +1011,7 @@ class Renderer:
             ("highland_monolith.png", "HighlandMonolith", (ts, 60), True),
             ("tech_server_pylon.png", "TechServerPylon", (ts, 60), True),
             ("tech_canister.png", "TechCanister", (ts, ts), True),
+            ("swamp_barrel.png", "SwampBarrel", (ts, ts), True),
             ("swamp_spore_pod.png", "SwampSporePod", (ts, ts), True),
             ("slug_boss.png", "SlugBoss", (constants.SLUG_BOSS_SIZE, constants.SLUG_BOSS_SIZE), True),
             (
@@ -1004,6 +1020,7 @@ class Renderer:
                 (constants.SLUG_BOSS_CROWN_WIDTH, constants.SLUG_BOSS_CROWN_HEIGHT),
                 True,
             ),
+            ("pastoral_rock.png", "PastoralRock", (ts, 60), True),
             ("pastoral_shepherd_cairn.png", "PastoralShepherdCairn", (ts, 60), True),
             ("pastoral_hay_crate.png", "PastoralHayCrate", (ts, ts), True),
             (
@@ -2900,6 +2917,15 @@ class Renderer:
                     rock_surf = getattr(self, "prop_cache", {}).get("Rock")
                     if rock_surf is not None:
                         target_surf.blit(rock_surf, (sx, sy))
+            elif (
+                tile == constants.TILE_EMPTY
+                and biome == "swamp_mire"
+                and s_idx in (0, 1)
+                and (((x * 73856093) ^ (y * 19349663)) & 0x7FFFFFFF) % 23 == 0
+            ):
+                pod_surf = getattr(self, "prop_cache", {}).get("SwampSporePod")
+                if pod_surf is not None:
+                    target_surf.blit(pod_surf, (sx, sy))
         else:
             pygame.draw.rect(target_surf, constants.COLOR_FLOOR, dr, 1)
 
@@ -3058,8 +3084,15 @@ class Renderer:
             if not (-64 <= dx_s <= sw + 64 and -64 <= dy_s <= sh + 64):
                 continue
             if d_name == 'BarrelRubble':
-                img = self.image_cache.get("barrel_3.png")
-                if img:
+                d_biome = debris.get('biome')
+                if not d_biome:
+                    d_biome = self._resolve_tile_biome(state, int(d_pos[0]) // ts, int(d_pos[1]) // ts)
+                    w_name = getattr(state.world, "name", "").lower()
+                    map_file = getattr(state.world, "map_filename", "").lower()
+                    if d_biome == "tech_tower" and ("ruins" in w_name or "ruins" in map_file):
+                        d_biome = "ruins"
+                img = self._get_biome_barrel_debris_surface(d_biome, 3)
+                if img is not None:
                     self.screen.blit(img, (dx_s, dy_s))
             elif d_name == 'IceRubble' and is_real_surface:
                 rem_t = float(debris.get('time', constants.ICE_RUBBLE_DURATION))
@@ -3201,7 +3234,7 @@ class Renderer:
                 if obj_biome == "tech_tower" and "ruins" not in w_name and "ruins" not in map_file:
                     self._draw_tech_canister(sx_o, sy_o, obj, prop_cache)
                 elif obj_biome == "swamp_mire":
-                    self._draw_swamp_spore_pod(sx_o, sy_o, obj, prop_cache)
+                    self._draw_swamp_barrel(sx_o, sy_o, obj, prop_cache)
                 elif obj_biome == "pastoral_valley":
                     self._draw_pastoral_hay_crate(sx_o, sy_o, obj, prop_cache)
                 elif obj_biome == "frozen_peaks":
@@ -3245,11 +3278,18 @@ class Renderer:
                 elif obj_biome == "tech_tower":
                     self._draw_tech_server_pylon(sx_o, sy_o, prop_cache)
                 elif obj_biome == "pastoral_valley":
-                    self._draw_pastoral_shepherd_cairn(sx_o, sy_o, prop_cache)
+                    tx_s, ty_s = int(obj.x) // ts, int(obj.y) // ts
+                    if self._is_pastoral_rare_cairn(tx_s, ty_s):
+                        self._draw_pastoral_shepherd_cairn(sx_o, sy_o, prop_cache)
+                    else:
+                        self._draw_pastoral_rock(sx_o, sy_o, prop_cache)
                 elif obj_biome == "frozen_peaks":
                     self._draw_frozen_script_monolith(sx_o, sy_o, prop_cache)
                 else:
-                    tree_surf = prop_cache.get("Structure")
+                    tx_s, ty_s = int(obj.x) // ts, int(obj.y) // ts
+                    t_var = (((tx_s * 73856093) ^ (ty_s * 19349663)) & 0x7FFFFFFF) % 4
+                    tree_key = "Structure" if t_var == 0 else f"Structure_{t_var}"
+                    tree_surf = prop_cache.get(tree_key) or prop_cache.get("Structure")
                     if tree_surf is not None:
                         self.screen.blit(tree_surf, (int(sx_o), int(sy_o)))
                     else:
@@ -3409,8 +3449,10 @@ class Renderer:
                 if bench_surf is not None:
                     self.screen.blit(bench_surf, (int(sx_o), int(sy_o)))
                 else:
-                    pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, ts, ts))
-                    pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, ts, 2))
+                    bw = int(getattr(obj, "width", ts * 2))
+                    bh = int(getattr(obj, "height", ts))
+                    pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, bw, bh))
+                    pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, bw, 2))
             elif obj.name == "Rock":
                 obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
                 w_name = getattr(state.world, "name", "").lower()
@@ -3489,16 +3531,19 @@ class Renderer:
             ox, oy = state.camera.get_offset() if hasattr(state, 'camera') else (0, 0)
 
             if obj.name == "Barrel":
-                # Multi-frame Animation sequence (Breaking phase)
+                # Multi-frame Animation sequence (Breaking phase, biome-matched)
                 # Remaining time starts at 0.16s
                 elapsed = 0.16 - fading['time']
-                
-                if elapsed < 0.080: # Frame 1: 80ms
-                    img = self.image_cache.get("barrel_1.png")
-                else: # Frame 2: +80ms
-                    img = self.image_cache.get("barrel_2.png")
-                
-                if img:
+                stage = 1 if elapsed < 0.080 else 2
+                f_biome = fading.get('biome')
+                if not f_biome:
+                    f_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
+                    w_name = getattr(state.world, "name", "").lower()
+                    map_file = getattr(state.world, "map_filename", "").lower()
+                    if f_biome == "tech_tower" and ("ruins" in w_name or "ruins" in map_file):
+                        f_biome = "ruins"
+                img = self._get_biome_barrel_debris_surface(f_biome, stage)
+                if img is not None:
                     self.screen.blit(img, (obj.x - ox, obj.y - oy))
                 continue
 
@@ -5485,31 +5530,75 @@ class Renderer:
         return self.sanctuary_interior_alpha
 
     def _get_sanctuary_roof_surface(self, zone_dict):
-        """Return a cached tiled slate roof surface for a Sanctuary roof_zones entry."""
+        """Return a cached tiled slate roof surface with variant shingles and irregular organic moss clusters."""
         ts = constants.TILE_SIZE
         zw = int(zone_dict.get("w", 1))
         zh = int(zone_dict.get("h", 1))
         z_name = str(zone_dict.get("name", "roof"))
         roof_tile = self.prop_cache.get("SanctuaryRoofTile")
-        cache_key = (z_name, zw, zh, id(roof_tile) if roof_tile is not None else 0)
+        variant_tiles = [
+            roof_tile,
+            self.prop_cache.get("SanctuaryRoofTile_1"),
+            self.prop_cache.get("SanctuaryRoofTile_2"),
+            self.prop_cache.get("SanctuaryRoofTile_3"),
+        ]
+        avail_tiles = [t for t in variant_tiles if t is not None]
+        cache_key = (z_name, zw, zh, tuple(id(t) for t in avail_tiles))
         cached = self._sanctuary_roof_surfs.get(cache_key)
         if cached is not None:
             return cached
 
         rw_px, rh_px = max(ts, zw * ts), max(ts, zh * ts)
         surf = pygame.Surface((rw_px, rh_px))
-        if roof_tile is not None:
+        if avail_tiles:
             for ty in range(zh):
                 for tx in range(zw):
-                    surf.blit(roof_tile, (tx * ts, ty * ts))
+                    h_val = ((tx * 73856093) ^ (ty * 19349663) ^ (len(z_name) * 83492791)) & 0x7FFFFFFF
+                    # Weight clean slate tile 0 at ~55% so roof reads cleanly with natural weathered variation
+                    if h_val % 20 < 11:
+                        chosen = avail_tiles[0]
+                    else:
+                        chosen = avail_tiles[h_val % len(avail_tiles)]
+                    surf.blit(chosen, (tx * ts, ty * ts))
         else:
             surf.fill((42, 46, 56))
             for sy in range(0, rh_px, 10):
                 pygame.draw.line(surf, (26, 29, 38), (0, sy), (rw_px - 1, sy), 1)
+
         # Architectural slate ridge line & eaves trim
         ridge_y = rh_px // 2
         pygame.draw.line(surf, (78, 86, 100), (2, ridge_y), (rw_px - 3, ridge_y), 3)
         pygame.draw.rect(surf, (22, 25, 34), (0, 0, rw_px, rh_px), 3)
+
+        # Organic multi-tile moss clusters biased toward eaves, corners, and ridge seams (never a uniform grid)
+        seed_val = sum((idx + 1) * ord(ch) for idx, ch in enumerate(z_name)) + zw * 31 + zh * 97
+        rng = random.Random(seed_val)
+        cluster_count = max(2, min(7, (zw * zh) // 18))
+        for c_idx in range(cluster_count):
+            # Bias anchors near north/south eaves, west/east edges, or central ridge seam
+            anchor_mode = c_idx % 3
+            if anchor_mode == 0:
+                ax = rng.randint(14, max(15, rw_px - 16))
+                ay = rng.choice([rng.randint(8, min(28, rh_px - 10)), rng.randint(max(10, rh_px - 32), rh_px - 10)])
+            elif anchor_mode == 1:
+                ax = rng.randint(18, max(19, rw_px - 20))
+                ay = max(10, min(rh_px - 12, ridge_y + rng.randint(-14, 14)))
+            else:
+                ax = rng.choice([rng.randint(10, min(36, rw_px - 12)), rng.randint(max(12, rw_px - 38), rw_px - 12)])
+                ay = rng.randint(12, max(13, rh_px - 14))
+            lobe_count = rng.randint(4, 7)
+            for _ in range(lobe_count):
+                lx = max(4, min(rw_px - 6, ax + rng.randint(-20, 20)))
+                ly = max(4, min(rh_px - 6, ay + rng.randint(-12, 12)))
+                rx = rng.randint(6, 15)
+                ry = rng.randint(4, 9)
+                pygame.draw.ellipse(surf, (44, 66, 40), (lx - rx, ly - ry, rx * 2, ry * 2))
+                pygame.draw.ellipse(
+                    surf, (62, 90, 52), (lx - rx + 2, ly - ry + 1, max(4, rx * 2 - 5), max(3, ry * 2 - 3))
+                )
+                if rng.random() < 0.55:
+                    pygame.draw.circle(surf, (82, 114, 66), (lx - 1, ly - 1), max(2, min(rx, ry) // 2))
+
         self._sanctuary_roof_surfs[cache_key] = surf
         return surf
 
@@ -5571,7 +5660,14 @@ class Renderer:
                 self.screen, (150, 215, 240), False,
                 [(tx_i + 12, ty_i + 32), (tx_i + 12, ty_i - 5), (tx_i + 17, ty_i - 15)], 2,
             )
-            pygame.draw.line(self.screen, (90, 228, 178), (tx_i + 19, ty_i - 4), (tx_i + 19, ty_i + 18), 1)
+            pygame.draw.lines(
+                self.screen, (90, 228, 178), False,
+                [(tx_i + 15, ty_i + 8), (tx_i + 20, ty_i + 4), (tx_i + 25, ty_i + 8)], 1,
+            )
+            pygame.draw.lines(
+                self.screen, (156, 246, 212), False,
+                [(tx_i + 16, ty_i + 15), (tx_i + 20, ty_i + 12), (tx_i + 24, ty_i + 15)], 1,
+            )
             pygame.draw.ellipse(self.screen, (42, 108, 62), (tx_i + 6, ty_i + 30, 14, 6))
 
     def draw_windy_ridge_atmosphere(self, state, ox, oy, now=None):
@@ -5778,6 +5874,148 @@ class Renderer:
                 pygame.draw.rect(m_surf, core, (3, 3, 2, 2))
                 cache[m_key] = m_surf
             self.screen.blit(m_surf, (mx - 4, my - 4))
+
+    def _get_biome_barrel_debris_surface(self, biome, stage):
+        """Return a cached 40x40 biome-matched barrel break/rubble frame (stages 1, 2, 3)."""
+        st = max(1, min(3, int(stage)))
+        b_key = str(biome or "").lower()
+        if b_key not in ("tech_tower", "swamp_mire", "pastoral_valley", "frozen_peaks"):
+            return self.image_cache.get(f"barrel_{st}.png")
+
+        cache = getattr(self, "_fx_surface_cache", None)
+        c_key = ("barrel_debris", b_key, st)
+        if cache is not None and c_key in cache:
+            return cache[c_key]
+
+        ts = constants.TILE_SIZE
+        surf = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        surf.fill((0, 0, 0, 0))
+
+        if b_key == "tech_tower":
+            # Metallic brushed-slate canister shards, bent endcaps & glowing cyan coolant puddle/sparks
+            steel_mid = (84, 102, 124, 255)
+            steel_hi = (146, 170, 194, 255)
+            steel_dark = (42, 54, 70, 255)
+            outline = (18, 26, 38, 255)
+            cyan_pool = (42, 198, 228, 195 if st == 3 else 225)
+            cyan_core = (142, 244, 255, 235)
+            if st == 1:
+                pygame.draw.ellipse(surf, cyan_pool, (11, 13, 18, 16))
+                for poly, col in (
+                    ([(6, 10), (17, 8), (15, 29), (6, 27)], steel_mid),
+                    ([(23, 9), (34, 12), (33, 29), (24, 30)], steel_dark),
+                ):
+                    pygame.draw.polygon(surf, col, poly)
+                    pygame.draw.polygon(surf, outline, poly, 1)
+                pygame.draw.line(surf, cyan_core, (19, 7), (21, 31), 2)
+                for sx, sy, ex, ey in ((4, 7, 10, 11), (31, 7, 36, 11), (5, 24, 10, 22), (31, 25, 36, 22)):
+                    pygame.draw.line(surf, cyan_core, (sx, sy), (ex, ey), 2)
+            elif st == 2:
+                pygame.draw.ellipse(surf, cyan_pool, (8, 13, 24, 16))
+                shards = (
+                    [(5, 16), (16, 12), (18, 17), (7, 21)],
+                    [(23, 12), (35, 16), (33, 21), (22, 17)],
+                    [(9, 25), (20, 21), (21, 26), (11, 30)],
+                    [(21, 22), (33, 26), (30, 31), (19, 27)],
+                )
+                for idx, poly in enumerate(shards):
+                    pygame.draw.polygon(surf, steel_hi if idx % 2 == 0 else steel_mid, poly)
+                    pygame.draw.polygon(surf, outline, poly, 1)
+                pygame.draw.circle(surf, cyan_core, (20, 20), 3)
+            else:
+                # Stage 3 flat shattered canister shards + cyan coolant spill + hazard trim fragment
+                pygame.draw.ellipse(surf, (12, 22, 32, 110), (5, 19, 30, 14))
+                pygame.draw.ellipse(surf, cyan_pool, (10, 21, 20, 10))
+                pygame.draw.ellipse(surf, cyan_core, (14, 23, 10, 5))
+                shards = (
+                    [(6, 23), (18, 19), (20, 23), (8, 27)],
+                    [(20, 25), (34, 21), (35, 25), (22, 29)],
+                    [(12, 28), (24, 26), (25, 30), (13, 32)],
+                    [(24, 17), (33, 19), (31, 22), (22, 20)],
+                )
+                for idx, poly in enumerate(shards):
+                    pygame.draw.polygon(surf, steel_mid if idx % 2 == 0 else steel_dark, poly)
+                    pygame.draw.polygon(surf, outline, poly, 1)
+                pygame.draw.line(surf, steel_hi, (8, 23), (17, 20), 1)
+                pygame.draw.rect(surf, (206, 162, 56, 240), (26, 24, 5, 2))
+        elif b_key == "swamp_mire":
+            # Damp rotting dark-olive staves, corroded iron scraps & moss ooze
+            wood_mid = (66, 56, 36, 255)
+            wood_dark = (40, 34, 22, 255)
+            moss = (74, 118, 42, 225)
+            outline = (18, 16, 12, 255)
+            pygame.draw.ellipse(surf, (22, 34, 18, 120), (5, 17 if st == 3 else 12, 30, 15))
+            polys = (
+                [(6, 22), (19, 17), (21, 21), (8, 26)],
+                [(17, 25), (33, 21), (34, 25), (19, 29)],
+                [(10, 28), (25, 26), (26, 30), (11, 32)],
+            ) if st == 3 else (
+                [(6, 12), (18, 9), (16, 29), (6, 27)],
+                [(22, 11), (34, 14), (32, 30), (22, 28)],
+            )
+            for idx, poly in enumerate(polys):
+                pygame.draw.polygon(surf, wood_mid if idx % 2 == 0 else wood_dark, poly)
+                pygame.draw.polygon(surf, outline, poly, 1)
+            pygame.draw.ellipse(surf, moss, (12, 21 if st == 3 else 16, 13, 6))
+            pygame.draw.arc(surf, (96, 54, 30, 255), (10, 19, 19, 11), 3.2, 5.8, 2)
+        elif b_key == "pastoral_valley":
+            # Scattered golden wheat straw, crate slats & plum tar specks
+            straw_hi = (224, 186, 84, 255)
+            straw_mid = (184, 142, 56, 255)
+            plank = (146, 102, 54, 255)
+            outline = (54, 36, 20, 255)
+            pygame.draw.ellipse(surf, (46, 22, 64, 115), (7, 20 if st == 3 else 14, 24, 12))
+            for sx, sy, ex, ey in (
+                (7, 25, 21, 20),
+                (14, 29, 32, 22),
+                (9, 21, 26, 28),
+                (18, 18, 33, 26),
+            ):
+                pygame.draw.line(surf, straw_mid, (sx, sy), (ex, ey), 3)
+                pygame.draw.line(surf, straw_hi, (sx, sy - 1), (ex, ey - 1), 1)
+            if st < 3:
+                pygame.draw.rect(surf, plank, (11, 12, 18, 7))
+                pygame.draw.rect(surf, outline, (11, 12, 18, 7), 1)
+            else:
+                pygame.draw.polygon(surf, plank, [(10, 26), (24, 23), (25, 27), (11, 30)])
+                pygame.draw.polygon(surf, outline, [(10, 26), (24, 23), (25, 27), (11, 30)], 1)
+        else:
+            # frozen_peaks: frosted pine staves + translucent rime ice crystal shards
+            frost_wood = (118, 126, 138, 255)
+            ice_mid = (124, 204, 246, 235)
+            ice_hi = (206, 244, 255, 245)
+            outline = (34, 52, 74, 255)
+            pygame.draw.ellipse(surf, (18, 32, 48, 105), (5, 19 if st == 3 else 13, 30, 14))
+            for poly in (
+                [(7, 24), (19, 19), (21, 23), (9, 28)],
+                [(18, 26), (32, 22), (34, 26), (20, 30)],
+            ):
+                pygame.draw.polygon(surf, frost_wood, poly)
+                pygame.draw.polygon(surf, outline, poly, 1)
+            for shard in (
+                [(13, 21), (18, 14 if st < 3 else 18), (22, 23)],
+                [(23, 24), (29, 16 if st < 3 else 19), (33, 25)],
+            ):
+                pygame.draw.polygon(surf, ice_mid, shard)
+                pygame.draw.polygon(surf, ice_hi, shard, 1)
+
+        if cache is not None:
+            cache[c_key] = surf
+        return surf
+
+    def _draw_swamp_barrel(self, sx_o, sy_o, obj, prop_cache):
+        """Render a 40x40 rotting moss-slimed SwampBarrel replacing breakable barrels in swamp_mire."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        barrel_surf = prop_cache.get("SwampBarrel")
+        if barrel_surf is not None:
+            self.screen.blit(barrel_surf, (tx_i, ty_i))
+        elif isinstance(self.screen, pygame.Surface):
+            sw_o = max(16, int(getattr(obj, "width", constants.TILE_SIZE)))
+            sh_o = max(16, int(getattr(obj, "height", constants.TILE_SIZE)))
+            pygame.draw.rect(self.screen, (68, 56, 36), (tx_i + 8, ty_i + 8, sw_o - 16, sh_o - 15), border_radius=5)
+            pygame.draw.rect(self.screen, (58, 36, 26), (tx_i + 7, ty_i + 13, sw_o - 14, 4), border_radius=2)
+            pygame.draw.rect(self.screen, (58, 36, 26), (tx_i + 7, ty_i + sh_o - 14, sw_o - 14, 4), border_radius=2)
+            pygame.draw.ellipse(self.screen, (64, 114, 44), (tx_i + 10, ty_i + 10, 12, 6))
 
     def _draw_swamp_spore_pod(self, sx_o, sy_o, obj, prop_cache):
         """Render a 40x40 bloated biomechanical SwampSporePod replacing barrels in swamp_mire."""
@@ -6256,6 +6494,40 @@ class Renderer:
                 pygame.draw.circle(m_surf, core, (4, 4), 1)
                 cache[m_key] = m_surf
             self.screen.blit(m_surf, (mx - 4, my - 4))
+
+    @staticmethod
+    def _is_pastoral_rare_cairn(tx, ty):
+        """Return True for ~15% of pastoral_valley Structure tiles (rare Shepherd Cairn landmarks)."""
+        h_val = ((int(tx) * 73856093) ^ (int(ty) * 19349663)) & 0x7FFFFFFF
+        return (h_val % 20) < 3
+
+    def _draw_pastoral_rock(self, sx_o, sy_o, prop_cache):
+        """Render a 40x60 weathered limestone PastoralRock anchored on its 40x40 base footprint."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        if isinstance(self.screen, pygame.Surface):
+            cache = getattr(self, "_fx_surface_cache", None)
+            s_key = ("pastoral_rock_shadow", 34, 10)
+            sh_surf = cache.get(s_key) if cache is not None else None
+            if sh_surf is None:
+                sh_surf = pygame.Surface((34, 10), pygame.SRCALPHA)
+                pygame.draw.ellipse(sh_surf, (24, 20, 26, 94), (0, 0, 34, 10))
+                if cache is not None:
+                    cache[s_key] = sh_surf
+            self.screen.blit(sh_surf, (tx_i + 3, ty_i + 30))
+
+        rock_surf = prop_cache.get("PastoralRock")
+        if rock_surf is not None:
+            self.screen.blit(rock_surf, (tx_i, ty_i - 20))
+        elif isinstance(self.screen, pygame.Surface):
+            poly = [
+                (tx_i + 6, ty_i + 30), (tx_i + 5, ty_i + 14),
+                (tx_i + 11, ty_i + 4), (tx_i + 20, ty_i + 1),
+                (tx_i + 30, ty_i + 4), (tx_i + 35, ty_i + 14),
+                (tx_i + 34, ty_i + 30),
+            ]
+            pygame.draw.polygon(self.screen, (176, 166, 144), poly)
+            pygame.draw.polygon(self.screen, (62, 54, 44), poly, 1)
+            pygame.draw.ellipse(self.screen, (52, 142, 66), (tx_i + 5, ty_i + 26, 12, 6))
 
     def _draw_pastoral_shepherd_cairn(self, sx_o, sy_o, prop_cache):
         """Render a 40x60 PastoralShepherdCairn anchored on its 40x40 base footprint with ground shadow."""

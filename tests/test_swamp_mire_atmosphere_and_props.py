@@ -47,8 +47,8 @@ def test_swamp_spore_pod_asset_exists_generates_and_preloads():
         assert renderer.prop_cache[existing_key].get_size() == (40, 40)
 
 
-def test_swamp_mire_barrel_renders_spore_pod_fallback_and_preserves_other_biomes():
-    """Verify Barrel in swamp_mire renders SwampSporePod (with fallback) while other biomes keep barrel_0.png."""
+def test_swamp_mire_barrel_renders_swamp_barrel_fallback_and_preserves_other_biomes():
+    """Verify Barrel in swamp_mire renders SwampBarrel (with fallback) while other biomes keep barrel_0.png."""
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
     state = GameState(auto_load=False)
@@ -65,26 +65,29 @@ def test_swamp_mire_barrel_renders_spore_pod_fallback_and_preserves_other_biomes
         state.player.y = 4.0 * ts
         state.camera.instant_center((4 * ts, 4 * ts))
 
-        # Sentinel sprites distinguish SwampSporePod vs wooden barrel_0.png
-        pod_sentinel = pygame.Surface((ts, ts), pygame.SRCALPHA)
-        pod_sentinel.fill((148, 215, 68, 255))
+        # Sentinel sprites distinguish SwampBarrel vs wooden barrel_0.png
+        swamp_sentinel = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        swamp_sentinel.fill((148, 215, 68, 255))
         barrel_sentinel = pygame.Surface((ts, ts), pygame.SRCALPHA)
         barrel_sentinel.fill((176, 98, 42, 255))
-        renderer.prop_cache["SwampSporePod"] = pod_sentinel
+        renderer.prop_cache["SwampBarrel"] = swamp_sentinel
         renderer.image_cache["barrel_0.png"] = barrel_sentinel
 
-        # 1. swamp_mire renders SwampSporePod
+        # 1. swamp_mire renders SwampBarrel
         renderer.render(state)
         ox, oy = state.camera.get_offset()
         cx = int(barrel.x - ox + ts // 2)
         cy = int(barrel.y - oy + ts // 2)
         col_swamp = screen.get_at((cx, cy))[:3]
-        assert col_swamp[1] > 180 and col_swamp[2] < 100, f"Expected SwampSporePod sentinel, got {col_swamp}"
+        assert col_swamp[1] > 180 and col_swamp[2] < 100, f"Expected SwampBarrel sentinel, got {col_swamp}"
 
-        # 2. Procedural fallback path when SwampSporePod PNG is absent
+        # 2. Procedural fallback paths when SwampBarrel / SwampSporePod PNGs are absent
         canvas = pygame.Surface((120, 120))
         canvas.fill((14, 10, 20))
         renderer.screen = canvas
+        renderer._draw_swamp_barrel(40, 40, barrel, {})
+        assert canvas.get_at((60, 58))[:3] != (14, 10, 20), "Procedural swamp barrel fallback should draw barrel"
+        canvas.fill((14, 10, 20))
         renderer._draw_swamp_spore_pod(40, 40, barrel, {})
         assert canvas.get_at((60, 58))[:3] != (14, 10, 20), "Procedural spore pod fallback should draw sac"
 

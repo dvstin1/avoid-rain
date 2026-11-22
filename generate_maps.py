@@ -213,6 +213,7 @@ SOLID_PROP_SYMBOLS: Tuple[str, ...] = (
     SYMBOL_INK_URN,
     SYMBOL_CANDELABRA,
 )
+WIDE_SOLID_PROP_SYMBOLS: Tuple[str, ...] = (SYMBOL_BOOKCASE, SYMBOL_BENCH)
 HALLWAY_MIN_CLEAR_SPAN = 3
 BOOKCASE_MIN_HORIZ_SPAN = 4
 PROP_LOCAL_WINDOW_RADIUS = 2
@@ -437,7 +438,7 @@ def _get_solid_prop_footprint(
             elif cell in solid_props:
                 impassable.add((x, y))
                 prop_owners[(x, y)] = (x, y)
-                if cell == SYMBOL_BOOKCASE and x + 1 < w:
+                if cell in WIDE_SOLID_PROP_SYMBOLS and x + 1 < w:
                     impassable.add((x + 1, y))
                     if grid[y][x + 1] not in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
                         prop_owners[(x + 1, y)] = (x, y)
@@ -677,7 +678,7 @@ def _place_patrol_routes(
         for x in range(border, width - border):
             if grid[y][x] != SYMBOL_FLOOR:
                 continue
-            if x > 0 and grid[y][x - 1] == SYMBOL_BOOKCASE:
+            if x > 0 and grid[y][x - 1] in WIDE_SOLID_PROP_SYMBOLS:
                 continue
             if any(max(abs(x - rx), abs(y - ry)) <= 6 for rx, ry in respite_coords):
                 continue
@@ -1073,21 +1074,18 @@ def generate_architectural_biome(
                             occupied_solid.add((x, y))
                     else:
                         if (n_wall or s_wall) and rng.random() < 0.08:
-                            can_place_bookcase = (
+                            can_place_wide = (
                                 x + 1 < width - 1
                                 and grid[y][x + 1] == SYMBOL_FLOOR
                                 and (x + 1, y) != (cx, cy)
                                 and (x + 1, y) not in bookcase_reserved
                                 and _can_place_architectural_prop(grid, [(x, y), (x + 1, y)], occupied_solid)
                             )
-                            if can_place_bookcase and rng.random() < 0.5:
-                                grid[y][x] = SYMBOL_BOOKCASE
+                            if can_place_wide:
+                                grid[y][x] = SYMBOL_BOOKCASE if rng.random() < 0.5 else SYMBOL_BENCH
                                 bookcase_reserved.add((x + 1, y))
                                 occupied_solid.add((x, y))
                                 occupied_solid.add((x + 1, y))
-                            elif _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
-                                grid[y][x] = SYMBOL_BENCH
-                                occupied_solid.add((x, y))
                         elif rng.random() < 0.07 and _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
                             grid[y][x] = SYMBOL_BARREL
                             occupied_solid.add((x, y))
@@ -1102,7 +1100,7 @@ def generate_architectural_biome(
         (x + 1, y)
         for y in range(height)
         for x in range(width - 1)
-        if grid[y][x] == SYMBOL_BOOKCASE
+        if grid[y][x] in WIDE_SOLID_PROP_SYMBOLS
     }
 
     # 9. Spawners & Key Entrances
@@ -1527,9 +1525,9 @@ def carve_segment_connectors(
             grid[h - 1 - y][x] = SYMBOL_FLOOR
         left_edge = max(1, mid_x - half_width) - 1
         if left_edge >= 0:
-            if grid[y][left_edge] == SYMBOL_BOOKCASE:
+            if grid[y][left_edge] in WIDE_SOLID_PROP_SYMBOLS:
                 grid[y][left_edge] = SYMBOL_FLOOR
-            if grid[h - 1 - y][left_edge] == SYMBOL_BOOKCASE:
+            if grid[h - 1 - y][left_edge] in WIDE_SOLID_PROP_SYMBOLS:
                 grid[h - 1 - y][left_edge] = SYMBOL_FLOOR
 
     # West & East centered connectors
@@ -1539,7 +1537,7 @@ def carve_segment_connectors(
             grid[y][w - 1 - x] = SYMBOL_FLOOR
     for y in range(max(1, mid_y - half_width), min(h - 1, mid_y + half_width)):
         east_left = w - depth - 1
-        if east_left >= 0 and grid[y][east_left] == SYMBOL_BOOKCASE:
+        if east_left >= 0 and grid[y][east_left] in WIDE_SOLID_PROP_SYMBOLS:
             grid[y][east_left] = SYMBOL_FLOOR
 
     return [
@@ -1587,7 +1585,7 @@ def generate_biome_segment(
             (x, y)
             for y in range(4, height - 4)
             for x in range(4, width - 4)
-            if grid[y][x] == SYMBOL_FLOOR and not (x > 0 and grid[y][x - 1] == SYMBOL_BOOKCASE)
+            if grid[y][x] == SYMBOL_FLOOR and not (x > 0 and grid[y][x - 1] in WIDE_SOLID_PROP_SYMBOLS)
         ]
         if candidate_floors:
             mx, my = rng.choice(candidate_floors)
@@ -2046,7 +2044,7 @@ def generate_colophon_sanctum(
             n_wall = grid[y - 1][x] == SYMBOL_WALL
             s_wall = grid[y + 1][x] == SYMBOL_WALL
             if (n_wall or s_wall) and rng.random() < 0.22:
-                can_bookcase = (
+                can_wide = (
                     x + 1 < hx1
                     and grid[y][x + 1] == SYMBOL_FLOOR
                     and (x + 1, y) not in safe_plaza
@@ -2054,14 +2052,11 @@ def generate_colophon_sanctum(
                     and (x + 1) not in corridor_band_x
                     and _can_place_architectural_prop(grid, [(x, y), (x + 1, y)], occupied_solid)
                 )
-                if can_bookcase and rng.random() < 0.55:
-                    grid[y][x] = SYMBOL_BOOKCASE
+                if can_wide:
+                    grid[y][x] = SYMBOL_BOOKCASE if rng.random() < 0.55 else SYMBOL_BENCH
                     bookcase_reserved.add((x + 1, y))
                     occupied_solid.add((x, y))
                     occupied_solid.add((x + 1, y))
-                elif _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
-                    grid[y][x] = SYMBOL_BENCH
-                    occupied_solid.add((x, y))
             elif rng.random() < 0.14 and _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
                 grid[y][x] = SYMBOL_BARREL
                 occupied_solid.add((x, y))
@@ -2085,7 +2080,7 @@ def generate_colophon_sanctum(
                     or dist_map[y][x] != 1
                 ):
                     continue
-                if req_sym == SYMBOL_BOOKCASE:
+                if req_sym in WIDE_SOLID_PROP_SYMBOLS:
                     if (
                         x + 1 < hx1
                         and grid[y][x + 1] == SYMBOL_FLOOR
@@ -2093,7 +2088,7 @@ def generate_colophon_sanctum(
                         and (x + 1, y) not in bookcase_reserved
                         and _can_place_architectural_prop(grid, [(x, y), (x + 1, y)], occupied_solid)
                     ):
-                        grid[y][x] = SYMBOL_BOOKCASE
+                        grid[y][x] = req_sym
                         bookcase_reserved.add((x + 1, y))
                         occupied_solid.add((x, y))
                         occupied_solid.add((x + 1, y))

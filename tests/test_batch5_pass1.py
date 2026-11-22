@@ -69,12 +69,15 @@ def test_pastoral_valley_stratum_variants_and_ledger_lines():
 
 
 def test_pastoral_valley_props_generate_preload_and_dispatch(monkeypatch):
-    """Verify shepherd cairn & hay crate sprites exist, preload, and dispatch in pastoral_valley."""
+    """Verify common meadow rock, rare shepherd cairn & hay crate sprites exist, preload, and dispatch."""
+    rock_path = os.path.join("assets", "graphics", "pastoral_rock.png")
     cairn_path = os.path.join("assets", "graphics", "pastoral_shepherd_cairn.png")
     crate_path = os.path.join("assets", "graphics", "pastoral_hay_crate.png")
+    assert os.path.exists(rock_path), f"Missing generated asset: {rock_path}"
     assert os.path.exists(cairn_path), f"Missing generated asset: {cairn_path}"
     assert os.path.exists(crate_path), f"Missing generated asset: {crate_path}"
 
+    assert pygame.image.load(rock_path).get_size() == (40, 60)
     assert pygame.image.load(cairn_path).get_size() == (40, 60)
     assert pygame.image.load(crate_path).get_size() == (40, 40)
 
@@ -85,6 +88,8 @@ def test_pastoral_valley_props_generate_preload_and_dispatch(monkeypatch):
 
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
+    assert "PastoralRock" in renderer.prop_cache
+    assert renderer.prop_cache["PastoralRock"].get_size() == (40, 60)
     assert "PastoralShepherdCairn" in renderer.prop_cache
     assert renderer.prop_cache["PastoralShepherdCairn"].get_size() == (40, 60)
     assert "PastoralHayCrate" in renderer.prop_cache
@@ -99,19 +104,36 @@ def test_pastoral_valley_props_generate_preload_and_dispatch(monkeypatch):
         state.player.y = 120.0
         state.camera.instant_center((160.0, 160.0))
 
-        cairn_obj = GameObject((160, 160), (40, 40))
+        # Pick deterministic rare-cairn tile and common-rock tile inside the 12x12 room
+        rare_tile = next(
+            (tx, ty) for tx in range(1, 10) for ty in range(1, 10) if renderer._is_pastoral_rare_cairn(tx, ty)
+        )
+        rock_tile = next(
+            (tx, ty) for tx in range(1, 10) for ty in range(1, 10) if not renderer._is_pastoral_rare_cairn(tx, ty)
+        )
+
+        cairn_obj = GameObject((rare_tile[0] * 40, rare_tile[1] * 40), (40, 40))
         cairn_obj.name = "Structure"
         cairn_obj.is_solid = True
+
+        rock_obj = GameObject((rock_tile[0] * 40, rock_tile[1] * 40), (40, 40))
+        rock_obj.name = "Structure"
+        rock_obj.is_solid = True
 
         crate_obj = GameObject((200, 160), (40, 40))
         crate_obj.name = "Barrel"
         crate_obj.is_solid = True
         crate_obj.is_breakable = True
-        state.world.interactables = [cairn_obj, crate_obj]
+        state.world.interactables = [cairn_obj, rock_obj, crate_obj]
 
         dispatched = []
+        orig_rock = renderer._draw_pastoral_rock
         orig_cairn = renderer._draw_pastoral_shepherd_cairn
         orig_crate = renderer._draw_pastoral_hay_crate
+
+        def _spy_rock(*args, **kwargs):
+            dispatched.append("rock")
+            return orig_rock(*args, **kwargs)
 
         def _spy_cairn(*args, **kwargs):
             dispatched.append("cairn")
@@ -121,10 +143,12 @@ def test_pastoral_valley_props_generate_preload_and_dispatch(monkeypatch):
             dispatched.append("crate")
             return orig_crate(*args, **kwargs)
 
+        monkeypatch.setattr(renderer, "_draw_pastoral_rock", _spy_rock)
         monkeypatch.setattr(renderer, "_draw_pastoral_shepherd_cairn", _spy_cairn)
         monkeypatch.setattr(renderer, "_draw_pastoral_hay_crate", _spy_crate)
 
         renderer.render(state)
+        assert "rock" in dispatched
         assert "cairn" in dispatched
         assert "crate" in dispatched
     finally:

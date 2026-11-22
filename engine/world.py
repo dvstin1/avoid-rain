@@ -1256,8 +1256,9 @@ class LevelLoader:
                     interactables.append(candelabra)
 
                 elif char == 'S':
-                    # Seat / Bench - 1x1 (40x40 matching bench.png)
-                    bench = GameObject(pos, dim)
+                    # Seat / Bench - Horizontal 2x1 (80x40 matching bench.png)
+                    bench_dim = (TILE_SIZE * 2, TILE_SIZE)
+                    bench = GameObject(pos, bench_dim)
                     bench.is_solid = True
                     bench.name = "Bench"
                     interactables.append(bench)

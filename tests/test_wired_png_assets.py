@@ -441,7 +441,7 @@ def test_legacy_prop_and_landmark_pngs_cached_with_native_sizes():
     expected_props = {
         "The Wellspring": ("wellspring.png", (40, 40)),
         "LotusFrame": ("lotus_frame.png", (40, 40)),
-        "Bench": ("bench.png", (40, 40)),
+        "Bench": ("bench.png", (80, 40)),
         "Heavy Bookcase": ("heavy_bookcase.png", (80, 40)),
         "Ink Urn": ("ink_urn.png", (40, 40)),
         "Inkwell Puddle": ("inkwell_puddle.png", (40, 40)),

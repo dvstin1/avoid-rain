@@ -2562,19 +2562,22 @@ def generate_lotus_frame(
 
 
 def generate_bench(
-    width: int = TILE_WIDTH,
+    width: int = TILE_WIDTH * 2,
     height: int = TILE_HEIGHT,
     rng: random.Random | None = None,
 ) -> pygame.Surface:
-    """Generate a 40x40 weathered dark-oak reading bench with iron brackets."""
+    """Generate an 80x40 weathered dark-oak reading bench with iron brackets."""
     if rng is None:
         rng = _asset_rng(DEFAULT_ASSET_SEED, "bench")
     surface = pygame.Surface((width, height), pygame.SRCALPHA)
     surface.fill((0, 0, 0, 0))
     # Soft floor shadow
     pygame.draw.ellipse(surface, (12, 10, 14, 130), (3, height - 11, width - 6, 8))
-    # Iron legs & side brackets
-    for lx in (5, width - 10):
+    # Iron legs & side/center brackets
+    leg_xs = [5, width - 10]
+    if width >= TILE_WIDTH * 2:
+        leg_xs.append(width // 2 - 2)
+    for lx in leg_xs:
         pygame.draw.rect(surface, (36, 38, 46, 255), (lx, 12, 5, height - 16))
         pygame.draw.rect(surface, (78, 82, 94, 255), (lx + 1, 13, 2, height - 18))
     # Backrest & seat planks in weathered dark oak
@@ -2584,10 +2587,14 @@ def generate_bench(
     pygame.draw.rect(surface, (124, 84, 48, 255), (4, 19, width - 8, 3))
     pygame.draw.line(surface, (42, 24, 14, 255), (4, 24), (width - 5, 24), 1)
     # Iron rivets & wood grain flecks
-    for rx in (7, width - 8):
+    rivet_xs = [7, width - 8]
+    if width >= TILE_WIDTH * 2:
+        rivet_xs.append(width // 2)
+    for rx in rivet_xs:
         surface.set_at((rx, 12), (160, 165, 178, 255))
         surface.set_at((rx, 21), (160, 165, 178, 255))
-    for _ in range(12):
+    grain_count = 24 if width >= TILE_WIDTH * 2 else 12
+    for _ in range(grain_count):
         gx = rng.randint(5, width - 6)
         gy = rng.choice([11, 13, 21, 26])
         surface.set_at((gx, gy), (52, 30, 18, 220))
@@ -2731,27 +2738,124 @@ def generate_tree_structure(
     width: int = TILE_WIDTH,
     height: int = TILE_HEIGHT,
     rng: random.Random | None = None,
+    variant: int = 0,
 ) -> pygame.Surface:
-    """Generate a 40x40 twisted dark-wood literary/forest tree sprite for default biomes."""
+    """Generate a 40x40 forest tree sprite with variant surface roots and foliage tints (variants 0..3)."""
+    v_idx = int(variant) % 4
     if rng is None:
-        rng = _asset_rng(DEFAULT_ASSET_SEED, "tree_structure")
+        rng = _asset_rng(DEFAULT_ASSET_SEED, f"tree_structure_{v_idx}" if v_idx else "tree_structure")
     surface = pygame.Surface((width, height), pygame.SRCALPHA)
     surface.fill((0, 0, 0, 0))
     cx, cy = width // 2, height // 2 - 4
-    # Ground shadow & gnarled bark trunk/roots
-    pygame.draw.ellipse(surface, (14, 18, 16, 150), (cx - 12, height - 11, 24, 8))
-    pygame.draw.rect(surface, (46, 30, 20, 255), (cx - 5, height - 18, 10, 12), border_radius=2)
-    pygame.draw.line(surface, (68, 44, 28, 255), (cx - 4, height - 8), (cx - 9, height - 5), 2)
-    pygame.draw.line(surface, (68, 44, 28, 255), (cx + 4, height - 8), (cx + 9, height - 5), 2)
-    # Layered dark-forest canopy with muted moss/sage highlights
-    pygame.draw.circle(surface, (20, 38, 28, 255), (cx, cy + 1), width // 2 - 2)
-    pygame.draw.circle(surface, (34, 72, 46, 255), (cx - 2, cy), width // 2 - 5)
-    pygame.draw.circle(surface, (54, 108, 64, 255), (cx - 3, cy - 3), width // 3)
-    for _ in range(28):
+
+    palettes = {
+        0: {
+            "bark_dark": (46, 30, 20, 255),
+            "bark_hi": (68, 44, 28, 255),
+            "outer": (20, 38, 28, 255),
+            "mid": (34, 72, 46, 255),
+            "inner": (54, 108, 64, 255),
+            "hi_dot": (98, 148, 86, 230),
+            "sh_dot": (26, 48, 34, 230),
+        },
+        1: {
+            "bark_dark": (56, 36, 22, 255),
+            "bark_hi": (92, 60, 34, 255),
+            "outer": (42, 46, 20, 255),
+            "mid": (82, 90, 34, 255),
+            "inner": (136, 128, 48, 255),
+            "hi_dot": (182, 166, 72, 235),
+            "sh_dot": (52, 54, 24, 230),
+        },
+        2: {
+            "bark_dark": (42, 28, 20, 255),
+            "bark_hi": (74, 52, 34, 255),
+            "outer": (16, 46, 36, 255),
+            "mid": (28, 92, 64, 255),
+            "inner": (48, 138, 86, 255),
+            "hi_dot": (94, 182, 114, 235),
+            "sh_dot": (20, 56, 42, 230),
+        },
+        3: {
+            "bark_dark": (54, 30, 22, 255),
+            "bark_hi": (94, 54, 34, 255),
+            "outer": (64, 30, 18, 255),
+            "mid": (122, 56, 26, 255),
+            "inner": (176, 104, 38, 255),
+            "hi_dot": (218, 158, 62, 235),
+            "sh_dot": (78, 36, 20, 230),
+        },
+    }
+    pal = palettes[v_idx]
+
+    # Ground shadow & gnarled bark trunk
+    pygame.draw.ellipse(surface, (14, 18, 16, 150), (cx - 13, height - 11, 26, 8))
+    pygame.draw.rect(surface, pal["bark_dark"], (cx - 5, height - 18, 10, 12), border_radius=2)
+
+    # Surface roots (progressively more expressive across variants 1..3)
+    if v_idx == 0:
+        pygame.draw.line(surface, pal["bark_hi"], (cx - 4, height - 8), (cx - 9, height - 5), 2)
+        pygame.draw.line(surface, pal["bark_hi"], (cx + 4, height - 8), (cx + 9, height - 5), 2)
+    elif v_idx == 1:
+        # Visible gnarled surface roots radiating onto ground
+        for pts in (
+            [(cx - 4, height - 10), (cx - 10, height - 7), (cx - 15, height - 4)],
+            [(cx + 4, height - 10), (cx + 10, height - 6), (cx + 15, height - 4)],
+            [(cx - 1, height - 8), (cx - 4, height - 4), (cx - 6, height - 2)],
+            [(cx + 2, height - 8), (cx + 5, height - 3)],
+        ):
+            pygame.draw.lines(surface, pal["bark_dark"], False, pts, 3)
+            pygame.draw.lines(surface, pal["bark_hi"], False, pts[:2], 1)
+    elif v_idx == 2:
+        # Flared buttress roots gripping soil
+        buttress = [
+            (cx - 13, height - 4),
+            (cx - 6, height - 13),
+            (cx + 6, height - 13),
+            (cx + 13, height - 4),
+            (cx + 7, height - 6),
+            (cx, height - 3),
+            (cx - 7, height - 6),
+        ]
+        pygame.draw.polygon(surface, pal["bark_dark"], buttress)
+        pygame.draw.line(surface, pal["bark_hi"], (cx - 4, height - 12), (cx - 11, height - 5), 2)
+        pygame.draw.line(surface, pal["bark_hi"], (cx + 4, height - 12), (cx + 11, height - 5), 2)
+        pygame.draw.line(surface, pal["bark_hi"], (cx, height - 11), (cx, height - 4), 1)
+    else:
+        # Exposed spreading autumn root tendrils
+        for pts in (
+            [(cx - 5, height - 11), (cx - 11, height - 8), (cx - 16, height - 6)],
+            [(cx - 3, height - 8), (cx - 8, height - 3), (cx - 12, height - 2)],
+            [(cx + 3, height - 8), (cx + 9, height - 4), (cx + 14, height - 2)],
+            [(cx + 5, height - 11), (cx + 12, height - 8), (cx + 16, height - 5)],
+        ):
+            pygame.draw.lines(surface, pal["bark_dark"], False, pts, 3)
+            pygame.draw.lines(surface, pal["bark_hi"], False, pts[:2], 1)
+
+    # Layered canopy with distinct lobe geometry per variant
+    if v_idx == 2:
+        # Multi-lobed moss-emerald crown
+        for ox_l, oy_l, rad in ((-6, 1, 11), (6, 1, 11), (0, -4, 12)):
+            pygame.draw.circle(surface, pal["outer"], (cx + ox_l, cy + oy_l), rad)
+        for ox_l, oy_l, rad in ((-5, 0, 9), (5, 0, 9), (-1, -4, 10)):
+            pygame.draw.circle(surface, pal["mid"], (cx + ox_l, cy + oy_l), rad)
+        pygame.draw.circle(surface, pal["inner"], (cx - 2, cy - 4), 9)
+    elif v_idx == 3:
+        # Wind-tilted russet-gold autumn crown
+        pygame.draw.circle(surface, pal["outer"], (cx + 1, cy + 1), width // 2 - 2)
+        pygame.draw.circle(surface, pal["mid"], (cx, cy - 1), width // 2 - 4)
+        pygame.draw.circle(surface, pal["inner"], (cx - 2, cy - 4), width // 3 + 1)
+        pygame.draw.circle(surface, pal["hi_dot"], (cx - 5, cy - 6), 4)
+    else:
+        pygame.draw.circle(surface, pal["outer"], (cx, cy + 1), width // 2 - 2)
+        pygame.draw.circle(surface, pal["mid"], (cx - 2, cy), width // 2 - 5)
+        pygame.draw.circle(surface, pal["inner"], (cx - 3, cy - 3), width // 3)
+
+    for _ in range(30):
         lx = rng.randint(6, width - 7)
         ly = rng.randint(4, cy + 8)
         if math.hypot(lx - cx, ly - cy) <= width // 2 - 4:
-            col = (98, 148, 86, 230) if rng.random() < 0.45 else (26, 48, 34, 230)
+            col = pal["hi_dot"] if rng.random() < 0.45 else pal["sh_dot"]
             surface.set_at((lx, ly), col)
     return surface
 
@@ -3227,21 +3331,31 @@ def generate_sanctuary_roof_tile(
     width: int = TILE_WIDTH,
     height: int = TILE_HEIGHT,
     rng: random.Random | None = None,
+    variant: int = 0,
 ) -> pygame.Surface:
-    """Generate a 40x40 weathered dark slate roof shingle tile with moss patches."""
-    gen = rng if rng is not None else random.Random(4401)
-    base = (42, 46, 56)
+    """Generate a 40x40 weathered dark slate roof shingle tile (variants 0..3; clean base without grid moss)."""
+    v_idx = int(variant) % 4
+    gen = rng if rng is not None else random.Random(4401 + v_idx * 97)
+    base_tones = (
+        (42, 46, 56),
+        (39, 43, 53),
+        (44, 48, 57),
+        (40, 44, 52),
+    )
+    base = base_tones[v_idx]
     surf = pygame.Surface((width, height))
     surf.fill(base)
 
     course_h = 10
     for row_idx in range(height // course_h):
         y0 = row_idx * course_h
-        offset_x = (row_idx % 2) * 10
+        offset_x = ((row_idx + (v_idx % 2)) % 2) * 10
         for y in range(y0, min(height, y0 + course_h)):
             shade = -6 if y >= y0 + course_h - 2 else (6 if y == y0 else 0)
             for x in range(width):
-                n = gen.randint(-4, 4) + shade
+                shingle_id = (x + offset_x) // 20
+                tile_shift = ((shingle_id * 5 + row_idx * 3 + v_idx * 7) % 5) - 2
+                n = gen.randint(-3, 3) + shade + tile_shift
                 surf.set_at((x, y), _clamp_rgb_delta(base, n, n + 1, n + 3, limit=18))
         # Overlapping shingle course shadow & top highlight
         bot_y = min(height - 1, y0 + course_h - 1)
@@ -3251,10 +3365,21 @@ def generate_sanctuary_roof_tile(
         for sx in range(offset_x, width, 20):
             pygame.draw.line(surf, (28, 31, 40), (sx, y0), (sx, bot_y), 1)
 
-    # Moss patches clinging to weathered slate courses
-    for mx, my, mr in ((9, 10, 3), (28, 20, 4), (16, 30, 3), (33, 36, 2)):
-        pygame.draw.circle(surf, (48, 68, 44), (mx, my), mr)
-        pygame.draw.circle(surf, (66, 92, 56), (mx - 1, my - 1), max(1, mr - 1))
+    # Subtle per-variant weathering (variant 0 stays completely clean slate; moss is composited organically per-roof)
+    if v_idx == 1:
+        # Faint rain-streaked darker shingle & tiny corner lichen speck
+        pygame.draw.rect(surf, (34, 38, 48), (11, 11, 18, 7))
+        pygame.draw.line(surf, (50, 56, 68), (11, 11), (28, 11), 1)
+        pygame.draw.circle(surf, (52, 70, 48), (29, 19), 2)
+    elif v_idx == 2:
+        # Chipped slate corner & single understated seam moss tuft
+        pygame.draw.polygon(surf, (26, 29, 38), [(20, 20), (24, 20), (20, 24)])
+        pygame.draw.ellipse(surf, (46, 66, 42), (4, 28, 9, 4))
+        pygame.draw.ellipse(surf, (62, 86, 54), (5, 28, 5, 2))
+    elif v_idx == 3:
+        # Subtle warm weathered slate patch & damp seam streak
+        pygame.draw.rect(surf, (47, 50, 58), (2, 21, 16, 7))
+        pygame.draw.line(surf, (30, 34, 42), (24, 3), (34, 37), 1)
 
     return surf
 
@@ -3788,15 +3913,25 @@ def generate_highland_monolith(
             )
     pygame.draw.lines(surf, (30, 44, 66, 255), False, [(13, 28), (19, 26), (26, 30)], 1)
 
-    # Faint seafoam-mint carved scriptorium runes down the center face
+    # Non-religious geometric wind-spiral & interlocking angular slate glyph carvings
     rune_glow = (90, 228, 178, 185)
     rune_core = (156, 246, 212, 215)
-    pygame.draw.line(surf, rune_glow, (cx - 1, 14), (cx - 1, 24), 1)
-    pygame.draw.line(surf, rune_glow, (cx - 4, 17), (cx + 2, 17), 1)
-    pygame.draw.circle(surf, rune_glow, (cx - 1, 34), 3, 1)
-    pygame.draw.line(surf, rune_core, (cx - 1, 37), (cx - 1, 42), 1)
-    surf.set_at((cx - 1, 19), rune_core)
-    surf.set_at((cx - 1, 34), rune_core)
+    # Upper stepped wind-spiral scroll (open geometric coil, no cross intersection)
+    spiral_pts = [
+        (cx - 5, 19),
+        (cx - 5, 13),
+        (cx + 3, 13),
+        (cx + 3, 21),
+        (cx - 2, 21),
+        (cx - 2, 16),
+        (cx + 1, 16),
+    ]
+    pygame.draw.lines(surf, rune_glow, False, spiral_pts, 1)
+    surf.set_at((cx, 17), rune_core)
+    # Lower stacked interlocking wind-chevron bands
+    pygame.draw.lines(surf, rune_glow, False, [(cx - 5, 34), (cx - 1, 31), (cx + 4, 34)], 1)
+    pygame.draw.lines(surf, rune_core, False, [(cx - 4, 39), (cx, 36), (cx + 4, 39)], 1)
+    pygame.draw.line(surf, rune_glow, (cx - 4, 43), (cx + 3, 41), 1)
 
     # Mossy highland base tufts clinging to plinth
     pygame.draw.ellipse(surf, (32, 88, 54, 255), (6, height - 12, 12, 6))
@@ -4236,6 +4371,260 @@ def generate_slug_boss_crown(
     pygame.draw.circle(surf, (248, 174, 212, 255), (cx - 1, 16), 1)
     pygame.draw.circle(surf, (132, 204, 58, 255), (13, 19), 2)
     pygame.draw.circle(surf, (132, 204, 58, 255), (width - 13, 19), 2)
+    return surf
+
+
+def generate_barrel_frame(
+    stage: int = 0,
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 SRCALPHA coopered oak barrel across break stages 0 (intact) -> 3 (rubble)."""
+    st = max(0, min(3, int(stage)))
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, f"barrel_{st}")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    oak_dark = (68, 42, 22, 255)
+    oak_mid = (118, 74, 38, 255)
+    oak_hi = (158, 108, 58, 255)
+    outline = (28, 16, 10, 255)
+    iron_dark = (42, 46, 56, 255)
+    iron_hi = (128, 136, 152, 255)
+
+    if st == 0:
+        # Intact coopered oak barrel with wrought-iron hoops, wood-grain staves, and brass bung
+        pygame.draw.ellipse(surf, (14, 10, 12, 130), (5, height - 10, width - 10, 8))
+        # Curved barrel body silhouette
+        body = pygame.Rect(8, 7, width - 16, height - 14)
+        pygame.draw.ellipse(surf, oak_dark, (6, 9, width - 12, height - 18))
+        pygame.draw.rect(surf, oak_mid, body, border_radius=7)
+        # Sunlit left stave highlight & shaded east flank
+        pygame.draw.rect(surf, oak_hi, (10, 9, 6, height - 18), border_radius=3)
+        pygame.draw.rect(surf, oak_dark, (cx + 4, 9, width - 13 - cx, height - 18), border_radius=3)
+        pygame.draw.rect(surf, outline, body, 1, border_radius=7)
+        # Vertical stave seam lines
+        for sx in (13, 18, 23, 28):
+            pygame.draw.line(surf, (52, 30, 16, 220), (sx, 9), (sx, height - 9), 1)
+        # Recessed top oak lid
+        lid_rect = pygame.Rect(10, 5, width - 20, 8)
+        pygame.draw.ellipse(surf, oak_hi, lid_rect)
+        pygame.draw.ellipse(surf, outline, lid_rect, 1)
+        pygame.draw.line(surf, oak_dark, (15, 7), (15, 11), 1)
+        pygame.draw.line(surf, oak_dark, (24, 7), (24, 11), 1)
+        # Forged wrought-iron hoops + rivets
+        for hy in (12, height - 14):
+            pygame.draw.rect(surf, iron_dark, (7, hy, width - 14, 4), border_radius=2)
+            pygame.draw.line(surf, iron_hi, (9, hy + 1), (width - 10, hy + 1), 1)
+            pygame.draw.rect(surf, outline, (7, hy, width - 14, 4), 1, border_radius=2)
+            surf.set_at((11, hy + 2), (186, 194, 210, 255))
+            surf.set_at((width - 12, hy + 2), (186, 194, 210, 255))
+        # Brass bung plug on center stave
+        pygame.draw.circle(surf, (132, 92, 30, 255), (cx, cy + 1), 3)
+        pygame.draw.circle(surf, (222, 178, 72, 255), (cx, cy + 1), 2)
+        surf.set_at((cx - 1, cy), (252, 232, 152, 255))
+        # Subtle oak wood grain flecks
+        for _ in range(16):
+            gx = gen.randint(10, width - 11)
+            gy = gen.randint(10, height - 10)
+            if surf.get_at((gx, gy)).a > 200:
+                surf.set_at((gx, gy), (84, 50, 24, 215))
+        return surf
+
+    if st == 1:
+        # Initial fracture split + snapped iron hoop + flying splinters
+        pygame.draw.ellipse(surf, (14, 10, 12, 115), (4, height - 10, width - 8, 8))
+        # Left & right splitting halves tilting outward
+        left_half = [(7, 10), (18, 8), (16, 31), (6, 29)]
+        right_half = [(22, 9), (33, 11), (34, 30), (24, 31)]
+        pygame.draw.polygon(surf, oak_mid, left_half)
+        pygame.draw.polygon(surf, oak_hi, [(9, 11), (14, 10), (13, 28), (8, 27)])
+        pygame.draw.polygon(surf, outline, left_half, 1)
+        pygame.draw.polygon(surf, oak_dark, right_half)
+        pygame.draw.polygon(surf, outline, right_half, 1)
+        # Jagged fracture fissure down middle
+        pygame.draw.lines(surf, (24, 14, 12, 255), False, [(19, 7), (21, 16), (18, 24), (21, 32)], 2)
+        # Snapped iron hoop ends springing outward
+        pygame.draw.lines(surf, iron_dark, False, [(5, 14), (17, 15)], 3)
+        pygame.draw.lines(surf, iron_hi, False, [(6, 13), (16, 14)], 1)
+        pygame.draw.lines(surf, iron_dark, False, [(23, 14), (35, 16)], 3)
+        pygame.draw.lines(surf, iron_dark, False, [(6, 26), (34, 27)], 3)
+        # Flying splinters
+        for sx, sy, ex, ey in ((4, 6, 10, 10), (31, 6, 36, 10), (3, 21, 8, 19), (33, 23, 37, 20)):
+            pygame.draw.line(surf, oak_hi, (sx, sy), (ex, ey), 2)
+        return surf
+
+    if st == 2:
+        # Collapsed staves splayed outward + bent iron hoop + dust burst
+        pygame.draw.ellipse(surf, (28, 20, 16, 95), (6, 11, width - 12, height - 18))
+        staves = (
+            [(5, 17), (17, 13), (18, 18), (6, 22)],
+            [(22, 12), (35, 16), (33, 21), (21, 17)],
+            [(8, 25), (19, 21), (21, 26), (10, 31)],
+            [(20, 22), (33, 26), (31, 31), (19, 27)],
+            [(14, 8), (24, 7), (25, 12), (15, 13)],
+        )
+        for idx, poly in enumerate(staves):
+            col = oak_hi if idx % 2 == 0 else oak_mid
+            pygame.draw.polygon(surf, col, poly)
+            pygame.draw.polygon(surf, outline, poly, 1)
+        pygame.draw.arc(surf, iron_dark, (6, 12, 26, 18), 0.3, 2.7, 3)
+        pygame.draw.arc(surf, iron_hi, (7, 12, 24, 16), 0.5, 2.2, 1)
+        return surf
+
+    # Stage 3: Flat splintered wood rubble resting on floor
+    pygame.draw.ellipse(surf, (12, 10, 12, 92), (5, 18, width - 10, 16))
+    rubble_planks = (
+        [(6, 24), (19, 19), (21, 23), (8, 28)],
+        [(16, 26), (32, 22), (34, 26), (18, 30)],
+        [(11, 29), (25, 27), (26, 31), (12, 33)],
+        [(22, 17), (33, 20), (31, 23), (20, 20)],
+    )
+    for idx, poly in enumerate(rubble_planks):
+        col = oak_mid if idx % 2 == 0 else oak_dark
+        pygame.draw.polygon(surf, col, poly)
+        pygame.draw.polygon(surf, outline, poly, 1)
+    # Bent iron hoop scrap & small wood chips
+    pygame.draw.arc(surf, iron_dark, (10, 20, 20, 12), 3.3, 5.9, 2)
+    for chip_x, chip_y in ((9, 20), (28, 30), (15, 23), (33, 27)):
+        pygame.draw.rect(surf, oak_hi, (chip_x, chip_y, 3, 2))
+    return surf
+
+
+def generate_swamp_barrel(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 SRCALPHA moss-slimed rotting oak barrel with corroded iron hoops for swamp_mire."""
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, "swamp_barrel")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    # Dark bog shadow & damp ooze around base
+    pygame.draw.ellipse(surf, (14, 18, 12, 138), (5, height - 10, width - 10, 8))
+    pygame.draw.ellipse(surf, (44, 68, 28, 145), (8, height - 11, width - 16, 6))
+
+    # Warped rotting damp-oak barrel silhouette
+    rot_dark = (42, 34, 24, 255)
+    rot_mid = (68, 56, 36, 255)
+    rot_hi = (94, 82, 50, 255)
+    outline = (20, 18, 14, 255)
+    body = pygame.Rect(8, 8, width - 16, height - 15)
+    pygame.draw.rect(surf, rot_mid, body, border_radius=6)
+    pygame.draw.rect(surf, rot_hi, (10, 9, 6, height - 18), border_radius=2)
+    pygame.draw.rect(surf, rot_dark, (cx + 4, 9, width - 13 - cx, height - 18), border_radius=2)
+    pygame.draw.rect(surf, outline, body, 1, border_radius=6)
+
+    # Split/warped stave seams
+    for sx in (13, 19, 24, 29):
+        pygame.draw.line(surf, (28, 24, 18, 230), (sx, 9), (sx + gen.randint(-1, 1), height - 9), 1)
+
+    # Sunken waterlogged top lid
+    lid_rect = pygame.Rect(10, 6, width - 20, 7)
+    pygame.draw.ellipse(surf, (58, 52, 34, 255), lid_rect)
+    pygame.draw.ellipse(surf, outline, lid_rect, 1)
+    pygame.draw.line(surf, (24, 20, 16, 255), (16, 8), (24, 11), 1)
+
+    # Corroded rust-pitted iron hoops
+    rust_dark = (58, 36, 26, 255)
+    rust_mid = (114, 64, 34, 255)
+    for hy in (13, height - 14):
+        pygame.draw.rect(surf, rust_dark, (7, hy, width - 14, 4), border_radius=2)
+        pygame.draw.line(surf, rust_mid, (9, hy + 1), (width - 11, hy + 1), 1)
+        pygame.draw.rect(surf, outline, (7, hy, width - 14, 4), 1, border_radius=2)
+
+    # Dripping bog moss & slime streaks clinging to lid and staves
+    moss_dark = (48, 88, 36, 255)
+    moss_bright = (104, 152, 54, 255)
+    pygame.draw.ellipse(surf, moss_dark, (10, 9, 11, 5))
+    pygame.draw.ellipse(surf, moss_bright, (11, 10, 7, 3))
+    pygame.draw.line(surf, moss_dark, (14, 13), (14, 23), 2)
+    pygame.draw.line(surf, moss_bright, (14, 13), (14, 19), 1)
+    pygame.draw.ellipse(surf, moss_dark, (21, 21, 10, 6))
+    pygame.draw.ellipse(surf, moss_bright, (23, 22, 6, 3))
+    for _ in range(14):
+        gx = gen.randint(10, width - 11)
+        gy = gen.randint(10, height - 10)
+        if surf.get_at((gx, gy)).a > 200:
+            surf.set_at((gx, gy), (52, 66, 32, 220))
+    return surf
+
+
+def generate_pastoral_rock(
+    width: int = 40,
+    height: int = 60,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x60 SRCALPHA weathered pale-limestone meadow boulder with lichen and grass tufts."""
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, "pastoral_rock")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+
+    # Ground contact shadow centered on lower 40x40 footprint
+    pygame.draw.ellipse(surf, (24, 22, 26, 112), (4, height - 12, width - 8, 9))
+
+    # Broad natural meadow boulder silhouette (sits lower & wider than a tall milestone cairn)
+    boulder_poly = [
+        (6, height - 10),
+        (5, 34),
+        (10, 24),
+        (19, 20),
+        (29, 23),
+        (35, 33),
+        (34, height - 10),
+    ]
+    pygame.draw.polygon(surf, (176, 166, 144, 255), boulder_poly)
+    # Warm sunlit upper-left bevel & shaded lower-right limestone facet
+    lit_poly = [
+        (7, 34),
+        (11, 25),
+        (19, 21),
+        (26, 24),
+        (18, 33),
+    ]
+    shade_poly = [
+        (21, height - 10),
+        (23, 25),
+        (29, 23),
+        (35, 33),
+        (34, height - 10),
+    ]
+    pygame.draw.polygon(surf, (214, 202, 176, 255), lit_poly)
+    pygame.draw.polygon(surf, (132, 122, 102, 255), shade_poly)
+    pygame.draw.polygon(surf, (62, 54, 44, 255), boulder_poly, 1)
+
+    # Natural limestone strata cracks & speckled grit
+    pygame.draw.lines(surf, (96, 86, 72, 220), False, [(11, 35), (19, 32), (28, 36)], 1)
+    pygame.draw.line(surf, (96, 86, 72, 200), (14, 42), (24, 41), 1)
+    for _ in range(22):
+        px = gen.randint(8, 32)
+        py = gen.randint(23, height - 13)
+        col = surf.get_at((px, py))
+        if col.a > 200:
+            delta = gen.choice((-12, 10))
+            surf.set_at(
+                (px, py),
+                (
+                    max(0, min(255, col.r + delta)),
+                    max(0, min(255, col.g + delta)),
+                    max(0, min(255, col.b + delta)),
+                    255,
+                ),
+            )
+
+    # Golden-sage lichen patches on sunlit rock shoulder
+    pygame.draw.ellipse(surf, (148, 166, 74, 235), (12, 25, 7, 4))
+    pygame.draw.ellipse(surf, (192, 188, 92, 225), (14, 26, 4, 2))
+    pygame.draw.ellipse(surf, (124, 154, 72, 225), (24, 29, 5, 3))
+
+    # Lush meadow grass tufts tucked along boulder base
+    for gx, gy, gw in ((5, height - 14, 12), (23, height - 13, 12)):
+        pygame.draw.ellipse(surf, (52, 142, 66, 255), (gx, gy, gw, 6))
+        pygame.draw.ellipse(surf, (98, 198, 98, 255), (gx + 2, gy, gw - 4, 4))
     return surf
 
 
@@ -5169,7 +5558,7 @@ def generate_all_assets(
     legacy_prop_specs = [
         ("wellspring", wellspring_path, generate_wellspring(TILE_WIDTH, TILE_HEIGHT, rng=_rng("wellspring"))),
         ("lotus_frame", lotus_frame_path, generate_lotus_frame(TILE_WIDTH, TILE_HEIGHT, rng=_rng("lotus_frame"))),
-        ("bench", bench_path, generate_bench(TILE_WIDTH, TILE_HEIGHT, rng=_rng("bench"))),
+        ("bench", bench_path, generate_bench(TILE_WIDTH * 2, TILE_HEIGHT, rng=_rng("bench"))),
         (
             "heavy_bookcase",
             heavy_bookcase_path,
@@ -5240,7 +5629,31 @@ def generate_all_assets(
             _emit(s_key, out_path, surf)
 
     sanctuary_prop_specs = (
-        ("sanctuary_roof_tile", generate_sanctuary_roof_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_roof_tile"))),
+        (
+            "sanctuary_roof_tile",
+            generate_sanctuary_roof_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_roof_tile"), variant=0),
+        ),
+        (
+            "sanctuary_roof_tile_1",
+            generate_sanctuary_roof_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_roof_tile_1"), variant=1),
+        ),
+        (
+            "sanctuary_roof_tile_2",
+            generate_sanctuary_roof_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_roof_tile_2"), variant=2),
+        ),
+        (
+            "sanctuary_roof_tile_3",
+            generate_sanctuary_roof_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_roof_tile_3"), variant=3),
+        ),
+        ("barrel_0", generate_barrel_frame(0, TILE_WIDTH, TILE_HEIGHT, rng=_rng("barrel_0"))),
+        ("barrel_1", generate_barrel_frame(1, TILE_WIDTH, TILE_HEIGHT, rng=_rng("barrel_1"))),
+        ("barrel_2", generate_barrel_frame(2, TILE_WIDTH, TILE_HEIGHT, rng=_rng("barrel_2"))),
+        ("barrel_3", generate_barrel_frame(3, TILE_WIDTH, TILE_HEIGHT, rng=_rng("barrel_3"))),
+        ("swamp_barrel", generate_swamp_barrel(TILE_WIDTH, TILE_HEIGHT, rng=_rng("swamp_barrel"))),
+        ("pastoral_rock", generate_pastoral_rock(TILE_WIDTH, 60, rng=_rng("pastoral_rock"))),
+        ("tree_structure_1", generate_tree_structure(TILE_WIDTH, TILE_HEIGHT, rng=_rng("tree_structure_1"), variant=1)),
+        ("tree_structure_2", generate_tree_structure(TILE_WIDTH, TILE_HEIGHT, rng=_rng("tree_structure_2"), variant=2)),
+        ("tree_structure_3", generate_tree_structure(TILE_WIDTH, TILE_HEIGHT, rng=_rng("tree_structure_3"), variant=3)),
         ("sanctuary_chimney", generate_sanctuary_chimney(TILE_WIDTH, TILE_HEIGHT * 2, rng=_rng("sanctuary_chimney"))),
         (
             "sanctuary_tree_canopy",

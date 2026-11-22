@@ -995,6 +995,7 @@ class GameState:
                                         {
                                             "obj": obj,
                                             "time": 0.16 if obj.name == "Barrel" else 0.1,
+                                            "biome": self._resolve_prop_biome(obj) if obj.name == "Barrel" else "",
                                         }
                                     )
                                     from engine.loot import roll_drop
@@ -1621,7 +1622,10 @@ class GameState:
                                 self.destroyed_prop_ids.add(obj.id)
                             self.world.interactables.remove(obj)
                             fade_time = 0.16 if obj.name == "Barrel" else 0.1
-                            self.fading_entities.append({'obj': obj, 'time': fade_time})
+                            fade_entry = {'obj': obj, 'time': fade_time}
+                            if obj.name == "Barrel":
+                                fade_entry['biome'] = self._resolve_prop_biome(obj)
+                            self.fading_entities.append(fade_entry)
                             if audio_manager: audio_manager.play_sfx("prop_break.ogg")
                             from engine.loot import roll_drop
                             roll_drop(4, (obj.x, obj.y), self)
@@ -1669,6 +1673,24 @@ class GameState:
         resolve_enemy_player_collision(self.player, self.enemies, allow_push_enemies=(not is_client))
 
 
+    def _resolve_prop_biome(self, obj):
+        """Resolve the runtime biome key at a prop's tile coordinates for biome-matched debris."""
+        world = getattr(self, "world", None)
+        if world is None or obj is None:
+            return ""
+        tx = int(getattr(obj, "x", 0)) // TILE_SIZE
+        ty = int(getattr(obj, "y", 0)) // TILE_SIZE
+        biome = ""
+        if hasattr(world, "_resolve_tile_biome_at"):
+            biome = str(world._resolve_tile_biome_at(tx, ty) or "").lower()
+        if not biome:
+            biome = str(getattr(world, "biome", "") or getattr(world, "name", "")).lower()
+        w_name = str(getattr(world, "name", "")).lower()
+        map_file = str(getattr(world, "map_filename", "")).lower()
+        if biome == "tech_tower" and ("ruins" in w_name or "ruins" in map_file):
+            return "ruins"
+        return biome
+
     def _update_shared_world(self, dt):
         """Logic that runs on both Host and Client for visuals/vfx."""
         self.active_safe_radius = self.weather_manager.active_safe_radius
@@ -1686,7 +1708,13 @@ class GameState:
             fading['time'] -= dt
             if fading['time'] <= 0:
                 if fading['obj'].name == "Barrel":
-                    self.world_debris.append({'name': 'BarrelRubble', 'pos': (fading['obj'].x, fading['obj'].y)})
+                    self.world_debris.append(
+                        {
+                            'name': 'BarrelRubble',
+                            'pos': (fading['obj'].x, fading['obj'].y),
+                            'biome': fading.get('biome') or self._resolve_prop_biome(fading['obj']),
+                        }
+                    )
                 self.fading_entities.remove(fading)
 
         # Expire timed ground interactables (e.g., SmearEnemy walking Inkwell Puddles)

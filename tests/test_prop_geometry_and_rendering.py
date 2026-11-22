@@ -60,20 +60,20 @@ def _make_render_state(world, world_name="sanctuary"):
     )
 
 
-def test_bench_40x40_collision_and_editor_parity(monkeypatch):
-    """Verify Bench ('S') is 40x40 in LevelLoader, map editor registry, PNG cache, and fallback draw."""
+def test_bench_80x40_collision_and_editor_parity(monkeypatch):
+    """Verify Bench ('S') is 80x40 (2x1) in LevelLoader, map editor registry, PNG cache, and fallback draw."""
     pygame.init()
-    proto = ["#####", "#...#", "#.S.#", "#...#", "#####"]
+    proto = ["######", "#....#", "#.S..#", "#....#", "######"]
     bench = next(obj for obj in LevelLoader.parse_map(proto)[1] if obj.name == "Bench")
     ts = constants.TILE_SIZE
-    assert (bench.width, bench.height) == (ts, ts)
-    assert bench.rect == (80.0, 80.0, float(ts), float(ts))
+    assert (bench.width, bench.height) == (ts * 2, ts)
+    assert bench.rect == (80.0, 80.0, float(ts * 2), float(ts))
     assert bench.is_solid is True
-    assert "40x40" in next(t for t in MASTER_TOOL_REGISTRY if t["char"] == "S")["size"]
+    assert "80x40" in next(t for t in MASTER_TOOL_REGISTRY if t["char"] == "S")["size"]
 
     screen = pygame.Surface((320, 240))
     renderer = Renderer(screen)
-    assert renderer.prop_cache["Bench"].get_size() == (ts, ts)
+    assert renderer.prop_cache["Bench"].get_size() == (ts * 2, ts)
 
     world = World("sanctuary")
     world.load_from_prototype(proto)
@@ -88,7 +88,7 @@ def test_bench_40x40_collision_and_editor_parity(monkeypatch):
 
     monkeypatch.setattr(pygame.draw, "rect", _spy_rect)
     renderer.render(_make_render_state(world))
-    assert ((101, 67, 33), (80.0, 80.0, ts, ts)) in rect_calls
+    assert ((101, 67, 33), (80.0, 80.0, ts * 2, ts)) in rect_calls
 
 
 def test_lore_fragment_rendered_centered_in_rect(monkeypatch):
