@@ -6,6 +6,7 @@ Manages the global game state and coordinates engine components.
 # pylint: disable=missing-function-docstring,unused-argument,redefined-outer-name,reimported,line-too-long
 # pylint: disable=trailing-whitespace,C0302
 from typing import Optional
+import math
 import queue
 import threading
 import time
@@ -89,6 +90,7 @@ class GameState:
         self.last_zone_id = None
         self.zone_cooldown_timer = 0.0
         self.sanctuary_reset_complete = False
+        self.sanctuary_door_open: bool = False
         
         self.active_choice = None
         self.active_dialogue = None
@@ -1202,6 +1204,7 @@ class GameState:
             self._update_audio_track(dt)
             
         self._update_ui_and_menus(dt, actions, attack_pressed, audio_manager)
+        self._update_sanctuary_door_state()
 
         # 5. CAMERA & VIEWPORT
         if hasattr(self, 'camera') and self.player:
@@ -1211,6 +1214,41 @@ class GameState:
         if self.shake_timer > 0:
             self.shake_timer -= dt
             if self.shake_timer < 0: self.shake_timer = 0.0
+
+    def _update_sanctuary_door_state(self):
+        """Update Sanctuary doorway open state and edge-trigger door_open.ogg on False -> True."""
+        if self.world is None or self.player is None or getattr(self.world, "name", "") != "sanctuary":
+            self.sanctuary_door_open = False
+            return
+
+        from constants import SANCTUARY_DOOR_OPEN_SFX, SANCTUARY_DOOR_PROXIMITY_TILES
+
+        zones = getattr(self.world, "sanctuary_zones", None)
+        south_facade = zones.get("south_facade", {}) if isinstance(zones, dict) else {}
+        doorways = south_facade.get("doorway") or [[38, 21]]
+
+        px, py = self.player.get_center()
+        ptx, pty = int(px // TILE_SIZE), int(py // TILE_SIZE)
+        prox_px = float(SANCTUARY_DOOR_PROXIMITY_TILES) * float(TILE_SIZE)
+
+        door_open = False
+        for coord in doorways:
+            if not isinstance(coord, (list, tuple)) or len(coord) < 2:
+                continue
+            dx_t, dy_t = int(coord[0]), int(coord[1])
+            if (ptx, pty) in ((dx_t, dy_t + 1), (dx_t, dy_t), (dx_t, dy_t - 1)):
+                door_open = True
+                break
+            dcx = (dx_t + 0.5) * TILE_SIZE
+            dcy = (dy_t + 0.5) * TILE_SIZE
+            if math.hypot(px - dcx, py - dcy) <= prox_px:
+                door_open = True
+                break
+
+        if door_open and not getattr(self, "sanctuary_door_open", False):
+            if getattr(self, "audio_manager", None) is not None:
+                self.audio_manager.play_sfx(SANCTUARY_DOOR_OPEN_SFX)
+        self.sanctuary_door_open = door_open
 
     def _update_world_events(self, dt):
         """Host-only logic for boss spawns and environmental transitions."""
@@ -2614,6 +2652,7 @@ class GameState:
             self.weather_manager.reset(boss_coords_list=None)
             
         self.sanctuary_reset_complete = True
+        self.sanctuary_door_open = False
         self.save_stats(wait=True)
 
     def on_network_disconnect(self):
@@ -2705,6 +2744,7 @@ class GameState:
             return
         
         # Update Network Identity and reset Debug Text Preference to OFF on Continue/hydrate
+        self.sanctuary_door_open = False
         self.debug_text_enabled = False
         self.debug_biome_select = False
         if self.stats:
@@ -2831,6 +2871,7 @@ class GameState:
         from constants import ENGINE_REVISION
         self.debug_text_enabled = False
         self.debug_biome_select = False
+        self.sanctuary_door_open = False
         if self.stats:
             self.stats.data["engine_revision"] = ENGINE_REVISION
             self.stats.is_revision_compatible = True

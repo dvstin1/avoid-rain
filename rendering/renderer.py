@@ -5599,16 +5599,23 @@ class Renderer:
                             self.screen.blit(win_surf, (wx_px, wy_px))
                     win_surf.set_alpha(255)
                 arch_surf = self.prop_cache.get("SanctuaryArchDoorway")
-                if arch_surf is not None:
-                    arch_surf.set_alpha(roof_alpha)
-                    for coord in south_facade.get("doorway", ()):
-                        if not isinstance(coord, (list, tuple)) or len(coord) < 2:
-                            continue
-                        dx_px = int(coord[0] * ts - ox)
-                        dy_px = int(coord[1] * ts - oy)
-                        if -ts <= dx_px <= sw and -ts <= dy_px <= sh:
-                            self.screen.blit(arch_surf, (dx_px, dy_px))
-                    arch_surf.set_alpha(255)
+                open_arch_surf = self._get_sanctuary_open_archway_surface(ts)
+                for coord in south_facade.get("doorway", ()):
+                    if not isinstance(coord, (list, tuple)) or len(coord) < 2:
+                        continue
+                    dx_t, dy_t = int(coord[0]), int(coord[1])
+                    dx_px = int(dx_t * ts - ox)
+                    dy_px = int(dy_t * ts - oy)
+                    if not (-ts <= dx_px <= sw and -ts <= dy_px <= sh):
+                        continue
+                    if self._is_sanctuary_doorway_open(state, dx_t, dy_t):
+                        open_arch_surf.set_alpha(roof_alpha)
+                        self.screen.blit(open_arch_surf, (dx_px, dy_px))
+                        open_arch_surf.set_alpha(255)
+                    elif arch_surf is not None:
+                        arch_surf.set_alpha(roof_alpha)
+                        self.screen.blit(arch_surf, (dx_px, dy_px))
+                        arch_surf.set_alpha(255)
 
                 bx = int(scriptorium_roof["x"] * ts - ox)
                 by = int(scriptorium_roof["y"] * ts - oy)
@@ -5628,6 +5635,54 @@ class Renderer:
                     chimney_surf.set_alpha(roof_alpha)
                     self.screen.blit(chimney_surf, (cx_px, cy_px))
                     chimney_surf.set_alpha(255)
+
+    @staticmethod
+    def _is_sanctuary_doorway_open(state, dx_t, dy_t):
+        """Return True if the Sanctuary doorway at (dx_t, dy_t) is open or the player is adjacent/inside it."""
+        if getattr(state, "sanctuary_door_open", False):
+            return True
+        player = getattr(state, "player", None)
+        if player is None:
+            return False
+        ts = constants.TILE_SIZE
+        px, py = player.get_center()
+        if (int(px // ts), int(py // ts)) in ((dx_t, dy_t + 1), (dx_t, dy_t), (dx_t, dy_t - 1)):
+            return True
+        prox_px = float(constants.SANCTUARY_DOOR_PROXIMITY_TILES) * float(ts)
+        return math.hypot(px - (dx_t + 0.5) * ts, py - (dy_t + 0.5) * ts) <= prox_px
+
+    def _get_sanctuary_open_archway_surface(self, ts):
+        """Return a cached SRCALPHA open stone-timber archway frame with transparent center passage."""
+        cache = getattr(self, "_fx_surface_cache", None)
+        key = ("sanctuary_open_archway", int(ts))
+        surf = cache.get(key) if cache is not None else None
+        if surf is not None:
+            return surf
+        surf = pygame.Surface((ts, ts), pygame.SRCALPHA)
+        surf.fill((0, 0, 0, 0))
+        stone_dark = (36, 30, 34, 255)
+        stone_mid = (72, 62, 66, 255)
+        stone_hi = (108, 96, 100, 255)
+        timber = (76, 52, 34, 255)
+
+        # Left & right thin stone-timber jambs (leaving x in [6..ts-7] open and transparent)
+        pygame.draw.rect(surf, stone_mid, (0, 0, 5, ts))
+        pygame.draw.rect(surf, stone_mid, (ts - 5, 0, 5, ts))
+        pygame.draw.line(surf, stone_hi, (1, 6), (1, ts - 2), 1)
+        pygame.draw.line(surf, stone_hi, (ts - 4, 6), (ts - 4, ts - 2), 1)
+        pygame.draw.line(surf, timber, (5, 7), (5, ts - 1), 1)
+        pygame.draw.line(surf, timber, (ts - 6, 7), (ts - 6, ts - 1), 1)
+
+        # Top arch lintel & subtle corner corbels (leaving y >= 8 completely clear in center)
+        pygame.draw.rect(surf, stone_mid, (0, 0, ts, 6))
+        pygame.draw.line(surf, stone_hi, (1, 1), (ts - 2, 1), 1)
+        pygame.draw.line(surf, stone_dark, (0, 6), (ts - 1, 6), 1)
+        pygame.draw.rect(surf, stone_dark, (5, 6, 3, 2))
+        pygame.draw.rect(surf, stone_dark, (ts - 8, 6, 3, 2))
+
+        if cache is not None:
+            cache[key] = surf
+        return surf
 
     @staticmethod
     def _select_weapon_pickup_sprite_key(weapon_data):

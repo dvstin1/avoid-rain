@@ -904,6 +904,45 @@ def preset_storm_intro(rng: random.Random, p: Dict):
     )
 
 
+def preset_door_open(rng: random.Random, p: Dict):
+    """Wooden latch click + warm resonant oak hinge creak (~0.35s)."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+
+    # 1. Crisp iron-and-wood latch release click at t=0.0s
+    latch_len = min(n, n_samples(0.045))
+    latch_click = multiply(
+        normalize(biquad(white_noise(latch_len, rng), "bandpass", p["latch_hz"], 2.2)),
+        exp_decay(latch_len, 0.007, attack=0.0005),
+    )
+    bolt_thud = multiply(
+        oscillator(freq_curve(320.0, 125.0, latch_len), "sine"),
+        exp_decay(latch_len, 0.018, attack=0.0008),
+    )
+
+    # 2. Low wooden hinge creak with stick-slip flutter (t=0.04s..end)
+    creak_start = min(dur * 0.12, 0.045)
+    creak_len = max(16, n - n_samples(creak_start))
+    creak_osc = oscillator(freq_curve(p["creak_start_hz"], p["creak_end_hz"], creak_len), "saw")
+    creak_band = normalize(biquad(creak_osc, "bandpass", p["creak_body_hz"], 2.4))
+    stick_slip = lfo(creak_len, p["creak_flutter_hz"], 0.42)
+    creak_env = multiply(arch(creak_len, 0.32, 1.3, 1.7), stick_slip)
+    creak = multiply(soft_clip(creak_band, 1.6), creak_env)
+
+    # 3. Warm low-passed oak swing wood-body air movement
+    wood_body = multiply(
+        normalize(biquad(pink_noise(creak_len, rng), "lowpass", 520.0, q=0.9, order=2)),
+        arch(creak_len, 0.40, 1.2, 1.5),
+    )
+
+    return mix(
+        (latch_click, p["latch_level"], 0.0),
+        (bolt_thud, p["latch_level"] * 0.72, 0.004),
+        (creak, p["creak_level"], creak_start),
+        (wood_body, p["wood_level"], creak_start),
+    )
+
+
 PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
     "slash": (preset_slash, {
         "duration": 0.32, "sweep_start_hz": 700.0, "sweep_end_hz": 5200.0, "sweep_q": 1.4, "peak_pos": 0.35,
@@ -999,6 +1038,11 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "duration": 2.5, "rain_level": 0.55, "crack_level": 1.0, "thunder_level": 0.95,
         "crack1_time": 0.35, "crack2_time": 1.25, "peak": 0.85,
     }, "Swelling rain + lightning crack + rolling thunder intro"),
+    "door_open": (preset_door_open, {
+        "duration": 0.35, "latch_hz": 2400.0, "latch_level": 0.85,
+        "creak_start_hz": 165.0, "creak_end_hz": 215.0, "creak_body_hz": 440.0,
+        "creak_flutter_hz": 24.0, "creak_level": 0.65, "wood_level": 0.45, "peak": 0.68,
+    }, "Wooden latch click + low oak hinge creak"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1057,6 +1101,7 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
                                         "peak": 0.5}),
     "menu_confirm.ogg": ("ui_select", {"duration": 0.3, "tone_hz": 880.0, "tone_level": 0.35, "stamp": True,
                                        "peak": 0.75}),
+    "door_open.ogg": ("door_open", {"duration": 0.35, "peak": 0.68}),
 }
 
 # Keyword heuristics for unknown missing references (first match wins)
