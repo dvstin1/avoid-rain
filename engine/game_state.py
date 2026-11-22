@@ -1841,9 +1841,14 @@ class GameState:
         
         mx, my = click_pos
         
-        # 1. Swap Button
+        # 1. Swap Button (SLOT B card doubles as the swap click target; clicking inactive SLOT A also swaps)
         swr = HUD_SWAP_BTN_RECT
-        if hx + swr[0] <= mx <= hx + swr[0] + swr[2] and hy + swr[1] <= my <= hy + swr[1] + swr[3]:
+        slot_a_clicked = (
+            self.player.active_weapon_idx != 0
+            and hx + 8 <= mx <= hx + 8 + swr[2]
+            and hy + swr[1] <= my <= hy + swr[1] + swr[3]
+        )
+        if slot_a_clicked or (hx + swr[0] <= mx <= hx + swr[0] + swr[2] and hy + swr[1] <= my <= hy + swr[1] + swr[3]):
             self.player.swap_weapon()
             if self.network_manager.network_mode == "CLIENT":
                 full_state = self.get_full_player_state()

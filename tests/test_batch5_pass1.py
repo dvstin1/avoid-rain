@@ -158,34 +158,40 @@ def test_pastoral_valley_golden_pollen_atmosphere_and_biome_gating():
 
 
 def test_hud_weapon_slots_and_buttons_non_overlapping_and_text_fits():
-    """Verify SLOT A, Swap button, Pickup button, SLOT B, and status area do not overlap and fit their text."""
-    slot_a = pygame.Rect(10, 45, constants.HUD_SLOT_W, constants.HUD_SLOT_H)
-    slot_b = pygame.Rect(10 + (constants.HUD_SLOT_W + 118), 45, constants.HUD_SLOT_W, constants.HUD_SLOT_H)
+    """Verify tall compact 252x148 HUD layout, side-by-side slots, status row, and floating pickup pill."""
+    assert constants.HUD_PANEL_W == 252
+    assert constants.HUD_PANEL_H == 148
+
+    hp_rect = pygame.Rect(8, 10, 236, 15)
+    icon_rect = pygame.Rect(8, 33, 236, 19)
+    slot_a = pygame.Rect(8, 58, constants.HUD_SLOT_W, constants.HUD_SLOT_H)
+    slot_b = pygame.Rect(130, 58, constants.HUD_SLOT_W, constants.HUD_SLOT_H)
     swap_rect = pygame.Rect(constants.HUD_SWAP_BTN_RECT)
     pickup_rect = pygame.Rect(constants.HUD_PICKUP_BTN_RECT)
-    status_rect = pygame.Rect(360, 50, constants.HUD_PANEL_W - 360, 45)
+    status_rect = pygame.Rect(8, 121, 236, 19)
 
-    rects = (slot_a, swap_rect, pickup_rect, slot_b, status_rect)
-    for idx, r_a in enumerate(rects):
+    assert swap_rect == slot_b
+    assert pickup_rect.y == -26 and pickup_rect.bottom < 0
+
+    in_card_rects = (hp_rect, icon_rect, slot_a, slot_b, status_rect)
+    for idx, r_a in enumerate(in_card_rects):
         assert r_a.left >= 0 and r_a.right <= constants.HUD_PANEL_W
         assert r_a.top >= 0 and r_a.bottom <= constants.HUD_PANEL_H
-        for r_b in rects[idx + 1:]:
+        for r_b in in_card_rects[idx + 1:]:
             assert not r_a.colliderect(r_b), f"HUD rects overlap: {r_a} vs {r_b}"
 
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
 
-    # Verify "Initial Quill" fits completely inside SLOT A (with 5px left margin)
-    quill_w, _ = renderer.small_font.size("Initial Quill")
-    assert 5 + quill_w <= slot_a.width, f"'Initial Quill' ({quill_w}px) exceeds SLOT A width ({slot_a.width}px)"
+    # Verify "Initial Quill" fits completely inside SLOT A with slot_font
+    quill_w, _ = renderer.slot_font.size("Initial Quill")
+    assert 12 + quill_w <= slot_a.width, f"'Initial Quill' ({quill_w}px) exceeds SLOT A width ({slot_a.width}px)"
 
-    # Verify Swap & Pickup labels in slot_font fit strictly inside their 106x28 rects
-    swap_w, swap_h = renderer.slot_font.size("Q / L1 (GP)")
-    pickup_w, pickup_h = renderer.slot_font.size("SPACE / A (GP)")
-    assert swap_w <= swap_rect.width - 4 and swap_h <= swap_rect.height
-    assert pickup_w <= pickup_rect.width - 4 and pickup_h <= pickup_rect.height
+    # Verify clean contextual pickup pill text fits cleanly inside floating pill width
+    pill_w, pill_h = renderer.slot_font.size("Pick Up Refined Quill")
+    assert pill_w <= pickup_rect.width - 8 and pill_h <= pickup_rect.height
 
-    # Smoke-render draw_hud while standing over a WeaponPickup so both Swap and Pickup buttons draw cleanly
+    # Smoke-render draw_hud while standing over a WeaponPickup so the floating pill renders cleanly
     state = GameState(auto_load=False)
     state.network_manager.stop_network()
     try:

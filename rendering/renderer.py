@@ -4931,41 +4931,237 @@ class Renderer:
 
         self.screen.blit(bloom_surf, (0, 0))
 
+    def _get_hud_mini_icon(self, icon_name):
+        """Return a cached 16x16 (or 14x14 page) SRCALPHA mini-icon surface for the compact visual HUD."""
+        cache = self._fx_surface_cache
+        key = ("hud_icon", icon_name)
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+
+        if icon_name == "hud_flask_full":
+            surf = pygame.Surface((16, 16), pygame.SRCALPHA)
+            # Cork & narrow vial neck
+            pygame.draw.rect(surf, (176, 134, 84, 255), (6, 1, 4, 2))
+            pygame.draw.rect(surf, (195, 224, 236, 235), (5, 3, 6, 3))
+            # Rounded glass body filled with luminous restorative cyan/emerald ink
+            pygame.draw.circle(surf, (24, 52, 68, 240), (8, 10), 5)
+            pygame.draw.circle(surf, (46, 214, 186, 248), (8, 11), 4)
+            pygame.draw.rect(surf, (88, 244, 228, 250), (5, 9, 6, 3))
+            pygame.draw.circle(surf, (220, 255, 252, 245), (6, 9), 1)
+            pygame.draw.circle(surf, (196, 236, 248, 235), (8, 10), 5, 1)
+        elif icon_name == "hud_flask_empty":
+            surf = pygame.Surface((16, 16), pygame.SRCALPHA)
+            pygame.draw.rect(surf, (92, 78, 66, 200), (6, 1, 4, 2))
+            pygame.draw.rect(surf, (86, 94, 108, 195), (5, 3, 6, 3))
+            pygame.draw.circle(surf, (30, 34, 44, 185), (8, 10), 5)
+            pygame.draw.circle(surf, (88, 96, 112, 200), (8, 10), 5, 1)
+        elif icon_name == "hud_scholar_icon":
+            surf = pygame.Surface((16, 16), pygame.SRCALPHA)
+            # Hooded Scriptorium Scholar silhouette with glowing cyan eyes
+            pygame.draw.polygon(surf, (44, 54, 78, 250), [(3, 15), (4, 8), (12, 8), (13, 15)])
+            pygame.draw.line(surf, (218, 182, 84, 235), (8, 9), (8, 14), 1)
+            pygame.draw.circle(surf, (58, 70, 98, 255), (8, 6), 5)
+            pygame.draw.circle(surf, (18, 22, 34, 255), (8, 7), 3)
+            surf.set_at((7, 7), (96, 242, 255, 255))
+            surf.set_at((9, 7), (96, 242, 255, 255))
+            pygame.draw.circle(surf, (150, 174, 208, 210), (8, 6), 5, 1)
+        elif icon_name == "hud_page_icon":
+            page_src = self.prop_cache.get("TornPage") or self.image_cache.get("torn_page.png")
+            if page_src is not None:
+                surf = pygame.transform.smoothscale(page_src, (14, 14))
+            else:
+                surf = pygame.Surface((14, 14), pygame.SRCALPHA)
+                pygame.draw.polygon(
+                    surf, (236, 218, 176, 250), [(2, 1), (10, 1), (12, 4), (12, 13), (2, 13)]
+                )
+                pygame.draw.line(surf, (124, 96, 62, 220), (4, 5), (10, 5), 1)
+                pygame.draw.line(surf, (124, 96, 62, 220), (4, 8), (9, 8), 1)
+                pygame.draw.polygon(
+                    surf, (176, 146, 92, 240), [(2, 1), (10, 1), (12, 4), (12, 13), (2, 13)], 1
+                )
+        else:
+            surf = pygame.Surface((16, 16), pygame.SRCALPHA)
+
+        cache[key] = surf
+        return surf
+
+    def _get_hud_weapon_icon(self, weapon_data):
+        """Return a cached 16x16 scaled weapon sprite surface for a weapon slot, or None."""
+        wpn_key = self._select_weapon_pickup_sprite_key(weapon_data)
+        cache_key = ("hud_weapon_icon", wpn_key)
+        cached = self._fx_surface_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        src = self.prop_cache.get(wpn_key)
+        if src is None:
+            return None
+        icon = pygame.transform.smoothscale(src, (16, 16))
+        self._fx_surface_cache[cache_key] = icon
+        return icon
+
+    def _fit_hud_text(self, font, text, max_width, color):
+        """Render text with font, truncating with ellipsis only if needed to fit max_width."""
+        rendered = font.render(text, True, color)
+        if rendered.get_width() <= max_width or len(text) <= 2:
+            return rendered
+        trimmed = text
+        while len(trimmed) > 2:
+            trimmed = trimmed[:-1]
+            candidate = font.render(f"{trimmed.rstrip()}..", True, color)
+            if candidate.get_width() <= max_width:
+                return candidate
+        return font.render(text[:2], True, color)
+
     def draw_hud(self, state):
-        """Draw player HP, Flask, and Dual Weapon slots."""
+        """Draw the tall, compact 252x148 visual HUD card and contextual floating pickup pill."""
         player = state.player
         panel_w = constants.HUD_PANEL_W
         panel_h = constants.HUD_PANEL_H
         if self._hud_surf is None or self._hud_surf.get_size() != (panel_w, panel_h):
             self._hud_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
         hud_surf = self._hud_surf
-        hud_surf.fill((20, 20, 25, constants.UI_ALPHA))
-        pygame.draw.rect(hud_surf, (100, 100, 100), (0, 0, panel_w, panel_h), 2)
-        
-        # Status Metrics (compact font)
-        hp_text = f"HP: {int(player.hp)}/{int(player.max_hp)}"
-        hud_surf.blit(self.hud_font.render(hp_text, True, constants.COLOR_WHITE), (10, 10))
-        
-        flask_text = f"Flasks: {player.flask_charges}"
-        hud_surf.blit(self.hud_font.render(flask_text, True, constants.COLOR_BLUE), (140, 10))
-        
-        pages = state.stats.data["lifetime_stats"].get("pages_collected", 0) if state.stats else 0
-        pages_text = f"Pages: {pages}"
-        hud_surf.blit(self.hud_font.render(pages_text, True, constants.COLOR_SELECTION), (240, 10))
+        hud_surf.fill((0, 0, 0, 0))
+        pygame.draw.rect(hud_surf, (18, 18, 26, constants.UI_ALPHA), (0, 0, panel_w, panel_h), border_radius=6)
+        pygame.draw.rect(hud_surf, (96, 102, 118, 235), (0, 0, panel_w, panel_h), 2, border_radius=6)
 
-        edif_lvl = player.stats.get("edification", 1)
-        edif_text = f"LVL: {edif_lvl}"
-        hud_surf.blit(self.hud_font.render(edif_text, True, constants.COLOR_CYAN), (340, 10))
-        
-        # [Multiplayer: Scholar Count]
+        # --- Row 1: Crimson HP Bar (x=8, y=10, w=236, h=15) + 4px Frost Sub-Bar (y=26) ---
+        hp_x, hp_y, hp_w, hp_h = 8, 10, 236, 15
+        max_hp = max(1.0, float(getattr(player, "max_hp", 100.0) or 100.0))
+        cur_hp = max(0.0, min(max_hp, float(getattr(player, "hp", 0.0) or 0.0)))
+        hp_ratio = cur_hp / max_hp
+        pygame.draw.rect(hud_surf, (28, 22, 28, 245), (hp_x, hp_y, hp_w, hp_h), border_radius=3)
+        fill_w = int(round((hp_w - 2) * hp_ratio))
+        if fill_w > 0:
+            pygame.draw.rect(hud_surf, (195, 36, 48, 250), (hp_x + 1, hp_y + 1, fill_w, hp_h - 2), border_radius=2)
+            pygame.draw.line(hud_surf, (232, 82, 92, 235), (hp_x + 2, hp_y + 2), (hp_x + fill_w, hp_y + 2), 1)
+        for seg_idx in range(1, 4):
+            seg_x = hp_x + (hp_w * seg_idx) // 4
+            pygame.draw.line(hud_surf, (24, 16, 22, 180), (seg_x, hp_y + 1), (seg_x, hp_y + hp_h - 2), 1)
+        pygame.draw.rect(hud_surf, (132, 68, 78, 240), (hp_x, hp_y, hp_w, hp_h), 1, border_radius=3)
+        hp_lbl = self.slot_font.render(f"{int(cur_hp)}/{int(max_hp)}", True, constants.COLOR_WHITE)
+        hud_surf.blit(hp_lbl, (hp_x + (hp_w - hp_lbl.get_width()) // 2, hp_y + (hp_h - hp_lbl.get_height()) // 2))
+
+        frozen_hits_hud = int(getattr(player, "frozen_hits_remaining", 0) or 0)
+        frost_exp = float(getattr(player, "frost_exposure", 0.0) or 0.0)
+        if frozen_hits_hud > 0 or frost_exp > 0.0:
+            frost_ratio = (
+                min(1.0, frozen_hits_hud / float(max(1, constants.FROZEN_ICE_BLOCK_HITS)))
+                if frozen_hits_hud > 0
+                else min(1.0, max(0.0, frost_exp))
+            )
+            pygame.draw.rect(hud_surf, (18, 36, 56, 235), (hp_x, 26, hp_w, 4), border_radius=2)
+            f_fill = max(2, int(round(hp_w * frost_ratio)))
+            pygame.draw.rect(hud_surf, (140, 235, 255, 250), (hp_x, 26, f_fill, 4), border_radius=2)
+
+        # --- Row 2: Visual Icon Counter Strip (y=33..52, zero keybind clutter) ---
+        flask_charges = max(0, int(getattr(player, "flask_charges", 0) or 0))
+        max_flasks = max(int(constants.FLASK_MAX_CHARGES), flask_charges)
+        flask_full_icon = self._get_hud_mini_icon("hud_flask_full")
+        flask_empty_icon = self._get_hud_mini_icon("hud_flask_empty")
+        for f_idx in range(min(4, max_flasks)):
+            f_icon = flask_full_icon if f_idx < flask_charges else flask_empty_icon
+            hud_surf.blit(f_icon, (8 + f_idx * 18, 34))
+
         scholar_count = 1
         if hasattr(state, 'network_manager'):
             scholar_count = 1 + len(getattr(state.network_manager, 'remote_players', {}))
-        
-        scholar_text = f"Scholars: {scholar_count}"
-        hud_surf.blit(self.hud_font.render(scholar_text, True, constants.COLOR_WHITE), (440, 10))
+        scholar_count = max(0, int(scholar_count))
+        scholar_icon = self._get_hud_mini_icon("hud_scholar_icon")
+        visible_scholars = min(4, scholar_count)
+        for s_idx in range(visible_scholars):
+            hud_surf.blit(scholar_icon, (82 + s_idx * 15, 34))
+        if scholar_count > 4:
+            extra_s = self.slot_font.render(f"+{scholar_count - 4}", True, constants.COLOR_WHITE)
+            hud_surf.blit(extra_s, (82 + 4 * 15, 37))
 
-        # [Input Mode Indicator] (gated behind debug_text_enabled)
+        pages = state.stats.data["lifetime_stats"].get("pages_collected", 0) if state.stats else 0
+        page_icon = self._get_hud_mini_icon("hud_page_icon")
+        hud_surf.blit(page_icon, (148, 35))
+        pages_surf = self.slot_font.render(str(pages), True, constants.COLOR_SELECTION)
+        hud_surf.blit(pages_surf, (165, 36))
+
+        edif_lvl = player.stats.get("edification", 1)
+        lvl_surf = self.slot_font.render(f"LV.{edif_lvl}", True, constants.COLOR_CYAN)
+        hud_surf.blit(lvl_surf, (panel_w - 8 - lvl_surf.get_width(), 36))
+
+        # --- Row 3: Clean Side-by-Side Weapon Cards (SLOT A @ x=8, SLOT B @ x=130, y=58..116) ---
+        slot_coords = ((8, 58), (130, 58))
+        for i, (sx, sy) in enumerate(slot_coords):
+            sr = pygame.Rect(sx, sy, constants.HUD_SLOT_W, constants.HUD_SLOT_H)
+            is_active = i == player.active_weapon_idx
+            fill_col = (36, 40, 52, 235) if is_active else (26, 28, 38, 220)
+            border_col = constants.COLOR_SELECTION if is_active else (88, 92, 108)
+            pygame.draw.rect(hud_surf, fill_col, sr, border_radius=4)
+            pygame.draw.rect(hud_surf, border_col, sr, 2 if is_active else 1, border_radius=4)
+
+            lbl_col = constants.COLOR_SELECTION if is_active else constants.COLOR_GREY
+            l_surf = self.slot_font.render("SLOT A" if i == 0 else "SLOT B", True, lbl_col)
+            hud_surf.blit(l_surf, (sx + 6, sy + 4))
+
+            if i < len(player.weapons):
+                wpn = player.weapons[i]
+                wpn_icon = self._get_hud_weapon_icon(wpn)
+                if wpn_icon is not None:
+                    hud_surf.blit(wpn_icon, (sx + constants.HUD_SLOT_W - 21, sy + 3))
+                col = constants.COLOR_PURPLE if "modifiers" in wpn else constants.COLOR_WHITE
+                name_surf = self._fit_hud_text(
+                    self.slot_font, str(wpn.get("name", "Unknown")), constants.HUD_SLOT_W - 12, col
+                )
+                hud_surf.blit(name_surf, (sx + 6, sy + 23))
+
+                dmg_surf = self.slot_font.render(f"DMG {wpn.get('damage', 0)}", True, (186, 192, 206))
+                hud_surf.blit(dmg_surf, (sx + 6, sy + 41))
+            else:
+                empty_surf = self.slot_font.render("Empty", True, (96, 100, 114))
+                hud_surf.blit(empty_surf, (sx + 6, sy + 25))
+
+        # --- Row 4: Compact Status Pills (x=8..244, y=121..140) ---
+        active_statuses = []
+        if getattr(player, 'negation_timer', 0.0) > 0.0:
+            active_statuses.append({
+                "label": f"WARD -{int(player.negation_amount)}",
+                "color": (255, 215, 0),
+                "bg": (60, 50, 20),
+            })
+        if getattr(player, 'bind_timer', 0.0) > 0.0:
+            active_statuses.append({
+                "label": f"BOUND {player.bind_timer:.1f}s",
+                "color": (255, 100, 100),
+                "bg": (60, 20, 20),
+            })
+        if frozen_hits_hud > 0:
+            active_statuses.append({
+                "label": f"FROZEN {frozen_hits_hud}",
+                "color": (140, 235, 255),
+                "bg": (18, 46, 72),
+            })
+        all_mods = player.get_all_modifiers()
+        if "slow_hp_regen" in all_mods:
+            active_statuses.append({
+                "label": f"REGEN +{int(all_mods['slow_hp_regen'])}/s",
+                "color": (0, 255, 128),
+                "bg": (20, 50, 35),
+            })
+
+        status_x = 8
+        status_y = 121
+        pill_h = 19
+        for status in active_statuses:
+            txt_surf = self.slot_font.render(status["label"], True, status["color"])
+            pill_w = min(panel_w - 8 - status_x, txt_surf.get_width() + 10)
+            if pill_w < 24:
+                break
+            pill_rect = pygame.Rect(status_x, status_y, pill_w, pill_h)
+            pygame.draw.rect(hud_surf, status["bg"], pill_rect, border_radius=4)
+            pygame.draw.rect(hud_surf, status["color"], pill_rect, 1, border_radius=4)
+            hud_surf.blit(txt_surf, (pill_rect.x + 5, pill_rect.y + (pill_h - txt_surf.get_height()) // 2))
+            status_x += pill_w + 5
+
+        hud_x = 10
+        hud_y = self.screen.get_height() - constants.HUD_PANEL_H - 10
+        self.screen.blit(hud_surf, (hud_x, hud_y))
+
         if getattr(state, "debug_text_enabled", False):
             mode = getattr(state, 'input_mode', constants.INPUT_MODE_KEYBOARD)
             mode_col = (
@@ -4973,117 +5169,27 @@ class Renderer:
                 if mode == constants.INPUT_MODE_GAMEPAD
                 else constants.COLOR_MODE_KEYBOARD
             )
-            mode_label = self.hud_font.render(f"[ Input: {mode.capitalize()} ]", True, mode_col)
-            hud_surf.blit(
-                mode_label,
-                (hud_surf.get_width() - mode_label.get_width() - 10, hud_surf.get_height() - 25),
-            )
+            mode_label = self.slot_font.render(f"[ Input: {mode.capitalize()} ]", True, mode_col)
+            self.screen.blit(mode_label, (hud_x + panel_w + 8, hud_y + panel_h - mode_label.get_height() - 4))
 
-        for i in range(2):
-            sx, sy = 10 + i * (constants.HUD_SLOT_W + 118), 45
-            sr = pygame.Rect(sx, sy, constants.HUD_SLOT_W, constants.HUD_SLOT_H)
-            pygame.draw.rect(hud_surf, (40, 40, 50), sr)
-            
-            border_col = constants.COLOR_SELECTION if i == player.active_weapon_idx else constants.COLOR_GREY
-            pygame.draw.rect(hud_surf, border_col, sr, 2)
-            
-            l_surf = self.slot_font.render("SLOT A" if i == 0 else "SLOT B", True, constants.COLOR_GREY)
-            hud_surf.blit(l_surf, (sx + 5, sy + 2))
-            
-            if i < len(player.weapons):
-                wpn = player.weapons[i]
-                col = constants.COLOR_PURPLE if "modifiers" in wpn else constants.COLOR_WHITE
-                
-                name_surf = self.small_font.render(wpn.get("name", "Unknown")[:13], True, col)
-                hud_surf.blit(name_surf, (sx + 5, sy + 20))
-                
-                dmg_text = f"DMG: {wpn.get('damage', 0)}"
-                dmg_surf = self.slot_font.render(dmg_text, True, constants.COLOR_GREY)
-                hud_surf.blit(dmg_surf, (sx + 5, sy + 40))
-        swr = pygame.Rect(constants.HUD_SWAP_BTN_RECT)
-        pygame.draw.rect(hud_surf, (60, 60, 80), swr)
-        pygame.draw.rect(hud_surf, constants.COLOR_WHITE, swr, 1)
-        swt = self.slot_font.render("Q / L1 (GP)", True, constants.COLOR_WHITE)
-        hud_surf.blit(swt, (swr.centerx - swt.get_width() // 2, swr.centery - swt.get_height() // 2))
-
-        # [PICK UP] Button - only visible if standing over a WeaponPickup
+        # --- Contextual Floating Pickup Pill above HUD card (zero shortcut clutter) ---
         from engine.world import WeaponPickup
         target = state.player.current_interactable
         is_near_weapon = isinstance(target, WeaponPickup)
         if is_near_weapon:
             pkr = pygame.Rect(constants.HUD_PICKUP_BTN_RECT)
-            # Use tier color for button outline
-            col = constants.COLOR_PURPLE if "modifiers" in target.weapon_data else constants.COLOR_WHITE
-            pygame.draw.rect(hud_surf, (40, 60, 40), pkr) # Dark green tint for pickup
-            pygame.draw.rect(hud_surf, col, pkr, 2)
-            pkt = self.slot_font.render("SPACE / A (GP)", True, constants.COLOR_WHITE)
-            hud_surf.blit(pkt, (pkr.centerx - pkt.get_width() // 2, pkr.centery - pkt.get_height() // 2))
-
-        # Draw Active Status Effects on HUD
-        status_x = 360
-        status_y = 50
-        active_statuses = []
-        if getattr(player, 'negation_timer', 0.0) > 0.0:
-            active_statuses.append({
-                "name": "WARD",
-                "val": f"-{int(player.negation_amount)}",
-                "time": f"{player.negation_timer:.1f}s",
-                "color": (255, 215, 0),  # Gold
-                "bg": (60, 50, 20)
-            })
-        if getattr(player, 'bind_timer', 0.0) > 0.0:
-            active_statuses.append({
-                "name": "BOUND",
-                "val": "",
-                "time": f"{player.bind_timer:.1f}s",
-                "color": (255, 100, 100),  # Pink/Red
-                "bg": (60, 20, 20)
-            })
-        frozen_hits_hud = int(getattr(player, "frozen_hits_remaining", 0) or 0)
-        if frozen_hits_hud > 0:
-            active_statuses.append({
-                "name": "FROZEN",
-                "val": f"{frozen_hits_hud} DASH",
-                "time": "",
-                "color": (140, 235, 255),  # Ice cyan
-                "bg": (18, 46, 72)
-            })
-
-        all_mods = player.get_all_modifiers()
-        if "slow_hp_regen" in all_mods:
-            active_statuses.append({
-                "name": "REGEN",
-                "val": f"+{int(all_mods['slow_hp_regen'])}/s",
-                "time": "PASSIVE",
-                "color": (0, 255, 128),  # Cyan-green
-                "bg": (20, 50, 35)
-            })
-
-        for status in active_statuses:
-            badge_w = 85
-            badge_h = 45
-            badge_rect = pygame.Rect(status_x, status_y, badge_w, badge_h)
-
-            pygame.draw.rect(hud_surf, status["bg"], badge_rect, border_radius=4)
-            pygame.draw.rect(hud_surf, status["color"], badge_rect, 1, border_radius=4)
-
-            name_surf = self.hud_font.render(status["name"], True, status["color"])
-            hud_surf.blit(name_surf, (badge_rect.x + 5, badge_rect.y + 3))
-
-            val_time_str = status["val"]
-            if status["val"] and status["time"] != "PASSIVE":
-                val_time_str += f" ({status['time']})"
-            else:
-                val_time_str += status["time"]
-
-            info_surf = self.slot_font.render(val_time_str, True, constants.COLOR_WHITE)
-            hud_surf.blit(info_surf, (badge_rect.x + 5, badge_rect.y + 22))
-
-            status_x += badge_w + 10
-
-        hud_x = 10
-        hud_y = self.screen.get_height() - constants.HUD_PANEL_H - 10
-        self.screen.blit(hud_surf, (hud_x, hud_y))
+            screen_pkr = pygame.Rect(hud_x + pkr.x, hud_y + pkr.y, pkr.width, pkr.height)
+            tier_col = constants.COLOR_PURPLE if "modifiers" in target.weapon_data else constants.COLOR_SELECTION
+            pygame.draw.rect(self.screen, (24, 46, 34), screen_pkr, border_radius=5)
+            pygame.draw.rect(self.screen, tier_col, screen_pkr, 2, border_radius=5)
+            wpn_name = str(target.weapon_data.get("name", "Weapon"))
+            pill_txt = self._fit_hud_text(
+                self.slot_font, f"Pick Up {wpn_name}", screen_pkr.width - 12, constants.COLOR_WHITE
+            )
+            self.screen.blit(
+                pill_txt,
+                (screen_pkr.centerx - pill_txt.get_width() // 2, screen_pkr.centery - pill_txt.get_height() // 2),
+            )
 
         net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "STANDALONE")
         if net_mode in ("HOST", "CLIENT") or getattr(state, "waiting_for_host_run", False):
@@ -5116,7 +5222,7 @@ class Renderer:
         # --- EXPANDED INSPECT VIEW ---
         if getattr(state, 'inspect_active', False):
             tip_w = 200
-            tip_y = hud_y - 5
+            tip_y = (hud_y - 32) if is_near_weapon else (hud_y - 5)
             
             curr_x = hud_x + 10
             step = tip_w + 15
