@@ -7,7 +7,13 @@ import os
 import math
 import random
 import pygame
-from constants import SFX_FULL_VOLUME_DIST, SFX_MIN_VOLUME_DIST, SFX_MIN_VOLUME, RAIN_LOOP_SFX
+from constants import (
+    SFX_FULL_VOLUME_DIST,
+    SFX_MIN_VOLUME_DIST,
+    SFX_MIN_VOLUME,
+    SFX_VOLUME_SCALE,
+    RAIN_LOOP_SFX,
+)
 
 class AudioManager:
     """Manages music and sound effect playback with smooth transitions."""
@@ -238,7 +244,8 @@ class AudioManager:
 
             channel = sound.play()
             if channel:
-                channel.set_volume(volume)
+                scaled_volume = max(0.0, min(1.0, float(volume) * float(SFX_VOLUME_SCALE.get(sfx_name, 1.0))))
+                channel.set_volume(scaled_volume)
         except Exception as e:
             print(f"[AUDIO] SFX Playback Error ({sfx_name}): {e}")
 
@@ -260,7 +267,10 @@ class AudioManager:
         # Immediate load and fade-in (zero-latency end of old track)
         try:
             pygame.mixer.music.load(path)
-            pygame.mixer.music.play(loops=-1, fade_ms=2000)
+            if track_name == "death_theme.ogg":
+                pygame.mixer.music.play(loops=0, fade_ms=250)
+            else:
+                pygame.mixer.music.play(loops=-1, fade_ms=2000)
             self.current_track = track_name
             print(f"[AUDIO] Transition to: {track_name}")
         except Exception as e:

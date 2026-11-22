@@ -1568,7 +1568,8 @@ class GameState:
         
         # Check for death initiation
         if self.player.hp <= 0 and self.death_timer <= 0:
-            self.death_timer = 2.0 # 2 seconds of death theme
+            from constants import DEATH_SCREEN_DURATION
+            self.death_timer = DEATH_SCREEN_DURATION
             self.player.vx = 0
             self.player.vy = 0
             print("[GAME] Scholar has been redacted.")
@@ -2655,8 +2656,13 @@ class GameState:
         
         # Priority: If we already have stats with a run, use it. Otherwise load from disk.
         if not self.stats or not self.stats.data.get("run_state"):
-            try: self.stats = StatisticsTracker.load()
-            except Exception: self.stats = StatisticsTracker()
+            try:
+                if getattr(self, "stats_path", None) is not None:
+                    self.stats = StatisticsTracker.load(self.stats_path)
+                else:
+                    self.stats = StatisticsTracker.load()
+            except Exception:
+                self.stats = StatisticsTracker()
 
         # Engine Revision Guard: Do not hydrate incompatible saves from older engine revisions
         if self.stats and not getattr(self.stats, "is_revision_compatible", True):
@@ -2938,26 +2944,34 @@ class GameState:
         if save and self.stats is not None:
             self.save_stats(wait=True)
 
-    def save_stats(self, path: Optional[str] = None, wait: bool = False) -> None:
-        if self.stats is None or not getattr(self, '_save_worker_running', False): return
-        if self.player is None or self.world is None: return # Guard against deallocated state
-        if path is None and not getattr(self.stats, "is_revision_compatible", True):
+    def save_stats(self, path: Optional[str] = None, wait: bool = False, allow_incompatible: bool = False) -> None:
+        if self.stats is None or not getattr(self, '_save_worker_running', False):
+            return
+        is_compat = getattr(self.stats, "is_revision_compatible", True)
+        if path is None and not is_compat and not allow_incompatible:
             return
         from constants import ENGINE_REVISION
-        self.stats.data["engine_revision"] = ENGINE_REVISION
-        self.stats.is_revision_compatible = True
+        if is_compat or path is not None:
+            self.stats.data["engine_revision"] = ENGINE_REVISION
+            self.stats.is_revision_compatible = True
+        if hasattr(self, "network_manager") and self.network_manager:
+            cur_id = str(getattr(self.network_manager, "identity", "") or "").strip()
+            if cur_id:
+                self.stats.data["player_name"] = cur_id
         self.stats.data["online_mode"] = bool(getattr(self, "online_mode", True))
         self.stats.data["debug_text_enabled"] = bool(getattr(self, "debug_text_enabled", False))
         self.stats.data["screen_shake_enabled"] = bool(getattr(self, "screen_shake_enabled", True))
         
         # --- Persistence: Sanctuary is the hub; runs are completed/redacted here ---
-        world_name = getattr(self.world, 'name', 'sanctuary')
-        if world_name not in ("sanctuary", "") and self.player:
-            self.stats.data["run_state"] = self.get_full_run_state()
-            self.stats.data["active_session_in_progress"] = True
-        else:
-            self.stats.data["run_state"] = None
-            self.stats.data["active_session_in_progress"] = False
+        # Skip run_state mutation when deallocated (player/world is None on Quit-to-Title) so profile saves still work
+        if self.player is not None and self.world is not None:
+            world_name = getattr(self.world, 'name', 'sanctuary')
+            if world_name not in ("sanctuary", ""):
+                self.stats.data["run_state"] = self.get_full_run_state()
+                self.stats.data["active_session_in_progress"] = True
+            else:
+                self.stats.data["run_state"] = None
+                self.stats.data["active_session_in_progress"] = False
 
         resolved_path = path if path is not None else getattr(self, "stats_path", None)
         try: self._save_queue.put_nowait({"stats": self.stats.data, "path": resolved_path})

@@ -188,10 +188,10 @@ def test_network_integration_host_and_client_combat():
     # 2. Enemy Damage to Client (New)
     print("[TEST] Case 4.2: Enemy Attack Client...")
     
-    # Put client directly on top of a NEW enemy to guarantee contact
+    # Put client directly on top of a NEW striking enemy to guarantee contact (skip skittish Flutter)
     host_state.enemies = [e for e in host_state.enemies if not e.is_dead()]
     assert len(host_state.enemies) > 0
-    test_enemy = host_state.enemies[0]
+    test_enemy = next((e for e in host_state.enemies if e.name != "Flutter"), host_state.enemies[0])
     
     # Reset stagger and disable movement for stability
     test_enemy.stagger_timer = 0

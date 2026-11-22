@@ -8,7 +8,14 @@ import pytest
 
 import constants
 import engine.network_manager
+import engine.stats
 from engine.network_manager import NetworkManager
+
+
+@pytest.fixture(autouse=True)
+def _isolate_default_save_path(monkeypatch, tmp_path):
+    """Redirect engine.stats.DEFAULT_PATH to an isolated tmp_path so pytest never clobbers live save_data.json."""
+    monkeypatch.setattr(engine.stats, "DEFAULT_PATH", tmp_path / "save_data.json")
 
 
 @pytest.fixture(autouse=True)

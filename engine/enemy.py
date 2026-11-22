@@ -163,6 +163,29 @@ class SlugEnemy(Enemy):
         packet["color_hint"] = (100, 100, 120) # Deep Slug Grey
         return packet
 
+    def get_attack_hitbox(self):
+        """Return a 38x38 forward bite hitbox during STRIKE (body rect otherwise)."""
+        if self.state != ActorState.STRIKE:
+            return self.get_rect()
+        from constants import SLUG_ATTACK_HITBOX_OFFSET, SLUG_ATTACK_HITBOX_SIZE
+        cx, cy = self.get_center()
+        dx, dy = self.facing
+        if self.active_target:
+            tx, ty = self.active_target
+            tdx, tdy = tx - cx, ty - cy
+            if math.hypot(tdx, tdy) > 0.001:
+                dx, dy = tdx, tdy
+        mag = math.hypot(dx, dy)
+        if mag > 0.001:
+            ux, uy = dx / mag, dy / mag
+        else:
+            ux, uy = 1.0, 0.0
+        size = float(SLUG_ATTACK_HITBOX_SIZE)
+        offset = float(SLUG_ATTACK_HITBOX_OFFSET)
+        hx = cx + ux * offset - size / 2.0
+        hy = cy + uy * offset - size / 2.0
+        return (hx, hy, size, size)
+
 class BatEnemy(Enemy):
     """A fast, erratic enemy."""
     def __init__(self, x, y, hp=None, id=None):
@@ -215,7 +238,7 @@ class BatEnemy(Enemy):
         self._swoop_locked = True
 
     def get_attack_hitbox(self):
-        """Return a 36x36 swoop hitbox shifted forward along the bat's swoop vector."""
+        """Return a 28x28 tight swoop hitbox shifted forward along the bat's swoop vector."""
         from constants import BAT_SWOOP_HITBOX_SIZE, BAT_SWOOP_HITBOX_OFFSET
         cx, cy = self.get_center()
         dx, dy = self.swoop_dir if self._swoop_locked else self.facing

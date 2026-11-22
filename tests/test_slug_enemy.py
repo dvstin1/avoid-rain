@@ -2,7 +2,7 @@
 import pytest
 from engine.game_state import GameState
 from engine.enemy import SlugEnemy
-from constants import SLUG_MAX_HP, PLAYER_MAX_HP
+from constants import SLUG_MAX_HP, PLAYER_MAX_HP, DEATH_SCREEN_DURATION
 
 def test_slug_damage_player_and_respawn_on_death():
     gs = GameState(auto_load=False)
@@ -45,8 +45,8 @@ def test_slug_damage_player_and_respawn_on_death():
     gs.update(0.1, {})
     assert gs.death_timer > 0
     
-    # Fast forward death timer
-    gs.update(2.1, {})
+    # Fast forward death timer past DEATH_SCREEN_DURATION
+    gs.update(DEATH_SCREEN_DURATION + 0.1, {})
     
     # Should be back in sanctuary with full health
     assert gs.world.name == "sanctuary"

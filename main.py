@@ -62,9 +62,11 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
                     state.lobby_editing_name = False
                     if not state.network_manager.identity.strip():
                         state.network_manager.identity = "Scholar"
-                    if state.stats:
-                        state.stats.data["player_name"] = state.network_manager.identity
-                        state.save_stats(wait=True)
+                    if state.stats is None:
+                        from engine.stats import StatisticsTracker
+                        state.stats = StatisticsTracker()
+                    state.stats.data["player_name"] = state.network_manager.identity
+                    state.save_stats(wait=True, allow_incompatible=True)
                     print(f"[NETWORK] Identity updated to: {state.network_manager.identity}")
                     return True, True, False
                 if event.key == pygame.K_BACKSPACE:
@@ -310,7 +312,8 @@ def main():
     try:
         state = GameState(stats=None, stats_path=None, auto_load=True)
     except Exception:
-        state = GameState(stats=None, auto_load=False)
+        from engine.stats import StatisticsTracker
+        state = GameState(stats=StatisticsTracker(), auto_load=False)
 
     def shutdown_handler():
         try:

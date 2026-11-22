@@ -3511,8 +3511,18 @@ class Renderer:
         packet = actor.get_visual_packet()
         rect = pygame.Rect(actor.x - ox, actor.y - oy, actor.width, actor.height)
         
+        from engine.enemy import BatEnemy, SlugEnemy
+        actor_tag = actor.name.lower()
+        is_slug = isinstance(actor, SlugEnemy) or "slug" in actor_tag
+        is_bat = isinstance(actor, BatEnemy) or "bat" in actor_tag
+
         # --- Boss Attack Hitbox / Warning Telegraph Overlay ---
-        if packet["base"] in ("WIND_UP", "STRIKE") and hasattr(actor, 'get_attack_hitbox'):
+        if (
+            packet["base"] in ("WIND_UP", "STRIKE")
+            and hasattr(actor, 'get_attack_hitbox')
+            and not is_slug
+            and not is_bat
+        ):
             hb = actor.get_attack_hitbox()
             sx = hb[0] - ox
             sy = hb[1] - oy
@@ -3530,10 +3540,7 @@ class Renderer:
                 self.screen.blit(s, (sx, sy))
 
         # --- SPRITE RESOLUTION ---
-        from engine.enemy import SlugEnemy
         sprite = None
-        actor_tag = actor.name.lower()
-        is_slug = isinstance(actor, SlugEnemy) or "slug" in actor_tag
         is_empowered_actor = bool(getattr(actor, "is_empowered", False))
 
         if is_slug:
@@ -3682,8 +3689,10 @@ class Renderer:
                 pygame.draw.rect(self.screen, (50, 50, 50), (bx, by, bar_w, 4))
                 pygame.draw.rect(self.screen, constants.COLOR_WHITE, (bx, by, int(bar_w * progress), 4))
 
-        # 7. Boss Attack Weapon/Limb Visuals
-        if hasattr(actor, 'get_attack_hitbox'):
+        # 7. Boss Attack Weapon/Limb Visuals (Bat uses crisp claw slash; Slug has no weapon visual)
+        if is_bat:
+            self._draw_bat_claw_slash(actor, ox, oy)
+        elif not is_slug and hasattr(actor, 'get_attack_hitbox'):
             self.draw_boss_weapon(actor, ox, oy)
 
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
@@ -4099,9 +4108,54 @@ class Renderer:
         # 3. Leading crescent tip flare
         pygame.draw.circle(self.screen, constants.COLOR_WHITE, (int(tx), int(ty)), 3)
 
+    def _draw_bat_claw_slash(self, actor, ox, oy):
+        """Draw 3 short crisp white diagonal claw slash lines (~18px) in front of BatEnemy during STRIKE."""
+        if not hasattr(actor, 'state'):
+            return
+        from engine.actor import ActorState
+        if actor.state != ActorState.STRIKE:
+            return
+
+        cx = actor.x + actor.width / 2.0 - ox
+        cy = actor.y + actor.height / 2.0 - oy
+        fx, fy = getattr(actor, 'swoop_dir', None) or getattr(actor, 'facing', (1.0, 0.0))
+        mag = math.hypot(fx, fy)
+        ux, uy = (fx / mag, fy / mag) if mag > 0.001 else (1.0, 0.0)
+        px, py = -uy, ux
+
+        # Progress t in [0, 1] across the strike duration
+        strike_dur = float(getattr(actor, 'strike_duration', 0.2) or 0.2)
+        c_timer = float(getattr(actor, 'combat_timer', 0.0))
+        t = max(0.0, min(1.0, 1.0 - (c_timer / strike_dur))) if strike_dur > 0 else 0.5
+
+        # Slash center 12px ahead of bat; 3 parallel diagonal ~18px claw marks
+        slash_cx = cx + ux * (10.0 + t * 5.0)
+        slash_cy = cy + uy * (10.0 + t * 5.0)
+        diag_x = (ux * 0.55 + px * 0.835)
+        diag_y = (uy * 0.55 + py * 0.835)
+        half_len = 9.0  # ~18px total claw length
+
+        for idx, offset in enumerate((-5.0, 0.0, 5.0)):
+            ocx = slash_cx + px * offset
+            ocy = slash_cy + py * offset
+            x1 = int(round(ocx - diag_x * half_len))
+            y1 = int(round(ocy - diag_y * half_len))
+            x2 = int(round(ocx + diag_x * half_len))
+            y2 = int(round(ocy + diag_y * half_len))
+            width = 2 if idx == 1 else 1
+            pygame.draw.line(self.screen, constants.COLOR_WHITE, (x1, y1), (x2, y2), width)
+
     def draw_boss_weapon(self, actor, ox, oy):
         """Draws a sharp tapered greatblade held by a boss that swings or thrusts dynamically."""
         if not hasattr(actor, 'state') or not hasattr(actor, 'combat_timer'):
+            return
+
+        from engine.enemy import BatEnemy, SlugEnemy
+        actor_tag = str(getattr(actor, 'name', '')).lower()
+        if isinstance(actor, SlugEnemy) or "slug" in actor_tag:
+            return
+        if isinstance(actor, BatEnemy) or "bat" in actor_tag:
+            self._draw_bat_claw_slash(actor, ox, oy)
             return
 
         from engine.actor import ActorState

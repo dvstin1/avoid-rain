@@ -4,7 +4,7 @@ Tests for the Flask healing system.
 import pytest
 from engine.game_state import GameState
 from engine.player import Player, PlayerStateEnum
-from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, FLASK_HEAL_AMOUNT
+from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, FLASK_HEAL_AMOUNT, DEATH_SCREEN_DURATION
 
 class MockWorld:
     def __init__(self, name="custom"):
@@ -84,8 +84,8 @@ def test_flask_reset_on_death():
     # HP should be 0 during the death sequence
     assert gs.player.hp == 0
     
-    # Fast forward death sequence (2.0s duration)
-    gs.update(2.1, {'move': (0, 0), 'attack': False, 'flask': False})
+    # Fast forward death sequence past DEATH_SCREEN_DURATION
+    gs.update(DEATH_SCREEN_DURATION + 0.1, {'move': (0, 0), 'attack': False, 'flask': False})
     
     # Should be back in sanctuary with full health and flasks
     assert gs.world.name == "sanctuary"

@@ -202,11 +202,11 @@ def test_bat_enemy_swoop_lunge_and_hitbox_damages_stationary_player_at_aggro_ran
     bat = BatEnemy(360.0, 208.0)
     state.enemies = [bat]
 
-    # Check 36x36 shifted swoop hitbox dimensions and forward shift
+    # Check 28x28 tight shifted swoop hitbox dimensions and forward shift
     bat.swoop_dir = (-1.0, 0.0)
     bat._swoop_locked = True
     hx, _hy, hw, hh = bat.get_attack_hitbox()
-    assert hw == 36.0 and hh == 36.0
+    assert hw == 28.0 and hh == 28.0
     bat_cx, _ = bat.get_center()
     hitbox_cx = hx + hw / 2.0
     assert hitbox_cx < bat_cx

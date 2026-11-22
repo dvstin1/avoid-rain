@@ -180,6 +180,8 @@ SLUG_SPEED = 80.0  # pixels per second (slow approach)
 SLUG_DETECT_METERS = 5  # detection radius in 'meters' (meters * TILE_SIZE)
 SLUG_DAMAGE = 10  # damage dealt on contact
 SLUG_DAMAGE_COOLDOWN = 1.0  # seconds between contact damage attempts
+SLUG_ATTACK_HITBOX_SIZE = 38.0  # 38x38 forward bite/contact hitbox during STRIKE
+SLUG_ATTACK_HITBOX_OFFSET = 10.0  # Forward shift toward target/facing direction
 STAGGER_THRESHOLD = 20 # Damage needed to stagger
 RECOVERY_TIME = 0.3 # Time spent in stagger/recovery
 
@@ -191,8 +193,8 @@ BAT_DAMAGE = 5  # damage dealt on contact
 BAT_DAMAGE_COOLDOWN = 0.5  # seconds between contact damage attempts
 BAT_SINE_AMPLITUDE = 0.35  # Lateral sine wave ratio relative to forward pursuit speed
 BAT_SWOOP_SPEED_MULTIPLIER = 2.4  # Forward lunge speed multiplier during STRIKE
-BAT_SWOOP_HITBOX_SIZE = 36.0  # 36x36 swoop attack hitbox
-BAT_SWOOP_HITBOX_OFFSET = 14.0  # Forward shift of the 36x36 hitbox along swoop vector
+BAT_SWOOP_HITBOX_SIZE = 28.0  # 28x28 tight swoop attack hitbox
+BAT_SWOOP_HITBOX_OFFSET = 12.0  # Forward shift of the 28x28 hitbox along swoop vector
 
 # Skittish Flutter enemy configuration
 FLUTTER_MAX_HP = 15
@@ -881,6 +883,10 @@ DIALOGUE_MANIFEST = {
 SFX_FULL_VOLUME_DIST = 120.0  # 3 units (3 * TILE_SIZE)
 SFX_MIN_VOLUME_DIST = 1280.0  # Across the screen
 SFX_MIN_VOLUME = 0.05
+SFX_VOLUME_SCALE = {
+    "player_dash.ogg": 0.45,
+}
+DEATH_SCREEN_DURATION = 5.5  # Full playback duration covering 5.38s death_theme.ogg
 
 # Dynamic Rain Ambient Audio Constants
 RAIN_LOOP_SFX = "rain_loop.ogg"
