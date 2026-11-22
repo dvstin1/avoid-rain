@@ -5384,6 +5384,28 @@ class Renderer:
         dst_rect = pygame.Rect(0, 0, sw_s, sh_s)
         dst_rect.midbottom = draw_rect.midbottom
 
+        # Phase 2 energized magenta/gold surge aura beneath/around SlugBoss (<= 50% HP)
+        max_hp = float(getattr(actor, "max_hp", 0.0) or 0.0)
+        cur_hp = float(getattr(actor, "hp", 0.0) or 0.0)
+        is_phase2 = getattr(actor, "phase", 1) >= 2 or (
+            max_hp > 0.0 and 0.0 < cur_hp <= max_hp * constants.SLUG_BOSS_PHASE2_HP_RATIO
+        )
+        if isinstance(self.screen, pygame.Surface) and is_phase2:
+            pulse = 0.5 + 0.5 * math.sin(anim_t * 11.0)
+            aura_r = max(32, sw_s // 2 + int(12 + pulse * 8))
+            aura = pygame.Surface((aura_r * 2 + 4, aura_r * 2 + 4), pygame.SRCALPHA)
+            acx, acy = aura_r + 2, aura_r + 2
+            pygame.draw.circle(aura, (232, 62, 168, int(44 + pulse * 28)), (acx, acy), aura_r)
+            pygame.draw.circle(aura, (248, 206, 68, int(52 + pulse * 32)), (acx, acy), max(12, aura_r - 9))
+            pygame.draw.circle(aura, (255, 118, 214, int(130 + pulse * 60)), (acx, acy), aura_r - 1, 2)
+            pygame.draw.circle(aura, (255, 224, 96, int(155 + pulse * 65)), (acx, acy), max(10, aura_r - 7), 2)
+            for idx in range(6):
+                ang = anim_t * 3.6 + (idx * math.pi / 3.0)
+                sx_e = int(acx + math.cos(ang) * (aura_r - 4))
+                sy_e = int(acy + math.sin(ang) * (aura_r - 4))
+                pygame.draw.circle(aura, (255, 232, 130, 200), (sx_e, sy_e), 3)
+            self.screen.blit(aura, (dst_rect.centerx - acx, dst_rect.centery - acy))
+
         # Stationary slime-swell halo beneath the boss during SLIME wind-up / strike
         if (
             isinstance(self.screen, pygame.Surface)

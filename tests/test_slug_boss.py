@@ -14,7 +14,7 @@ import pytest
 import constants
 import generate_sfx
 from engine.actor import ActorState
-from engine.enemy import NightBoss, SlugBoss
+from engine.enemy import NightBoss, SlugBoss, SlugEnemy
 from engine.game_state import GameState
 from engine.world import SlugBossCrown, WeaponPickup, World
 from generate_assets import generate_slug_boss, generate_slug_boss_crown
@@ -268,5 +268,129 @@ def test_slug_boss_renderer_draws_sprite_slime_pools_and_crown_without_greatblad
         renderer.screen = canvas
         renderer._draw_slug_boss_crown(40, 40, renderer.prop_cache)
         assert canvas.get_at((62, 56))[:3] != (14, 10, 20)
+    finally:
+        state.shutdown_save_worker(timeout=1.0)
+
+
+def test_slug_boss_music_tracks_exist_verify_and_registered():
+    """Verify slug_boss_phase1.ogg and slug_boss_phase2.ogg exist, decode cleanly (~14-16s), and are registered."""
+    p1_path = os.path.join("assets", "audio", "music", constants.SLUG_BOSS_PHASE1_MUSIC)
+    p2_path = os.path.join("assets", "audio", "music", constants.SLUG_BOSS_PHASE2_MUSIC)
+    assert os.path.exists(p1_path), f"Missing Phase 1 boss track: {p1_path}"
+    assert os.path.exists(p2_path), f"Missing Phase 2 boss track: {p2_path}"
+
+    p1_len = generate_sfx.verify_ogg(p1_path)
+    p2_len = generate_sfx.verify_ogg(p2_path)
+    assert 13.5 <= p1_len <= 16.5, f"Unexpected Phase 1 length: {p1_len:.2f}s"
+    assert 13.5 <= p2_len <= 16.5, f"Unexpected Phase 2 length: {p2_len:.2f}s"
+
+    assert constants.SLUG_BOSS_PHASE1_MUSIC in constants.BOSS_COMBAT_TRACKS
+    assert constants.SLUG_BOSS_PHASE2_MUSIC in constants.BOSS_COMBAT_TRACKS
+    assert generate_sfx.find_missing_sfx(".") == {}
+
+
+def test_slug_boss_phase2_transition_music_switch_10_slug_summon_and_client_guard():
+    """Verify Phase 1 -> Phase 2 music switch, 10 walkable Act-scaled SlugEnemy summons once, and CLIENT guard."""
+    state = GameState(auto_load=False)
+    state.network_manager.stop_network()
+    played_sfx = []
+    state.audio_manager = SimpleNamespace(
+        play_sfx=lambda name, **kw: played_sfx.append(name),
+        update_enemy_sounds=lambda _s: None,
+        update_rain_audio=lambda *_a, **_k: None,
+    )
+    try:
+        # Arena with outer walls and interior wall pillars near boss to verify walkable spawn snapping
+        prototype = [
+            "################",
+            "#..............#",
+            "#..............#",
+            "#.....##.......#",
+            "#..............#",
+            "#..............#",
+            "#.........##...#",
+            "#..............#",
+            "#..............#",
+            "#..............#",
+            "#..............#",
+            "################",
+        ]
+        state.world = World("swamp_mire")
+        state.world.load_from_prototype(prototype)
+        state.in_sanctuary = False
+        state.current_act = 3
+        state.player.x = 6.0 * constants.TILE_SIZE
+        state.player.y = 5.0 * constants.TILE_SIZE
+
+        boss = SlugBoss(7.0 * constants.TILE_SIZE, 4.0 * constants.TILE_SIZE)
+        boss.network_id = 9000
+        state.enemies = [boss]
+        state.world.enemies = list(state.enemies)
+
+        # 1. Above 50% HP -> Phase 1, plays slug_boss_phase1.ogg, no minions yet
+        assert boss.phase == 1
+        assert boss.minions_summoned is False
+        state._update_audio_track(0.016)
+        assert state.player.active_track_name == constants.SLUG_BOSS_PHASE1_MUSIC
+
+        boss.update(0.05, state)
+        assert boss.phase == 1
+        assert len(state.enemies) == 1
+
+        # 2. Drop HP to <= 50% -> transitions to Phase 2, plays roar SFX, spawns 10 walkable Act-scaled SlugEnemies
+        boss.hp = boss.max_hp * constants.SLUG_BOSS_PHASE2_HP_RATIO
+        boss.update(0.05, state)
+        assert boss.phase == 2
+        assert boss.minions_summoned is True
+        assert played_sfx.count(constants.SLUG_BOSS_SLIME_SFX) == 1
+
+        minions = [e for e in state.enemies if isinstance(e, SlugEnemy)]
+        assert len(minions) == constants.SLUG_BOSS_MINION_COUNT == 10
+        assert state.world.enemies == state.enemies
+        assert [m.network_id for m in minions] == list(range(9001, 9011))
+
+        # Verify Act 3 scaling and walkable floor placement (zero wall overlap)
+        sat3 = constants.get_act_saturation(3)
+        base_slug = SlugEnemy(0, 0)
+        for m in minions:
+            assert m.max_hp == pytest.approx(base_slug.max_hp * sat3["hp_multiplier"])
+            assert m.damage == pytest.approx(base_slug.damage * sat3["damage_multiplier"])
+            assert m.speed == pytest.approx(base_slug.speed * sat3["speed_multiplier"])
+            assert m.is_empowered is True
+            tx0 = int(m.x // constants.TILE_SIZE)
+            ty0 = int(m.y // constants.TILE_SIZE)
+            tx1 = int((m.x + m.width - 1e-4) // constants.TILE_SIZE)
+            ty1 = int((m.y + m.height - 1e-4) // constants.TILE_SIZE)
+            for ty in range(ty0, ty1 + 1):
+                for tx in range(tx0, tx1 + 1):
+                    assert state.world.grid[ty][tx] != constants.TILE_WALL
+
+        # 3. Subsequent updates must NOT summon a second wave
+        boss.update(0.05, state)
+        assert len([e for e in state.enemies if isinstance(e, SlugEnemy)]) == 10
+
+        # 4. Audio track switches cleanly to Phase 2 Mega Man chiptune theme
+        state._update_audio_track(0.016)
+        assert state.player.active_track_name == constants.SLUG_BOSS_PHASE2_MUSIC
+
+        # 5. Renderer draws the Phase 2 magenta/gold surge aura around SlugBoss
+        canvas = pygame.Surface((260, 260))
+        canvas.fill((12, 10, 18))
+        renderer = Renderer(canvas)
+        rect = pygame.Rect(74, 74, constants.SLUG_BOSS_SIZE, constants.SLUG_BOSS_SIZE)
+        renderer._draw_slug_boss(boss, rect, {"facing": (1.0, 0.0), "base": "IDLE", "anim_timer": 0.4})
+        # Check pixel just outside the 112x112 sprite boundary where the surge aura glows
+        aura_px = canvas.get_at((74 - 6, 74 + 56))[:3]
+        assert aura_px != (12, 10, 18), "Phase 2 SlugBoss must render a magenta/gold surge aura"
+
+        # 6. On CLIENT, <= 50% HP sets phase == 2 and minions_summoned == True without spawning local minions
+        client_boss = SlugBoss(7.0 * constants.TILE_SIZE, 4.0 * constants.TILE_SIZE)
+        client_boss.hp = client_boss.max_hp * 0.45
+        state.network_manager.network_mode = "CLIENT"
+        state.enemies = [client_boss]
+        client_boss.update(0.05, state)
+        assert client_boss.phase == 2
+        assert client_boss.minions_summoned is True
+        assert state.enemies == [client_boss]
     finally:
         state.shutdown_save_worker(timeout=1.0)

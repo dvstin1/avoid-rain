@@ -200,6 +200,10 @@ SLUG_BOSS_SLIME_POOL_DAMAGE = 8.0
 SLUG_BOSS_SLIME_POOL_TICK_INTERVAL = 0.55
 SLUG_BOSS_SLIME_POOL_COUNT = 3
 SLUG_BOSS_SLIME_SFX = "slug_boss_slime.ogg"
+SLUG_BOSS_PHASE2_HP_RATIO = 0.5
+SLUG_BOSS_MINION_COUNT = 10
+SLUG_BOSS_PHASE1_MUSIC = "slug_boss_phase1.ogg"
+SLUG_BOSS_PHASE2_MUSIC = "slug_boss_phase2.ogg"
 
 # Fast-pursuit Bat enemy configuration
 BAT_MAX_HP = 35
@@ -1085,7 +1089,13 @@ RAIN_AUDIO_INSIDE_MIN = 0.85
 RAIN_AUDIO_INSIDE_MAX = 1.0
 RAIN_AUDIO_INSIDE_RAMP_DIST = 240.0
 RAIN_AUDIO_BOSS_FADE_DURATION = 1.25
-BOSS_COMBAT_TRACKS = ("miniboss_combat.ogg", "night_boss.ogg", "final_reckoning.ogg")
+BOSS_COMBAT_TRACKS = (
+    "miniboss_combat.ogg",
+    "night_boss.ogg",
+    "final_reckoning.ogg",
+    SLUG_BOSS_PHASE1_MUSIC,
+    SLUG_BOSS_PHASE2_MUSIC,
+)
 
 # Title Screen Storm-and-Lightning Transition Constants
 STORM_INTRO_SFX = "storm_intro.ogg"

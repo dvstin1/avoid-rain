@@ -1418,6 +1418,449 @@ def fill_missing(base_seed: int = DEFAULT_SEED, output_dir: str = DEFAULT_OUTPUT
 
 
 # ==============================================================================
+# PROCEDURAL BOSS MUSIC SYNTHESIS (44.1 kHz mono, seamlessly loopable)
+# ==============================================================================
+
+
+def _midi_to_hz(midi_note: float) -> float:
+    """Convert a MIDI note number to frequency in Hz."""
+    return 440.0 * (2.0 ** ((float(midi_note) - 69.0) / 12.0))
+
+
+def _ring_add(buf, sig, start_idx: int, gain: float = 1.0) -> None:
+    """Accumulate sig * gain into circular buffer buf starting at start_idx (modulo len(buf))."""
+    total = len(buf)
+    if total <= 0 or len(sig) == 0:
+        return
+    start = start_idx % total
+    seg_len = len(sig)
+    if np is not None:
+        arr = np.asarray(sig, dtype=np.float64) * gain
+        end = start + seg_len
+        if end <= total:
+            buf[start:end] += arr
+        else:
+            first = total - start
+            buf[start:total] += arr[:first]
+            rem = seg_len - first
+            pos = first
+            while rem > 0:
+                chunk = min(total, rem)
+                buf[0:chunk] += arr[pos:pos + chunk]
+                pos += chunk
+                rem -= chunk
+        return
+    for i, val in enumerate(sig):
+        buf[(start + i) % total] += val * gain
+
+
+def _synth_pulse_note(
+    n: int,
+    freq_hz: float,
+    duty: float = 0.25,
+    vibrato_hz: float = 0.0,
+    vibrato_depth: float = 0.0,
+    release_s: float = 0.015,
+):
+    """Synthesize a crisp NES-style variable-duty pulse wave note (25% or 12.5% duty)."""
+    if n <= 0:
+        return silence(1)
+    if np is not None:
+        t = np.arange(n, dtype=np.float64) / SAMPLE_RATE
+        if vibrato_hz > 0.0 and vibrato_depth > 0.0:
+            vib_onset = np.clip((t - 0.06) / 0.08, 0.0, 1.0)
+            freq_arr = freq_hz * (1.0 + vibrato_depth * vib_onset * np.sin(TAU * vibrato_hz * t))
+            cycles = np.cumsum(freq_arr) / SAMPLE_RATE
+        else:
+            cycles = freq_hz * t
+        wave_sig = np.where((cycles % 1.0) < duty, 1.0, -1.0)
+        atk = max(1, min(n // 4, int(0.003 * SAMPLE_RATE)))
+        rel = max(1, min(n // 2, int(release_s * SAMPLE_RATE)))
+        env = np.ones(n, dtype=np.float64)
+        env[:atk] = np.linspace(0.0, 1.0, atk, endpoint=False)
+        env[n - rel:] *= np.linspace(1.0, 0.0, rel)
+        return wave_sig * env
+    out = []
+    phase = 0.0
+    atk = max(1, min(n // 4, int(0.003 * SAMPLE_RATE)))
+    rel = max(1, min(n // 2, int(release_s * SAMPLE_RATE)))
+    for i in range(n):
+        f_cur = freq_hz
+        if vibrato_hz > 0.0 and vibrato_depth > 0.0:
+            t_cur = i / SAMPLE_RATE
+            onset = min(1.0, max(0.0, (t_cur - 0.06) / 0.08))
+            f_cur = freq_hz * (1.0 + vibrato_depth * onset * math.sin(TAU * vibrato_hz * t_cur))
+        phase = (phase + f_cur / SAMPLE_RATE) % 1.0
+        val = 1.0 if phase < duty else -1.0
+        env = 1.0
+        if i < atk:
+            env = i / atk
+        if i >= n - rel:
+            env *= (n - 1 - i) / max(1, rel)
+        out.append(val * env)
+    return out
+
+
+def _synth_nes_triangle_note(n: int, freq_hz: float):
+    """Synthesize a bouncy 4-bit quantized NES triangle-wave bass note."""
+    if n <= 0:
+        return silence(1)
+    if np is not None:
+        t = np.arange(n, dtype=np.float64) / SAMPLE_RATE
+        frac = (freq_hz * t) % 1.0
+        tri = 4.0 * np.abs(frac - 0.5) - 1.0
+        # Classic NES 16-level staircase quantization
+        tri = np.round(tri * 7.5) / 7.5
+        atk = max(1, min(n // 6, int(0.002 * SAMPLE_RATE)))
+        rel = max(1, min(n // 3, int(0.012 * SAMPLE_RATE)))
+        env = np.ones(n, dtype=np.float64)
+        env[:atk] = np.linspace(0.0, 1.0, atk, endpoint=False)
+        env[n - rel:] *= np.linspace(1.0, 0.0, rel)
+        return tri * env
+    out = []
+    atk = max(1, min(n // 6, int(0.002 * SAMPLE_RATE)))
+    rel = max(1, min(n // 3, int(0.012 * SAMPLE_RATE)))
+    for i in range(n):
+        frac = (freq_hz * i / SAMPLE_RATE) % 1.0
+        tri = round((4.0 * abs(frac - 0.5) - 1.0) * 7.5) / 7.5
+        env = 1.0
+        if i < atk:
+            env = i / atk
+        if i >= n - rel:
+            env *= (n - 1 - i) / max(1, rel)
+        out.append(tri * env)
+    return out
+
+
+def _synth_crunchy_saw_note(n: int, freq_hz: float, accent: float = 1.0):
+    """Synthesize a thick detuned dual-sawtooth + power-fifth boss riff note."""
+    if n <= 0:
+        return silence(1)
+    if np is not None:
+        t = np.arange(n, dtype=np.float64) / SAMPLE_RATE
+        saw1 = 2.0 * ((freq_hz * t) % 1.0) - 1.0
+        saw2 = 2.0 * (((freq_hz * 1.007) * t + 0.17) % 1.0) - 1.0
+        fifth = 2.0 * (((freq_hz * 1.498) * t + 0.31) % 1.0) - 1.0
+        raw = 0.52 * saw1 + 0.36 * saw2 + 0.28 * fifth
+        atk = max(1, min(n // 5, int(0.004 * SAMPLE_RATE)))
+        rel = max(1, min(n // 3, int(0.018 * SAMPLE_RATE)))
+        decay = np.exp(-t / max(0.08, (n / SAMPLE_RATE) * 0.95))
+        env = (0.45 + 0.55 * decay) * accent
+        env[:atk] *= np.linspace(0.0, 1.0, atk, endpoint=False)
+        env[n - rel:] *= np.linspace(1.0, 0.0, rel)
+        return raw * env
+    out = []
+    atk = max(1, min(n // 5, int(0.004 * SAMPLE_RATE)))
+    rel = max(1, min(n // 3, int(0.018 * SAMPLE_RATE)))
+    dur = max(0.08, (n / SAMPLE_RATE) * 0.95)
+    for i in range(n):
+        t_cur = i / SAMPLE_RATE
+        saw1 = 2.0 * ((freq_hz * t_cur) % 1.0) - 1.0
+        saw2 = 2.0 * (((freq_hz * 1.007) * t_cur + 0.17) % 1.0) - 1.0
+        fifth = 2.0 * (((freq_hz * 1.498) * t_cur + 0.31) % 1.0) - 1.0
+        env = (0.45 + 0.55 * math.exp(-t_cur / dur)) * accent
+        if i < atk:
+            env *= i / atk
+        if i >= n - rel:
+            env *= (n - 1 - i) / max(1, rel)
+        out.append((0.52 * saw1 + 0.36 * saw2 + 0.28 * fifth) * env)
+    return out
+
+
+def _synth_sub_note(n: int, freq_hz: float):
+    """Synthesize a weighty low sine sub-bass note."""
+    if n <= 0:
+        return silence(1)
+    if np is not None:
+        t = np.arange(n, dtype=np.float64) / SAMPLE_RATE
+        sig = np.sin(TAU * freq_hz * t) + 0.22 * np.sin(TAU * freq_hz * 2.0 * t)
+        atk = max(1, min(n // 5, int(0.006 * SAMPLE_RATE)))
+        rel = max(1, min(n // 3, int(0.025 * SAMPLE_RATE)))
+        env = np.ones(n, dtype=np.float64)
+        env[:atk] = np.linspace(0.0, 1.0, atk, endpoint=False)
+        env[n - rel:] *= np.linspace(1.0, 0.0, rel)
+        return sig * env
+    out = []
+    atk = max(1, min(n // 5, int(0.006 * SAMPLE_RATE)))
+    rel = max(1, min(n // 3, int(0.025 * SAMPLE_RATE)))
+    for i in range(n):
+        t_cur = i / SAMPLE_RATE
+        sig = math.sin(TAU * freq_hz * t_cur) + 0.22 * math.sin(TAU * freq_hz * 2.0 * t_cur)
+        env = 1.0
+        if i < atk:
+            env = i / atk
+        if i >= n - rel:
+            env *= (n - 1 - i) / max(1, rel)
+        out.append(sig * env)
+    return out
+
+
+def _synth_music_kick(n: int, f0: float, f1: float, tau: float, drive: float = 2.0):
+    """Synthesize a punchy pitch-dropping kick drum."""
+    if np is not None:
+        t = np.arange(n, dtype=np.float64) / SAMPLE_RATE
+        freq_arr = f1 + (f0 - f1) * np.exp(-t / max(0.005, tau))
+        phase = TAU * np.cumsum(freq_arr) / SAMPLE_RATE
+        body = np.sin(phase) * np.exp(-t / max(0.02, tau * 2.2))
+        return soft_clip(body, drive)
+    freq_arr = pitch_drop(n, f0, f1, tau)
+    body = multiply(oscillator(freq_arr, "sine"), exp_decay(n, max(0.02, tau * 2.2), attack=0.001))
+    return soft_clip(body, drive)
+
+
+def _synth_music_noise_hit(
+    n: int,
+    rng: random.Random,
+    hp_hz: float,
+    lp_hz: float,
+    tau: float,
+    bits: int = 4,
+    hold: int = 3,
+):
+    """Synthesize a crisp stepped/bit-crushed noise snare or hi-hat hit."""
+    raw = white_noise(n, rng)
+    crushed = bitcrush(raw, bits=bits, hold=hold)
+    filtered = biquad(biquad(crushed, "highpass", hp_hz), "lowpass", lp_hz)
+    return multiply(filtered, exp_decay(n, tau, attack=0.001))
+
+
+def generate_slug_boss_phase1_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~15.0s loopable 112 BPM crunchy bit-crushed sawtooth + sub-bass Phase 1 SlugBoss theme."""
+    rng = random.Random(seed ^ 0x5106B055)
+    bpm = 112.0
+    step_s = 60.0 / bpm / 4.0  # 16th-note duration (~0.13393s)
+    total_steps = 112  # 4 bars of 7/4 (28 beats) -> 15.000s exact seamless loop
+    total_samples = n_samples(total_steps * step_s)
+
+    riff_buf = silence(total_samples)
+    sub_buf = silence(total_samples)
+    drum_buf = silence(total_samples)
+    acid_buf = silence(total_samples)
+
+    # Heavy D Phrygian sludge-boss riff: (step_offset, midi_note, len_steps, accent)
+    bar_riffs = (
+        (
+            (0, 38, 3, 1.15), (3, 38, 1, 0.90), (4, 41, 2, 1.05), (6, 39, 2, 1.00),
+            (8, 38, 3, 1.15), (12, 38, 2, 0.95), (14, 34, 2, 1.00), (16, 36, 2, 1.00),
+            (18, 38, 2, 1.10), (20, 43, 2, 1.15), (22, 41, 2, 1.05), (24, 39, 2, 1.00),
+            (26, 38, 2, 0.95),
+        ),
+        (
+            (0, 38, 3, 1.15), (3, 38, 1, 0.90), (4, 44, 2, 1.20), (6, 43, 2, 1.05),
+            (8, 41, 2, 1.00), (10, 39, 2, 1.00), (12, 38, 3, 1.15), (16, 41, 2, 1.05),
+            (18, 43, 2, 1.10), (20, 39, 2, 1.05), (22, 38, 2, 1.00), (24, 36, 2, 0.95),
+            (26, 34, 2, 1.00),
+        ),
+        (
+            (0, 38, 2, 1.15), (2, 41, 2, 1.05), (4, 43, 2, 1.10), (6, 44, 2, 1.20),
+            (8, 43, 2, 1.05), (10, 41, 2, 1.00), (12, 39, 2, 1.05), (14, 38, 2, 1.00),
+            (16, 46, 3, 1.20), (19, 45, 1, 1.00), (20, 43, 2, 1.10), (22, 41, 2, 1.05),
+            (24, 39, 2, 1.00), (26, 38, 2, 1.00),
+        ),
+        (
+            (0, 38, 2, 1.15), (2, 38, 2, 1.00), (4, 39, 2, 1.05), (6, 41, 2, 1.10),
+            (8, 43, 2, 1.15), (10, 44, 2, 1.20), (12, 43, 2, 1.10), (14, 41, 2, 1.05),
+            (16, 39, 2, 1.05), (18, 38, 2, 1.00), (20, 36, 2, 1.00), (22, 34, 2, 1.05),
+            (24, 33, 2, 1.10), (26, 39, 2, 1.20),
+        ),
+    )
+
+    kick_sig = _synth_music_kick(n_samples(0.18), 135.0, 42.0, 0.042, drive=2.6)
+    snare_noise = _synth_music_noise_hit(n_samples(0.17), rng, 550.0, 3400.0, 0.055, bits=4, hold=4)
+    snare_body = _synth_music_kick(n_samples(0.11), 210.0, 125.0, 0.025, drive=1.8)
+    snare_sig = mix((snare_noise, 0.85), (snare_body, 0.55))
+    hat_closed = _synth_music_noise_hit(n_samples(0.045), rng, 3400.0, 9500.0, 0.015, bits=4, hold=2)
+    hat_open = _synth_music_noise_hit(n_samples(0.12), rng, 3000.0, 9000.0, 0.048, bits=4, hold=3)
+
+    for bar_idx, events in enumerate(bar_riffs):
+        bar_step = bar_idx * 28
+        for step_off, midi_note, dur_steps, accent in events:
+            pos = offset_samples((bar_step + step_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.92)
+            hz = _midi_to_hz(midi_note)
+            _ring_add(riff_buf, _synth_crunchy_saw_note(dur_n, hz, accent=accent), pos, 0.85)
+            _ring_add(sub_buf, _synth_sub_note(n_samples(dur_steps * step_s * 0.96), hz * 0.5), pos, 0.72 * accent)
+
+        # Acidic slime-squelch accent on each bar downbeat
+        downbeat_pos = offset_samples(bar_step * step_s)
+        stab_n = n_samples(step_s * 5.0)
+        stab_hz = _midi_to_hz(50 if bar_idx % 2 == 0 else 51)
+        _ring_add(acid_buf, _synth_crunchy_saw_note(stab_n, stab_hz, accent=0.85), downbeat_pos, 0.45)
+
+        # Gritty lo-fi percussion pattern over 28 sixteenth steps
+        for s_i in range(28):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            if s_i in (0, 6, 8, 14, 16, 22):
+                _ring_add(drum_buf, kick_sig, pos, 0.95)
+            if s_i in (4, 12, 20, 26) or (bar_idx == 3 and s_i in (24, 25, 27)):
+                _ring_add(drum_buf, snare_sig, pos, 0.78 if s_i not in (25, 27) else 0.58)
+            if s_i % 2 == 0:
+                hat = hat_open if s_i in (10, 26) else hat_closed
+                _ring_add(drum_buf, hat, pos, 0.34 if s_i % 4 == 0 else 0.22)
+
+    # Crunchy bit-crushed distortion chain on the sawtooth riff bus
+    crunchy_riff = biquad(bitcrush(soft_clip(riff_buf, 4.2), bits=5, hold=3), "lowpass", 1950.0, q=1.5)
+    clean_sub = biquad(sub_buf, "lowpass", 145.0, order=2)
+    acid_layer = biquad(soft_clip(acid_buf, 2.8), "bandpass", 920.0, q=2.2)
+    gritty_drums = soft_clip(bitcrush(drum_buf, bits=6, hold=2), 1.7)
+
+    combined = mix(
+        (crunchy_riff, 0.62),
+        (clean_sub, 0.55),
+        (gritty_drums, 0.72),
+        (acid_layer, 0.24),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
+def generate_slug_boss_phase2_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~15.8s loopable 152 BPM Mega Man / NES chiptune breakout Phase 2 SlugBoss theme."""
+    rng = random.Random(seed ^ 0xAE6A8A02)
+    bpm = 152.0
+    step_s = 60.0 / bpm / 4.0  # 16th-note duration (~0.09868s)
+    total_bars = 10  # 8-bar A+B heroic chorus + 2-bar high-energy boss turnaround -> 15.789s exact loop
+    total_steps = total_bars * 16
+    total_samples = n_samples(total_steps * step_s)
+
+    lead_buf = silence(total_samples)
+    arp_buf = silence(total_samples)
+    bass_buf = silence(total_samples)
+    drum_buf = silence(total_samples)
+
+    # 10-bar E minor harmonic progression for rapid 16th-note NES arpeggios & triangle bass roots
+    chords = (
+        ((64, 67, 71, 76), 40),  # Bar 0: Em
+        ((64, 67, 71, 76), 40),  # Bar 1: Em
+        ((60, 64, 67, 72), 36),  # Bar 2: C
+        ((62, 66, 69, 74), 38),  # Bar 3: D
+        ((64, 67, 71, 76), 40),  # Bar 4: Em (B-section lift)
+        ((67, 71, 74, 79), 43),  # Bar 5: G
+        ((60, 64, 67, 72), 36),  # Bar 6: C
+        ((59, 63, 66, 71), 35),  # Bar 7: B7
+        ((57, 60, 64, 69), 33),  # Bar 8: Am turnaround
+        ((59, 63, 66, 71), 35),  # Bar 9: B7 climax fill
+    )
+
+    # Driving Mega Man / NES pulse-wave lead melody per bar: (step_off, midi_note, dur_steps, duty)
+    lead_bars = (
+        ((0, 76, 2, 0.25), (2, 79, 2, 0.25), (4, 83, 2, 0.25), (6, 81, 2, 0.25),
+         (8, 79, 2, 0.25), (10, 78, 2, 0.25), (12, 76, 4, 0.25)),
+        ((0, 76, 2, 0.25), (2, 79, 2, 0.25), (4, 83, 2, 0.25), (6, 86, 2, 0.25),
+         (8, 84, 2, 0.25), (10, 83, 2, 0.25), (12, 81, 4, 0.25)),
+        ((0, 84, 2, 0.25), (2, 83, 2, 0.25), (4, 81, 2, 0.25), (6, 79, 2, 0.25),
+         (8, 76, 2, 0.25), (10, 79, 2, 0.25), (12, 84, 4, 0.25)),
+        ((0, 86, 2, 0.25), (2, 84, 2, 0.25), (4, 83, 2, 0.25), (6, 81, 2, 0.25),
+         (8, 78, 2, 0.25), (10, 81, 2, 0.25), (12, 83, 4, 0.25)),
+        # Bars 4..7: High-energy 12.5% nasal pulse breakout
+        ((0, 88, 3, 0.125), (3, 86, 1, 0.125), (4, 83, 2, 0.125), (6, 84, 2, 0.125),
+         (8, 83, 2, 0.125), (10, 79, 2, 0.125), (12, 83, 4, 0.125)),
+        ((0, 86, 3, 0.125), (3, 84, 1, 0.125), (4, 83, 2, 0.125), (6, 81, 2, 0.125),
+         (8, 79, 2, 0.125), (10, 83, 2, 0.125), (12, 86, 4, 0.125)),
+        ((0, 84, 2, 0.125), (2, 88, 2, 0.125), (4, 86, 2, 0.125), (6, 84, 2, 0.125),
+         (8, 83, 2, 0.125), (10, 81, 2, 0.125), (12, 79, 4, 0.125)),
+        ((0, 83, 2, 0.125), (2, 81, 2, 0.125), (4, 79, 2, 0.125), (6, 78, 2, 0.125),
+         (8, 75, 2, 0.125), (10, 78, 2, 0.125), (12, 83, 4, 0.125)),
+        # Bars 8..9: Rapid 16th-note Mega Man turnaround run
+        ((0, 81, 1, 0.25), (1, 83, 1, 0.25), (2, 84, 2, 0.25), (4, 88, 2, 0.25),
+         (6, 86, 2, 0.25), (8, 84, 2, 0.25), (10, 83, 2, 0.25), (12, 81, 2, 0.25), (14, 79, 2, 0.25)),
+        ((0, 78, 1, 0.125), (1, 81, 1, 0.125), (2, 83, 2, 0.125), (4, 87, 2, 0.125),
+         (6, 83, 2, 0.125), (8, 81, 1, 0.125), (9, 83, 1, 0.125), (10, 86, 2, 0.125),
+         (12, 87, 2, 0.125), (14, 88, 2, 0.125)),
+    )
+
+    nes_kick = _synth_music_kick(n_samples(0.11), 190.0, 52.0, 0.024, drive=1.5)
+    nes_snare = _synth_music_noise_hit(n_samples(0.11), rng, 950.0, 6200.0, 0.036, bits=3, hold=3)
+    nes_hat = _synth_music_noise_hit(n_samples(0.032), rng, 5200.0, 12000.0, 0.011, bits=3, hold=2)
+    nes_tom = _synth_music_kick(n_samples(0.09), 260.0, 120.0, 0.026, drive=1.3)
+
+    for bar_idx in range(total_bars):
+        bar_step = bar_idx * 16
+        chord_notes, bass_root = chords[bar_idx]
+
+        # Ch 1: Pulse-wave lead melody
+        for step_off, midi_note, dur_steps, duty in lead_bars[bar_idx]:
+            pos = offset_samples((bar_step + step_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.90)
+            vib_d = 0.008 if dur_steps >= 3 else 0.0
+            note = _synth_pulse_note(dur_n, _midi_to_hz(midi_note), duty=duty, vibrato_hz=6.5, vibrato_depth=vib_d)
+            _ring_add(lead_buf, note, pos, 0.62)
+
+        # Ch 2: Rapid 16th-note pulse arpeggios
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            arp_midi = chord_notes[s_i % len(chord_notes)]
+            arp_note = _synth_pulse_note(n_samples(step_s * 0.78), _midi_to_hz(arp_midi), duty=0.25, release_s=0.008)
+            _ring_add(arp_buf, arp_note, pos, 0.30)
+
+        # Ch 3: Bouncy octave-jumping NES triangle bassline
+        bass_pattern = (0, 12, 0, 12, 7, 12, 0, 12, 0, 12, 5, 7, 12, 7, 5, 3)
+        for s_i in range(0, 16, 2):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            b_note = bass_root + bass_pattern[s_i]
+            tri = _synth_nes_triangle_note(n_samples(step_s * 1.85), _midi_to_hz(b_note))
+            _ring_add(bass_buf, tri, pos, 0.85)
+        # Driving 16th-note bass pickup on final beat
+        pickup_pos = offset_samples((bar_step + 15) * step_s)
+        _ring_add(bass_buf, _synth_nes_triangle_note(n_samples(step_s * 0.9), _midi_to_hz(bass_root + 12)),
+                  pickup_pos, 0.72)
+
+        # Ch 4: Crisp NES noise-channel percussion
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            if s_i in (0, 6, 8, 10):
+                _ring_add(drum_buf, nes_kick, pos, 0.88)
+            if s_i in (4, 12) or (bar_idx in (3, 7, 9) and s_i in (13, 14, 15)):
+                _ring_add(drum_buf, nes_snare, pos, 0.68 if s_i in (4, 12) else 0.56)
+            if bar_idx == 9 and s_i in (10, 11):
+                _ring_add(drum_buf, nes_tom, pos, 0.65)
+            _ring_add(drum_buf, nes_hat, pos, 0.28 if s_i % 2 == 0 else 0.16)
+
+    # Gentle anti-aliasing lowpass on pulse channels for crisp NES fidelity without harshness
+    lead_clean = biquad(lead_buf, "lowpass", 8800.0)
+    arp_clean = biquad(arp_buf, "lowpass", 7200.0)
+    bass_clean = biquad(bass_buf, "lowpass", 1800.0)
+
+    combined = mix(
+        (lead_clean, 0.62),
+        (arp_clean, 0.40),
+        (bass_clean, 0.68),
+        (drum_buf, 0.58),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
+MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
+    "slug_boss_phase1.ogg": generate_slug_boss_phase1_music,
+    "slug_boss_phase2.ogg": generate_slug_boss_phase2_music,
+}
+
+
+def generate_music(
+    base_seed: int = DEFAULT_SEED,
+    output_dir: str = MUSIC_DIR,
+    verify: bool = True,
+    force: bool = False,
+) -> List[str]:
+    """Synthesize and export all procedural boss music tracks into output_dir (default: assets/audio/music/)."""
+    written = []
+    for name, gen_fn in sorted(MUSIC_GENERATORS.items()):
+        path = os.path.join(output_dir, output_name(name))
+        if os.path.exists(path) and not force:
+            print(f"[MUSIC] Skipping existing {path} (use --force to overwrite)")
+            continue
+        signal = gen_fn(sound_seed(name, base_seed))
+        encoder, did_write = export_ogg_if_changed(signal, path)
+        if not did_write:
+            print(f"[MUSIC] Unchanged {path} (PCM identical, skipped write)")
+            continue
+        length = verify_ogg(path) if verify else len(signal) / SAMPLE_RATE
+        status = "verified" if verify else "unverified"
+        print(f"[MUSIC] Wrote {path} ({length:.2f}s, {encoder}, {status})")
+        written.append(path)
+    return written
+
+
+# ==============================================================================
 # CLI
 # ==============================================================================
 
@@ -1438,6 +1881,8 @@ def parse_arguments(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--list-presets", action="store_true", help="List available presets and exit.")
     parser.add_argument("--fill-missing", action="store_true",
                         help="Generate all missing SFX (default action when no --preset/--name is given).")
+    parser.add_argument("--music", action="store_true",
+                        help=f"Generate procedural boss music tracks into {MUSIC_DIR}.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing files.")
     parser.add_argument("--no-verify", action="store_true", help="Skip pygame.mixer.Sound load verification.")
     return parser.parse_args(argv)
@@ -1468,6 +1913,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     overrides = {"duration": args.duration} if args.duration else {}
     try:
+        if args.music:
+            base_seed = args.seed if args.seed is not None else DEFAULT_SEED
+            generate_music(base_seed, args.output_dir or MUSIC_DIR, verify=verify, force=args.force)
+            return 0
         if args.preset or args.name:
             name = args.name or args.preset
             preset, recipe_overrides = (args.preset, {}) if args.preset else resolve_recipe(name)

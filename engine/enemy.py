@@ -1040,6 +1040,8 @@ class SlugBoss(NightBoss):
         self.speed = SLUG_BOSS_SPEED
         self.attack_type = "LUNGE"
         self.attack_mode = "CHARGE"  # Alternates "CHARGE" <-> "SLIME"
+        self.phase = 1
+        self.minions_summoned = False
         self.wind_up_duration = 0.65
         self.strike_duration = 0.45
         self.recovery_duration = 0.85
@@ -1051,7 +1053,99 @@ class SlugBoss(NightBoss):
         packet = super().get_visual_packet()
         packet["color_hint"] = (212, 174, 52)
         packet["attack_mode"] = self.attack_mode
+        packet["phase"] = self.phase
         return packet
+
+    def _summon_phase2_minions(self, state):
+        """Play slug_boss_slime.ogg and summon 10 walkable, Act-scaled SlugEnemy minions around SlugBoss."""
+        from constants import (
+            ACT2_DAMAGE_MULTIPLIER,
+            ACT2_HP_MULTIPLIER,
+            SLUG_BOSS_MINION_COUNT,
+            SLUG_BOSS_SLIME_SFX,
+            get_act_saturation,
+        )
+
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx(SLUG_BOSS_SLIME_SFX)
+            except Exception:
+                pass
+
+        enemies = getattr(state, "enemies", None)
+        if enemies is None:
+            return
+        world = getattr(state, "world", None)
+
+        current_act = int(getattr(state, "current_act", 0) or 0)
+        empowered_act = bool(getattr(state, "empowered_act", False))
+        hp_mult = 1.0
+        dmg_mult = 1.0
+        spd_mult = 1.0
+        cd_mult = 1.0
+        emp_flag = None
+        if current_act >= 1 or empowered_act:
+            sat = get_act_saturation(max(1, current_act if current_act >= 1 else 2))
+            spd_mult = float(sat.get("speed_multiplier", 1.0))
+            cd_mult = float(sat.get("cooldown_multiplier", 1.0))
+            if empowered_act and current_act <= 2:
+                hp_mult = float(max(ACT2_HP_MULTIPLIER, float(sat["hp_multiplier"])))
+                dmg_mult = float(max(ACT2_DAMAGE_MULTIPLIER, float(sat["damage_multiplier"])))
+                emp_flag = True
+            else:
+                hp_mult = float(sat["hp_multiplier"])
+                dmg_mult = float(sat["damage_multiplier"])
+                emp_flag = bool(sat["empowered"])
+
+        next_net_id = max((getattr(e, "network_id", -1) for e in enemies), default=0) + 1
+        cx, cy = self.get_center()
+        count = int(SLUG_BOSS_MINION_COUNT)
+
+        for idx in range(count):
+            angle = (2.0 * math.pi * idx) / max(1, count)
+            ring_r = 96.0 if (idx % 2 == 0) else 124.0
+            minion = SlugEnemy(cx + math.cos(angle) * ring_r - 16.0, cy + math.sin(angle) * ring_r - 16.0)
+            if world is not None and hasattr(world, "find_nearest_walkable_spawn"):
+                wx, wy = world.find_nearest_walkable_spawn(minion.x, minion.y, minion.width, minion.height)
+                minion.x, minion.y = float(wx), float(wy)
+                minion.origin_x, minion.origin_y = float(wx), float(wy)
+            if (
+                hp_mult != 1.0
+                or dmg_mult != 1.0
+                or emp_flag is not None
+                or spd_mult != 1.0
+                or cd_mult != 1.0
+            ):
+                minion.apply_act_scaling(
+                    hp_mult,
+                    dmg_mult,
+                    empowered=emp_flag,
+                    speed_multiplier=spd_mult,
+                    cooldown_multiplier=cd_mult,
+                )
+            minion.network_id = next_net_id
+            next_net_id += 1
+            enemies.append(minion)
+
+        if world is not None:
+            world._enemies = list(enemies)
+
+    def update(self, dt, state):
+        """Advance SlugBoss AI and trigger Phase 2 + 10-Slug minion summon at <= 50% HP."""
+        super().update(dt, state)
+        from constants import SLUG_BOSS_PHASE2_HP_RATIO
+        if (
+            not self.minions_summoned
+            and self.hp > 0
+            and self.max_hp > 0
+            and self.hp <= self.max_hp * SLUG_BOSS_PHASE2_HP_RATIO
+        ):
+            self.phase = 2
+            self.minions_summoned = True
+            net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+            if net_mode != "CLIENT":
+                self._summon_phase2_minions(state)
 
     def _lock_charge_vector(self):
         """Lock a normalized charge vector toward active_target or current facing."""

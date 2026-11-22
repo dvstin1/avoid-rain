@@ -3202,38 +3202,69 @@ class GameState:
             if num['time'] <= 0: self.damage_numbers.remove(num)
 
     def _update_audio_track(self, dt):
+        from constants import (
+            SLUG_BOSS_PHASE1_MUSIC,
+            SLUG_BOSS_PHASE2_HP_RATIO,
+            SLUG_BOSS_PHASE2_MUSIC,
+        )
         world_name = getattr(self.world, 'name', 'sanctuary')
         target_track = "world_exploration.ogg"
-        if world_name == "sanctuary": target_track = "sanctuary_hub.ogg"
+        if world_name == "sanctuary":
+            target_track = "sanctuary_hub.ogg"
         if (
             getattr(self.stats, 'data', {}).get("last_run_result") == "VICTORY"
             and world_name in ("final_boss", "night_boss_arena")
         ):
             self.player.active_track_name = "victory_theme.ogg"
             return
-        if self.player.hp <= 0: self.player.active_track_name = "death_theme.ogg"; return
+        if self.player.hp <= 0:
+            self.player.active_track_name = "death_theme.ogg"
+            return
         proximity_threshold = 15 * TILE_SIZE
         cooldown_limit = 3.0
         near_miniboss = near_night_boss = near_final_author = False
+        near_slug_boss_track = None
         px, py = self.player.get_center()
         for enemy in self.enemies:
+            if getattr(enemy, "hp", 1) <= 0:
+                continue
             if getattr(enemy, 'is_miniboss', False):
                 ex, ey = enemy.get_center()
                 if (px - ex)**2 + (py - ey)**2 <= proximity_threshold**2:
                     ename = getattr(enemy, 'name', '')
-                    if ename == "The Final Author": near_final_author = True
-                    elif ename == "Night Boss": near_night_boss = True
-                    else: near_miniboss = True
-                    break
+                    if ename == "The Final Author":
+                        near_final_author = True
+                        break
+                    if getattr(enemy, "is_slug_boss", False):
+                        max_hp = float(getattr(enemy, "max_hp", 0.0) or 0.0)
+                        cur_hp = float(getattr(enemy, "hp", 0.0) or 0.0)
+                        in_phase2 = getattr(enemy, "phase", 1) >= 2 or (
+                            max_hp > 0.0 and 0.0 < cur_hp <= max_hp * SLUG_BOSS_PHASE2_HP_RATIO
+                        )
+                        near_slug_boss_track = SLUG_BOSS_PHASE2_MUSIC if in_phase2 else SLUG_BOSS_PHASE1_MUSIC
+                    elif ename == "Night Boss":
+                        near_night_boss = True
+                    else:
+                        near_miniboss = True
         current_active = self.player.active_track_name
-        combat_tracks = ("miniboss_combat.ogg", "night_boss.ogg", "final_reckoning.ogg")
-        if near_final_author: self.player.active_track_name = "final_reckoning.ogg"; self.player.miniboss_cooldown_accumulator = 0.0
-        elif near_night_boss: self.player.active_track_name = "night_boss.ogg"; self.player.miniboss_cooldown_accumulator = 0.0
-        elif near_miniboss: self.player.active_track_name = "miniboss_combat.ogg"; self.player.miniboss_cooldown_accumulator = 0.0
-        elif current_active in combat_tracks:
+        if near_final_author:
+            self.player.active_track_name = "final_reckoning.ogg"
+            self.player.miniboss_cooldown_accumulator = 0.0
+        elif near_slug_boss_track is not None:
+            self.player.active_track_name = near_slug_boss_track
+            self.player.miniboss_cooldown_accumulator = 0.0
+        elif near_night_boss:
+            self.player.active_track_name = "night_boss.ogg"
+            self.player.miniboss_cooldown_accumulator = 0.0
+        elif near_miniboss:
+            self.player.active_track_name = "miniboss_combat.ogg"
+            self.player.miniboss_cooldown_accumulator = 0.0
+        elif current_active in BOSS_COMBAT_TRACKS:
             self.player.miniboss_cooldown_accumulator += dt
-            if self.player.miniboss_cooldown_accumulator >= cooldown_limit: self.player.active_track_name = target_track
-        else: self.player.active_track_name = target_track
+            if self.player.miniboss_cooldown_accumulator >= cooldown_limit:
+                self.player.active_track_name = target_track
+        else:
+            self.player.active_track_name = target_track
 
     def get_staged_respite_info(self):
         """Calculate levels, staged counts, next costs, and total costs for respite upgrades."""
