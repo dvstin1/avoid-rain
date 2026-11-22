@@ -4,6 +4,7 @@ Central registry for all game configuration and 'magic numbers'.
 
 import tempfile
 from pathlib import Path
+import pygame
 
 def get_generated_world_path() -> str:
     """Returns a cross-platform temporary path for the transient generated world JSON."""
@@ -33,6 +34,102 @@ COLOR_MODE_GAMEPAD = COLOR_SELECTION
 
 # Gamepad Configuration
 JOYSTICK_DEADZONE = 0.2
+
+# Default Remappable Keyboard Bindings & Display Labels (Batch 7)
+# pylint: disable=no-member
+DEFAULT_KEYBINDINGS = {
+    "move_up": pygame.K_w,
+    "move_down": pygame.K_s,
+    "move_left": pygame.K_a,
+    "move_right": pygame.K_d,
+    "attack": pygame.K_SPACE,
+    "block": pygame.K_k,
+    "dash": pygame.K_LSHIFT,
+    "flask": pygame.K_1,
+    "swap": pygame.K_q,
+    "inspect": pygame.K_TAB,
+    "respite_rest": pygame.K_r,
+}
+# pylint: enable=no-member
+
+KEYBINDING_ACTION_LABELS = {
+    "move_up": "Move Up",
+    "move_down": "Move Down",
+    "move_left": "Move Left",
+    "move_right": "Move Right",
+    "attack": "Attack / Interact",
+    "block": "Block (Shield)",
+    "dash": "Dash (Invulnerable)",
+    "flask": "Heal (Flask)",
+    "swap": "Swap Weapon",
+    "inspect": "Inspect Details",
+    "respite_rest": "Respite Rest",
+}
+
+KEYBINDING_GAMEPAD_LABELS = {
+    "move_up": "(GP) L-Stick Up",
+    "move_down": "(GP) L-Stick Down",
+    "move_left": "(GP) L-Stick Left",
+    "move_right": "(GP) L-Stick Right",
+    "attack": "(GP) Cross / Square",
+    "block": "(GP) R2",
+    "dash": "(GP) Circle",
+    "flask": "(GP) Triangle",
+    "swap": "(GP) L1",
+    "inspect": "(GP) R1",
+    "respite_rest": "(GP) Circle (Menu)",
+}
+
+_SHORT_KEY_NAMES = {
+    "left shift": "LSHIFT",
+    "right shift": "RSHIFT",
+    "left ctrl": "LCTRL",
+    "right ctrl": "RCTRL",
+    "left alt": "LALT",
+    "right alt": "RALT",
+    "left meta": "LMETA",
+    "right meta": "RMETA",
+    "space": "SPACE",
+    "tab": "TAB",
+    "return": "ENTER",
+    "keypad enter": "KP_ENTER",
+    "escape": "ESC",
+    "backspace": "BKSP",
+    "caps lock": "CAPSLOCK",
+}
+
+
+def format_key_name(key_code: int) -> str:
+    """Return a concise uppercase display name for a pygame key code (e.g. 'SPACE', 'LSHIFT', 'TAB')."""
+    try:
+        code = int(key_code)
+    except (TypeError, ValueError):
+        return "?"
+    try:
+        raw = str(pygame.key.name(code) or "").strip()
+    except Exception:
+        raw = ""
+    if not raw or raw == "unknown key":
+        return f"KEY_{code}"
+    low = raw.lower()
+    if low in _SHORT_KEY_NAMES:
+        return _SHORT_KEY_NAMES[low]
+    return raw.upper().replace(" ", "_")
+
+
+def normalize_keybindings(raw) -> dict:
+    """Return a complete action -> key_code dict hydrated from DEFAULT_KEYBINDINGS."""
+    bindings = dict(DEFAULT_KEYBINDINGS)
+    if not isinstance(raw, dict):
+        return bindings
+    # pylint: disable=no-member
+    esc_code = pygame.K_ESCAPE
+    # pylint: enable=no-member
+    for action, default_code in DEFAULT_KEYBINDINGS.items():
+        val = raw.get(action, default_code)
+        if isinstance(val, int) and not isinstance(val, bool) and val > 0 and val != esc_code:
+            bindings[action] = val
+    return bindings
 
 # Colors (R, G, B)
 COLOR_BLACK = (0, 0, 0)

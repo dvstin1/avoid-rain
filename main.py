@@ -8,7 +8,8 @@ import argparse
 import pygame
 from constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS, AUTOSAVE_INTERVAL,
-    INPUT_MODE_GAMEPAD, INPUT_MODE_KEYBOARD, JOYSTICK_DEADZONE
+    INPUT_MODE_GAMEPAD, INPUT_MODE_KEYBOARD, JOYSTICK_DEADZONE,
+    DEFAULT_KEYBINDINGS,
 )
 from engine.game_state import GameState
 from engine.pause_menu import PauseMenu
@@ -16,13 +17,83 @@ from engine.title_menu import TitleMenu, TitleMenuState
 from engine.autosave import AutosaveManager
 from engine.audio import AudioManager
 from rendering.renderer import Renderer
+from ui.menu import ControlsConfigMenu
 
 # pylint: disable=no-member,too-many-locals,too-many-branches,too-many-statements,broad-exception-caught
 # pylint: disable=multiple-statements,import-outside-toplevel,trailing-whitespace,line-too-long
 # pylint: disable=unused-import,unused-argument,redefined-outer-name,reimported
 
-def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: AudioManager = None):
+
+def _get_keybindings(state) -> dict:
+    """Return the active action -> pygame key code map for state, falling back to DEFAULT_KEYBINDINGS."""
+    raw = getattr(state, "keybindings", None) if state is not None else None
+    if isinstance(raw, dict):
+        return {k: raw.get(k, v) for k, v in DEFAULT_KEYBINDINGS.items()}
+    return dict(DEFAULT_KEYBINDINGS)
+
+
+def _handle_controls_keydown(event_key, state, controls_menu: ControlsConfigMenu, audio_manager=None) -> bool:
+    """Process a KEYDOWN event inside ControlsConfigMenu. Returns True if user exits back to parent menu."""
+    if controls_menu.listening_for_key:
+        res = controls_menu.capture_key(event_key, state)
+        if audio_manager and res == "BOUND":
+            audio_manager.play_sfx("menu_confirm.ogg")
+        return False
+
+    kb = _get_keybindings(state)
+    if event_key == pygame.K_ESCAPE:
+        return controls_menu.cancel() == "BACK"
+    if event_key in (pygame.K_UP, kb["move_up"]):
+        controls_menu.navigate(-1)
+        if audio_manager:
+            audio_manager.play_sfx("menu_navigate.ogg")
+        return False
+    if event_key in (pygame.K_DOWN, kb["move_down"]):
+        controls_menu.navigate(1)
+        if audio_manager:
+            audio_manager.play_sfx("menu_navigate.ogg")
+        return False
+    if event_key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+        res = controls_menu.confirm(state)
+        if audio_manager and res in ("LISTENING", "RESET", "BACK"):
+            audio_manager.play_sfx("menu_confirm.ogg")
+        return res == "BACK"
+    return False
+
+
+def _handle_controls_joybutton(button, state, controls_menu: ControlsConfigMenu, audio_manager=None) -> bool:
+    """Process a JOYBUTTONDOWN event inside ControlsConfigMenu. Returns True if user exits back to parent menu."""
+    if button == 1:
+        return controls_menu.cancel() == "BACK"
+    if button == 0 and not controls_menu.listening_for_key:
+        res = controls_menu.confirm(state)
+        if audio_manager and res in ("LISTENING", "RESET", "BACK"):
+            audio_manager.play_sfx("menu_confirm.ogg")
+        return res == "BACK"
+    return False
+
+
+def _poll_gamepad_vertical() -> float:
+    """Return vertical gamepad menu navigation input in [-1.0, 1.0]."""
+    if pygame.joystick.get_count() <= 0:
+        return 0.0
+    joy = pygame.joystick.Joystick(0)
+    ay = joy.get_axis(1)
+    hy = -joy.get_hat(0)[1]
+    if abs(hy) > 0:
+        return float(hy)
+    return float(ay) if abs(ay) > 0.3 else 0.0
+
+
+def handle_title_events(
+    state,
+    renderer,
+    title_menu: TitleMenu,
+    audio_manager: AudioManager = None,
+    controls_menu: ControlsConfigMenu | None = None,
+):
     """Handle events during the title screen with Auto Input Mode and Ratcheted Navigation."""
+    in_controls = getattr(title_menu.state, 'name', '') == 'CONTROLS'
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False, False, False
@@ -33,20 +104,29 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
         if event.type in (pygame.JOYBUTTONDOWN, pygame.JOYHATMOTION, pygame.JOYAXISMOTION):
             state.input_mode = INPUT_MODE_GAMEPAD
 
+        in_controls = getattr(title_menu.state, 'name', '') == 'CONTROLS'
         if event.type == pygame.JOYBUTTONDOWN:
+            if in_controls:
+                if controls_menu is not None:
+                    if _handle_controls_joybutton(event.button, state, controls_menu, audio_manager):
+                        title_menu.state = TitleMenuState.MAIN
+                elif event.button == 1:
+                    title_menu.state = TitleMenuState.MAIN
+                continue
             if event.button == 0: # Cross/A
                 title_menu.confirm()
             if event.button == 1: # Circle/B (Cancel)
                 if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
                     title_menu.state = TitleMenuState.MAIN
-                elif getattr(title_menu.state, 'name', '') == 'CONTROLS':
-                    title_menu.state = TitleMenuState.MAIN
         
         if event.type == pygame.KEYDOWN:
-            if getattr(title_menu.state, 'name', '') == 'CONTROLS':
-                if event.key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
+            if in_controls:
+                if controls_menu is not None:
+                    if _handle_controls_keydown(event.key, state, controls_menu, audio_manager):
+                        title_menu.state = TitleMenuState.MAIN
+                elif event.key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
                     title_menu.state = TitleMenuState.MAIN
-                return True, True, False
+                continue
 
             if title_menu.state == TitleMenuState.CONFIRM_NEW_GAME:
                 if event.key in (pygame.K_ESCAPE, pygame.K_n):
@@ -89,12 +169,36 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
     # --- Unified Navigation Polling (Title) ---
     if getattr(state, 'lobby_editing_name', False):
         return True, True, False
+    in_controls = getattr(title_menu.state, 'name', '') == 'CONTROLS'
+    if in_controls:
+        gp_y = _poll_gamepad_vertical()
+        if abs(gp_y) <= 0.3:
+            return True, True, True
+        if (
+            controls_menu is not None
+            and not controls_menu.listening_for_key
+            and not state.input_ratchet_latched
+            and state.menu_nav_cooldown <= 0
+        ):
+            if gp_y > 0.6:
+                controls_menu.navigate(1)
+                state.input_ratchet_latched = True
+                state.menu_nav_cooldown = 0.2
+                if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
+            elif gp_y < -0.6:
+                controls_menu.navigate(-1)
+                state.input_ratchet_latched = True
+                state.menu_nav_cooldown = 0.2
+                if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
+        return True, True, False
+
+    kb = _get_keybindings(state)
     move_dir = get_movement_actions(state)
     ratchet_reset = False
     
     # Targeted Neutral Check
     keys = pygame.key.get_pressed()
-    kb_v_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_UP], keys[pygame.K_DOWN]])
+    kb_v_neutral = not any([keys[kb["move_up"]], keys[kb["move_down"]], keys[pygame.K_UP], keys[pygame.K_DOWN]])
     
     gp_v_neutral = True
     if pygame.joystick.get_count() > 0:
@@ -120,7 +224,13 @@ def handle_title_events(state, renderer, title_menu: TitleMenu, audio_manager: A
 
     return True, True, ratchet_reset
 
-def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager: AudioManager = None):
+
+def handle_game_events(
+    state,
+    pause_menu: PauseMenu | None = None,
+    audio_manager: AudioManager = None,
+    controls_menu: ControlsConfigMenu | None = None,
+):
     """Handle events during the main game loop with Auto Input Mode and Ratcheted Navigation."""
     running = True
     attack = False
@@ -129,6 +239,7 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
     swap = False
     inspect = False
     mouse_click = None
+    kb = _get_keybindings(state)
     
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -143,21 +254,31 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1: mouse_click = event.pos
         
+        in_pause_controls = (
+            pause_menu is not None
+            and pause_menu.is_open()
+            and getattr(pause_menu.state, 'name', '') == 'CONTROLS'
+        )
         # Controller Buttons
         if event.type == pygame.JOYBUTTONDOWN:
             if pause_menu and pause_menu.is_open():
+                from engine.pause_menu import PauseMenuState
+                if in_pause_controls:
+                    if controls_menu is not None:
+                        if _handle_controls_joybutton(event.button, state, controls_menu, audio_manager):
+                            pause_menu.state = PauseMenuState.MAIN
+                    elif event.button == 1:
+                        pause_menu.state = PauseMenuState.MAIN
+                    continue
                 if event.button == 0: # Confirm
                     if pause_menu.get_selected() == "Controls":
-                        from engine.pause_menu import PauseMenuState
+                        if controls_menu is not None:
+                            controls_menu.reset_view()
                         pause_menu.state = PauseMenuState.CONTROLS
                     else:
                         pause_menu.confirm()
                 elif event.button == 1: # Back / Cancel
-                    from engine.pause_menu import PauseMenuState
-                    if getattr(pause_menu.state, 'name', '') == 'CONTROLS':
-                        pause_menu.state = PauseMenuState.MAIN
-                    else:
-                        pause_menu.close()
+                    pause_menu.close()
             else:
                 if event.button == 0:
                     if getattr(state, 'active_respite', None) or getattr(state, 'binder_dialog', None):
@@ -185,9 +306,12 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
                     if pause_menu: pause_menu.toggle()
 
         if event.type == pygame.KEYDOWN:
-            if pause_menu is not None and pause_menu.is_open() and getattr(pause_menu.state, 'name', '') == 'CONTROLS':
+            if in_pause_controls:
                 from engine.pause_menu import PauseMenuState
-                if event.key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
+                if controls_menu is not None:
+                    if _handle_controls_keydown(event.key, state, controls_menu, audio_manager):
+                        pause_menu.state = PauseMenuState.MAIN
+                elif event.key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
                     pause_menu.state = PauseMenuState.MAIN
                 continue
 
@@ -204,7 +328,22 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
                     continue
                 if pause_menu is not None: pause_menu.toggle()
                 else: running = False
-            if getattr(state, 'active_respite', None) and event.key == pygame.K_r:
+                continue
+
+            if pause_menu is not None and pause_menu.is_open():
+                if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                    if pause_menu.get_selected() == "Controls":
+                        from engine.pause_menu import PauseMenuState
+                        if controls_menu is not None:
+                            controls_menu.reset_view()
+                        pause_menu.state = PauseMenuState.CONTROLS
+                    else:
+                        pause_menu.confirm()
+                        if audio_manager:
+                            audio_manager.play_sfx("menu_confirm.ogg")
+                continue
+
+            if getattr(state, 'active_respite', None) and event.key == kb["respite_rest"]:
                 state.active_respite.execute_rest(state, audio_manager=audio_manager)
                 continue
             if (
@@ -217,31 +356,49 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
                 if getattr(state, 'active_respite', None) or getattr(state, 'binder_dialog', None):
                     state.input_ratchet_latched = False
                 attack = True
-            if event.key == pygame.K_SPACE:
+            if event.key == kb["attack"]:
                 if getattr(state, 'active_respite', None) or getattr(state, 'binder_dialog', None):
                     state.input_ratchet_latched = False
                 attack = True
-            if event.key == pygame.K_1: flask = True
-            if event.key == pygame.K_q: swap = True
-            if event.key == pygame.K_TAB: inspect = True
-            if event.key == pygame.K_LSHIFT: dash = True
-            if pause_menu is not None and pause_menu.is_open():
-                if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
-                    if pause_menu.get_selected() == "Controls":
-                        from engine.pause_menu import PauseMenuState
-                        pause_menu.state = PauseMenuState.CONTROLS
-                    else:
-                        pause_menu.confirm()
-                        if audio_manager:
-                            audio_manager.play_sfx("menu_confirm.ogg")
+            if event.key == kb["flask"]: flask = True
+            if event.key == kb["swap"]: swap = True
+            if event.key == kb["inspect"]: inspect = True
+            if event.key == kb["dash"]: dash = True
 
     # --- Unified Navigation Polling (Game/Pause) ---
+    in_pause_controls = (
+        pause_menu is not None
+        and pause_menu.is_open()
+        and getattr(pause_menu.state, 'name', '') == 'CONTROLS'
+    )
+    if in_pause_controls:
+        gp_y = _poll_gamepad_vertical()
+        if abs(gp_y) <= 0.3:
+            return running, attack, flask, dash, swap, inspect, mouse_click, True
+        if (
+            controls_menu is not None
+            and not controls_menu.listening_for_key
+            and not state.input_ratchet_latched
+            and state.menu_nav_cooldown <= 0
+        ):
+            if gp_y > 0.6:
+                controls_menu.navigate(1)
+                state.input_ratchet_latched = True
+                state.menu_nav_cooldown = 0.2
+                if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
+            elif gp_y < -0.6:
+                controls_menu.navigate(-1)
+                state.input_ratchet_latched = True
+                state.menu_nav_cooldown = 0.2
+                if audio_manager: audio_manager.play_sfx("menu_navigate.ogg")
+        return running, attack, flask, dash, swap, inspect, mouse_click, False
+
     move_dir = get_movement_actions(state)
     ratchet_reset = False
     
     # Targeted Neutral Check: Only check vertical navigation axis
     keys = pygame.key.get_pressed()
-    kb_v_neutral = not any([keys[pygame.K_w], keys[pygame.K_s], keys[pygame.K_UP], keys[pygame.K_DOWN]])
+    kb_v_neutral = not any([keys[kb["move_up"]], keys[kb["move_down"]], keys[pygame.K_UP], keys[pygame.K_DOWN]])
     
     gp_v_neutral = True
     if pygame.joystick.get_count() > 0:
@@ -273,13 +430,14 @@ def handle_game_events(state, pause_menu: PauseMenu | None = None, audio_manager
 def get_movement_actions(state):
     """Poll keyboard and joysticks for movement actions."""
     move_dir = [0.0, 0.0]
+    kb = _get_keybindings(state)
     
-    # 1. Keyboard Polling
+    # 1. Keyboard Polling (remappable WASD + always-available Arrow keys)
     keys = pygame.key.get_pressed()
-    if keys[pygame.K_w] or keys[pygame.K_UP]: move_dir[1] -= 1
-    if keys[pygame.K_s] or keys[pygame.K_DOWN]: move_dir[1] += 1
-    if keys[pygame.K_a] or keys[pygame.K_LEFT]: move_dir[0] -= 1
-    if keys[pygame.K_d] or keys[pygame.K_RIGHT]: move_dir[0] += 1
+    if keys[kb["move_up"]] or keys[pygame.K_UP]: move_dir[1] -= 1
+    if keys[kb["move_down"]] or keys[pygame.K_DOWN]: move_dir[1] += 1
+    if keys[kb["move_left"]] or keys[pygame.K_LEFT]: move_dir[0] -= 1
+    if keys[kb["move_right"]] or keys[pygame.K_RIGHT]: move_dir[0] += 1
     
     # 2. Gamepad Polling (If active)
     if pygame.joystick.get_count() > 0:
@@ -372,6 +530,7 @@ def main():
         has_save=StatisticsTracker.has_compatible_save(),
         online_mode=getattr(state, "online_mode", True),
     )
+    controls_menu = ControlsConfigMenu()
     title_transition = TitleTransition()
     
     in_title = True
@@ -422,8 +581,10 @@ def main():
                         in_title = False
                     continue
 
-                in_title, running, ratchet_reset = handle_title_events(state, renderer, title_menu, audio_manager=audio)
-                renderer.draw_title_screen(title_menu, state)
+                in_title, running, ratchet_reset = handle_title_events(
+                    state, renderer, title_menu, audio_manager=audio, controls_menu=controls_menu
+                )
+                renderer.draw_title_screen(title_menu, state, controls_menu=controls_menu)
                 audio.update(dt, "title_theme.ogg")
                 if ratchet_reset: state.input_ratchet_latched = False
                 
@@ -449,6 +610,7 @@ def main():
                             title_transition.start("new_draft")
                             continue
                     if selected == 'Controls':
+                        controls_menu.reset_view()
                         title_menu.state = TitleMenuState.CONTROLS
                         continue
                     if selected == 'Quit': running = False
@@ -459,14 +621,16 @@ def main():
                 forced_ev = getattr(state, "forced_marginalia_event_id", None)
                 if forced_ev != pause_menu.forced_marginalia_event_id:
                     pause_menu.set_forced_marginalia_event_id(forced_ev)
-                ev_res = handle_game_events(state, pause_menu=pause_menu, audio_manager=audio)
+                ev_res = handle_game_events(
+                    state, pause_menu=pause_menu, audio_manager=audio, controls_menu=controls_menu
+                )
                 running, attack, flask, dash, swap, inspect, mouse_click, ratchet_reset = ev_res
                 if ratchet_reset: state.input_ratchet_latched = False
                 
                 if pause_menu.is_open():
                     audio.update_rain_audio(0.0, paused=True)
                     audio.stop_enemy_move_sounds()
-                    renderer.draw_pause_menu(pause_menu)
+                    renderer.draw_pause_menu(pause_menu, state=state, controls_menu=controls_menu)
                     if pause_menu.should_return_to_sanctuary():
                         audio.stop_enemy_move_sounds()
                         pause_menu.clear_return_to_sanctuary()
@@ -486,16 +650,18 @@ def main():
                         except Exception: pass
                         continue
                 else:
+                    kb = _get_keybindings(state)
+                    pressed = pygame.key.get_pressed()
                     actions = {
                         'move': get_movement_actions(state),
                         'attack': attack, 'flask': flask, 'dash': dash, 'swap': swap,
                         'inspect': inspect,
                         'mouse_click': mouse_click, 'ratchet_reset': ratchet_reset,
-                        'block': pygame.key.get_pressed()[pygame.K_k],
-                        'key_r': pygame.key.get_pressed()[pygame.K_r],
-                        'key_1': pygame.key.get_pressed()[pygame.K_1],
-                        'key_2': pygame.key.get_pressed()[pygame.K_2],
-                        'key_3': pygame.key.get_pressed()[pygame.K_3]
+                        'block': pressed[kb["block"]],
+                        'key_r': pressed[kb["respite_rest"]],
+                        'key_1': pressed[pygame.K_1],
+                        'key_2': pressed[pygame.K_2],
+                        'key_3': pressed[pygame.K_3]
                     }
                     if state.input_mode == INPUT_MODE_GAMEPAD and pygame.joystick.get_count() > 0:
                         joy = pygame.joystick.Joystick(0)

@@ -402,3 +402,84 @@ def draw_binder_weave_menu(screen, font, state):
     )
     screen.blit(hint, (x + 24, y + h - 32))
     return panel
+
+
+class ControlsConfigMenu:
+    """Decoupled interactive keyboard/controls configuration controller for Title & Pause menus."""
+
+    ROW_RESET = "Reset to Defaults"
+    ROW_BACK = "Back"
+
+    def __init__(self) -> None:
+        self.action_keys = list(constants.DEFAULT_KEYBINDINGS.keys())
+        self.rows = self.action_keys + [self.ROW_RESET, self.ROW_BACK]
+        self.selected_idx: int = 0
+        self.listening_for_key: bool = False
+        self.status_message: str = ""
+
+    def reset_view(self) -> None:
+        """Reset cursor, capture mode, and status message whenever entering the Controls screen."""
+        self.selected_idx = 0
+        self.listening_for_key = False
+        self.status_message = ""
+
+    def get_selected_row(self) -> str:
+        """Return the identifier of the currently selected row."""
+        return self.rows[self.selected_idx]
+
+    def navigate(self, delta: int) -> None:
+        """Move selection cursor by delta rows (no-op while listening for a key press)."""
+        if self.listening_for_key or not self.rows:
+            return
+        self.selected_idx = (self.selected_idx + int(delta)) % len(self.rows)
+        self.status_message = ""
+
+    def confirm(self, game_state=None, save: bool = True) -> str | None:
+        """Activate the selected row: start capture, reset defaults, or return 'BACK'."""
+        if self.listening_for_key:
+            return None
+        row = self.get_selected_row()
+        if row == self.ROW_BACK:
+            self.reset_view()
+            return "BACK"
+        if row == self.ROW_RESET:
+            if game_state is not None and hasattr(game_state, "reset_keybindings"):
+                game_state.reset_keybindings(save=save)
+            self.status_message = "Controls reset to defaults."
+            return "RESET"
+        self.listening_for_key = True
+        label = constants.KEYBINDING_ACTION_LABELS.get(row, row)
+        self.status_message = f"Press any key for {label} (ESC to cancel)..."
+        return "LISTENING"
+
+    def capture_key(self, key_code: int, game_state=None, save: bool = True) -> str | None:
+        """Capture a raw key code while listening; ESC cancels, other keys rebind the selected action."""
+        if not self.listening_for_key:
+            return None
+        # pylint: disable=no-member
+        esc_code = pygame.K_ESCAPE
+        # pylint: enable=no-member
+        if key_code == esc_code:
+            self.listening_for_key = False
+            self.status_message = "Rebind cancelled."
+            return "CANCELLED"
+        action = self.get_selected_row()
+        bound = True
+        if game_state is not None and hasattr(game_state, "set_keybinding"):
+            bound = bool(game_state.set_keybinding(action, int(key_code), save=save))
+        self.listening_for_key = False
+        if bound:
+            label = constants.KEYBINDING_ACTION_LABELS.get(action, action)
+            self.status_message = f"{label} bound to {constants.format_key_name(key_code)}."
+            return "BOUND"
+        self.status_message = "Invalid key selection."
+        return "CANCELLED"
+
+    def cancel(self) -> str:
+        """Exit key-capture mode if listening, otherwise signal 'BACK' to leave the Controls screen."""
+        if self.listening_for_key:
+            self.listening_for_key = False
+            self.status_message = "Rebind cancelled."
+            return "CANCELLED"
+        self.reset_view()
+        return "BACK"

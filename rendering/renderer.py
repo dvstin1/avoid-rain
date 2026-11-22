@@ -6943,7 +6943,7 @@ class Renderer:
         self._title_composite_surf = surf
         return surf
 
-    def draw_title_screen(self, menu=0, state=None):
+    def draw_title_screen(self, menu=0, state=None, controls_menu=None):
         """Draw title screen with atmospheric rain."""
         self.screen.fill(constants.COLOR_BLACK)
         sw, sh = self.screen.get_width(), self.screen.get_height()
@@ -7018,7 +7018,12 @@ class Renderer:
             self.screen.blit(m_surf, m_surf.get_rect(center=self.screen.get_rect().center))
             self.screen.blit(w_surf, w_surf.get_rect(center=(sw//2, sh//2 + 30)))
         elif getattr(menu_state, 'name', '') == 'CONTROLS':
-            self.draw_controls_overlay(True)
+            self.draw_controls_overlay(
+                True,
+                controls_menu=controls_menu,
+                keybindings=getattr(state, "keybindings", None) if state is not None else None,
+                flip=False,
+            )
         # Engine Revision & Outdated Save Indicator on Title Screen
         debug_on = bool(state and getattr(state, "debug_text_enabled", False))
         try:
@@ -7129,7 +7134,7 @@ class Renderer:
             self.screen.blit(st, st.get_rect(center=(self.screen.get_width()//2, self.screen.get_height()//2 + 20)))
         pygame.display.flip(); sl(min_t)
 
-    def draw_pause_menu(self, menu=0):
+    def draw_pause_menu(self, menu=0, state=None, controls_menu=None):
         """Draw pause menu."""
         opts, sel, state_val = ["Resume", "Controls", "Quit"], 0, None
         try:
@@ -7145,7 +7150,12 @@ class Renderer:
             pass
         
         if state_val and getattr(state_val, 'name', '') == 'CONTROLS':
-            self.draw_controls_overlay(False)
+            self.draw_controls_overlay(
+                False,
+                controls_menu=controls_menu,
+                keybindings=getattr(state, "keybindings", None) if state is not None else None,
+                flip=True,
+            )
             return
             
         sw, sh = self.screen.get_width(), self.screen.get_height()
@@ -7165,52 +7175,119 @@ class Renderer:
             self.screen.blit(surf, surf.get_rect(center=(sw//2, sh//2 + 10 + i * 30)))
         pygame.display.flip()
 
-    def draw_controls_overlay(self, show_editor=True):
-        """Draw controls overlay with Gamepad status."""
+    def draw_controls_overlay(self, is_title=True, controls_menu=None, keybindings=None, flip=True):
+        """Draw interactive remappable controls & keybinding configuration overlay."""
+        _ = is_title
         sw, sh = self.screen.get_width(), self.screen.get_height()
         over = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        over.fill((0, 0, 0, constants.UI_ALPHA))
+        over.fill((0, 0, 0, max(190, constants.UI_ALPHA)))
         self.screen.blit(over, (0, 0))
 
-        cx, cy = sw // 2, sh // 2
+        panel_w = min(860, sw - 60)
+        panel_h = min(650, sh - 32)
+        panel_x = (sw - panel_w) // 2
+        panel_y = (sh - panel_h) // 2
+        panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+        pygame.draw.rect(self.screen, (16, 16, 24), panel_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (110, 118, 136), panel_rect, 2, border_radius=8)
+
+        cx = sw // 2
+        kb = constants.normalize_keybindings(keybindings)
+        action_keys = (
+            list(controls_menu.action_keys)
+            if controls_menu is not None and hasattr(controls_menu, "action_keys")
+            else list(constants.DEFAULT_KEYBINDINGS.keys())
+        )
+        rows = (
+            list(controls_menu.rows)
+            if controls_menu is not None and hasattr(controls_menu, "rows")
+            else action_keys + ["Reset to Defaults", "Back"]
+        )
+        sel_idx = int(getattr(controls_menu, "selected_idx", -1)) if controls_menu is not None else -1
+        listening = bool(getattr(controls_menu, "listening_for_key", False)) if controls_menu is not None else False
+        status_msg = str(getattr(controls_menu, "status_message", "") or "") if controls_menu is not None else ""
 
         # 1. Header
-        header_surf = self.font.render("CONTROLS & INPUT", True, constants.COLOR_SELECTION)
-        self.screen.blit(header_surf, header_surf.get_rect(center=(cx, 60)))
+        header_surf = self.font.render("CONTROLS & KEYBINDINGS", True, constants.COLOR_SELECTION)
+        self.screen.blit(header_surf, header_surf.get_rect(center=(cx, panel_y + 28)))
 
         # 2. Input Legend
-        kbd_surf = self.font.render("[ Keyboard/Mouse ]", True, constants.COLOR_WHITE)
-        self.screen.blit(kbd_surf, kbd_surf.get_rect(center=(cx - 150, 100)))
-        
-        joy_count = pygame.joystick.get_count()
+        kbd_surf = self.small_font.render("[ Keyboard / Mouse ]", True, constants.COLOR_WHITE)
+        self.screen.blit(kbd_surf, kbd_surf.get_rect(center=(cx - 170, panel_y + 62)))
+
+        joy_count = pygame.joystick.get_count() if pygame.joystick.get_init() else 0
         joy_col = constants.COLOR_MODE_GAMEPAD if joy_count > 0 else constants.COLOR_GREY
         joy_label = f"[ Gamepad: {'ACTIVE' if joy_count > 0 else 'NOT DETECTED'} ]"
-        self.screen.blit(self.font.render(joy_label, True, joy_col), 
-                         self.font.render(joy_label, True, joy_col).get_rect(center=(cx + 150, 100)))
+        joy_surf = self.small_font.render(joy_label, True, joy_col)
+        self.screen.blit(joy_surf, joy_surf.get_rect(center=(cx + 170, panel_y + 62)))
 
-        # 3. Controls List (Action, Keyboard/Mouse, Gamepad)
-        ins = [
-            ("Movement", "WASD / Arrows", "(GP) L-Stick"),
-            ("Attack / Interact", "SPACE / Click", "(GP) Cross"),
-            ("Dash (Invulnerable)", "Shift", "(GP) Circle"),
-            ("Heal (Flask)", "1", "(GP) Triangle"),
-            ("Block (Shield)", "K", "(GP) R2"),
-            ("Swap Weapon", "Q / Click", "(GP) L1"),
-            ("Inspect Details", "TAB (Hold)", "(GP) R1 (Hold)"),
-            ("Pause Game", "ESC", "(GP) Start"),
-        ]
-        
-        y_off = 180
-        for act, kb, gp in ins:
-            a_surf = self.font.render(f"{act}:", True, constants.COLOR_WHITE)
-            k_surf = self.font.render(kb, True, constants.COLOR_CYAN)
-            g_surf = self.font.render(gp, True, constants.COLOR_MODE_GAMEPAD)
-            
-            self.screen.blit(a_surf, a_surf.get_rect(midright=(cx - 40, y_off)))
-            self.screen.blit(k_surf, k_surf.get_rect(midleft=(cx + 0, y_off)))
-            self.screen.blit(g_surf, g_surf.get_rect(midleft=(cx + 180, y_off)))
-            y_off += 40
+        # 3. Interactive Rows (Remappable Actions + Reset + Back)
+        row_h = 34
+        y_off = panel_y + 94
+        action_col_x = panel_x + 44
+        key_col_x = panel_x + int(panel_w * 0.48)
+        gp_col_x = panel_x + int(panel_w * 0.72)
 
-        back = self.font.render("Press SPACE or ENTER to go back", True, constants.COLOR_WHITE)
-        self.screen.blit(back, back.get_rect(center=(cx, sh - 60)))
-        pygame.display.flip()
+        for idx, row_id in enumerate(rows):
+            is_selected = idx == sel_idx
+            is_capturing = is_selected and listening
+            row_rect = pygame.Rect(panel_x + 22, y_off - 4, panel_w - 44, row_h - 4)
+
+            if is_selected:
+                bar_fill = (58, 48, 22) if is_capturing else (28, 46, 36)
+                bar_border = (255, 220, 90) if is_capturing else constants.COLOR_SELECTION
+                pygame.draw.rect(self.screen, bar_fill, row_rect, border_radius=4)
+                pygame.draw.rect(self.screen, bar_border, row_rect, 2, border_radius=4)
+
+            prefix = "> " if is_selected else "  "
+            if row_id in constants.DEFAULT_KEYBINDINGS:
+                label = constants.KEYBINDING_ACTION_LABELS.get(row_id, row_id)
+                label_col = constants.COLOR_SELECTION if is_selected else constants.COLOR_WHITE
+                lbl_surf = self.small_font.render(f"{prefix}{label}", True, label_col)
+                self.screen.blit(lbl_surf, (action_col_x, y_off + 2))
+
+                if is_capturing:
+                    key_text = "< PRESS ANY KEY >"
+                    key_col = (255, 225, 100)
+                else:
+                    key_text = f"[ {constants.format_key_name(kb[row_id])} ]"
+                    key_col = constants.COLOR_CYAN
+                k_surf = self.small_font.render(key_text, True, key_col)
+                self.screen.blit(k_surf, (key_col_x, y_off + 2))
+
+                gp_text = constants.KEYBINDING_GAMEPAD_LABELS.get(row_id, "")
+                if gp_text:
+                    g_surf = self.small_font.render(gp_text, True, constants.COLOR_MODE_GAMEPAD)
+                    self.screen.blit(g_surf, (gp_col_x, y_off + 2))
+            else:
+                btn_col = constants.COLOR_SELECTION if is_selected else constants.COLOR_WHITE
+                if row_id == "Reset to Defaults" and not is_selected:
+                    btn_col = (230, 190, 110)
+                b_surf = self.small_font.render(f"{prefix}{row_id}", True, btn_col)
+                self.screen.blit(b_surf, b_surf.get_rect(center=(cx, row_rect.centery)))
+
+            y_off += row_h
+
+        # 4. Status / Capture Banner & Footer Hints
+        if listening:
+            banner_text = status_msg or "Press any key (ESC to cancel)..."
+            banner_col = (255, 225, 100)
+        elif status_msg:
+            banner_text = status_msg
+            banner_col = constants.COLOR_CYAN
+        else:
+            banner_text = "Arrow Keys always move in addition to your custom movement bindings."
+            banner_col = constants.COLOR_GREY
+        st_surf = self.small_font.render(banner_text, True, banner_col)
+        self.screen.blit(st_surf, st_surf.get_rect(center=(cx, panel_rect.bottom - 58)))
+
+        hint_text = (
+            "Press any key (ESC to cancel)..."
+            if listening
+            else "UP/DOWN: Select   ENTER/SPACE: Rebind   ESC: Back"
+        )
+        back = self.small_font.render(hint_text, True, constants.COLOR_WHITE)
+        self.screen.blit(back, back.get_rect(center=(cx, panel_rect.bottom - 26)))
+
+        if flip and pygame.display.get_init() and pygame.display.get_surface() is not None:
+            pygame.display.flip()

@@ -130,6 +130,10 @@ class GameState:
         self.screen_shake_enabled = (
             bool(self.stats.data.get("screen_shake_enabled", True)) if self.stats else True
         )
+        from constants import normalize_keybindings
+        self.keybindings = normalize_keybindings(
+            self.stats.data.get("keybindings") if self.stats else None
+        )
         self.parry_effects = [] # Transient VFX sparks
         self.impact_sparks = [] # Transient combat hit sparks
         self.slash_effects = [] # Transient fading visual slash arcs
@@ -2890,8 +2894,11 @@ class GameState:
         self.debug_text_enabled = False
         self.debug_biome_select = False
         if self.stats:
+            from constants import normalize_keybindings
             self.stats.data["debug_text_enabled"] = False
             self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
+            self.keybindings = normalize_keybindings(self.stats.data.get("keybindings"))
+            self.stats.data["keybindings"] = dict(self.keybindings)
             self.online_mode = bool(self.stats.data.get("online_mode", getattr(self, "online_mode", True)))
             if hasattr(self, 'network_manager'):
                 self.network_manager.identity = self.stats.data.get("player_name", self.network_manager.identity)
@@ -3016,11 +3023,16 @@ class GameState:
         self.debug_biome_select = False
         self.sanctuary_door_open = False
         if self.stats:
+            from constants import normalize_keybindings
             self.stats.data["engine_revision"] = ENGINE_REVISION
             self.stats.is_revision_compatible = True
             self.stats.data["debug_text_enabled"] = False
             self.stats.data.setdefault("screen_shake_enabled", bool(getattr(self, "screen_shake_enabled", True)))
             self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
+            self.keybindings = normalize_keybindings(
+                self.stats.data.get("keybindings", getattr(self, "keybindings", None))
+            )
+            self.stats.data["keybindings"] = dict(self.keybindings)
             self.stats.data["lifetime_stats"]["pages_collected"] = 0
             self.stats.data["run_state"] = None
             self.stats.data["active_session_in_progress"] = False
@@ -3132,6 +3144,46 @@ class GameState:
             if save:
                 self.save_stats(wait=True)
 
+    def get_key_label(self, action: str) -> str:
+        """Return the concise formatted key label for a remappable action."""
+        from constants import DEFAULT_KEYBINDINGS, format_key_name
+        bindings = getattr(self, "keybindings", None) or DEFAULT_KEYBINDINGS
+        key_code = bindings.get(action, DEFAULT_KEYBINDINGS.get(action))
+        return format_key_name(key_code)
+
+    def set_keybinding(self, action: str, key_code: int, save: bool = True) -> bool:
+        """Rebind a keyboard action, swapping with any conflicting action so none stays unbound."""
+        import pygame
+        from constants import DEFAULT_KEYBINDINGS, normalize_keybindings
+        if action not in DEFAULT_KEYBINDINGS:
+            return False
+        if not isinstance(key_code, int) or isinstance(key_code, bool) or key_code <= 0:
+            return False
+        if key_code == pygame.K_ESCAPE:
+            return False
+        self.keybindings = normalize_keybindings(getattr(self, "keybindings", None))
+        prev_key = self.keybindings[action]
+        if prev_key != key_code:
+            for other_action, other_key in list(self.keybindings.items()):
+                if other_action != action and other_key == key_code:
+                    self.keybindings[other_action] = prev_key
+                    break
+            self.keybindings[action] = int(key_code)
+        if self.stats is not None:
+            self.stats.data["keybindings"] = dict(self.keybindings)
+            if save:
+                self.save_stats(wait=True, allow_incompatible=True)
+        return True
+
+    def reset_keybindings(self, save: bool = True) -> None:
+        """Restore all keyboard bindings to DEFAULT_KEYBINDINGS and optionally persist."""
+        from constants import DEFAULT_KEYBINDINGS
+        self.keybindings = dict(DEFAULT_KEYBINDINGS)
+        if self.stats is not None:
+            self.stats.data["keybindings"] = dict(self.keybindings)
+            if save:
+                self.save_stats(wait=True, allow_incompatible=True)
+
     def set_forced_marginalia_event_id(self, event_id: Optional[str]) -> None:
         """Set or clear the one-shot forced Marginalia event override for playtesting."""
         from engine.marginalia_events import MARGINALIA_EVENT_CATALOG
@@ -3178,9 +3230,11 @@ class GameState:
             cur_id = str(getattr(self.network_manager, "identity", "") or "").strip()
             if cur_id:
                 self.stats.data["player_name"] = cur_id
+        from constants import normalize_keybindings
         self.stats.data["online_mode"] = bool(getattr(self, "online_mode", True))
         self.stats.data["debug_text_enabled"] = bool(getattr(self, "debug_text_enabled", False))
         self.stats.data["screen_shake_enabled"] = bool(getattr(self, "screen_shake_enabled", True))
+        self.stats.data["keybindings"] = dict(normalize_keybindings(getattr(self, "keybindings", None)))
         
         # --- Persistence: Sanctuary is the hub; runs are completed/redacted here ---
         # Skip run_state mutation when deallocated (player/world is None on Quit-to-Title) so profile saves still work
