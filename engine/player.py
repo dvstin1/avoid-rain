@@ -379,9 +379,13 @@ class Player:
         if getattr(self, 'pristine_ink_shield_timer', 0.0) > 0.0:
             return
 
-        # Apply temporary damage negation from previous hit
+        # Apply temporary damage negation from previous discrete hit
         if getattr(self, 'negation_timer', 0) > 0:
-            amount = max(0.0, amount - self.negation_amount)
+            if bypass_stagger:
+                from constants import WARD_BUFF_RAIN_REDUCTION
+                amount *= (1.0 - WARD_BUFF_RAIN_REDUCTION)
+            else:
+                amount = max(0.0, amount - self.negation_amount)
 
         # 0. Damage Immunity (i-frames) during Stagger or Dash
         if self.state in (PlayerStateEnum.STAGGERED, PlayerStateEnum.DASHING):
@@ -434,11 +438,12 @@ class Player:
             cx, cy = self.get_center()
             game_state.glyph_particles.spawn_burst(cx, cy, color=COLOR_PARCHMENT_WHITE)
 
-        # Check active weapon for damage negation on hit modifier
-        all_mods = self.get_all_modifiers()
-        if "damage_negation_on_hit" in all_mods and amount > 0:
-            self.negation_timer = 3.0
-            self.negation_amount = all_mods["damage_negation_on_hit"]
+        # Check active weapon for damage negation on hit modifier (discrete combat hits only)
+        if not bypass_stagger:
+            all_mods = self.get_all_modifiers()
+            if "damage_negation_on_hit" in all_mods and amount > 0:
+                self.negation_timer = 3.0
+                self.negation_amount = all_mods["damage_negation_on_hit"]
         
         # Only stagger if they took actual damage and stagger isn't bypassed
         if not bypass_stagger and self.hp > 0 and amount > 0:

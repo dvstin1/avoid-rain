@@ -11,6 +11,9 @@ def create_world(
     destroyed_ids=None,
     hp_multiplier=1.0,
     damage_multiplier=1.0,
+    empowered=None,
+    speed_multiplier=1.0,
+    cooldown_multiplier=1.0,
 ) -> World:
     """Factory function to create and populate a World instance by name."""
     print(f"[DEBUG] Fetching room prototype: {name}")
@@ -29,8 +32,15 @@ def create_world(
             world.grid, world.interactables, world.warp_tiles, world.player_start,
             world.enemies, world.boss_coords_list, world.module_sockets
         ) = LevelLoader.load_json_map(
-            temp_path, saved_enemies=saved_enemies, defeated_ids=defeated_ids,
-            destroyed_ids=destroyed_ids
+            temp_path,
+            saved_enemies=saved_enemies,
+            defeated_ids=defeated_ids,
+            destroyed_ids=destroyed_ids,
+            hp_multiplier=hp_multiplier,
+            damage_multiplier=damage_multiplier,
+            empowered=empowered,
+            speed_multiplier=speed_multiplier,
+            cooldown_multiplier=cooldown_multiplier,
         )
         return world
 
@@ -67,6 +77,9 @@ def create_world(
             destroyed_ids=destroyed_ids,
             hp_multiplier=hp_multiplier,
             damage_multiplier=damage_multiplier,
+            empowered=empowered,
+            speed_multiplier=speed_multiplier,
+            cooldown_multiplier=cooldown_multiplier,
         )
         world.sanctuary_zones = LevelLoader.load_map_zones(json_path)
         return world

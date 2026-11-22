@@ -1299,13 +1299,21 @@ class GameState:
                     new_boss.network_id = 9000 + idx
                     if self.current_act >= 2 or getattr(self, 'empowered_act', False):
                         sat = get_act_saturation(max(2, self.current_act))
+                        spd_m = float(sat.get("speed_multiplier", 1.0))
+                        cd_m = float(sat.get("cooldown_multiplier", 1.0))
                         if getattr(self, 'empowered_act', False) and self.current_act <= 2:
                             hp_m, dmg_m, emp_flag = ACT2_HP_MULTIPLIER, ACT2_DAMAGE_MULTIPLIER, True
                         else:
                             hp_m = float(sat["hp_multiplier"])
                             dmg_m = float(sat["damage_multiplier"])
                             emp_flag = bool(sat["empowered"])
-                        new_boss.apply_act_scaling(hp_m, dmg_m, empowered=emp_flag)
+                        new_boss.apply_act_scaling(
+                            hp_m,
+                            dmg_m,
+                            empowered=emp_flag,
+                            speed_multiplier=spd_m,
+                            cooldown_multiplier=cd_m,
+                        )
                     self.enemies.append(new_boss)
                     self.night_boss_spawned = True
                     if getattr(self, "active_respite", None):
@@ -2338,6 +2346,8 @@ class GameState:
         hp_multiplier=1.0,
         damage_multiplier=1.0,
         empowered=None,
+        speed_multiplier=1.0,
+        cooldown_multiplier=1.0,
     ):
         """Load a serialized world JSON into self.world and reset weather/camera."""
         from engine.world import World, LevelLoader
@@ -2364,6 +2374,8 @@ class GameState:
             hp_multiplier=hp_multiplier,
             damage_multiplier=damage_multiplier,
             empowered=empowered,
+            speed_multiplier=speed_multiplier,
+            cooldown_multiplier=cooldown_multiplier,
         )
         self.enemies = self.world.enemies
 
@@ -2419,6 +2431,8 @@ class GameState:
             hp_multiplier=float(sat1["hp_multiplier"]),
             damage_multiplier=float(sat1["damage_multiplier"]),
             empowered=bool(sat1["empowered"]),
+            speed_multiplier=float(sat1.get("speed_multiplier", 1.0)),
+            cooldown_multiplier=float(sat1.get("cooldown_multiplier", 1.0)),
         )
         if hasattr(self, "weather_manager") and self.weather_manager:
             self.weather_manager.rain_dps = float(sat1["rain_dps"])
@@ -2470,6 +2484,8 @@ class GameState:
             json.dump(world_data, f)
 
         sat = get_act_saturation(target_act)
+        spd_mult = float(sat.get("speed_multiplier", 1.0))
+        cd_mult = float(sat.get("cooldown_multiplier", 1.0))
         if legacy_act2_scaling and target_act == 2:
             hp_mult = ACT2_HP_MULTIPLIER
             dmg_mult = ACT2_DAMAGE_MULTIPLIER
@@ -2489,6 +2505,8 @@ class GameState:
             hp_multiplier=hp_mult,
             damage_multiplier=dmg_mult,
             empowered=empowered,
+            speed_multiplier=spd_mult,
+            cooldown_multiplier=cd_mult,
         )
         if hasattr(self, "weather_manager") and self.weather_manager:
             self.weather_manager.rain_dps = float(sat["rain_dps"])

@@ -65,7 +65,7 @@ def test_anomalous_max_hp_boost():
     assert player.hp == 100.0
 
 def test_anomalous_damage_negation():
-    """Verify that taking damage with negation weapon triggers temporary negation for next hit."""
+    """Verify that taking discrete combat damage with negation weapon triggers temporary negation for next hit."""
     player = Player(0, 0)
     player.weapons = [{"name": "Negation Quill", "damage": 10, "modifiers": {"damage_negation_on_hit": 5.0}}]
     player.active_weapon_idx = 0
@@ -73,23 +73,27 @@ def test_anomalous_damage_negation():
     # Set HP to 90.0 so pristine concentration passive (at >95% HP) is not active
     player.hp = 90.0
 
-    # First hit: takes full damage (e.g. 15), but triggers negation. Bypasses stagger to avoid stagger i-frames.
-    player.take_damage(15.0, bypass_stagger=True)
+    # First discrete hit: takes full damage (15), triggers negation, and staggers player
+    player.take_damage(15.0, bypass_stagger=False)
     assert player.hp == 75.0
     assert player.negation_timer == 3.0
     assert player.negation_amount == 5.0
 
-    # Second hit: negation reduces damage by 5.0 (takes 10 instead of 15)
-    player.take_damage(15.0, bypass_stagger=True)
+    # Clear stagger state to test the second discrete hit while negation_timer is active
+    player.state = PlayerStateEnum.IDLE
+    player.stagger_timer = 0.0
+
+    # Second discrete hit: negation reduces damage by 5.0 (takes 10 instead of 15)
+    player.take_damage(15.0, bypass_stagger=False)
     assert player.hp == 65.0
 
-    # Tick timer down, negation should expire
+    # Tick timer down, negation and stagger should expire
     player.update(3.1, (0, 0), [], {})
     assert player.negation_timer == 0.0
     assert player.negation_amount == 0.0
 
-    # Third hit: takes full damage again
-    player.take_damage(15.0, bypass_stagger=True)
+    # Third discrete hit: takes full damage again
+    player.take_damage(15.0, bypass_stagger=False)
     assert player.hp == 50.0
 
 def test_anomalous_enemy_bleed():

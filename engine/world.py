@@ -92,13 +92,22 @@ class WarpPortal(GameObject):
                     sat = get_act_saturation(cur_act)
                     hp_mult = max(ACT2_HP_MULTIPLIER, float(sat["hp_multiplier"]))
                     dmg_mult = max(ACT2_DAMAGE_MULTIPLIER, float(sat["damage_multiplier"]))
+                    spd_mult = float(sat.get("speed_multiplier", 1.0))
+                    cd_mult = float(sat.get("cooldown_multiplier", 1.0))
                 else:
+                    sat2 = get_act_saturation(2)
                     hp_mult = ACT2_HP_MULTIPLIER
                     dmg_mult = ACT2_DAMAGE_MULTIPLIER
+                    spd_mult = float(sat2.get("speed_multiplier", 1.0))
+                    cd_mult = float(sat2.get("cooldown_multiplier", 1.0))
                 game_state.empowered_act = True
+                emp_override = True
             else:
                 hp_mult = 1.0
                 dmg_mult = 1.0
+                spd_mult = 1.0
+                cd_mult = 1.0
+                emp_override = None
 
             # Phase 3 Intercept: If Client entering macro-world, fetch host map
             is_client = (game_state.network_manager.network_mode == "CLIENT")
@@ -110,6 +119,9 @@ class WarpPortal(GameObject):
                         defeated_ids=game_state.defeated_miniboss_ids,
                         hp_multiplier=hp_mult,
                         damage_multiplier=dmg_mult,
+                        empowered=emp_override,
+                        speed_multiplier=spd_mult,
+                        cooldown_multiplier=cd_mult,
                     )
             else:
                 game_state.world = create_world(
@@ -117,6 +129,9 @@ class WarpPortal(GameObject):
                     defeated_ids=game_state.defeated_miniboss_ids,
                     hp_multiplier=hp_mult,
                     damage_multiplier=dmg_mult,
+                    empowered=emp_override,
+                    speed_multiplier=spd_mult,
+                    cooldown_multiplier=cd_mult,
                 )
 
             # Weather Sync Rule: Update boss center coordinates for the safe circle
@@ -428,17 +443,73 @@ class LoreFragment(GameObject):
         self.is_interactive = True
         self.is_solid = False
 
+    def _resolve_biome_chronicle_id(self, game_state):
+        """Resolve an unmapped ('unknown' / empty) fragment_id to <biome>_chronicle outside Sanctuary."""
+        from constants import BIOME_DISPLAY_NAMES
+        world = getattr(game_state, "world", None)
+        w_name = str(getattr(world, "name", "") or "").lower()
+        if w_name == "sanctuary" or bool(getattr(game_state, "in_sanctuary", False)):
+            return self.fragment_id
+
+        tx = int(self.x // TILE_SIZE)
+        ty = int(self.y // TILE_SIZE)
+        for sock in getattr(world, "module_sockets", None) or ():
+            if not isinstance(sock, dict):
+                continue
+            b = sock.get("bounds")
+            if isinstance(b, dict) and all(k in b for k in ("x", "y", "width", "height")):
+                if not (b["x"] <= tx < b["x"] + b["width"] and b["y"] <= ty < b["y"] + b["height"]):
+                    continue
+            sock_b = sock.get("biome")
+            if sock_b in BIOME_DISPLAY_NAMES:
+                return f"{sock_b}_chronicle"
+            plug = str(sock.get("active_plug", "")).lower()
+            for b_key in BIOME_DISPLAY_NAMES:
+                if b_key in plug:
+                    return f"{b_key}_chronicle"
+
+        resolve_fn = getattr(game_state, "_resolve_active_biome_key", None)
+        if callable(resolve_fn):
+            active_biome = resolve_fn()
+            if active_biome in BIOME_DISPLAY_NAMES:
+                return f"{active_biome}_chronicle"
+
+        run_biomes = getattr(game_state, "run_biomes", None) or {}
+        cur_act = int(getattr(game_state, "current_act", 0) or 0)
+        if cur_act > 0 and run_biomes.get(f"act{cur_act}") in BIOME_DISPLAY_NAMES:
+            return f"{run_biomes[f'act{cur_act}']}_chronicle"
+        for b_val in run_biomes.values():
+            if b_val in BIOME_DISPLAY_NAMES:
+                return f"{b_val}_chronicle"
+        for b_key in BIOME_DISPLAY_NAMES:
+            if b_key in w_name:
+                return f"{b_key}_chronicle"
+        return "windy_ridge_chronicle"
+
     def execute_interaction(self, game_state):
         from constants import DIALOGUE_MANIFEST
-        lore_text = DIALOGUE_MANIFEST.get("lore_fragments", {}).get(
-            self.fragment_id, "The text has faded into illegibility."
+        frag_id = self.fragment_id
+        if frag_id in (None, "", "unknown"):
+            frag_id = self._resolve_biome_chronicle_id(game_state)
+        raw_entry = DIALOGUE_MANIFEST.get("lore_fragments", {}).get(
+            frag_id, "The text has faded into illegibility."
         )
-        
+        if isinstance(raw_entry, (list, tuple)):
+            if raw_entry:
+                tx = int(self.x) // TILE_SIZE if int(self.x) >= TILE_SIZE else int(self.x)
+                ty = int(self.y) // TILE_SIZE if int(self.y) >= TILE_SIZE else int(self.y)
+                idx = abs(int(self.x) * 31 + int(self.y) * 17 + tx * 13 + ty * 7) % len(raw_entry)
+                lore_text = str(raw_entry[idx])
+            else:
+                lore_text = "The text has faded into illegibility."
+        else:
+            lore_text = str(raw_entry)
+
         game_state.active_dialogue = {
             "speaker": self.name,
             "text": lore_text
         }
-        print(f"[LORE] Read fragment: {self.fragment_id}")
+        print(f"[LORE] Read fragment: {frag_id}")
 
 class WeaponPickup(GameObject):
     """Dropped weapon from miniboss or chest."""
@@ -674,6 +745,8 @@ class LevelLoader:
         hp_multiplier=1.0,
         damage_multiplier=1.0,
         empowered=None,
+        speed_multiplier=1.0,
+        cooldown_multiplier=1.0,
     ):
         """Loads a JSON map file and parses it, supporting modular stitching."""
         import os
@@ -769,6 +842,8 @@ class LevelLoader:
             hp_multiplier=hp_multiplier,
             damage_multiplier=damage_multiplier,
             empowered=empowered,
+            speed_multiplier=speed_multiplier,
+            cooldown_multiplier=cooldown_multiplier,
         )
 
         # Apply procedural spawn override if present
@@ -806,6 +881,8 @@ class LevelLoader:
         hp_multiplier=1.0,
         damage_multiplier=1.0,
         empowered=None,
+        speed_multiplier=1.0,
+        cooldown_multiplier=1.0,
     ):
         """
         Parses a string array and returns (grid, interactables, warp_tiles, player_start, enemies).
@@ -1055,9 +1132,19 @@ class LevelLoader:
                         
                         data = entity_data.get((x, y), {})
                         temp_enemy = enemy_cls(pos[0], pos[1], id=enemy_id)
-                        if hp_multiplier != 1.0 or damage_multiplier != 1.0 or empowered is not None:
+                        if (
+                            hp_multiplier != 1.0
+                            or damage_multiplier != 1.0
+                            or empowered is not None
+                            or speed_multiplier != 1.0
+                            or cooldown_multiplier != 1.0
+                        ):
                             temp_enemy.apply_act_scaling(
-                                hp_multiplier, damage_multiplier, empowered=empowered
+                                hp_multiplier,
+                                damage_multiplier,
+                                empowered=empowered,
+                                speed_multiplier=speed_multiplier,
+                                cooldown_multiplier=cooldown_multiplier,
                             )
                         
                         # Phase 4 Network Rule: Assign numeric ID for sync
@@ -1230,8 +1317,8 @@ class World:
         base_ty = max(0, min(grid_h - 1, int(fy // TILE_SIZE)))
         search_radius = max(1, int(max_radius_tiles))
 
+        candidates = []
         for radius in range(0, search_radius + 1):
-            ring_candidates = []
             for dy in range(-radius, radius + 1):
                 for dx in range(-radius, radius + 1):
                     if max(abs(dx), abs(dy)) != radius:
@@ -1243,11 +1330,11 @@ class World:
                     cand_x = float(tx * TILE_SIZE)
                     cand_y = float(ty * TILE_SIZE)
                     dist_sq = (cand_x - fx) ** 2 + (cand_y - fy) ** 2
-                    ring_candidates.append((dist_sq, abs(dy) + abs(dx), dy, dx, cand_x, cand_y))
-            ring_candidates.sort()
-            for _, _, _, _, cand_x, cand_y in ring_candidates:
-                if _is_clear(cand_x, cand_y):
-                    return (cand_x, cand_y)
+                    candidates.append((dist_sq, radius, abs(dy) + abs(dx), dy, dx, cand_x, cand_y))
+        candidates.sort()
+        for _, _, _, _, _, cand_x, cand_y in candidates:
+            if _is_clear(cand_x, cand_y):
+                return (cand_x, cand_y)
 
         return (fx, fy)
 

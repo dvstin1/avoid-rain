@@ -24,18 +24,160 @@ class Enemy(Actor):
         self.persistent_pursuit = False
         self._stall_timer = 0.0
         self._phase_timer = 0.0
+        self._stuck_oob_timer = 0.0
+        self._recovery_target = None
 
-    def apply_act_scaling(self, hp_multiplier=1.0, damage_multiplier=1.0, empowered=None):
-        """Scale enemy max HP, current HP, and attack damage for Act escalation."""
+    def apply_act_scaling(
+        self,
+        hp_multiplier=1.0,
+        damage_multiplier=1.0,
+        empowered=None,
+        speed_multiplier=1.0,
+        cooldown_multiplier=1.0,
+    ):
+        """Scale enemy HP, damage, movement speed, and attack cooldown/cadence for Act escalation."""
         if hp_multiplier != 1.0:
             self.max_hp = float(self.max_hp) * float(hp_multiplier)
             self.hp = float(self.hp) * float(hp_multiplier)
         if damage_multiplier != 1.0:
             self.damage = float(self.damage) * float(damage_multiplier)
+        if speed_multiplier != 1.0:
+            self.speed = float(self.speed) * float(speed_multiplier)
+            if hasattr(self, "pounce_speed"):
+                self.pounce_speed = float(self.pounce_speed) * float(speed_multiplier)
+        if cooldown_multiplier != 1.0:
+            cd_mult = float(cooldown_multiplier)
+            self.attack_cooldown = max(0.2, float(self.attack_cooldown) * cd_mult)
+            cadence_mult = 1.0 - (1.0 - cd_mult) * 0.5
+            self.wind_up_duration = max(0.18, float(self.wind_up_duration) * cadence_mult)
+            self.recovery_duration = max(0.22, float(self.recovery_duration) * cadence_mult)
         if empowered is None:
             self.is_empowered = (hp_multiplier > 1.0 or damage_multiplier > 1.0)
         else:
             self.is_empowered = bool(empowered)
+
+    def _is_oob_or_in_wall(self, world) -> bool:
+        """Return True if this enemy's rect is out of map bounds or overlaps a TILE_WALL or solid prop."""
+        grid = getattr(world, "grid", None)
+        if not grid or not grid[0]:
+            return False
+        from constants import TILE_WALL
+        grid_h = len(grid)
+        grid_w = len(grid[0])
+        map_w_px = grid_w * TILE_SIZE
+        map_h_px = grid_h * TILE_SIZE
+        if (
+            self.x < 0.0
+            or self.y < 0.0
+            or (self.x + self.width) > map_w_px
+            or (self.y + self.height) > map_h_px
+        ):
+            return True
+        tx0 = int(self.x // TILE_SIZE)
+        ty0 = int(self.y // TILE_SIZE)
+        tx1 = int((self.x + max(0.0, self.width - 1e-4)) // TILE_SIZE)
+        ty1 = int((self.y + max(0.0, self.height - 1e-4)) // TILE_SIZE)
+        if tx0 < 0 or ty0 < 0 or tx1 >= grid_w or ty1 >= grid_h:
+            return True
+        for ty in range(ty0, ty1 + 1):
+            row = grid[ty]
+            for tx in range(tx0, tx1 + 1):
+                if row[tx] in (TILE_WALL, "#", "X"):
+                    return True
+        my_rect = self.get_rect()
+        for obj in getattr(world, "interactables", None) or ():
+            if getattr(obj, "is_solid", False) and getattr(obj, "is_active", True):
+                obj_rect = getattr(obj, "rect", (obj.x, obj.y, obj.width, obj.height))
+                if check_aabb_collision(my_rect, obj_rect):
+                    return True
+        return False
+
+    def _advance_stuck_recovery(self, dt, world) -> None:
+        """Steer/pull the enemy smoothly toward _recovery_target, bypassing wall collision until clear."""
+        if self._recovery_target is None:
+            return
+        from constants import ENEMY_STUCK_RECOVERY_SPEED
+        rx, ry = self._recovery_target
+        dx, dy = rx - self.x, ry - self.y
+        dist = math.hypot(dx, dy)
+        rec_speed = max(float(getattr(self, "speed", 0.0)), ENEMY_STUCK_RECOVERY_SPEED)
+        step = rec_speed * dt
+        if dist <= max(4.0, step):
+            self.x, self.y = float(rx), float(ry)
+            self.vx, self.vy = 0.0, 0.0
+            self._recovery_target = None
+            self._stuck_oob_timer = 0.0
+            self._clear_nav_path()
+            return
+        ux, uy = dx / dist, dy / dist
+        self.vx, self.vy = ux * rec_speed, uy * rec_speed
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.facing = (ux, uy)
+        if not self._is_oob_or_in_wall(world) and dist <= TILE_SIZE * 0.5:
+            self.x, self.y = float(rx), float(ry)
+            self._recovery_target = None
+            self._stuck_oob_timer = 0.0
+            self._clear_nav_path()
+
+    def update(self, dt, state):
+        """Run base Actor AI and 2-second stuck / out-of-bounds nearest-floor recovery."""
+        world = getattr(state, "world", None)
+        net = getattr(state, "network_manager", None)
+        is_client = getattr(net, "network_mode", "OFFLINE") == "CLIENT"
+        in_sanctuary = bool(getattr(state, "in_sanctuary", False)) or getattr(world, "name", "") == "sanctuary"
+        can_recover = (
+            not is_client
+            and not in_sanctuary
+            and world is not None
+            and hasattr(world, "find_nearest_walkable_spawn")
+            and "Chronicler" not in self.name
+            and self.name != "The Binder"
+        )
+
+        if can_recover and self._recovery_target is not None:
+            self._advance_stuck_recovery(dt, world)
+            return
+
+        prev_x, prev_y = self.x, self.y
+        prev_trying = (abs(self.vx) + abs(self.vy)) > 1.0
+        super().update(dt, state)
+
+        if not can_recover or not self.is_within_active_simulation(state):
+            return
+
+        from constants import ENEMY_STUCK_RECOVERY_TIME
+        oob_or_wall = self._is_oob_or_in_wall(world)
+        moved = math.hypot(self.x - prev_x, self.y - prev_y)
+        trying_to_move = (
+            ((abs(self.vx) + abs(self.vy)) > 1.0 or prev_trying)
+            and self.stagger_timer <= 0.0
+            and self.state not in (ActorState.WIND_UP, ActorState.RECOVERY, ActorState.ENGAGED)
+        )
+        expected_step = max(
+            float(getattr(self, "speed", 0.0)) * 0.25 * dt,
+            math.hypot(self.vx, self.vy) * dt * 0.35,
+        )
+        stalled = trying_to_move and moved < min(2.0, max(0.02, expected_step))
+
+        if oob_or_wall or stalled:
+            self._stuck_oob_timer += dt
+            if self._stuck_oob_timer >= ENEMY_STUCK_RECOVERY_TIME:
+                tx_px, ty_px = world.find_nearest_walkable_spawn(
+                    self.x, self.y, self.width, self.height, max_radius_tiles=12
+                )
+                if not oob_or_wall and math.hypot(tx_px - self.x, ty_px - self.y) < 1.0:
+                    snap_x = round(self.x / TILE_SIZE) * TILE_SIZE
+                    snap_y = round(self.y / TILE_SIZE) * TILE_SIZE
+                    tx_px, ty_px = world.find_nearest_walkable_spawn(
+                        snap_x, snap_y, self.width, self.height, max_radius_tiles=12
+                    )
+                self._recovery_target = (float(tx_px), float(ty_px))
+                self._clear_nav_path()
+                self._stuck_oob_timer = 0.0
+                self._advance_stuck_recovery(dt, world)
+        else:
+            self._stuck_oob_timer = 0.0
 
 
     def attempt_damage_player(self, state):

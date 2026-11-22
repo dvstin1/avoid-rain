@@ -113,6 +113,7 @@ DASH_SUBSTEP_MAX_PX = 8.0
 # Block & Warding Mechanics
 BLOCK_DAMAGE_REDUCTION = 0.5
 WARDING_RAIN_DAMAGE_REDUCTION = 0.20
+WARD_BUFF_RAIN_REDUCTION = 0.30
 BLOCK_SPEED_MULTIPLIER = 0.5
 
 # Combat Configuration
@@ -877,9 +878,179 @@ DIALOGUE_MANIFEST = {
             "unfocused intent—ink that refused to dry and instead began to crawl. "
             "They are viscous and stubborn, often splitting into smaller blots when "
             "severed, as if trying to rewrite themselves into multiple sentences."
-        )
-        }
-        }
+        ),
+        "windy_ridge_chronicle": [
+            (
+                "High above the Scriptorium eaves, the Windy Ridge was where fresh vellum sheets "
+                "were hung to cure before the Bleed poisoned the sky. Now gale-force drafts tear "
+                "loose stanzas from the cliff anchors and hurl them into the acid storm."
+            ),
+            (
+                "The Gale-Warden Scribe still patrols the highest ridge lectern, its heavy iron nib "
+                "pinning fluttering folios to the crags. Those who challenge its perch must watch "
+                "for its sweeping downstroke when the wind shifts."
+            ),
+            (
+                "We built stone windbreaks along the ridge margin to shield the courier monks from "
+                "the green rain, yet the ink-laden gusts seep through every mortar crack."
+            ),
+            (
+                "When the First Folio split open, the updrafts carried burning punctuation marks "
+                "into the cliffside rookeries. The bats nested in those charred margins and drank the soot."
+            ),
+            (
+                "An Editor's note pinned beneath a cairn: 'Stay inside the chalk ring when the barometer "
+                "drops. On the ridge, the rain does not fall—it hunts horizontally.'"
+            ),
+            "The text has faded into illegibility.",
+        ],
+        "swamp_mire_chronicle": [
+            (
+                "The Swamp Mire formed where discarded drafts and spoiled gall-ink barrels were "
+                "dumped below the Scriptorium sluices. Over centuries of the Bleed, the fermented "
+                "peat quickened into a breathing, venomous bog."
+            ),
+            (
+                "At the mire's drowned heart slithers the Slug Night Boss—an ancient royal colophon "
+                "beast wearing a tarnished brass crown, its mantle still pierced through by the shattered "
+                "sword of the first Editor who tried to redact it."
+            ),
+            (
+                "Even impaled by that ancestral blade, the crowned Slug Night Boss drags the steel "
+                "through the mire like a scepter, summoning toxic rain-squalls whenever the margin circle "
+                "closes around its throne of peat."
+            ),
+            (
+                "Spore-pods along the mire causeways swell with acidic green rainwater. Step lightly "
+                "near the ink puddles; the Smears here split and multiply in the damp."
+            ),
+            (
+                "Field report from the Third Binding: 'Do not try to pull the sword from the crowned "
+                "Slug's back mid-swing. Strike when it wrenches the buried blade free of the mud.'"
+            ),
+            "The text has faded into illegibility.",
+        ],
+        "pastoral_valley_chronicle": [
+            (
+                "The Pastoral Valley was drafted as a gentle opening chapter—sun-warmed meadow grass "
+                "and quiet shepherd stanzas. When the Author's fever broke the spine, boiling black "
+                "tar-ink erupted through the sod."
+            ),
+            (
+                "Packs of Punctuation Wolves now stalk the scarred meadow borders, their jagged comma-claws "
+                "and dash-fangs herding stray Readers toward the tar sinks before the rain arrives."
+            ),
+            (
+                "The Meadow Censor stands sentinel over the sunken threshing circle, wielding a hooked "
+                "redaction scythe that reaps entire paragraphs of tall grass in a single arc."
+            ),
+            (
+                "Beneath the wildflowers, you can still trace the ruled ledger lines of the original "
+                "parchment before the green rain bleached the valley's color into ash."
+            ),
+            (
+                "A shepherd's margin gloss: 'When the wolves howl in unison, they are not calling to "
+                "the moon—they are marking the boundary of the shrinking safe circle.'"
+            ),
+            "The text has faded into illegibility.",
+        ],
+        "frozen_peaks_chronicle": [
+            (
+                "In desperation to halt the spreading Bleed, the Senior Archivists climbed to the "
+                "Frozen Peaks and invoked a rime-seal to flash-freeze the boiling ink in mid-sentence."
+            ),
+            (
+                "The Rimecrest Arbiter guards the glacier pass, encased in mirror-ice armor that "
+                "reflects stray quill strikes while its frost-bound halberd shatters brittle footing."
+            ),
+            (
+                "Look closely into the glacier walls: whole columns of panicked script are suspended "
+                "inside the blue ice, waiting for a single drop of warm toxic rain to thaw their rage."
+            ),
+            (
+                "Even at this altitude, the green storm clouds boil overhead. When the Bleed rain "
+                "strikes the rime slate, it hisses into blinding ink-steam."
+            ),
+            (
+                "Expedition tally carved into frozen vellum: 'Four Scholars ascended the pass. Only "
+                "one returned to the Wellspring, his quill nib fused solid with black frost.'"
+            ),
+            "The text has faded into illegibility.",
+        ],
+        "tech_tower_chronicle": [
+            (
+                "The Tech Tower—called the Sky Citadel in the late appendices—was an experimental "
+                "typesetting engine built from brushed titanium and copper data-buses to automate "
+                "the Libram's index."
+            ),
+            (
+                "When the Bleed infiltrated the tower's logic conduits, the Techno-Sentries locked "
+                "into eternal purge mode, sweeping the gantry bridges with scorching plasma beams."
+            ),
+            (
+                "At the spire's crown presides the Architect-Censor, a clockwork inquisitor that "
+                "compiles corrupted syntax into lethal shockwaves whenever a Reader breaches the main bus."
+            ),
+            (
+                "Acid rain rattles against the titanium skylight plates, short-circuiting the relay "
+                "pillars and showering the lower script-decks in amber sparks."
+            ),
+            (
+                "Maintenance log #404: 'The machine no longer distinguishes between errata and the "
+                "Reader. Keep moving across the gantries or the Sentries will triangulate your line.'"
+            ),
+            "The text has faded into illegibility.",
+        ],
+        "vitreous_basin_chronicle": [
+            (
+                "The Vitreous Basin was born when a furnace-draft of white-hot eradication fire "
+                "collided with a salt-ink reservoir, fusing the chapter floor into fractured glass "
+                "flats and jagged salt spires."
+            ),
+            (
+                "Every step across the refractive basin floor echoes twice. The Vitreous Cantor—the "
+                "basin's towering crystalline boss—uses those reflections to blind Readers before "
+                "driving its glass lance through the salt crust."
+            ),
+            (
+                "When the toxic Bleed rain pelts the glass flats, the droplets prism into sickly "
+                "emerald beams that betray anything hiding behind the salt pillars."
+            ),
+            (
+                "Bindlings cluster around the warm vitrified fissures, drawing dissolved mineral ink "
+                "from the glass seams to mend their torn ribbon-limbs."
+            ),
+            (
+                "Scratched onto a shard of obsidian vellum: 'Use the salt spires to break the Cantor's "
+                "line of sight, but never linger—its heavy thrust splinters cover into shrapnel.'"
+            ),
+            "The text has faded into illegibility.",
+        ],
+        "sunlit_aqueducts_chronicle": [
+            (
+                "The Sunlit Aqueducts once carried pure, unblemished artesian water from the Sanctuary's "
+                "Wellspring out to every distant chapter of the Libram along elevated terracotta channels."
+            ),
+            (
+                "After the Author's madness cracked the main viaduct arches, the channels ran dry of "
+                "Wellspring water and filled instead with creeping moss and stagnant green rainwater."
+            ),
+            (
+                "The Viaduct Warden still marches along the central keystone bridge, an armored "
+                "construct sworn to keep the poisoned sluice-gates sealed against intruders and ink-beasts alike."
+            ),
+            (
+                "Shafts of pale sunlight pierce the broken arches between storm squalls, illuminating "
+                "floating dust motes and ancient Mason-Editor marks carved into the terracotta brick."
+            ),
+            (
+                "Water-warden's final inscription: 'If the aqueducts ever reconnect to the Wellspring "
+                "while the Bleed rages, the Sanctuary itself will drown. Guard the sluice at all costs.'"
+            ),
+            "The text has faded into illegibility.",
+        ],
+    }
+}
 
 # Sound attenuation constants
 SFX_FULL_VOLUME_DIST = 120.0  # 3 units (3 * TILE_SIZE)
@@ -922,6 +1093,8 @@ ACT_SATURATION_MATRIX = {
         "empowered": False,
         "hp_multiplier": 1.0,
         "damage_multiplier": 1.0,
+        "speed_multiplier": 1.0,
+        "cooldown_multiplier": 1.0,
         "rain_dps": 2.0,
         "page_yield_multiplier": 1.0,
         "banner": "ACT I: THE FIRST FOLIO",
@@ -931,8 +1104,10 @@ ACT_SATURATION_MATRIX = {
         "act": 2,
         "tier": "base",
         "empowered": False,
-        "hp_multiplier": 1.25,
-        "damage_multiplier": 1.25,
+        "hp_multiplier": 1.4,
+        "damage_multiplier": 1.35,
+        "speed_multiplier": 1.08,
+        "cooldown_multiplier": 0.92,
         "rain_dps": 2.5,
         "page_yield_multiplier": 1.25,
         "banner": "ACT II: THE SECOND FOLIO",
@@ -942,8 +1117,10 @@ ACT_SATURATION_MATRIX = {
         "act": 3,
         "tier": "empowered",
         "empowered": True,
-        "hp_multiplier": 1.6,
-        "damage_multiplier": 1.6,
+        "hp_multiplier": 2.0,
+        "damage_multiplier": 1.8,
+        "speed_multiplier": 1.15,
+        "cooldown_multiplier": 0.85,
         "rain_dps": 3.0,
         "page_yield_multiplier": 1.5,
         "banner": "ACT III: THE SATURATED MARGIN",
@@ -953,8 +1130,10 @@ ACT_SATURATION_MATRIX = {
         "act": 4,
         "tier": "empowered",
         "empowered": True,
-        "hp_multiplier": 2.0,
-        "damage_multiplier": 2.0,
+        "hp_multiplier": 2.8,
+        "damage_multiplier": 2.35,
+        "speed_multiplier": 1.22,
+        "cooldown_multiplier": 0.78,
         "rain_dps": 3.5,
         "page_yield_multiplier": 1.75,
         "banner": "ACT IV: THE DEEPENING BLEED",
@@ -964,8 +1143,10 @@ ACT_SATURATION_MATRIX = {
         "act": 5,
         "tier": "empowered",
         "empowered": True,
-        "hp_multiplier": 2.5,
-        "damage_multiplier": 2.5,
+        "hp_multiplier": 3.8,
+        "damage_multiplier": 3.0,
+        "speed_multiplier": 1.28,
+        "cooldown_multiplier": 0.72,
         "rain_dps": 4.0,
         "page_yield_multiplier": 2.0,
         "banner": "ACT V: THE FINAL FOLIO",
@@ -1025,6 +1206,8 @@ PATHFINDING_LOS_CACHE_INTERVAL = 0.40
 PATHFINDING_WAYPOINT_REACH_PX = 12.0
 PATROL_RETURN_SPEED_MULTIPLIER = 0.65
 PATROL_STALL_SKIP_TIME = 2.5
+ENEMY_STUCK_RECOVERY_TIME = 2.0
+ENEMY_STUCK_RECOVERY_SPEED = 140.0
 
 # Section 7: Binder Scripts & Margin Scraps Economy Constants
 SCRAPS_REWARD_NIGHT_BOSS_BASE = 1
