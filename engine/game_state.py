@@ -1657,6 +1657,24 @@ class GameState:
                     self.world_debris.append({'name': 'BarrelRubble', 'pos': (fading['obj'].x, fading['obj'].y)})
                 self.fading_entities.remove(fading)
 
+        # Expire timed ground interactables (e.g., SmearEnemy walking Inkwell Puddles)
+        world = getattr(self, "world", None)
+        if world is not None and hasattr(world, "interactables"):
+            expired_interactable = False
+            kept_interactables = []
+            for obj in world.interactables:
+                life = getattr(obj, "lifetime", None)
+                if life is not None:
+                    life -= dt
+                    obj.lifetime = life
+                    if life <= 0.0:
+                        expired_interactable = True
+                        continue
+                kept_interactables.append(obj)
+            if expired_interactable:
+                world.interactables[:] = kept_interactables
+                world._spatial_sig = None
+
         for effect in self.parry_effects[:]:
             effect['time'] -= dt
             if effect['time'] <= 0: self.parry_effects.remove(effect)

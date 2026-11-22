@@ -4539,6 +4539,129 @@ def generate_meadow_censor_scythe(
     return surf
 
 
+def generate_frozen_script_monolith(
+    width: int = TILE_WIDTH,
+    height: int = 60,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 40x60 jagged glacier spire with suspended frozen ink script and rime-ice base."""
+    if rng is None:
+        rng = random.Random(DEFAULT_ASSET_SEED + 610)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx = width // 2
+
+    # Ground shadow and frosted snow/rime base
+    pygame.draw.ellipse(surf, (18, 36, 64, 118), (4, height - 11, width - 8, 9))
+    pygame.draw.ellipse(surf, (218, 240, 255, 245), (5, height - 14, width - 10, 10))
+    pygame.draw.ellipse(surf, (164, 214, 246, 235), (8, height - 12, width - 16, 7))
+
+    # Jagged translucent cobalt glacier spire silhouette
+    spire_poly = [
+        (7, height - 10),
+        (9, 28),
+        (13, 14),
+        (cx - 1, 3),
+        (cx + 6, 11),
+        (width - 10, 22),
+        (width - 7, height - 10),
+    ]
+    pygame.draw.polygon(surf, (78, 152, 214, 226), spire_poly)
+
+    # Secondary dark glacier facet (right flank) & luminous ice bevel (left flank)
+    right_facet = [
+        (cx + 1, 6),
+        (cx + 6, 11),
+        (width - 10, 22),
+        (width - 7, height - 10),
+        (cx + 2, height - 10),
+    ]
+    pygame.draw.polygon(surf, (46, 104, 168, 228), right_facet)
+    left_bevel = [
+        (7, height - 10),
+        (9, 28),
+        (13, 14),
+        (cx - 1, 3),
+        (cx - 3, height - 11),
+    ]
+    pygame.draw.polygon(surf, (132, 206, 248, 195), left_bevel)
+
+    # Suspended frozen columns of panicked Archivist ink script trapped inside the glacier core
+    script_col_dark = (22, 34, 62, 215)
+    script_col_mid = (36, 62, 108, 190)
+    for col_x in (cx - 6, cx + 1):
+        for gy in range(15, height - 15, 5):
+            stroke_w = rng.randint(3, 5)
+            col = script_col_dark if (gy % 10 == 0) else script_col_mid
+            pygame.draw.line(surf, col, (col_x, gy), (col_x + stroke_w, gy), 1)
+            if rng.random() < 0.65:
+                pygame.draw.line(surf, col, (col_x + 1, gy + 2), (col_x + max(2, stroke_w - 1), gy + 2), 1)
+
+    # Side glacial crystal shard jutting from lower left
+    shard_poly = [(4, height - 12), (8, height - 26), (13, height - 14), (11, height - 9)]
+    pygame.draw.polygon(surf, (148, 220, 255, 225), shard_poly)
+    pygame.draw.polygon(surf, (226, 248, 255, 240), shard_poly, 1)
+
+    # Crisp specular frost ridges and outline
+    pygame.draw.line(surf, (232, 248, 255, 245), (cx - 1, 5), (cx - 4, height - 14), 1)
+    pygame.draw.line(surf, (210, 242, 255, 220), (14, 16), (cx + 7, 30), 1)
+    pygame.draw.polygon(surf, (28, 62, 108, 245), spire_poly, 1)
+
+    # Rime snow tufts clinging to base edges
+    for rx, ry, rr in ((10, height - 11, 3), (cx, height - 9, 4), (width - 11, height - 11, 3)):
+        pygame.draw.circle(surf, (238, 250, 255, 245), (rx, ry), rr)
+    return surf
+
+
+def generate_frozen_rime_cask(
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate a 40x40 iron-hooped timber supply cask encrusted with thick rime frost and icicles."""
+    if rng is None:
+        rng = random.Random(DEFAULT_ASSET_SEED + 611)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    # Ground shadow
+    pygame.draw.ellipse(surf, (18, 32, 54, 124), (5, height - 9, width - 10, 7))
+
+    # Timber cask body (weathered frost-chilled oak)
+    body_rect = pygame.Rect(8, 8, width - 16, height - 14)
+    pygame.draw.rect(surf, (94, 78, 68, 255), body_rect, border_radius=6)
+    pygame.draw.rect(surf, (74, 62, 56, 255), (10, 12, width - 20, height - 20), border_radius=4)
+
+    # Vertical wooden staves with subtle frost grain
+    for sx in range(12, width - 10, 4):
+        shade = 108 if (sx % 8 == 0) else 66
+        pygame.draw.line(surf, (shade, shade - 8, shade - 12, 235), (sx, 10), (sx, height - 8), 1)
+
+    # Dark corroded iron hoops
+    for hy in (15, height - 13):
+        pygame.draw.rect(surf, (46, 56, 72, 255), (7, hy, width - 14, 4), border_radius=2)
+        pygame.draw.line(surf, (148, 198, 228, 220), (9, hy), (width - 10, hy), 1)
+
+    # Thick rime-frost snow cap over lid & upper rim
+    pygame.draw.ellipse(surf, (220, 242, 255, 250), (7, 5, width - 14, 10))
+    pygame.draw.ellipse(surf, (164, 214, 246, 240), (9, 7, width - 18, 6))
+    pygame.draw.arc(surf, (245, 252, 255, 255), (8, 5, width - 16, 9), 0.15, 2.95, 2)
+
+    # Hanging jagged icicles along the frosted upper rim
+    icicle_specs = ((10, 13, 7), (15, 14, 9), (21, 14, 6), (26, 13, 10), (30, 13, 6))
+    for ix, iy, ilen in icicle_specs:
+        pts = [(ix - 2, iy), (ix + 2, iy), (ix, iy + ilen)]
+        pygame.draw.polygon(surf, (186, 232, 255, 242), pts)
+        pygame.draw.line(surf, (242, 252, 255, 255), (ix, iy), (ix, iy + max(2, ilen - 2)), 1)
+
+    # Scattered rime frost flecks on lower staves
+    for _ in range(10):
+        fx = rng.randint(10, width - 11)
+        fy = rng.randint(20, height - 9)
+        surf.set_at((fx, fy), (212, 238, 255, 225))
+
+    pygame.draw.rect(surf, (32, 48, 72, 250), body_rect, 1, border_radius=6)
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -4905,6 +5028,14 @@ def generate_all_assets(
         (
             "meadow_censor_scythe",
             generate_meadow_censor_scythe(48, 56, rng=_rng("meadow_censor_scythe")),
+        ),
+        (
+            "frozen_script_monolith",
+            generate_frozen_script_monolith(TILE_WIDTH, 60, rng=_rng("frozen_script_monolith")),
+        ),
+        (
+            "frozen_rime_cask",
+            generate_frozen_rime_cask(TILE_WIDTH, TILE_HEIGHT, rng=_rng("frozen_rime_cask")),
         ),
     )
     for sp_key, sp_surf in sanctuary_prop_specs:

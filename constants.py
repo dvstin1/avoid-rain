@@ -254,6 +254,8 @@ SMEAR_DETECT_METERS = 6
 SMEAR_DAMAGE = 10
 SMEAR_DAMAGE_COOLDOWN = 1.2
 SMEAR_PUDDLE_CHANCE = 0.5 # Chance per second to drop a puddle
+SMEAR_TRAIL_PUDDLE_LIFETIME = 10.0 # Seconds before SmearEnemy walking puddles fade away
+SMEAR_TRAIL_FADE_DURATION = 2.5    # Final seconds over which SmearEnemy walking puddles smoothly fade out
 
 # Techno-Sentry Anchor/Artillery enemy configuration
 SENTRY_MAX_HP = 70

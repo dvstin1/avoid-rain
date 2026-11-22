@@ -782,7 +782,7 @@ class SmearEnemy(Enemy):
 
         # Process puddle timer regardless of stagger
         self._puddle_timer += dt
-        from constants import SMEAR_PUDDLE_CHANCE
+        from constants import SMEAR_PUDDLE_CHANCE, SMEAR_TRAIL_PUDDLE_LIFETIME
         if self._puddle_timer >= 1.0:
             self._puddle_timer = 0.0
             if random.random() < SMEAR_PUDDLE_CHANCE:
@@ -790,6 +790,8 @@ class SmearEnemy(Enemy):
                 puddle = GameObject((self.x, self.y), (TILE_SIZE, TILE_SIZE))
                 puddle.is_solid = False
                 puddle.name = "Inkwell Puddle"
+                puddle.lifetime = float(SMEAR_TRAIL_PUDDLE_LIFETIME)
+                puddle.max_lifetime = float(SMEAR_TRAIL_PUDDLE_LIFETIME)
                 state.world.interactables.append(puddle)
 
         # Then call standard actor update (handles stagger and movement)

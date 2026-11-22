@@ -553,6 +553,62 @@ class Renderer:
             fl.set_at((1, 1), s_base)
         return fl
 
+    @classmethod
+    def _build_frozen_peaks_stratum_variant(cls, ts, s_idx, v_idx, s_base):
+        """Generate a 40x40 mirror-glacier, rime-frosted slate, or powder-snow variant for frozen_peaks."""
+        fl = pygame.Surface((ts, ts))
+        fl.fill(s_base)
+        rng = random.Random(6200 + s_idx * 97 + v_idx * 19)
+
+        if s_idx == 0:
+            # Deep Mirror-Glacier Ice: suspended columns of panicked Archivist script & specular ice facets
+            script_ink = cls._shift_rgb_clamped(s_base, -18, -32, -46)
+            script_faint = cls._shift_rgb_clamped(s_base, -10, -18, -26)
+            facet_hi = cls._shift_rgb_clamped(s_base, 36, 48, 52)
+            col_offset = (v_idx * 3) % 7
+            for col_x in (6 + col_offset, 22 + (col_offset // 2)):
+                for sy in range(4, ts - 3, 5):
+                    w_stroke = rng.randint(4, 8)
+                    col = script_ink if (sy + v_idx) % 2 == 0 else script_faint
+                    pygame.draw.line(fl, col, (col_x, sy), (min(ts - 2, col_x + w_stroke), sy), 1)
+            # Crisp diagonal specular ice facets
+            fx0 = 3 + (v_idx * 5) % 12
+            pygame.draw.line(fl, facet_hi, (fx0, ts - 6), (min(ts - 2, fx0 + 18), 6), 1)
+            pygame.draw.line(fl, facet_hi, (min(ts - 10, fx0 + 14), ts - 4), (ts - 2, 14), 1)
+        elif s_idx == 1:
+            # Rime-Frosted Mountain Slate: slate grain, crystalline frost-vein hairlines & pale rime highlights
+            vein_col = cls._shift_rgb_clamped(s_base, 46, 44, 34)
+            rime_hi = cls._shift_rgb_clamped(s_base, 72, 68, 54)
+            slate_lo = cls._shift_rgb_clamped(s_base, -14, -18, -22)
+            vx0 = 4 + (v_idx * 7) % 14
+            vy0 = 6 + (v_idx * 5) % 10
+            pygame.draw.line(fl, vein_col, (vx0, vy0), (min(ts - 2, vx0 + 16), min(ts - 2, vy0 + 12)), 1)
+            pygame.draw.line(fl, rime_hi, (vx0 + 6, vy0 + 4), (min(ts - 2, vx0 + 20), max(2, vy0 - 3)), 1)
+            pygame.draw.line(fl, slate_lo, (2, ts - 9 - (v_idx % 3) * 3), (ts - 4, ts - 7 - (v_idx % 3) * 3), 1)
+            for _ in range(24):
+                px, py = rng.randrange(0, ts), rng.randrange(0, ts)
+                d = rng.randint(-8, 10)
+                fl.set_at((px, py), cls._shift_rgb_clamped(s_base, d, d, d + 2))
+        else:
+            # Fresh Powder Snowdrifts: wind-sculpted powder texture & subtle pale-cyan drift shadows
+            drift_shadow = cls._shift_rgb_clamped(s_base, -22, -16, -8)
+            powder_hi = cls._shift_rgb_clamped(s_base, 24, 18, 7)
+            phase = (v_idx * 4) % 9
+            for dy in range(6 + phase, ts - 2, 11):
+                x0 = rng.randint(2, 8)
+                x1 = min(ts - 2, x0 + rng.randint(16, 26))
+                pygame.draw.line(fl, drift_shadow, (x0, dy), (x1, dy), 1)
+                if dy > 1:
+                    pygame.draw.line(fl, powder_hi, (x0 + 1, dy - 1), (max(x0 + 1, x1 - 2), dy - 1), 1)
+            for _ in range(18):
+                px, py = rng.randrange(0, ts), rng.randrange(0, ts)
+                fl.set_at((px, py), powder_hi if rng.random() < 0.6 else drift_shadow)
+
+        # Preserve exact pixel (1, 1) == s_base invariant for stratum verification tests
+        if v_idx == 0:
+            fl.set_at((1, 1), s_base)
+        return fl
+
     def _generate_biome_tile_cache(self):
         """Procedurally generate seamless base floor and wall surfaces per biome."""
         ts = constants.TILE_SIZE
@@ -581,6 +637,8 @@ class Renderer:
                         fl = self._build_swamp_mire_stratum_variant(ts, s_idx, v_idx, s_base)
                     elif biome == "pastoral_valley":
                         fl = self._build_pastoral_valley_stratum_variant(ts, s_idx, v_idx, s_base)
+                    elif biome == "frozen_peaks":
+                        fl = self._build_frozen_peaks_stratum_variant(ts, s_idx, v_idx, s_base)
                     else:
                         fl = pygame.Surface((ts, ts))
                         fl.fill(s_base)
@@ -960,6 +1018,8 @@ class Renderer:
                 (constants.MEADOW_CENSOR_SCYTHE_WIDTH, constants.MEADOW_CENSOR_SCYTHE_HEIGHT),
                 True,
             ),
+            ("frozen_script_monolith.png", "FrozenScriptMonolith", (ts, 60), True),
+            ("frozen_rime_cask.png", "FrozenRimeCask", (ts, ts), True),
         )
         for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
             sx_path = os.path.join(base_path, sx_file)
@@ -3106,6 +3166,8 @@ class Renderer:
                     self._draw_swamp_spore_pod(sx_o, sy_o, obj, prop_cache)
                 elif obj_biome == "pastoral_valley":
                     self._draw_pastoral_hay_crate(sx_o, sy_o, obj, prop_cache)
+                elif obj_biome == "frozen_peaks":
+                    self._draw_frozen_rime_cask(sx_o, sy_o, obj, prop_cache)
                 else:
                     img = self.image_cache.get("barrel_0.png")
                     if img:
@@ -3146,6 +3208,8 @@ class Renderer:
                     self._draw_tech_server_pylon(sx_o, sy_o, prop_cache)
                 elif obj_biome == "pastoral_valley":
                     self._draw_pastoral_shepherd_cairn(sx_o, sy_o, prop_cache)
+                elif obj_biome == "frozen_peaks":
+                    self._draw_frozen_script_monolith(sx_o, sy_o, prop_cache)
                 else:
                     tree_surf = prop_cache.get("Structure")
                     if tree_surf is not None:
@@ -3241,15 +3305,50 @@ class Renderer:
                 px, py, pw, ph = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
                 pcx, pcy = px + pw // 2, py + ph // 2
                 pud_surf = prop_cache.get("Inkwell Puddle")
-                if pud_surf is not None:
-                    self.screen.blit(pud_surf, (px, py))
+                puddle_life = getattr(obj, "lifetime", None)
+                fade_ratio = 1.0
+                if puddle_life is not None:
+                    fade_dur = max(1e-3, float(constants.SMEAR_TRAIL_FADE_DURATION))
+                    fade_ratio = min(1.0, max(0.0, float(puddle_life) / fade_dur))
+                    if fade_ratio <= 0.0:
+                        continue
+                q_alpha = 255 if fade_ratio >= 0.999 else max(16, (int(fade_ratio * 255) // 16) * 16)
+                if q_alpha < 255 and is_real_surface:
+                    cache = self._fx_surface_cache
+                    p_key = ("inkwell_puddle_fade", pw, ph, q_alpha, pud_surf is not None)
+                    faded_surf = cache.get(p_key)
+                    if faded_surf is None:
+                        faded_surf = pygame.Surface((pw, ph), pygame.SRCALPHA)
+                        if pud_surf is not None:
+                            faded_surf.blit(pud_surf, (0, 0))
+                            faded_surf.fill((255, 255, 255, q_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+                        else:
+                            fcx, fcy = pw // 2, ph // 2
+                            pygame.draw.circle(faded_surf, (16, 8, 24, q_alpha), (fcx, fcy), pw // 2 - 1)
+                            pygame.draw.circle(faded_surf, (58, 26, 82, q_alpha), (fcx - 4, fcy - 2), pw // 3 + 2)
+                            pygame.draw.circle(faded_surf, (58, 26, 82, q_alpha), (fcx + 5, fcy + 3), pw // 3 + 1)
+                            pygame.draw.circle(faded_surf, (28, 12, 42, q_alpha), (fcx, fcy), pw // 3)
+                        cache[p_key] = faded_surf
+                    self.screen.blit(faded_surf, (px, py))
+                    ripple = int(((math.sin(now * 4.5 + obj.x) + 1.0) * 0.5) * (pw // 3 - 3)) + 3
+                    if q_alpha >= 32:
+                        r_key = ("inkwell_puddle_ripple", pw, ph, ripple, q_alpha)
+                        rip_surf = cache.get(r_key)
+                        if rip_surf is None:
+                            rip_surf = pygame.Surface((pw, ph), pygame.SRCALPHA)
+                            pygame.draw.circle(rip_surf, (165, 68, 198, q_alpha), (pw // 2, ph // 2), ripple, 1)
+                            cache[r_key] = rip_surf
+                        self.screen.blit(rip_surf, (px, py))
                 else:
-                    pygame.draw.circle(self.screen, (16, 8, 24), (pcx, pcy), pw // 2 - 1)
-                    pygame.draw.circle(self.screen, (58, 26, 82), (pcx - 4, pcy - 2), pw // 3 + 2)
-                    pygame.draw.circle(self.screen, (58, 26, 82), (pcx + 5, pcy + 3), pw // 3 + 1)
-                    pygame.draw.circle(self.screen, (28, 12, 42), (pcx, pcy), pw // 3)
-                ripple = int(((math.sin(now * 4.5 + obj.x) + 1.0) * 0.5) * (pw // 3 - 3)) + 3
-                pygame.draw.circle(self.screen, (165, 68, 198), (pcx, pcy), ripple, 1)
+                    if pud_surf is not None:
+                        self.screen.blit(pud_surf, (px, py))
+                    else:
+                        pygame.draw.circle(self.screen, (16, 8, 24), (pcx, pcy), pw // 2 - 1)
+                        pygame.draw.circle(self.screen, (58, 26, 82), (pcx - 4, pcy - 2), pw // 3 + 2)
+                        pygame.draw.circle(self.screen, (58, 26, 82), (pcx + 5, pcy + 3), pw // 3 + 1)
+                        pygame.draw.circle(self.screen, (28, 12, 42), (pcx, pcy), pw // 3)
+                    ripple = int(((math.sin(now * 4.5 + obj.x) + 1.0) * 0.5) * (pw // 3 - 3)) + 3
+                    pygame.draw.circle(self.screen, (165, 68, 198), (pcx, pcy), ripple, 1)
             elif obj.name == "Candelabra":
                 glow_r, glow_a = self._compute_candelabra_flicker(now, obj.x, obj.y)
                 if is_real_surface:
@@ -3429,6 +3528,7 @@ class Renderer:
         self.draw_tech_tower_atmosphere(state, ox, oy, now=now)
         self.draw_swamp_mire_atmosphere(state, ox, oy, now=now)
         self.draw_pastoral_valley_atmosphere(state, ox, oy, now=now)
+        self.draw_frozen_peaks_atmosphere(state, ox, oy, now=now)
         self.draw_sanctuary_roofs_and_blackout(state, ox, oy)
 
         if getattr(state.player, 'current_interactable', None):
@@ -5929,6 +6029,138 @@ class Renderer:
                 pygame.draw.circle(p_surf, (255, 246, 184, min(255, q_ma)), (5, 5), 2)
                 cache[p_key] = p_surf
             self.screen.blit(p_surf, (mx - 5, my - 5))
+
+    def _draw_frozen_script_monolith(self, sx_o, sy_o, prop_cache):
+        """Render a 40x60 jagged glacier spire with suspended ink script anchored onto its 40x40 footprint."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        if isinstance(self.screen, pygame.Surface):
+            cache = getattr(self, "_fx_surface_cache", None)
+            s_key = ("frozen_monolith_shadow", 34, 10)
+            sh_surf = cache.get(s_key) if cache is not None else None
+            if sh_surf is None:
+                sh_surf = pygame.Surface((34, 10), pygame.SRCALPHA)
+                pygame.draw.ellipse(sh_surf, (18, 36, 64, 98), (0, 0, 34, 10))
+                if cache is not None:
+                    cache[s_key] = sh_surf
+            self.screen.blit(sh_surf, (tx_i + 3, ty_i + 30))
+
+        monolith_surf = prop_cache.get("FrozenScriptMonolith")
+        if monolith_surf is not None:
+            self.screen.blit(monolith_surf, (tx_i, ty_i - 20))
+        elif isinstance(self.screen, pygame.Surface):
+            # Graceful procedural fallback: jagged cobalt glacier spire with pale frost edges
+            poly = [
+                (tx_i + 8, ty_i + 32), (tx_i + 10, ty_i + 6),
+                (tx_i + 19, ty_i - 16), (tx_i + 29, ty_i + 2),
+                (tx_i + 32, ty_i + 32),
+            ]
+            pygame.draw.polygon(self.screen, (78, 152, 214), poly)
+            pygame.draw.polygon(self.screen, (218, 242, 255), poly, 1)
+            pygame.draw.line(self.screen, (24, 38, 68), (tx_i + 16, ty_i - 2), (tx_i + 22, ty_i - 2), 1)
+            pygame.draw.line(self.screen, (24, 38, 68), (tx_i + 15, ty_i + 6), (tx_i + 23, ty_i + 6), 1)
+
+    def _draw_frozen_rime_cask(self, sx_o, sy_o, obj, prop_cache):
+        """Render a 40x40 rime-encrusted supply cask replacing barrels in frozen_peaks."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        cask_surf = prop_cache.get("FrozenRimeCask")
+        if cask_surf is not None:
+            self.screen.blit(cask_surf, (tx_i, ty_i))
+        elif isinstance(self.screen, pygame.Surface):
+            sw_o = max(16, int(getattr(obj, "width", constants.TILE_SIZE)))
+            sh_o = max(16, int(getattr(obj, "height", constants.TILE_SIZE)))
+            pygame.draw.rect(
+                self.screen, (90, 74, 66), (tx_i + 8, ty_i + 8, sw_o - 16, sh_o - 14), border_radius=5
+            )
+            pygame.draw.rect(self.screen, (46, 56, 72), (tx_i + 7, ty_i + 14, sw_o - 14, 4), border_radius=2)
+            pygame.draw.ellipse(self.screen, (220, 242, 255), (tx_i + 7, ty_i + 5, sw_o - 14, 9))
+
+    def draw_frozen_peaks_atmosphere(self, state, ox, oy, now=None):
+        """Render drifting snowflakes on frozen_peaks strictly where rain is not actively falling."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        player = getattr(state, "player", None)
+        world = getattr(state, "world", None)
+        if player is None or world is None:
+            return
+        ts = constants.TILE_SIZE
+        px_c, py_c = player.get_center()
+        if self._resolve_tile_biome(state, int(px_c // ts), int(py_c // ts)) != "frozen_peaks":
+            return
+
+        weather_mgr = getattr(state, "weather_manager", None)
+        bleed_state = getattr(state, "bleed_state", None)
+        if bleed_state is None and weather_mgr is not None:
+            bleed_state = getattr(weather_mgr, "bleed_state", "CLEAR")
+        # Global rain covers the entire viewport during DILUTION
+        if bleed_state == "DILUTION":
+            return
+
+        boss_coords = getattr(state, "current_boss_coords", None)
+        if boss_coords is None and weather_mgr is not None and hasattr(weather_mgr, "get_current_boss_coords"):
+            boss_coords = weather_mgr.get_current_boss_coords()
+        weather_paused = bool(getattr(weather_mgr, "paused", False)) if weather_mgr is not None else False
+        storm_rain_active = (
+            bleed_state not in ("GRACE_PERIOD", "APPENDIX", "DILUTION")
+            and boss_coords is not None
+            and not weather_paused
+        )
+
+        t_now = time.time() if now is None else float(now)
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        cache = self._fx_surface_cache
+        span_w = sw + 80
+        span_h = sh + 80
+        safe_rad = float(getattr(state, "active_safe_radius", 1000000.0))
+        safe_rad_sq = safe_rad * safe_rad
+        wb_x = (boss_coords["x"] * ts) if boss_coords else 0.0
+        wb_y = (boss_coords["y"] * ts) if boss_coords else 0.0
+
+        for idx in range(28):
+            fall_speed = 38.0 + (idx % 5) * 11.0
+            drift_speed = -16.0 - (idx % 3) * 6.0
+            mx = int(
+                ((idx * 137.0 + t_now * drift_speed + math.sin(t_now * 1.4 + idx * 0.9) * 18.0 - ox * 0.95) % span_w)
+                - 40
+            )
+            my = int(((idx * 89.0 + t_now * fall_speed - oy * 0.95) % span_h) - 40)
+            if mx < -8 or mx > sw + 8 or my < -8 or my > sh + 8:
+                continue
+
+            if storm_rain_active:
+                world_x = mx + ox
+                world_y = my + oy
+                if (
+                    weather_mgr is not None
+                    and hasattr(weather_mgr, "is_pos_safe")
+                    and getattr(weather_mgr, "boss_coords_list", None)
+                ):
+                    if not weather_mgr.is_pos_safe(world_x, world_y):
+                        continue
+                else:
+                    if (world_x - wb_x) ** 2 + (world_y - wb_y) ** 2 > safe_rad_sq:
+                        continue
+
+            size_bucket = 1 + (idx % 3)  # 1, 2, or 3 px flake radius
+            pulse = (math.sin(t_now * 2.1 + idx * 1.3) + 1.0) * 0.5
+            q_alpha = 144 + int(pulse * 5) * 16  # 144..224
+            f_key = ("frozen_snowflake", size_bucket, q_alpha)
+            f_surf = cache.get(f_key)
+            if f_surf is None:
+                dim = size_bucket * 2 + 4
+                mid = dim // 2
+                f_surf = pygame.Surface((dim, dim), pygame.SRCALPHA)
+                if size_bucket >= 3:
+                    pygame.draw.circle(f_surf, (186, 236, 255, q_alpha // 2), (mid, mid), size_bucket)
+                    pygame.draw.line(f_surf, (242, 252, 255, q_alpha), (mid - 2, mid), (mid + 2, mid), 1)
+                    pygame.draw.line(f_surf, (242, 252, 255, q_alpha), (mid, mid - 2), (mid, mid + 2), 1)
+                elif size_bucket == 2:
+                    pygame.draw.circle(f_surf, (206, 242, 255, q_alpha // 2), (mid, mid), 2)
+                    pygame.draw.circle(f_surf, (248, 254, 255, q_alpha), (mid, mid), 1)
+                else:
+                    pygame.draw.circle(f_surf, (238, 250, 255, q_alpha), (mid, mid), 1)
+                cache[f_key] = f_surf
+            half = f_surf.get_width() // 2
+            self.screen.blit(f_surf, (mx - half, my - half))
 
     def _draw_sanctuary_tree_canopy(self, obj, ox, oy, prop_cache):
         """Draw a SanctuaryTreeCanopy (80x100) anchored onto its 40x40 solid trunk footprint."""
