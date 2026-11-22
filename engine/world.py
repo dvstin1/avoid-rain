@@ -560,6 +560,20 @@ class SlugBossCrown(GameObject):
         return None
 
 
+class MeadowCensorScythe(GameObject):
+    """Non-interactive hooked redaction scythe planted upright in the turf after MeadowCensorBoss death."""
+    def __init__(self, position):
+        from constants import MEADOW_CENSOR_SCYTHE_HEIGHT, MEADOW_CENSOR_SCYTHE_WIDTH
+        super().__init__(position, (MEADOW_CENSOR_SCYTHE_WIDTH, MEADOW_CENSOR_SCYTHE_HEIGHT))
+        self.name = "MeadowCensorScythe"
+        self.is_interactive = False
+        self.is_solid = False
+
+    def execute_interaction(self, game_state):
+        """Non-interactive floor trophy prop: intentionally performs no action."""
+        return None
+
+
 class Respite(GameObject):
     """Ancient anchor fragment that allows resting and character edification."""
     def __init__(self, position, dimensions):
@@ -701,7 +715,8 @@ class Respite(GameObject):
             and (
                 getattr(e, "name", "") == "Night Boss"
                 or getattr(e, "is_slug_boss", False)
-                or e.__class__.__name__ in ("NightBoss", "SlugBoss")
+                or getattr(e, "is_meadow_censor", False)
+                or e.__class__.__name__ in ("NightBoss", "SlugBoss", "MeadowCensorBoss")
             )
         ]
 
@@ -1465,7 +1480,11 @@ class World:
         """Capture spawn descriptors for enemies so Respite.execute_rest() can re-manifest them cleanly."""
         spawns = []
         for enemy in (enemies or ()):
-            if getattr(enemy, "name", "") == "Night Boss" or getattr(enemy, "is_slug_boss", False):
+            if (
+                getattr(enemy, "name", "") == "Night Boss"
+                or getattr(enemy, "is_slug_boss", False)
+                or getattr(enemy, "is_meadow_censor", False)
+            ):
                 continue
             spawns.append(
                 {

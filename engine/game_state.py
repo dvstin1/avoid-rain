@@ -1252,8 +1252,8 @@ class GameState:
                 self.audio_manager.play_sfx(SANCTUARY_DOOR_OPEN_SFX)
         self.sanctuary_door_open = door_open
 
-    def spawn_slime_pool(self, x, y, radius=None, duration=None, damage=None):
-        """Spawn a timed damaging ground slime pool secreted by SlugBoss."""
+    def spawn_slime_pool(self, x, y, radius=None, duration=None, damage=None, style="slime"):
+        """Spawn a timed damaging ground hazard pool secreted by SlugBoss ('slime') or MeadowCensorBoss ('tar')."""
         from constants import (
             SLUG_BOSS_SLIME_POOL_DAMAGE,
             SLUG_BOSS_SLIME_POOL_DURATION,
@@ -1270,6 +1270,7 @@ class GameState:
             "max_duration": dur_val,
             "damage": dmg_val,
             "tick_timer": 0.0,
+            "style": str(style),
         }
         self.slime_pools.append(pool)
         return pool
@@ -1336,7 +1337,7 @@ class GameState:
         if self.weather_manager.is_boss_spawn_ready():
             boss_alive = any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
             if not boss_alive and self.weather_manager.bleed_state == "CLAMPED":
-                from engine.enemy import NightBoss, SlugBoss
+                from engine.enemy import MeadowCensorBoss, NightBoss, SlugBoss
                 idx = self.weather_manager.current_boss_idx
                 boss_list = getattr(self.world, 'boss_coords_list', [])
                 if idx < len(boss_list):
@@ -1351,6 +1352,8 @@ class GameState:
                     active_biome = self._resolve_active_biome_key()
                     if active_biome == "swamp_mire":
                         new_boss = SlugBoss(bx, by)
+                    elif active_biome == "pastoral_valley":
+                        new_boss = MeadowCensorBoss(bx, by)
                     else:
                         new_boss = NightBoss(bx, by)
                     if hasattr(self.world, "find_nearest_walkable_spawn"):
@@ -3203,6 +3206,9 @@ class GameState:
 
     def _update_audio_track(self, dt):
         from constants import (
+            MEADOW_CENSOR_PHASE1_MUSIC,
+            MEADOW_CENSOR_PHASE2_HP_RATIO,
+            MEADOW_CENSOR_PHASE2_MUSIC,
             SLUG_BOSS_PHASE1_MUSIC,
             SLUG_BOSS_PHASE2_HP_RATIO,
             SLUG_BOSS_PHASE2_MUSIC,
@@ -3223,7 +3229,7 @@ class GameState:
         proximity_threshold = 15 * TILE_SIZE
         cooldown_limit = 3.0
         near_miniboss = near_night_boss = near_final_author = False
-        near_slug_boss_track = None
+        near_biome_boss_track = None
         px, py = self.player.get_center()
         for enemy in self.enemies:
             if getattr(enemy, "hp", 1) <= 0:
@@ -3241,7 +3247,14 @@ class GameState:
                         in_phase2 = getattr(enemy, "phase", 1) >= 2 or (
                             max_hp > 0.0 and 0.0 < cur_hp <= max_hp * SLUG_BOSS_PHASE2_HP_RATIO
                         )
-                        near_slug_boss_track = SLUG_BOSS_PHASE2_MUSIC if in_phase2 else SLUG_BOSS_PHASE1_MUSIC
+                        near_biome_boss_track = SLUG_BOSS_PHASE2_MUSIC if in_phase2 else SLUG_BOSS_PHASE1_MUSIC
+                    elif getattr(enemy, "is_meadow_censor", False):
+                        max_hp = float(getattr(enemy, "max_hp", 0.0) or 0.0)
+                        cur_hp = float(getattr(enemy, "hp", 0.0) or 0.0)
+                        in_phase2 = getattr(enemy, "phase", 1) >= 2 or (
+                            max_hp > 0.0 and 0.0 < cur_hp <= max_hp * MEADOW_CENSOR_PHASE2_HP_RATIO
+                        )
+                        near_biome_boss_track = MEADOW_CENSOR_PHASE2_MUSIC if in_phase2 else MEADOW_CENSOR_PHASE1_MUSIC
                     elif ename == "Night Boss":
                         near_night_boss = True
                     else:
@@ -3250,8 +3263,8 @@ class GameState:
         if near_final_author:
             self.player.active_track_name = "final_reckoning.ogg"
             self.player.miniboss_cooldown_accumulator = 0.0
-        elif near_slug_boss_track is not None:
-            self.player.active_track_name = near_slug_boss_track
+        elif near_biome_boss_track is not None:
+            self.player.active_track_name = near_biome_boss_track
             self.player.miniboss_cooldown_accumulator = 0.0
         elif near_night_boss:
             self.player.active_track_name = "night_boss.ogg"

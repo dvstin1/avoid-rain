@@ -205,6 +205,20 @@ SLUG_BOSS_MINION_COUNT = 10
 SLUG_BOSS_PHASE1_MUSIC = "slug_boss_phase1.ogg"
 SLUG_BOSS_PHASE2_MUSIC = "slug_boss_phase2.ogg"
 
+# Pastoral Valley Night Boss (MeadowCensorBoss — The Meadow Censor) configuration
+MEADOW_CENSOR_SIZE = 104
+MEADOW_CENSOR_SCYTHE_WIDTH = 48
+MEADOW_CENSOR_SCYTHE_HEIGHT = 56
+MEADOW_CENSOR_HP = 680.0
+MEADOW_CENSOR_SPEED = 112.0
+MEADOW_CENSOR_PULL_DISTANCE = 96.0
+MEADOW_CENSOR_TAR_POOL_COUNT = 3
+MEADOW_CENSOR_PHASE2_HP_RATIO = 0.5
+MEADOW_CENSOR_MINION_COUNT = 4
+MEADOW_CENSOR_WHISTLE_SFX = "meadow_censor_whistle.ogg"
+MEADOW_CENSOR_PHASE1_MUSIC = "pastoral_boss_phase1.ogg"
+MEADOW_CENSOR_PHASE2_MUSIC = "pastoral_boss_phase2.ogg"
+
 # Fast-pursuit Bat enemy configuration
 BAT_MAX_HP = 35
 BAT_SPEED = 150.0  # pixels per second (fast pursuit)
@@ -1095,6 +1109,8 @@ BOSS_COMBAT_TRACKS = (
     "final_reckoning.ogg",
     SLUG_BOSS_PHASE1_MUSIC,
     SLUG_BOSS_PHASE2_MUSIC,
+    MEADOW_CENSOR_PHASE1_MUSIC,
+    MEADOW_CENSOR_PHASE2_MUSIC,
 )
 
 # Title Screen Storm-and-Lightning Transition Constants

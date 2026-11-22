@@ -948,6 +948,18 @@ class Renderer:
             ),
             ("pastoral_shepherd_cairn.png", "PastoralShepherdCairn", (ts, 60), True),
             ("pastoral_hay_crate.png", "PastoralHayCrate", (ts, ts), True),
+            (
+                "meadow_censor_boss.png",
+                "MeadowCensorBoss",
+                (constants.MEADOW_CENSOR_SIZE, constants.MEADOW_CENSOR_SIZE),
+                True,
+            ),
+            (
+                "meadow_censor_scythe.png",
+                "MeadowCensorScythe",
+                (constants.MEADOW_CENSOR_SCYTHE_WIDTH, constants.MEADOW_CENSOR_SCYTHE_HEIGHT),
+                True,
+            ),
         )
         for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
             sx_path = os.path.join(base_path, sx_file)
@@ -3082,6 +3094,8 @@ class Renderer:
                     )
             elif obj.name == "SlugBossCrown":
                 self._draw_slug_boss_crown(sx_o, sy_o, prop_cache)
+            elif obj.name == "MeadowCensorScythe":
+                self._draw_meadow_censor_scythe(sx_o, sy_o, prop_cache)
             elif obj.name == "Barrel":
                 obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
                 w_name = getattr(state.world, "name", "").lower()
@@ -3815,11 +3829,14 @@ class Renderer:
         """Draw image sprites or procedural basic-shape graphics for enemies and bosses."""
         from engine.enemy import (
             BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy,
-            Miniboss, MinibossM2, MinibossM3, NightBoss, PunctuationWolfEnemy,
-            SentryEnemy, SlugBoss, SmearEnemy,
+            MeadowCensorBoss, Miniboss, MinibossM2, MinibossM3, NightBoss,
+            PunctuationWolfEnemy, SentryEnemy, SlugBoss, SmearEnemy,
         )
         if bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss):
             self._draw_slug_boss(actor, draw_rect, packet)
+            return True
+        if bool(getattr(actor, "is_meadow_censor", False)) or isinstance(actor, MeadowCensorBoss):
+            self._draw_meadow_censor_boss(actor, draw_rect, packet)
             return True
         actor_tag = actor.name.lower()
         cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
@@ -4269,11 +4286,12 @@ class Renderer:
         if not hasattr(actor, 'state') or not hasattr(actor, 'combat_timer'):
             return
 
-        from engine.enemy import BatEnemy, SlugBoss, SlugEnemy
+        from engine.enemy import BatEnemy, MeadowCensorBoss, SlugBoss, SlugEnemy
         actor_tag = str(getattr(actor, 'name', '')).lower()
         if (
             bool(getattr(actor, "is_slug_boss", False))
-            or isinstance(actor, (SlugBoss, SlugEnemy))
+            or bool(getattr(actor, "is_meadow_censor", False))
+            or isinstance(actor, (SlugBoss, SlugEnemy, MeadowCensorBoss))
             or "slug" in actor_tag
         ):
             return
@@ -5555,8 +5573,115 @@ class Renderer:
             pygame.draw.polygon(self.screen, (206, 166, 54), pts)
             pygame.draw.polygon(self.screen, (78, 56, 18), pts, 2)
 
+    def _draw_meadow_censor_boss(self, actor, draw_rect, packet):
+        """Render the 104x104 Pastoral Valley Night Boss with Phase 2 violet/gold aura & hooked scythe sweep."""
+        fx, fy = packet.get("facing", (1.0, 0.0))
+        fx = float(fx)
+        fy = float(fy)
+        base_state = packet.get("base", "IDLE")
+        attack_mode = packet.get("attack_mode", getattr(actor, "attack_mode", "SCYTHE"))
+        anim_t = float(packet.get("anim_timer", 0.0))
+        w = max(16, int(draw_rect.width))
+        h = max(16, int(draw_rect.height))
+
+        bob_y = int(round(math.sin(anim_t * 6.5) * 3.0)) if base_state == "RUN" else 0
+        dst_rect = pygame.Rect(0, 0, w, h)
+        dst_rect.midbottom = (draw_rect.midbottom[0], draw_rect.midbottom[1] + bob_y)
+
+        # Phase 2 energized violet/gold culling aura beneath/around MeadowCensorBoss (<= 50% HP)
+        max_hp = float(getattr(actor, "max_hp", 0.0) or 0.0)
+        cur_hp = float(getattr(actor, "hp", 0.0) or 0.0)
+        is_phase2 = getattr(actor, "phase", 1) >= 2 or (
+            max_hp > 0.0 and 0.0 < cur_hp <= max_hp * constants.MEADOW_CENSOR_PHASE2_HP_RATIO
+        )
+        if isinstance(self.screen, pygame.Surface) and is_phase2:
+            pulse = 0.5 + 0.5 * math.sin(anim_t * 10.5)
+            aura_r = max(32, w // 2 + int(12 + pulse * 8))
+            aura = pygame.Surface((aura_r * 2 + 4, aura_r * 2 + 4), pygame.SRCALPHA)
+            acx, acy = aura_r + 2, aura_r + 2
+            pygame.draw.circle(aura, (148, 56, 198, int(44 + pulse * 30)), (acx, acy), aura_r)
+            pygame.draw.circle(aura, (238, 194, 72, int(48 + pulse * 28)), (acx, acy), max(12, aura_r - 10))
+            pygame.draw.circle(aura, (195, 95, 225, int(135 + pulse * 60)), (acx, acy), aura_r - 1, 2)
+            pygame.draw.circle(aura, (248, 212, 92, int(150 + pulse * 60)), (acx, acy), max(10, aura_r - 7), 2)
+            for idx in range(6):
+                ang = anim_t * 3.4 + (idx * math.pi / 3.0)
+                sx_e = int(acx + math.cos(ang) * (aura_r - 4))
+                sy_e = int(acy + math.sin(ang) * (aura_r - 4))
+                pygame.draw.circle(aura, (248, 226, 136, 200), (sx_e, sy_e), 3)
+            self.screen.blit(aura, (dst_rect.centerx - acx, dst_rect.centery - acy))
+
+        # Tar-geyser channeling ring beneath the Censor during TAR_GEYSER wind-up / strike
+        if (
+            isinstance(self.screen, pygame.Surface)
+            and base_state in ("WIND_UP", "STRIKE")
+            and attack_mode == "TAR_GEYSER"
+        ):
+            halo_r = max(24, w // 2 + 10)
+            halo = pygame.Surface((halo_r * 2, halo_r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(halo, (48, 22, 68, 72), (halo_r, halo_r), halo_r)
+            pygame.draw.circle(halo, (195, 95, 225, 118), (halo_r, halo_r), halo_r - 2, 2)
+            self.screen.blit(halo, (dst_rect.centerx - halo_r, dst_rect.centery - halo_r))
+
+        sprite = self.prop_cache.get("MeadowCensorBoss") or self.image_cache.get("meadow_censor_boss.png")
+        if sprite is not None:
+            if sprite.get_size() != (w, h):
+                sprite = pygame.transform.scale(sprite, (w, h))
+            if fx < 0:
+                sprite = pygame.transform.flip(sprite, True, False)
+            self.screen.blit(sprite, dst_rect.topleft)
+        elif isinstance(self.screen, pygame.Surface):
+            # Graceful procedural fallback: tar-soaked cloak, parchment tabard, brass halo
+            pygame.draw.circle(self.screen, (218, 178, 72), (dst_rect.centerx, dst_rect.top + 32), 24, 2)
+            pygame.draw.ellipse(self.screen, (46, 24, 62), dst_rect.inflate(-24, -14))
+            tab = pygame.Rect(dst_rect.centerx - 10, dst_rect.top + 36, 20, h - 52)
+            pygame.draw.rect(self.screen, (216, 198, 160), tab, border_radius=2)
+
+        # Curved hooked redaction scythe sweep arc during SCYTHE WIND_UP / STRIKE
+        if (
+            isinstance(self.screen, pygame.Surface)
+            and base_state in ("WIND_UP", "STRIKE")
+            and attack_mode == "SCYTHE"
+        ):
+            base_ang = math.atan2(fy, fx) if (abs(fx) + abs(fy)) > 1e-3 else 0.0
+            sweep_r = 76.0
+            cx_s, cy_s = float(dst_rect.centerx), float(dst_rect.centery)
+            if base_state == "WIND_UP":
+                arc_pts = [
+                    (
+                        int(cx_s + math.cos(base_ang - 1.35 + i * 0.16) * (sweep_r * 0.84)),
+                        int(cy_s + math.sin(base_ang - 1.35 + i * 0.16) * (sweep_r * 0.84)),
+                    )
+                    for i in range(7)
+                ]
+                pygame.draw.lines(self.screen, (226, 186, 84), False, arc_pts, 2)
+            else:
+                outer_pts = []
+                inner_pts = []
+                for i in range(11):
+                    ang = base_ang - 1.45 + (2.9 * i / 10.0)
+                    outer_pts.append((cx_s + math.cos(ang) * sweep_r, cy_s + math.sin(ang) * sweep_r))
+                    inner_pts.append((cx_s + math.cos(ang) * (sweep_r * 0.62), cy_s + math.sin(ang) * (sweep_r * 0.62)))
+                crescent = outer_pts + list(reversed(inner_pts))
+                arc_surf = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+                pygame.draw.polygon(arc_surf, (148, 56, 182, 92), crescent)
+                pygame.draw.lines(arc_surf, (238, 232, 250, 230), False, outer_pts, 3)
+                pygame.draw.lines(arc_surf, (242, 198, 86, 185), False, inner_pts, 2)
+                self.screen.blit(arc_surf, (0, 0))
+
+    def _draw_meadow_censor_scythe(self, sx_o, sy_o, prop_cache):
+        """Render the persistent non-interactive hooked redaction scythe planted upright after death."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        scythe_surf = prop_cache.get("MeadowCensorScythe") or self.image_cache.get("meadow_censor_scythe.png")
+        if scythe_surf is not None:
+            self.screen.blit(scythe_surf, (tx_i, ty_i))
+        elif isinstance(self.screen, pygame.Surface):
+            pygame.draw.ellipse(self.screen, (52, 20, 74), (tx_i + 10, ty_i + 44, 28, 8))
+            pygame.draw.line(self.screen, (118, 76, 42), (tx_i + 20, ty_i + 48), (tx_i + 27, ty_i + 10), 4)
+            blade = [(tx_i + 27, ty_i + 10), (tx_i + 42, ty_i + 14), (tx_i + 38, ty_i + 34), (tx_i + 28, ty_i + 30)]
+            pygame.draw.polygon(self.screen, (186, 196, 210), blade)
+
     def draw_slime_pools(self, state, ox, oy):
-        """Render active damaging SlugBoss ground slime pools beneath actors."""
+        """Render active damaging SlugBoss ('slime') and MeadowCensorBoss ('tar') ground hazard pools."""
         pools = getattr(state, "slime_pools", None)
         if not pools or not isinstance(self.screen, pygame.Surface):
             return
@@ -5573,27 +5698,42 @@ class Renderer:
             ratio = max(0.0, min(1.0, float(pool.get("timer", 0.0)) / max_dur))
             fade = min(1.0, ratio * 3.0)  # Hold solid until final third, then fade smoothly
             q_alpha = max(16, (int(round(fade * 140)) // 10) * 10)
-            p_key = ("slug_boss_slime_pool", rad, q_alpha)
+            is_tar = pool.get("style", "slime") == "tar"
+            p_key = ("meadow_censor_tar_pool" if is_tar else "slug_boss_slime_pool", rad, q_alpha)
             p_surf = cache.get(p_key)
             if p_surf is None:
                 p_surf = pygame.Surface((rad * 2 + 4, rad * 2 + 4), pygame.SRCALPHA)
                 cx_p, cy_p = rad + 2, rad + 2
-                # Chartreuse translucent ooze body with bruised-pink rim highlight
-                pygame.draw.ellipse(
-                    p_surf, (214, 78, 152, min(200, q_alpha + 24)), (2, 6, rad * 2, int(rad * 1.72))
-                )
-                pygame.draw.ellipse(
-                    p_surf, (132, 196, 48, min(210, q_alpha + 16)), (5, 9, rad * 2 - 6, int(rad * 1.60))
-                )
-                pygame.draw.ellipse(
-                    p_surf, (186, 232, 82, min(190, q_alpha)), (rad // 2, rad // 2 + 4, rad, int(rad * 0.7))
-                )
-                pygame.draw.circle(p_surf, (238, 146, 198, min(220, q_alpha + 30)), (cx_p - rad // 3, cy_p), 4)
+                if is_tar:
+                    # Boiling deep-plum / violet tar-ink geyser pool matching pastoral_valley Stratum 0
+                    pygame.draw.ellipse(
+                        p_surf, (148, 56, 182, min(210, q_alpha + 26)), (2, 6, rad * 2, int(rad * 1.72))
+                    )
+                    pygame.draw.ellipse(
+                        p_surf, (28, 12, 42, min(228, q_alpha + 48)), (5, 9, rad * 2 - 6, int(rad * 1.60))
+                    )
+                    pygame.draw.ellipse(
+                        p_surf, (92, 34, 126, min(200, q_alpha + 14)), (rad // 2, rad // 2 + 4, rad, int(rad * 0.7))
+                    )
+                    pygame.draw.circle(p_surf, (195, 95, 225, min(225, q_alpha + 32)), (cx_p - rad // 3, cy_p), 4)
+                else:
+                    # Chartreuse translucent ooze body with bruised-pink rim highlight
+                    pygame.draw.ellipse(
+                        p_surf, (214, 78, 152, min(200, q_alpha + 24)), (2, 6, rad * 2, int(rad * 1.72))
+                    )
+                    pygame.draw.ellipse(
+                        p_surf, (132, 196, 48, min(210, q_alpha + 16)), (5, 9, rad * 2 - 6, int(rad * 1.60))
+                    )
+                    pygame.draw.ellipse(
+                        p_surf, (186, 232, 82, min(190, q_alpha)), (rad // 2, rad // 2 + 4, rad, int(rad * 0.7))
+                    )
+                    pygame.draw.circle(p_surf, (238, 146, 198, min(220, q_alpha + 30)), (cx_p - rad // 3, cy_p), 4)
                 cache[p_key] = p_surf
             self.screen.blit(p_surf, (sx - rad - 2, sy - rad - 2))
             # Live gentle bubbling dot
             b_rad = 2 + int(((math.sin(now_t * 5.0 + idx * 1.9) + 1.0) * 0.5) * 3)
-            pygame.draw.circle(self.screen, (218, 246, 134), (sx + (idx % 3 - 1) * 10, sy - 2), b_rad, 1)
+            b_col = (195, 95, 225) if is_tar else (218, 246, 134)
+            pygame.draw.circle(self.screen, b_col, (sx + (idx % 3 - 1) * 10, sy - 2), b_rad, 1)
 
     def draw_swamp_mire_atmosphere(self, state, ox, oy, now=None):
         """Render drifting translucent bog miasma wisps (alpha 20..34) and rising chartreuse/lilac spores."""

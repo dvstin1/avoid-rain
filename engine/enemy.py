@@ -1346,6 +1346,343 @@ class SlugBoss(NightBoss):
         print("[LOOT] SlugBoss dropped tarnished crown and 2 scattered weapons.")
 
 
+class MeadowCensorBoss(NightBoss):
+    """Pastoral Valley Night Boss (The Meadow Censor): hooked scythe pull-cleave, boiling tar geysers & wolves."""
+
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import MEADOW_CENSOR_HP, MEADOW_CENSOR_SIZE, MEADOW_CENSOR_SPEED
+        initial_hp = hp if hp is not None else MEADOW_CENSOR_HP
+        super().__init__(x, y, hp=initial_hp, id=id)
+        self.width = MEADOW_CENSOR_SIZE
+        self.height = MEADOW_CENSOR_SIZE
+        self.name = "Night Boss"
+        self.is_meadow_censor = True
+        self.speed = MEADOW_CENSOR_SPEED
+        self.loot_tier = 2
+        self.attack_type = "SWING"
+        self.attack_mode = "SCYTHE"  # Alternates "SCYTHE" <-> "TAR_GEYSER"
+        self.phase = 1
+        self.minions_summoned = False
+        self.wind_up_duration = 0.62
+        self.strike_duration = 0.42
+        self.recovery_duration = 0.80
+        self._tar_released = False
+        self._pull_applied = False
+
+    def get_visual_packet(self):
+        packet = super().get_visual_packet()
+        packet["color_hint"] = (176, 86, 212)
+        packet["attack_mode"] = self.attack_mode
+        packet["phase"] = self.phase
+        return packet
+
+    def get_attack_hitbox(self):
+        """Return a wide hooked crescent scythe cleave hitbox during SCYTHE STRIKE."""
+        if self.state == ActorState.STRIKE and self.attack_mode == "SCYTHE":
+            cx, cy = self.get_center()
+            fx, fy = self.facing
+            mag = math.hypot(fx, fy)
+            ux, uy = (fx / mag, fy / mag) if mag > 0.001 else (1.0, 0.0)
+            cleave_size = 144.0
+            offset = 32.0
+            return (
+                cx + ux * offset - cleave_size / 2.0,
+                cy + uy * offset - cleave_size / 2.0,
+                cleave_size,
+                cleave_size,
+            )
+        return self.get_rect()
+
+    def _apply_scythe_pull(self, game_state):
+        """Pull local player inward toward MeadowCensorBoss while respecting wall collisions."""
+        if self._pull_applied:
+            return
+        player = getattr(game_state, "player", None)
+        if player is None or getattr(game_state, "active_respite", None) is not None:
+            return
+        from constants import MEADOW_CENSOR_PULL_DISTANCE
+
+        self._pull_applied = True
+        bcx, bcy = self.get_center()
+        pcx, pcy = player.get_center()
+        dx = bcx - pcx
+        dy = bcy - pcy
+        dist = math.hypot(dx, dy)
+        min_gap = (self.width + player.width) * 0.52
+        pull_dist = min(float(MEADOW_CENSOR_PULL_DISTANCE), max(0.0, dist - min_gap))
+        if dist <= 1e-3 or pull_dist <= 0.5:
+            return
+        ux, uy = dx / dist, dy / dist
+        world = getattr(game_state, "world", None)
+        steps = max(1, int(math.ceil(pull_dist / 12.0)))
+        step_px = pull_dist / float(steps)
+        for _ in range(steps):
+            player.x += ux * step_px
+            player.y += uy * step_px
+            if world is not None and hasattr(world, "get_nearby_walls"):
+                walls = world.get_nearby_walls(player.rect)
+                player.x, player.y = resolve_wall_collision(player.rect, walls)
+
+    def _release_tar_geysers(self, game_state):
+        """Play shepherd's culling whistle and erupt boiling plum tar-ink pools onto the ground."""
+        if self._tar_released:
+            return
+        self._tar_released = True
+        from constants import (
+            MEADOW_CENSOR_TAR_POOL_COUNT,
+            MEADOW_CENSOR_WHISTLE_SFX,
+            SLUG_BOSS_SLIME_POOL_DAMAGE,
+            SLUG_BOSS_SLIME_POOL_DURATION,
+            SLUG_BOSS_SLIME_POOL_RADIUS,
+        )
+        audio = getattr(game_state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx(MEADOW_CENSOR_WHISTLE_SFX)
+            except Exception:
+                pass
+        spawn_fn = getattr(game_state, "spawn_slime_pool", None)
+        if not callable(spawn_fn):
+            return
+        cx, cy = self.get_center()
+        fx, fy = self.facing
+        mag = math.hypot(fx, fy)
+        ux, uy = (fx / mag, fy / mag) if mag > 0.001 else (1.0, 0.0)
+        px, py = -uy, ux
+        offsets = (
+            (ux * 78.0, uy * 78.0),
+            (ux * 42.0 + px * 68.0, uy * 42.0 + py * 68.0),
+            (ux * 42.0 - px * 68.0, uy * 42.0 - py * 68.0),
+        )
+        for ox_p, oy_p in offsets[:MEADOW_CENSOR_TAR_POOL_COUNT]:
+            try:
+                spawn_fn(
+                    cx + ox_p,
+                    cy + oy_p,
+                    radius=SLUG_BOSS_SLIME_POOL_RADIUS,
+                    duration=SLUG_BOSS_SLIME_POOL_DURATION,
+                    damage=SLUG_BOSS_SLIME_POOL_DAMAGE,
+                    style="tar",
+                )
+            except TypeError:
+                pool = spawn_fn(
+                    cx + ox_p,
+                    cy + oy_p,
+                    radius=SLUG_BOSS_SLIME_POOL_RADIUS,
+                    duration=SLUG_BOSS_SLIME_POOL_DURATION,
+                    damage=SLUG_BOSS_SLIME_POOL_DAMAGE,
+                )
+                if isinstance(pool, dict):
+                    pool["style"] = "tar"
+
+    def _summon_phase2_wolves(self, state):
+        """Summon 4 walkable, Act-scaled PunctuationWolfEnemy minions around MeadowCensorBoss."""
+        from constants import (
+            ACT2_DAMAGE_MULTIPLIER,
+            ACT2_HP_MULTIPLIER,
+            MEADOW_CENSOR_MINION_COUNT,
+            get_act_saturation,
+        )
+
+        enemies = getattr(state, "enemies", None)
+        if enemies is None:
+            return
+        world = getattr(state, "world", None)
+
+        current_act = int(getattr(state, "current_act", 0) or 0)
+        empowered_act = bool(getattr(state, "empowered_act", False))
+        hp_mult = 1.0
+        dmg_mult = 1.0
+        spd_mult = 1.0
+        cd_mult = 1.0
+        emp_flag = None
+        if current_act >= 1 or empowered_act:
+            sat = get_act_saturation(max(1, current_act if current_act >= 1 else 2))
+            spd_mult = float(sat.get("speed_multiplier", 1.0))
+            cd_mult = float(sat.get("cooldown_multiplier", 1.0))
+            if empowered_act and current_act <= 2:
+                hp_mult = float(max(ACT2_HP_MULTIPLIER, float(sat["hp_multiplier"])))
+                dmg_mult = float(max(ACT2_DAMAGE_MULTIPLIER, float(sat["damage_multiplier"])))
+                emp_flag = True
+            else:
+                hp_mult = float(sat["hp_multiplier"])
+                dmg_mult = float(sat["damage_multiplier"])
+                emp_flag = bool(sat["empowered"])
+
+        next_net_id = max((getattr(e, "network_id", -1) for e in enemies), default=0) + 1
+        cx, cy = self.get_center()
+        count = int(MEADOW_CENSOR_MINION_COUNT)
+
+        for idx in range(count):
+            angle = (2.0 * math.pi * idx) / max(1, count) + (math.pi / 4.0)
+            ring_r = 108.0
+            wolf = PunctuationWolfEnemy(cx + math.cos(angle) * ring_r - 18.0, cy + math.sin(angle) * ring_r - 18.0)
+            if world is not None and hasattr(world, "find_nearest_walkable_spawn"):
+                wx, wy = world.find_nearest_walkable_spawn(wolf.x, wolf.y, wolf.width, wolf.height)
+                wolf.x, wolf.y = float(wx), float(wy)
+                wolf.origin_x, wolf.origin_y = float(wx), float(wy)
+            if (
+                hp_mult != 1.0
+                or dmg_mult != 1.0
+                or emp_flag is not None
+                or spd_mult != 1.0
+                or cd_mult != 1.0
+            ):
+                wolf.apply_act_scaling(
+                    hp_mult,
+                    dmg_mult,
+                    empowered=emp_flag,
+                    speed_multiplier=spd_mult,
+                    cooldown_multiplier=cd_mult,
+                )
+            wolf.network_id = next_net_id
+            next_net_id += 1
+            enemies.append(wolf)
+
+        if world is not None:
+            world._enemies = list(enemies)
+
+    def update(self, dt, state):
+        """Advance MeadowCensorBoss AI and trigger Phase 2 culling whistle + 4-wolf pack summon at <= 50% HP."""
+        super().update(dt, state)
+        from constants import MEADOW_CENSOR_PHASE2_HP_RATIO, MEADOW_CENSOR_WHISTLE_SFX
+        if (
+            not self.minions_summoned
+            and self.hp > 0
+            and self.max_hp > 0
+            and self.hp <= self.max_hp * MEADOW_CENSOR_PHASE2_HP_RATIO
+        ):
+            self.phase = 2
+            self.minions_summoned = True
+            audio = getattr(state, "audio_manager", None)
+            if audio is not None:
+                try:
+                    audio.play_sfx(MEADOW_CENSOR_WHISTLE_SFX)
+                except Exception:
+                    pass
+            net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+            if net_mode != "CLIENT":
+                self._summon_phase2_wolves(state)
+
+    def _update_chase(self, dt, state):
+        """Pursue target and initiate hooked SCYTHE cleave or TAR_GEYSER eruption within spacing."""
+        if self.active_target and self.cooldown_timer <= 0:
+            cx, cy = self.get_center()
+            tx, ty = self.active_target
+            dist = math.hypot(tx - cx, ty - cy)
+            if dist <= TILE_SIZE * 4.5:
+                self.state = ActorState.WIND_UP
+                self.combat_timer = self.wind_up_duration
+                self.vx, self.vy = 0.0, 0.0
+                self.has_hit_this_attack = False
+                self._tar_released = False
+                self._pull_applied = False
+                if dist > 0.1:
+                    self.facing = ((tx - cx) / dist, (ty - cy) / dist)
+                self._clear_nav_path()
+                audio = getattr(state, "audio_manager", None)
+                if audio is not None:
+                    try:
+                        audio.play_sfx("enemy_telegraph.ogg")
+                    except Exception:
+                        pass
+                return
+        super()._update_chase(dt, state)
+
+    def _update_wind_up(self, dt, game_state):
+        """Halt cleanly during wind-up."""
+        self.vx, self.vy = 0.0, 0.0
+        super()._update_wind_up(dt, game_state)
+
+    def _on_start_strike(self, game_state):
+        """Launch hooked scythe sweep or halt and erupt boiling plum tar geysers."""
+        self.vx, self.vy = 0.0, 0.0
+        if self.attack_mode == "TAR_GEYSER":
+            self._release_tar_geysers(game_state)
+
+    def _update_strike(self, dt, game_state):
+        """Execute hooked scythe pull-cleave or stationary tar geyser eruption, then alternate mode."""
+        self.vx, self.vy = 0.0, 0.0
+        if self.attack_mode == "SCYTHE":
+            if not self.has_hit_this_attack and self.attempt_damage_player(game_state):
+                self.has_hit_this_attack = True
+                if self.stagger_timer <= 0.0:
+                    self._apply_scythe_pull(game_state)
+        else:
+            self._release_tar_geysers(game_state)
+
+        super()._update_strike(dt, game_state)
+        if self.state != ActorState.STRIKE:
+            self.vx, self.vy = 0.0, 0.0
+            self._tar_released = False
+            self._pull_applied = False
+            self.attack_mode = "TAR_GEYSER" if self.attack_mode == "SCYTHE" else "SCYTHE"
+
+    def on_death(self, state):
+        """Plant persistent non-interactive MeadowCensorScythe, scatter 2 weapons, and drop ChoiceOfFates."""
+        from constants import MEADOW_CENSOR_SCYTHE_HEIGHT, MEADOW_CENSOR_SCYTHE_WIDTH
+        from engine.loot import ChoiceOfFates
+        from engine.world import MeadowCensorScythe, WeaponPickup
+
+        world = getattr(state, "world", None)
+        if world is None:
+            return
+
+        cx, cy = self.get_center()
+        scythe_x = cx - MEADOW_CENSOR_SCYTHE_WIDTH / 2.0
+        scythe_y = cy - MEADOW_CENSOR_SCYTHE_HEIGHT / 2.0
+        if hasattr(world, "find_nearest_walkable_spawn"):
+            scythe_x, scythe_y = world.find_nearest_walkable_spawn(
+                scythe_x, scythe_y, MEADOW_CENSOR_SCYTHE_WIDTH, MEADOW_CENSOR_SCYTHE_HEIGHT
+            )
+        world.interactables.append(MeadowCensorScythe((scythe_x, scythe_y)))
+
+        weapon_pool = [
+            {
+                "name": "Anomalous Redaction Sickle",
+                "damage": 25,
+                "modifiers": {"bleed": 5.5},
+                "description": "Hooked ink-reaping edge inflicting 5.5 bleed damage per second.",
+            },
+            {
+                "name": "Anomalous Shepherd's Crook",
+                "damage": 22,
+                "modifiers": {"slow_hp_regen": 1.2},
+                "description": "Steadies the Reader's pulse, regenerating 1.2 HP per second.",
+            },
+            {
+                "name": "Anomalous Ledger Ward",
+                "damage": 23,
+                "modifiers": {"damage_negation_on_hit": 5.0},
+                "description": "Taking damage temporarily reduces next damage taken by 5.",
+            },
+            {
+                "name": "Anomalous Stout-Draft",
+                "damage": 25,
+                "modifiers": {"max_hp_boost": 20.0},
+                "description": "Gives the Reader a small boost of +20 Max HP.",
+            },
+        ]
+        chosen_pair = random.sample(weapon_pool, 2)
+        scatter_offsets = ((-48.0, 12.0), (48.0, -12.0))
+        for weapon_template, (ox_w, oy_w) in zip(chosen_pair, scatter_offsets):
+            wx, wy = cx + ox_w - TILE_SIZE / 2.0, cy + oy_w - TILE_SIZE / 2.0
+            if hasattr(world, "find_nearest_walkable_spawn"):
+                wx, wy = world.find_nearest_walkable_spawn(wx, wy, TILE_SIZE, TILE_SIZE)
+            weapon_copy = {
+                "name": weapon_template["name"],
+                "damage": weapon_template["damage"],
+                "modifiers": dict(weapon_template["modifiers"]),
+                "description": weapon_template["description"],
+            }
+            world.interactables.append(WeaponPickup((wx, wy), weapon_copy))
+
+        loot_list = getattr(state, "loot", None)
+        if isinstance(loot_list, list) and not any(isinstance(i, ChoiceOfFates) for i in loot_list):
+            loot_list.append(ChoiceOfFates(cx, cy))
+        print("[LOOT] MeadowCensorBoss planted hooked scythe, 2 scattered weapons, and Choice of Fates.")
+
+
 class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
@@ -1365,7 +1702,8 @@ ENEMY_REGISTRY = {
     "BindlingEnemy": BindlingEnemy, "Miniboss": Miniboss, "MinibossM2": MinibossM2,
     "MinibossM3": MinibossM3, "SmearEnemy": SmearEnemy, "SentryEnemy": SentryEnemy,
     "PunctuationWolfEnemy": PunctuationWolfEnemy,
-    "NightBoss": NightBoss, "SlugBoss": SlugBoss, "FinalAuthor": FinalAuthor
+    "NightBoss": NightBoss, "SlugBoss": SlugBoss, "MeadowCensorBoss": MeadowCensorBoss,
+    "FinalAuthor": FinalAuthor,
 }
 
 SYMBOL_REGISTRY = {

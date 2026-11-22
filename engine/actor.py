@@ -123,6 +123,7 @@ class Actor:
         if self.name in ("Night Boss", "The Final Author", "The Chronicler") or self.__class__.__name__ in (
             "NightBoss",
             "SlugBoss",
+            "MeadowCensorBoss",
             "FinalAuthor",
         ):
             return True

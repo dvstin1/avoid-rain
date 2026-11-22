@@ -4378,6 +4378,167 @@ def generate_pastoral_hay_crate(
     return surf
 
 
+def generate_meadow_censor_boss(
+    width: int = 104, height: int = 104, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate a 104x104 Pastoral Valley Night Boss (The Meadow Censor) sprite."""
+    if rng is None:
+        rng = random.Random(5201)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    # 1. Ground contact shadow & seeping deep-plum tar-ink puddle at hem
+    pygame.draw.ellipse(surf, (22, 10, 32, 150), (14, height - 20, width - 28, 16))
+    pygame.draw.ellipse(surf, (64, 26, 92, 175), (20, height - 18, width - 40, 12))
+
+    # 2. Cracked tarnished brass astrolabe halo behind shoulders/head
+    halo_cy = 34
+    pygame.draw.circle(surf, (136, 98, 34, 230), (cx, halo_cy), 28, 3)
+    pygame.draw.circle(surf, (218, 178, 72, 240), (cx, halo_cy), 26, 2)
+    pygame.draw.circle(surf, (176, 136, 48, 200), (cx, halo_cy), 19, 1)
+    # Crosshair & fractured astrolabe spokes
+    for ang_deg in (20, 75, 130, 210, 295, 340):
+        rad = math.radians(ang_deg)
+        x0 = int(cx + math.cos(rad) * 18)
+        y0 = int(halo_cy + math.sin(rad) * 18)
+        x1 = int(cx + math.cos(rad) * 28)
+        y1 = int(halo_cy + math.sin(rad) * 28)
+        pygame.draw.line(surf, (226, 188, 86, 235), (x0, y0), (x1, y1), 2)
+    # Crack notches in the upper brass ring
+    pygame.draw.line(surf, (24, 12, 34, 255), (cx + 12, halo_cy - 24), (cx + 18, halo_cy - 18), 3)
+    pygame.draw.line(surf, (24, 12, 34, 255), (cx - 22, halo_cy - 12), (cx - 15, halo_cy - 8), 2)
+
+    # 3. Gaunt shepherd-inquisitor torso in tar-soaked wool robes & tattered ruled-parchment stoles
+    robe_poly = [
+        (cx - 22, height - 12),
+        (cx - 17, 46),
+        (cx - 22, 36),
+        (cx + 22, 36),
+        (cx + 17, 46),
+        (cx + 24, height - 12),
+        (cx + 10, height - 16),
+        (cx, height - 10),
+        (cx - 10, height - 16),
+    ]
+    pygame.draw.polygon(surf, (46, 24, 62, 255), robe_poly)
+    pygame.draw.polygon(surf, (24, 10, 34, 255), robe_poly, 2)
+
+    # Ruled-parchment inquisitor tabard / shoulder stoles with horizontal ledger ink lines
+    tabard = [
+        (cx - 11, 39),
+        (cx + 11, 39),
+        (cx + 13, height - 20),
+        (cx, height - 15),
+        (cx - 13, height - 20),
+    ]
+    pygame.draw.polygon(surf, (216, 198, 160, 255), tabard)
+    pygame.draw.polygon(surf, (96, 74, 52, 255), tabard, 1)
+    for ly in range(44, height - 22, 6):
+        pygame.draw.line(surf, (148, 124, 86, 210), (cx - 10, ly), (cx + 10, ly), 1)
+    # Creeping violet-black tar stains climbing the hem of the parchment tabard
+    pygame.draw.ellipse(surf, (42, 16, 62, 245), (cx - 13, height - 30, 26, 14))
+    pygame.draw.ellipse(surf, (138, 52, 174, 210), (cx - 8, height - 26, 16, 7))
+    for _ in range(18):
+        gx = rng.randint(cx - 18, cx + 18)
+        gy = rng.randint(42, height - 18)
+        surf.set_at((gx, gy), (74, 34, 98, 220))
+
+    # 4. Wide-brimmed dark shepherd's hat & hooded shadow face with glowing amber/violet eyes
+    pygame.draw.ellipse(surf, (22, 12, 30, 255), (cx - 11, 24, 22, 18))
+    # Glowing inquisitor eyes beneath brim
+    pygame.draw.circle(surf, (248, 206, 86, 255), (cx - 4, 33), 2)
+    pygame.draw.circle(surf, (248, 206, 86, 255), (cx + 4, 33), 2)
+    surf.set_at((cx - 4, 33), (255, 248, 208, 255))
+    surf.set_at((cx + 4, 33), (255, 248, 208, 255))
+    # Wide-brimmed weathered wool shepherd's hat
+    pygame.draw.ellipse(surf, (38, 24, 48, 255), (cx - 26, 20, 52, 12))
+    pygame.draw.ellipse(surf, (20, 10, 28, 255), (cx - 26, 20, 52, 12), 2)
+    hat_crown = [(cx - 12, 23), (cx - 8, 9), (cx + 7, 10), (cx + 12, 23)]
+    pygame.draw.polygon(surf, (52, 34, 62, 255), hat_crown)
+    pygame.draw.polygon(surf, (20, 10, 28, 255), hat_crown, 1)
+    # Brass hatband
+    pygame.draw.line(surf, (214, 174, 68, 255), (cx - 11, 21), (cx + 11, 21), 2)
+
+    # 5. Hooked redaction scythe held diagonally across body, dripping violet-black tar-ink
+    pygame.draw.line(surf, (66, 38, 22, 255), (16, height - 10), (width - 20, 18), 6)
+    pygame.draw.line(surf, (118, 76, 42, 255), (16, height - 10), (width - 20, 18), 3)
+    # Brass collar ferrule
+    pygame.draw.circle(surf, (214, 174, 68, 255), (width - 21, 19), 4)
+    # Curved hooked crescent redaction blade
+    blade_pts = [
+        (width - 20, 16),
+        (width - 6, 22),
+        (width - 4, 38),
+        (width - 14, 52),
+        (width - 24, 54),
+        (width - 16, 44),
+        (width - 13, 33),
+        (width - 17, 24),
+    ]
+    pygame.draw.polygon(surf, (176, 186, 202, 255), blade_pts)
+    pygame.draw.polygon(surf, (52, 46, 68, 255), blade_pts, 2)
+    pygame.draw.lines(
+        surf,
+        (240, 244, 252, 255),
+        False,
+        [(width - 18, 17), (width - 7, 23), (width - 6, 37), (width - 14, 50)],
+        2,
+    )
+    # Dripping violet-black tar-ink beads falling off the scythe hook
+    for dx_t, dy_t in ((width - 14, 55), (width - 18, 63), (width - 10, 48)):
+        pygame.draw.ellipse(surf, (38, 14, 58, 245), (dx_t - 3, dy_t - 2, 6, 7))
+        pygame.draw.circle(surf, (182, 84, 216, 230), (dx_t - 1, dy_t), 2)
+
+    return surf
+
+
+def generate_meadow_censor_scythe(
+    width: int = 48, height: int = 56, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate a 48x56 hooked redaction scythe planted upright in the turf after MeadowCensorBoss death."""
+    _ = rng
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    # Turf shadow & residual violet-black tar-ink puddle around planted shaft
+    pygame.draw.ellipse(surf, (22, 10, 32, 140), (6, height - 12, width - 12, 9))
+    pygame.draw.ellipse(surf, (78, 32, 112, 170), (11, height - 10, width - 22, 6))
+
+    # Planted wooden haft leaning slightly into the ground
+    pygame.draw.line(surf, (66, 38, 22, 255), (cx - 4, height - 7), (cx + 3, 9), 5)
+    pygame.draw.line(surf, (124, 80, 44, 255), (cx - 4, height - 7), (cx + 3, 9), 3)
+    pygame.draw.line(surf, (168, 118, 68, 255), (cx - 3, height - 10), (cx + 2, 11), 1)
+    # Brass ferrule at blade mount
+    pygame.draw.rect(surf, (214, 174, 68, 255), (cx, 8, 6, 5), border_radius=1)
+
+    # Hooked crescent scythe blade curving to the right
+    blade_pts = [
+        (cx + 3, 9),
+        (width - 6, 13),
+        (width - 4, 26),
+        (width - 12, 36),
+        (cx + 4, 34),
+        (width - 12, 27),
+        (width - 11, 18),
+        (cx + 3, 14),
+    ]
+    pygame.draw.polygon(surf, (176, 188, 204, 255), blade_pts)
+    pygame.draw.polygon(surf, (48, 38, 62, 255), blade_pts, 2)
+    pygame.draw.lines(
+        surf,
+        (242, 246, 255, 255),
+        False,
+        [(cx + 5, 10), (width - 7, 14), (width - 6, 25), (width - 12, 34)],
+        1,
+    )
+    # Tar-ink droplets hanging from the scythe tip
+    pygame.draw.ellipse(surf, (42, 16, 64, 245), (width - 14, 36, 5, 7))
+    pygame.draw.circle(surf, (186, 86, 220, 230), (width - 12, 38), 1)
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -4736,6 +4897,14 @@ def generate_all_assets(
         (
             "pastoral_hay_crate",
             generate_pastoral_hay_crate(TILE_WIDTH, TILE_HEIGHT, rng=_rng("pastoral_hay_crate")),
+        ),
+        (
+            "meadow_censor_boss",
+            generate_meadow_censor_boss(104, 104, rng=_rng("meadow_censor_boss")),
+        ),
+        (
+            "meadow_censor_scythe",
+            generate_meadow_censor_scythe(48, 56, rng=_rng("meadow_censor_scythe")),
         ),
     )
     for sp_key, sp_surf in sanctuary_prop_specs:

@@ -980,6 +980,45 @@ def preset_slug_boss_slime(rng: random.Random, p: Dict):
     return mix(*layers)
 
 
+def preset_meadow_censor_whistle(rng: random.Random, p: Dict):
+    """Shrill carved-bone shepherd's culling whistle (~0.45s): trilled dual-pitch call + breathy air edge."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+    f_low = float(p["base_hz"])
+    f_high = float(p["high_hz"])
+    trill_hz = float(p["trill_hz"])
+
+    # Two-part shepherd command contour: rapid upward glide + trilled sustain + crisp terminal flick
+    split = max(1, int(n * 0.34))
+    tail_n = max(1, n - split)
+    if np is not None:
+        t1 = np.arange(split, dtype=np.float64) / SAMPLE_RATE
+        f1 = f_low + (f_high - f_low) * (1.0 - np.exp(-t1 / 0.045))
+        t2 = np.arange(tail_n, dtype=np.float64) / SAMPLE_RATE
+        f2 = f_high * (1.0 + 0.055 * np.sin(TAU * trill_hz * t2)) - 140.0 * (t2 / max(0.05, dur * 0.66))
+        freq_arr = np.concatenate([f1, f2])
+    else:
+        f1 = [f_low + (f_high - f_low) * (1.0 - math.exp(-(i / SAMPLE_RATE) / 0.045)) for i in range(split)]
+        f2 = [
+            f_high * (1.0 + 0.055 * math.sin(TAU * trill_hz * (i / SAMPLE_RATE)))
+            - 140.0 * ((i / SAMPLE_RATE) / max(0.05, dur * 0.66))
+            for i in range(tail_n)
+        ]
+        freq_arr = f1 + f2
+
+    # Fundamental bone-flute pipe + subtle 2nd/3rd harmonics + pea-trill amplitude flutter
+    core = oscillator(freq_arr, "sine")
+    overtone = oscillator(scale(freq_arr, 2.0), "sine")
+    pipe = mix((core, 0.85), (overtone, 0.28))
+    pipe = multiply(pipe, multiply(adsr(n, 0.014, 0.05, 0.82, 0.08), lfo(n, trill_hz, 0.24)))
+
+    # Breathy carved-bone air chiff around the whistle bore
+    air = normalize(biquad(white_noise(n, rng), "bandpass", float(p["air_hz"]), 2.6))
+    air = multiply(air, adsr(n, 0.008, 0.06, 0.48, 0.09))
+
+    return mix((pipe, float(p["pipe_level"])), (air, float(p["air_level"])))
+
+
 PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
     "slash": (preset_slash, {
         "duration": 0.32, "sweep_start_hz": 700.0, "sweep_end_hz": 5200.0, "sweep_q": 1.4, "peak_pos": 0.35,
@@ -1086,6 +1125,10 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "squelch_hz": 780.0, "squelch_level": 0.75, "bubble_count": 5, "bubble_level": 0.42,
         "peak": 0.80,
     }, "Low resonant gastropod bellow + viscous slime squelch"),
+    "meadow_censor_whistle": (preset_meadow_censor_whistle, {
+        "duration": 0.45, "base_hz": 1820.0, "high_hz": 2540.0, "trill_hz": 26.0,
+        "air_hz": 2850.0, "pipe_level": 0.88, "air_level": 0.34, "peak": 0.78,
+    }, "Shrill carved-bone shepherd's culling whistle"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1146,6 +1189,7 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
                                        "peak": 0.75}),
     "door_open.ogg": ("door_open", {"duration": 0.35, "peak": 0.68}),
     "slug_boss_slime.ogg": ("slug_boss_slime", {"duration": 0.55, "peak": 0.80}),
+    "meadow_censor_whistle.ogg": ("meadow_censor_whistle", {"duration": 0.45, "peak": 0.78}),
 }
 
 # Keyword heuristics for unknown missing references (first match wins)
@@ -1829,9 +1873,281 @@ def generate_slug_boss_phase2_music(seed: int = DEFAULT_SEED):
     return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
 
 
+def _synth_plucked_lute_note(n: int, freq_hz: float, brightness: float = 0.55):
+    """Synthesize a crisp plucked lute/harpsichord note with fast harmonic decay."""
+    if n <= 0:
+        return silence(1)
+    if np is not None:
+        t = np.arange(n, dtype=np.float64) / SAMPLE_RATE
+        p1 = np.sin(TAU * freq_hz * t) * np.exp(-t / 0.32)
+        p2 = np.sin(TAU * freq_hz * 2.0 * t + 0.4) * np.exp(-t / 0.16)
+        p3 = np.sin(TAU * freq_hz * 3.0 * t + 0.9) * np.exp(-t / 0.085)
+        p4 = np.sin(TAU * freq_hz * 4.0 * t + 1.3) * np.exp(-t / 0.045)
+        raw = 0.55 * p1 + brightness * (0.34 * p2 + 0.22 * p3 + 0.14 * p4)
+        atk = max(1, min(n // 8, int(0.0025 * SAMPLE_RATE)))
+        rel = max(1, min(n // 4, int(0.015 * SAMPLE_RATE)))
+        raw[:atk] *= np.linspace(0.0, 1.0, atk, endpoint=False)
+        raw[n - rel:] *= np.linspace(1.0, 0.0, rel)
+        return raw
+    out = []
+    atk = max(1, min(n // 8, int(0.0025 * SAMPLE_RATE)))
+    rel = max(1, min(n // 4, int(0.015 * SAMPLE_RATE)))
+    for i in range(n):
+        t_cur = i / SAMPLE_RATE
+        val = (
+            0.55 * math.sin(TAU * freq_hz * t_cur) * math.exp(-t_cur / 0.32)
+            + brightness * 0.34 * math.sin(TAU * freq_hz * 2.0 * t_cur + 0.4) * math.exp(-t_cur / 0.16)
+            + brightness * 0.22 * math.sin(TAU * freq_hz * 3.0 * t_cur + 0.9) * math.exp(-t_cur / 0.085)
+        )
+        if i < atk:
+            val *= i / atk
+        if i >= n - rel:
+            val *= (n - 1 - i) / max(1, rel)
+        out.append(val)
+    return out
+
+
+def _synth_bowed_bass_note(n: int, freq_hz: float):
+    """Synthesize a dark bowed cello/sub-bass drone with slow swell and warm low harmonics."""
+    if n <= 0:
+        return silence(1)
+    if np is not None:
+        t = np.arange(n, dtype=np.float64) / SAMPLE_RATE
+        saw = 2.0 * ((freq_hz * t) % 1.0) - 1.0
+        sub = np.sin(TAU * freq_hz * t)
+        raw = 0.65 * sub + 0.35 * saw
+        atk = max(1, min(n // 3, int(0.055 * SAMPLE_RATE)))
+        rel = max(1, min(n // 3, int(0.085 * SAMPLE_RATE)))
+        env = np.ones(n, dtype=np.float64)
+        env[:atk] = np.linspace(0.0, 1.0, atk, endpoint=False)
+        env[n - rel:] *= np.linspace(1.0, 0.0, rel)
+        return raw * env
+    out = []
+    atk = max(1, min(n // 3, int(0.055 * SAMPLE_RATE)))
+    rel = max(1, min(n // 3, int(0.085 * SAMPLE_RATE)))
+    for i in range(n):
+        t_cur = i / SAMPLE_RATE
+        raw = 0.65 * math.sin(TAU * freq_hz * t_cur) + 0.35 * (2.0 * ((freq_hz * t_cur) % 1.0) - 1.0)
+        env = 1.0
+        if i < atk:
+            env = i / atk
+        if i >= n - rel:
+            env *= (n - 1 - i) / max(1, rel)
+        out.append(raw * env)
+    return out
+
+
+def generate_pastoral_boss_phase1_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~15.0s loopable 120 BPM 3/4 folk-dirge waltz (plucked lute/harpsichord & bowed sub-bass)."""
+    rng = random.Random(seed ^ 0xFA570AA1)
+    bpm = 120.0
+    eighth_s = 60.0 / bpm / 2.0  # 0.25s per eighth note -> 6 eighths per 3/4 bar = 1.50s/bar
+    total_bars = 10  # 10 bars of 3/4 = 15.000s exact seamless loop
+    total_samples = n_samples(total_bars * 6 * eighth_s)
+
+    lute_buf = silence(total_samples)
+    lead_buf = silence(total_samples)
+    bass_buf = silence(total_samples)
+    drum_buf = silence(total_samples)
+
+    # Haunting A minor / harmonic-minor folk-dirge progression: (arpeggio_chord_midi, bass_root_midi)
+    bars = (
+        ((57, 60, 64, 69, 64, 60), 33),  # Bar 0: Am
+        ((57, 60, 64, 69, 64, 60), 33),  # Bar 1: Am
+        ((53, 57, 60, 65, 60, 57), 29),  # Bar 2: F
+        ((50, 53, 57, 62, 57, 53), 38),  # Bar 3: Dm
+        ((52, 56, 59, 64, 59, 56), 28),  # Bar 4: E7
+        ((57, 60, 64, 69, 64, 60), 33),  # Bar 5: Am
+        ((60, 64, 67, 72, 67, 64), 36),  # Bar 6: C
+        ((50, 53, 57, 62, 57, 53), 38),  # Bar 7: Dm
+        ((53, 57, 60, 65, 60, 57), 29),  # Bar 8: F
+        ((52, 56, 59, 64, 62, 59), 28),  # Bar 9: E7 turnaround
+    )
+
+    # Mournful high harpsichord/reed dirge melody per 3/4 bar: (eighth_off, midi_note, dur_eighths)
+    melody_bars = (
+        ((0, 76, 3), (3, 72, 2), (5, 71, 1)),
+        ((0, 69, 4), (4, 71, 1), (5, 72, 1)),
+        ((0, 77, 3), (3, 76, 2), (5, 72, 1)),
+        ((0, 74, 4), (4, 72, 1), (5, 71, 1)),
+        ((0, 71, 3), (3, 76, 2), (5, 75, 1)),
+        ((0, 76, 3), (3, 81, 2), (5, 79, 1)),
+        ((0, 76, 3), (3, 72, 2), (5, 74, 1)),
+        ((0, 77, 3), (3, 74, 2), (5, 72, 1)),
+        ((0, 72, 3), (3, 71, 2), (5, 69, 1)),
+        ((0, 68, 3), (3, 71, 2), (5, 76, 1)),
+    )
+
+    bodhran_low = _synth_music_kick(n_samples(0.18), 108.0, 48.0, 0.048, drive=1.5)
+    brush_hit = _synth_music_noise_hit(n_samples(0.065), rng, 1800.0, 6800.0, 0.022, bits=5, hold=2)
+
+    for bar_idx, (arp_notes, bass_root) in enumerate(bars):
+        bar_eighth = bar_idx * 6
+        bar_pos = offset_samples(bar_eighth * eighth_s)
+
+        # Bowed cello / sub-bass drone holding across the 3/4 measure
+        _ring_add(bass_buf, _synth_bowed_bass_note(n_samples(5.8 * eighth_s), _midi_to_hz(bass_root)), bar_pos, 0.78)
+        _ring_add(
+            bass_buf,
+            _synth_bowed_bass_note(n_samples(3.6 * eighth_s), _midi_to_hz(bass_root + 12)),
+            offset_samples((bar_eighth + 2) * eighth_s),
+            0.34,
+        )
+
+        # Plucked lute/harpsichord 3/4 arpeggios (6 eighth notes per bar)
+        for e_i, midi_note in enumerate(arp_notes):
+            pos = offset_samples((bar_eighth + e_i) * eighth_s)
+            accent = 0.72 if e_i == 0 else (0.54 if e_i in (2, 4) else 0.46)
+            pluck = _synth_plucked_lute_note(n_samples(eighth_s * 1.6), _midi_to_hz(midi_note), brightness=0.62)
+            _ring_add(lute_buf, pluck, pos, accent)
+
+        # Mournful high reed/plucked waltz lead
+        for e_off, m_note, dur_e in melody_bars[bar_idx]:
+            pos = offset_samples((bar_eighth + e_off) * eighth_s)
+            dur_n = n_samples(dur_e * eighth_s * 0.94)
+            reed = _synth_pulse_note(dur_n, _midi_to_hz(m_note), duty=0.25, vibrato_hz=5.2, vibrato_depth=0.007)
+            chime = _synth_plucked_lute_note(dur_n, _midi_to_hz(m_note), brightness=0.72)
+            _ring_add(lead_buf, mix((reed, 0.42), (chime, 0.58)), pos, 0.60)
+
+        # 3/4 frame-drum waltz pulse (ONE - two - three)
+        _ring_add(drum_buf, bodhran_low, bar_pos, 0.76)
+        _ring_add(drum_buf, brush_hit, offset_samples((bar_eighth + 2) * eighth_s), 0.32)
+        _ring_add(drum_buf, brush_hit, offset_samples((bar_eighth + 4) * eighth_s), 0.28)
+        if bar_idx in (4, 9):
+            _ring_add(drum_buf, bodhran_low, offset_samples((bar_eighth + 5) * eighth_s), 0.52)
+
+    bass_warm = biquad(bass_buf, "lowpass", 240.0, order=2)
+    lute_clean = biquad(lute_buf, "lowpass", 5200.0)
+    lead_clean = biquad(lead_buf, "lowpass", 4200.0)
+
+    combined = mix(
+        (lute_clean, 0.64),
+        (lead_clean, 0.56),
+        (bass_warm, 0.62),
+        (drum_buf, 0.46),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
+def generate_pastoral_boss_phase2_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~15.5s loopable 155 BPM frantic 16th-note tarantella / chiptune wolf-hunt Phase 2 theme."""
+    rng = random.Random(seed ^ 0xFA570AA2)
+    bpm = 155.0
+    step_s = 60.0 / bpm / 4.0  # 16th-note duration (~0.09677s)
+    total_bars = 10  # 160 16th-note steps -> 15.484s exact seamless loop
+    total_samples = n_samples(total_bars * 16 * step_s)
+
+    lead_buf = silence(total_samples)
+    arp_buf = silence(total_samples)
+    bass_buf = silence(total_samples)
+    drum_buf = silence(total_samples)
+
+    # Frantic A harmonic-minor tarantella chord sequence: (4-note chord, triangle bass root)
+    chords = (
+        ((69, 72, 76, 81), 45),  # Bar 0: Am
+        ((68, 71, 76, 80), 40),  # Bar 1: E7
+        ((69, 72, 76, 81), 45),  # Bar 2: Am
+        ((62, 65, 69, 74), 38),  # Bar 3: Dm
+        ((69, 72, 76, 81), 45),  # Bar 4: Am (wolf-hunt breakout)
+        ((65, 69, 72, 77), 41),  # Bar 5: F
+        ((68, 71, 74, 76), 40),  # Bar 6: E7
+        ((68, 71, 76, 80), 40),  # Bar 7: E7
+        ((62, 65, 69, 74), 38),  # Bar 8: Dm
+        ((68, 71, 74, 80), 40),  # Bar 9: E7 diminished climb
+    )
+
+    # Blistering 16th-note tarantella lead motifs (step_off, midi_note, dur_steps, duty)
+    lead_bars = (
+        ((0, 81, 1, 0.25), (1, 83, 1, 0.25), (2, 84, 2, 0.25), (4, 83, 1, 0.25), (5, 81, 1, 0.25),
+         (6, 80, 2, 0.25), (8, 81, 2, 0.25), (10, 76, 2, 0.25), (12, 81, 2, 0.25), (14, 84, 2, 0.25)),
+        ((0, 83, 1, 0.25), (1, 84, 1, 0.25), (2, 83, 2, 0.25), (4, 81, 1, 0.25), (5, 80, 1, 0.25),
+         (6, 76, 2, 0.25), (8, 80, 2, 0.25), (10, 83, 2, 0.25), (12, 86, 2, 0.25), (14, 83, 2, 0.25)),
+        ((0, 84, 1, 0.25), (1, 86, 1, 0.25), (2, 88, 2, 0.25), (4, 86, 1, 0.25), (5, 84, 1, 0.25),
+         (6, 83, 2, 0.25), (8, 81, 2, 0.25), (10, 84, 2, 0.25), (12, 81, 4, 0.25)),
+        ((0, 86, 1, 0.25), (1, 88, 1, 0.25), (2, 89, 2, 0.25), (4, 88, 1, 0.25), (5, 86, 1, 0.25),
+         (6, 84, 2, 0.25), (8, 86, 2, 0.25), (10, 81, 2, 0.25), (12, 83, 4, 0.25)),
+        # Bars 4..7: 12.5% nasal chiptune wolf-chase climax
+        ((0, 88, 1, 0.125), (1, 89, 1, 0.125), (2, 88, 1, 0.125), (3, 86, 1, 0.125), (4, 84, 2, 0.125),
+         (6, 81, 2, 0.125), (8, 84, 1, 0.125), (9, 86, 1, 0.125), (10, 88, 2, 0.125), (12, 89, 2, 0.125),
+         (14, 88, 2, 0.125)),
+        ((0, 89, 1, 0.125), (1, 91, 1, 0.125), (2, 89, 1, 0.125), (3, 88, 1, 0.125), (4, 86, 2, 0.125),
+         (6, 84, 2, 0.125), (8, 81, 2, 0.125), (10, 84, 2, 0.125), (12, 86, 4, 0.125)),
+        ((0, 88, 1, 0.125), (1, 86, 1, 0.125), (2, 84, 1, 0.125), (3, 83, 1, 0.125), (4, 80, 2, 0.125),
+         (6, 83, 2, 0.125), (8, 86, 2, 0.125), (10, 84, 2, 0.125), (12, 83, 4, 0.125)),
+        ((0, 80, 1, 0.125), (1, 83, 1, 0.125), (2, 86, 1, 0.125), (3, 88, 1, 0.125), (4, 89, 2, 0.125),
+         (6, 88, 2, 0.125), (8, 86, 2, 0.125), (10, 83, 2, 0.125), (12, 80, 4, 0.125)),
+        # Bars 8..9: Rapid tarantella spiral back into bar 0
+        ((0, 86, 1, 0.25), (1, 84, 1, 0.25), (2, 81, 1, 0.25), (3, 84, 1, 0.25), (4, 86, 2, 0.25),
+         (6, 89, 2, 0.25), (8, 88, 1, 0.25), (9, 86, 1, 0.25), (10, 84, 2, 0.25), (12, 83, 2, 0.25),
+         (14, 81, 2, 0.25)),
+        ((0, 80, 1, 0.125), (1, 83, 1, 0.125), (2, 80, 1, 0.125), (3, 83, 1, 0.125), (4, 86, 2, 0.125),
+         (6, 83, 2, 0.125), (8, 80, 1, 0.125), (9, 83, 1, 0.125), (10, 86, 1, 0.125), (11, 88, 1, 0.125),
+         (12, 89, 2, 0.125), (14, 88, 2, 0.125)),
+    )
+
+    kick_sig = _synth_music_kick(n_samples(0.10), 195.0, 54.0, 0.022, drive=1.6)
+    snare_sig = _synth_music_noise_hit(n_samples(0.10), rng, 1050.0, 6800.0, 0.032, bits=3, hold=3)
+    tamb_sig = _synth_music_noise_hit(n_samples(0.036), rng, 5800.0, 12500.0, 0.012, bits=4, hold=2)
+
+    for bar_idx in range(total_bars):
+        bar_step = bar_idx * 16
+        chord_notes, bass_root = chords[bar_idx]
+
+        # Ch 1: Frantic tarantella pulse lead
+        for step_off, m_note, dur_steps, duty in lead_bars[bar_idx]:
+            pos = offset_samples((bar_step + step_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.88)
+            vib_d = 0.008 if dur_steps >= 3 else 0.0
+            sig = _synth_pulse_note(dur_n, _midi_to_hz(m_note), duty=duty, vibrato_hz=7.0, vibrato_depth=vib_d)
+            _ring_add(lead_buf, sig, pos, 0.62)
+
+        # Ch 2: Nonstop 16th-note plucked harpsichord/pulse tarantella arpeggio
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            arp_m = chord_notes[(s_i + (s_i // 4)) % len(chord_notes)]
+            arp_n = n_samples(step_s * 0.82)
+            arp_sig = _synth_plucked_lute_note(arp_n, _midi_to_hz(arp_m), brightness=0.72)
+            _ring_add(arp_buf, arp_sig, pos, 0.36)
+
+        # Ch 3: Galloping NES triangle wolf-hunt bassline
+        gallop = (0, 12, 7, 12, 0, 12, 7, 12, 0, 12, 5, 7, 12, 7, 5, 4)
+        for s_i in range(0, 16, 2):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            tri = _synth_nes_triangle_note(n_samples(step_s * 1.75), _midi_to_hz(bass_root + gallop[s_i]))
+            _ring_add(bass_buf, tri, pos, 0.84)
+        # Gallop 16th-note pickups on steps 7 and 15
+        for p_step in (7, 15):
+            pos = offset_samples((bar_step + p_step) * step_s)
+            tri = _synth_nes_triangle_note(n_samples(step_s * 0.9), _midi_to_hz(bass_root + 12))
+            _ring_add(bass_buf, tri, pos, 0.70)
+
+        # Ch 4: Rapid tambourine + tarantella kick/snare drive
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            if s_i in (0, 3, 6, 8, 11, 14):
+                _ring_add(drum_buf, kick_sig, pos, 0.84)
+            if s_i in (4, 12) or (bar_idx in (3, 7, 9) and s_i in (13, 14, 15)):
+                _ring_add(drum_buf, snare_sig, pos, 0.66 if s_i in (4, 12) else 0.56)
+            _ring_add(drum_buf, tamb_sig, pos, 0.32 if s_i % 2 == 0 else 0.18)
+
+    lead_clean = biquad(lead_buf, "lowpass", 8800.0)
+    arp_clean = biquad(arp_buf, "lowpass", 7400.0)
+    bass_clean = biquad(bass_buf, "lowpass", 1900.0)
+
+    combined = mix(
+        (lead_clean, 0.62),
+        (arp_clean, 0.44),
+        (bass_clean, 0.66),
+        (drum_buf, 0.56),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
 MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "slug_boss_phase1.ogg": generate_slug_boss_phase1_music,
     "slug_boss_phase2.ogg": generate_slug_boss_phase2_music,
+    "pastoral_boss_phase1.ogg": generate_pastoral_boss_phase1_music,
+    "pastoral_boss_phase2.ogg": generate_pastoral_boss_phase2_music,
 }
 
 
