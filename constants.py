@@ -2,6 +2,8 @@
 Central registry for all game configuration and 'magic numbers'.
 """
 
+import functools
+import math
 import tempfile
 from pathlib import Path
 import pygame
@@ -463,7 +465,44 @@ SANCTUARY_CANDLE_GLOW_ALPHA_AMP = 22
 SANCTUARY_FIREFLY_COUNT = 9
 SANCTUARY_POND_RIPPLE_MAX_RADIUS = 16
 SANCTUARY_POND_SPEED_MULTIPLIER = 0.40
+AQUEDUCT_WATER_SPEED_MULTIPLIER = 0.65
+WATER_STEP_SFX = "water_step.ogg"
+WATER_STEP_INTERVAL = 0.34
+PLAYER_HURT_SFX = "player_hurt.ogg"
+FLASK_EMPTY_SFX = "flask_empty.ogg"
+INTERACTABLE_HOSTILE_LOCK_RADIUS = 180.0
+UNBLOTTED_MARGIN_MITIGATION_BONUS = 0.05
 BINDER_PATROL_SPEED_MULTIPLIER = 0.35
+
+
+@functools.lru_cache(maxsize=65536)
+def raw_stratum_at(x: int, y: int) -> int:
+    """Evaluate the deterministic multi-tile terrain stratum wave (0, 1, or 2) at tile (x, y)."""
+    wave = (
+        math.sin(x * 0.21 + y * 0.16)
+        + math.cos(x * 0.14 - y * 0.23)
+        + 0.55 * math.sin((x + y) * 0.09)
+        + 0.35 * math.cos((x - y) * 0.12)
+    )
+    if wave < -0.68:
+        return 0
+    if wave > 0.68:
+        return 2
+    return 1
+
+
+def get_tile_stratum(x: int, y: int) -> int:
+    """Compute coherent multi-tile terrain stratum with 1x1 island suppression at tile (x, y)."""
+    s_here = raw_stratum_at(x, y)
+    if s_here == 1:
+        return 1
+    same_neighbors = (
+        (1 if raw_stratum_at(x - 1, y) == s_here else 0)
+        + (1 if raw_stratum_at(x + 1, y) == s_here else 0)
+        + (1 if raw_stratum_at(x, y - 1) == s_here else 0)
+        + (1 if raw_stratum_at(x, y + 1) == s_here else 0)
+    )
+    return s_here if same_neighbors >= 2 else 1
 
 # UI Overlay Constants (Batch 8: Tall Compact Visual HUD Card)
 UI_ALPHA = 175

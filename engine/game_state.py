@@ -142,6 +142,7 @@ class GameState:
         self.local_swing_seq = 0
         self.local_hit_seq = 0
         self.local_dash_seq = 0
+        self._water_step_timer = 0.0
         self.pending_remote_sfx = []
         self._remote_combat_seqs = {}
         self._last_attack_center = None
@@ -1120,10 +1121,12 @@ class GameState:
         # 2. INTERACTION PHASE
         target = self.player.current_interactable
         warp_blocked = hasattr(self, 'warp_controller') and self.warp_controller.blocks_input()
+        hostile_blocked = self.is_interactable_blocked_by_hostiles(target)
         if (
             attack_pressed
             and target
             and getattr(target, 'is_interactive', False)
+            and not hostile_blocked
             and not self.active_dialogue
             and not self.active_choice
             and not getattr(self, 'chronicle_dialog', None)
@@ -1220,6 +1223,29 @@ class GameState:
         if self.shake_timer > 0:
             self.shake_timer -= dt
             if self.shake_timer < 0: self.shake_timer = 0.0
+
+    def is_interactable_blocked_by_hostiles(self, target) -> bool:
+        """Return True if a non-combat interactable is locked out because hostiles are nearby."""
+        if target is None or not getattr(target, "is_interactive", False):
+            return False
+        from constants import INTERACTABLE_HOSTILE_LOCK_RADIUS
+        from engine.world import ExitLadder, WeaponPickup
+        if isinstance(target, (WeaponPickup, ExitLadder)):
+            return False
+        enemies = getattr(self, "enemies", None) or ()
+        if not enemies:
+            return False
+        tx = float(getattr(target, "x", 0.0)) + float(getattr(target, "width", 0.0)) * 0.5
+        ty = float(getattr(target, "y", 0.0)) + float(getattr(target, "height", 0.0)) * 0.5
+        px, py = self.player.get_center() if getattr(self, "player", None) is not None else (tx, ty)
+        rad_sq = float(INTERACTABLE_HOSTILE_LOCK_RADIUS) ** 2
+        for enemy in enemies:
+            if getattr(enemy, "hp", 1) <= 0 or (hasattr(enemy, "is_dead") and enemy.is_dead()):
+                continue
+            ex, ey = enemy.get_center()
+            if (ex - tx) ** 2 + (ey - ty) ** 2 <= rad_sq or (ex - px) ** 2 + (ey - py) ** 2 <= rad_sq:
+                return True
+        return False
 
     def _update_sanctuary_door_state(self):
         """Update Sanctuary doorway open state and edge-trigger door_open.ogg on False -> True."""
@@ -1764,6 +1790,9 @@ class GameState:
         if hasattr(self.world, "is_in_sanctuary_pond") and self.world.is_in_sanctuary_pond(player_rect):
             from constants import SANCTUARY_POND_SPEED_MULTIPLIER
             speed_multiplier = min(speed_multiplier, SANCTUARY_POND_SPEED_MULTIPLIER)
+        elif hasattr(self.world, "is_in_aqueduct_water") and self.world.is_in_aqueduct_water(player_rect):
+            from constants import AQUEDUCT_WATER_SPEED_MULTIPLIER
+            speed_multiplier = min(speed_multiplier, AQUEDUCT_WATER_SPEED_MULTIPLIER)
 
         # Query walls over a swept bounding rect covering pre-move and projected displacement
         from constants import DASH_SPEED_MULTIPLIER
@@ -1792,12 +1821,30 @@ class GameState:
 
         prev_player_state = self.player.state
         encased_crack = bool(getattr(self.player, "just_cracked_ice", False))
+        sfx_mgr = audio_manager or getattr(self, "audio_manager", None)
         healed = self.player.update(
             dt, move_dir, walls, actions, attack_pressed, flask_pressed,
             dash_pressed, block_pressed, speed_multiplier,
+            audio_manager=sfx_mgr,
             world_width=world_w, world_height=world_h,
         )
-        sfx_mgr = audio_manager or getattr(self, "audio_manager", None)
+        # Quiet wading water-splash footstep cadence when moving in shallow water
+        post_rect = (self.player.x, self.player.y, self.player.width, self.player.height)
+        in_water = hasattr(self.world, "is_in_shallow_water") and self.world.is_in_shallow_water(post_rect)
+        is_moving_water = in_water and (abs(self.player.vx) + abs(self.player.vy) > 10.0)
+        if is_moving_water:
+            from constants import WATER_STEP_INTERVAL, WATER_STEP_SFX
+            self._water_step_timer += dt
+            if self._water_step_timer >= float(WATER_STEP_INTERVAL):
+                self._water_step_timer = 0.0
+                if sfx_mgr is not None:
+                    try:
+                        sfx_mgr.play_sfx(WATER_STEP_SFX, volume=0.35, pitch_jitter=0.08)
+                    except TypeError:
+                        sfx_mgr.play_sfx(WATER_STEP_SFX)
+        else:
+            from constants import WATER_STEP_INTERVAL
+            self._water_step_timer = float(WATER_STEP_INTERVAL) * 0.75
         if encased_crack or getattr(self.player, "just_cracked_ice", False):
             if sfx_mgr is not None:
                 from constants import ICE_CRACK_SFX
@@ -2737,6 +2784,7 @@ class GameState:
         from constants import PLAYER_MAX_HP, FLASK_MAX_CHARGES, SWORD_DAMAGE
         self.player.is_exposed = False
         self.player.alpha = 255
+        self.player.damage_mitigation = 0.0
         if hasattr(self.player, "reset_frost_state"):
             self.player.reset_frost_state()
         
@@ -3509,6 +3557,7 @@ class GameState:
         self.player.x, self.player.y = float(self.world.player_start[0]), float(self.world.player_start[1])
         self.player.hp = self.player.max_hp
         self.player.state = PlayerStateEnum.IDLE
+        self.player.damage_mitigation = 0.0
         if hasattr(self.player, "reset_frost_state"):
             self.player.reset_frost_state()
         self.death_timer = 0.0

@@ -1169,9 +1169,23 @@ class Renderer:
         sigil_rect.center = book_rect.center
         pygame.draw.rect(self.screen, glyph_color, sigil_rect)
 
-    def draw_interaction_prompt(self, player, offset_x, offset_y):
-        """Draw a text prompt above the player's head."""
+    def draw_interaction_prompt(self, player, offset_x, offset_y, state=None):
+        """Draw a text prompt above the player's head, or a cancel icon above hostile-locked interactables."""
         target = player.current_interactable
+        if target is None:
+            return
+        if (
+            state is not None
+            and hasattr(state, "is_interactable_blocked_by_hostiles")
+            and state.is_interactable_blocked_by_hostiles(target)
+        ):
+            tx = int(getattr(target, "x", player.x) + getattr(target, "width", 40) * 0.5 - offset_x)
+            ty = int(getattr(target, "y", player.y) - 16 - offset_y)
+            r = 10
+            pygame.draw.circle(self.screen, (36, 12, 16), (tx, ty), r + 2)
+            pygame.draw.circle(self.screen, (235, 62, 62), (tx, ty), r, 2)
+            pygame.draw.line(self.screen, (255, 195, 72), (tx - 6, ty - 6), (tx + 6, ty + 6), 2)
+            return
         if target.name == "The Chronicler": prompt_text = f"Speak to {target.name}"
         elif "Chronicle" in target.name or "Return" in target.name: prompt_text = f"Read {target.name}"
         elif hasattr(target, 'weapon_data'):
@@ -1259,8 +1273,6 @@ class Renderer:
         lines.append(' '.join(cur))
         for i, line in enumerate(lines):
             self.screen.blit(self.font.render(line, True, constants.COLOR_WHITE), (x + 20, y + y_off + i * spacing))
-        close = self.font.render("Press [SPACE] to continue", True, constants.COLOR_GREY)
-        self.screen.blit(close, (x + w - close.get_width() - 20, y + h - 30))
 
     def draw_choice_of_fates(self, choice):
         """Draw the Choice of Fates overlay."""
@@ -1385,33 +1397,13 @@ class Renderer:
             self.screen.blit(overlay, (0, 0))
 
     @staticmethod
-    @functools.lru_cache(maxsize=65536)
     def _raw_stratum_at(x, y):
         """Evaluate the base low-frequency spatial terrain wave at (x, y)."""
-        wave = (
-            math.sin(x * 0.21 + y * 0.16)
-            + math.cos(x * 0.14 - y * 0.23)
-            + 0.55 * math.sin((x + y) * 0.09)
-            + 0.35 * math.cos((x - y) * 0.12)
-        )
-        if wave < -0.68:
-            return 0
-        if wave > 0.68:
-            return 2
-        return 1
+        return constants.raw_stratum_at(x, y)
 
     def _get_tile_stratum(self, _state, x, y):
         """Compute coherent multi-tile terrain stratum with 1x1 island suppression."""
-        s_here = self._raw_stratum_at(x, y)
-        if s_here == 1:
-            return 1
-        same_neighbors = (
-            (1 if self._raw_stratum_at(x - 1, y) == s_here else 0)
-            + (1 if self._raw_stratum_at(x + 1, y) == s_here else 0)
-            + (1 if self._raw_stratum_at(x, y - 1) == s_here else 0)
-            + (1 if self._raw_stratum_at(x, y + 1) == s_here else 0)
-        )
-        return s_here if same_neighbors >= 2 else 1
+        return constants.get_tile_stratum(x, y)
 
     def _draw_biome_floor_fx(self, biome_info, coords, dr, s_idx, now=None):
         """Render sparse animated environmental floor tells and atmospheric micro-effects per biome."""
@@ -3455,10 +3447,6 @@ class Renderer:
                     self.screen.blit(clutter_surf, (int(sx_o), int(sy_o)))
             elif hasattr(obj, 'fragment_id'):
                 fx, fy, fw, fh = int(sx_o), int(sy_o), int(obj.width), int(obj.height)
-                fcx, fcy = fx + fw // 2, fy + fh // 2
-                pulse = (math.sin(now * 4.0 + obj.x) + 1.0) * 0.5
-                glow_r = int(12 + pulse * 3)
-                pygame.draw.circle(self.screen, (215, 180, 95), (fcx, fcy), glow_r, 1)
                 page_rect = (fx + 9, fy + 7, max(8, fw - 18), max(10, fh - 14))
                 pygame.draw.rect(self.screen, (235, 224, 194), page_rect, border_radius=2)
                 pygame.draw.rect(self.screen, (72, 52, 34), page_rect, 1, border_radius=2)
@@ -3575,10 +3563,12 @@ class Renderer:
         self.draw_swamp_mire_atmosphere(state, ox, oy, now=now)
         self.draw_pastoral_valley_atmosphere(state, ox, oy, now=now)
         self.draw_frozen_peaks_atmosphere(state, ox, oy, now=now)
+        if getattr(getattr(state, "world", None), "name", "") != "sanctuary":
+            self._draw_player_water_ripples(state, ox, oy, t_now=now, vis=1.0)
         self.draw_sanctuary_roofs_and_blackout(state, ox, oy)
 
         if getattr(state.player, 'current_interactable', None):
-            self.draw_interaction_prompt(state.player, ox, oy)
+            self.draw_interaction_prompt(state.player, ox, oy, state=state)
         try:
             if getattr(state, 'last_save_elapsed', 1e6) <= constants.AUTOSAVE_INDICATOR_DURATION:
                 ind = self.font.render("Saved", True, (200, 200, 200))
@@ -3785,11 +3775,12 @@ class Renderer:
         packet = actor.get_visual_packet()
         rect = pygame.Rect(actor.x - ox, actor.y - oy, actor.width, actor.height)
         
-        from engine.enemy import BatEnemy, SlugBoss, SlugEnemy
+        from engine.enemy import BatEnemy, SentryEnemy, SlugBoss, SlugEnemy
         actor_tag = actor.name.lower()
         is_slug_boss = bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss)
         is_slug = (not is_slug_boss) and (isinstance(actor, SlugEnemy) or "slug" in actor_tag)
         is_bat = isinstance(actor, BatEnemy) or "bat" in actor_tag
+        is_sentry = bool(getattr(actor, "is_sentry", False)) or isinstance(actor, SentryEnemy) or "sentry" in actor_tag
 
         # --- Boss Attack Hitbox / Warning Telegraph Overlay ---
         if (
@@ -3798,6 +3789,7 @@ class Renderer:
             and not is_slug
             and not is_bat
             and not is_slug_boss
+            and not is_sentry
         ):
             hb = actor.get_attack_hitbox()
             sx = hb[0] - ox
@@ -4503,9 +4495,35 @@ class Renderer:
 
         if attack_type == "BEAM" or "sentry" in actor.name.lower():
             beam_len = getattr(actor, "beam_range", 160.0)
-            sx, sy = int(cx + fx * 14.0), int(cy + fy * 14.0)
-            ex, ey = int(cx + fx * (14.0 + beam_len)), int(cy + fy * (14.0 + beam_len))
+            beam_w = float(getattr(actor, "beam_width", constants.SENTRY_BEAM_WIDTH))
+            f_mag = math.hypot(fx, fy)
+            ux, uy = (fx / f_mag, fy / f_mag) if f_mag > 1e-6 else (1.0, 0.0)
+            nx, ny = -uy * (beam_w * 0.5), ux * (beam_w * 0.5)
+            sx_f, sy_f = cx + ux * 14.0, cy + uy * 14.0
+            ex_f, ey_f = cx + ux * (14.0 + beam_len), cy + uy * (14.0 + beam_len)
+            sx, sy = int(sx_f), int(sy_f)
+            ex, ey = int(ex_f), int(ey_f)
             if actor.state == ActorState.WIND_UP:
+                # True 360-degree oriented translucent telegraph corridor matching beam_len & beam_width
+                if isinstance(self.screen, pygame.Surface):
+                    corridor = [
+                        (sx_f + nx, sy_f + ny),
+                        (ex_f + nx, ey_f + ny),
+                        (ex_f - nx, ey_f - ny),
+                        (sx_f - nx, sy_f - ny),
+                    ]
+                    min_x = int(max(0, math.floor(min(p[0] for p in corridor)) - 2))
+                    min_y = int(max(0, math.floor(min(p[1] for p in corridor)) - 2))
+                    max_x = int(min(self.screen.get_width(), math.ceil(max(p[0] for p in corridor)) + 2))
+                    max_y = int(min(self.screen.get_height(), math.ceil(max(p[1] for p in corridor)) + 2))
+                    if max_x > min_x and max_y > min_y:
+                        local_pts = [(p[0] - min_x, p[1] - min_y) for p in corridor]
+                        pulse = (math.sin(time.time() * 15.0) + 1.0) * 0.5
+                        c_alpha = int(34 + pulse * 36)
+                        tel_surf = pygame.Surface((max_x - min_x, max_y - min_y), pygame.SRCALPHA)
+                        pygame.draw.polygon(tel_surf, (110, 235, 255, c_alpha), local_pts)
+                        pygame.draw.polygon(tel_surf, (180, 248, 255, min(200, c_alpha + 48)), local_pts, 1)
+                        self.screen.blit(tel_surf, (min_x, min_y))
                 # Target-lock laser sightline and charging aperture orb
                 pygame.draw.line(self.screen, constants.COLOR_SENTRY_RING, (sx, sy), (ex, ey), 1)
                 charge_r = int(2 + t * 5)
@@ -6501,6 +6519,44 @@ class Renderer:
             pygame.draw.rect(self.screen, (68, 48, 34), (tx_i + 13, ty_i + 4, 14, 34), border_radius=2)
             pygame.draw.circle(self.screen, (42, 78, 44), (tx_i + 20, ty_i - 8), 26)
 
+    def _draw_player_water_ripples(self, state, ox, oy, t_now=None, vis=1.0):
+        """Render expanding wading foot-ripples when player stands/moves in Sanctuary pond or Aqueduct water."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        player = getattr(state, "player", None)
+        world = getattr(state, "world", None)
+        if player is None or world is None:
+            return
+        in_water = (
+            hasattr(world, "is_in_shallow_water") and world.is_in_shallow_water(player.rect)
+        ) or (
+            hasattr(world, "is_in_sanctuary_pond") and world.is_in_sanctuary_pond(player.rect)
+        )
+        if not in_water:
+            return
+        now_t = time.time() if t_now is None else float(t_now)
+        foot_x = int(player.x + player.width / 2 - ox)
+        foot_y = int(player.y + player.height - 6 - oy)
+        is_moving = abs(getattr(player, "vx", 0.0)) + abs(getattr(player, "vy", 0.0)) > 1.0
+        rate = 1.45 if is_moving else 0.70
+        for ring_idx in range(2):
+            cycle = (now_t * rate + ring_idx * 0.5) % 1.0
+            rad = max(4, int(4 + cycle * constants.SANCTUARY_POND_RIPPLE_MAX_RADIUS))
+            w_alpha = int((145 if is_moving else 95) * (1.0 - cycle) * vis)
+            if w_alpha >= 10:
+                q_wa = (w_alpha // 8) * 8
+                w_key = ("pond_wade_ripple", rad, q_wa)
+                w_surf = self._fx_surface_cache.get(w_key)
+                if w_surf is None:
+                    d_w = rad * 2 + 4
+                    d_h = max(6, int(rad * 1.2) + 4)
+                    w_surf = pygame.Surface((d_w, d_h), pygame.SRCALPHA)
+                    pygame.draw.ellipse(
+                        w_surf, (192, 232, 240, q_wa), (2, 2, d_w - 4, d_h - 4), 1
+                    )
+                    self._fx_surface_cache[w_key] = w_surf
+                self.screen.blit(w_surf, (foot_x - w_surf.get_width() // 2, foot_y - w_surf.get_height() // 2))
+
     def draw_sanctuary_courtyard_atmosphere(self, state, ox, oy, now=None):
         """Draw subtle expanding pond water ripples and slow-drifting garden fireflies in Sanctuary."""
         if getattr(getattr(state, "world", None), "name", "") != "sanctuary":
@@ -6541,33 +6597,7 @@ class Renderer:
                 self.screen.blit(r_surf, (rx - rad - 2, ry - rad - 2))
 
         # 1b. Wading foot-ripple rings when the player walks through the Sanctuary pond
-        player = getattr(state, "player", None)
-        if (
-            player is not None
-            and hasattr(state.world, "is_in_sanctuary_pond")
-            and state.world.is_in_sanctuary_pond(player.rect)
-        ):
-            foot_x = int(player.x + player.width / 2 - ox)
-            foot_y = int(player.y + player.height - 6 - oy)
-            is_moving = abs(getattr(player, "vx", 0.0)) + abs(getattr(player, "vy", 0.0)) > 1.0
-            rate = 1.45 if is_moving else 0.70
-            for ring_idx in range(2):
-                cycle = (t_now * rate + ring_idx * 0.5) % 1.0
-                rad = max(4, int(4 + cycle * constants.SANCTUARY_POND_RIPPLE_MAX_RADIUS))
-                w_alpha = int((145 if is_moving else 95) * (1.0 - cycle) * vis)
-                if w_alpha >= 10:
-                    q_wa = (w_alpha // 8) * 8
-                    w_key = ("pond_wade_ripple", rad, q_wa)
-                    w_surf = self._fx_surface_cache.get(w_key)
-                    if w_surf is None:
-                        d_w = rad * 2 + 4
-                        d_h = max(6, int(rad * 1.2) + 4)
-                        w_surf = pygame.Surface((d_w, d_h), pygame.SRCALPHA)
-                        pygame.draw.ellipse(
-                            w_surf, (192, 232, 240, q_wa), (2, 2, d_w - 4, d_h - 4), 1
-                        )
-                        self._fx_surface_cache[w_key] = w_surf
-                    self.screen.blit(w_surf, (foot_x - w_surf.get_width() // 2, foot_y - w_surf.get_height() // 2))
+        self._draw_player_water_ripples(state, ox, oy, t_now=t_now, vis=vis)
 
         # 2. Slow-drifting golden-green courtyard fireflies / pollen motes around the west pond & garden
         if pond_tiles:
@@ -6910,7 +6940,7 @@ class Renderer:
                             int(max(1, constants.TILE_SIZE * sy))
                         ))
 
-        # 5. Safe Circle Boundary Visualization
+        # 5. Safe Circle Boundary Visualization & Off-Minimap Edge Beacon Dot
         boss_coords = getattr(state, 'current_boss_coords', None)
         if boss_coords:
             bcx, bcy = boss_coords['x'] * constants.TILE_SIZE, boss_coords['y'] * constants.TILE_SIZE
@@ -6923,6 +6953,29 @@ class Renderer:
             # Draw circle boundary directly on minimap_surface
             if -mr < mcx < mw + mr and -mr < mcy < mh + mr:
                 pygame.draw.circle(minimap_surface, (255, 165, 0, 180), (mcx, mcy), mr, 1)
+
+            # When the safe-circle center lies outside the minimap bounds, draw an amber/gold edge dot
+            if not (0 <= mcx < mw and 0 <= mcy < mh):
+                margin = 4.0
+                origin_x = max(margin, min(float(mw) - 1.0 - margin, (pxc - vpx) * sx))
+                origin_y = max(margin, min(float(mh) - 1.0 - margin, (pyc - vpy) * sy))
+                dx_m = float(mcx) - origin_x
+                dy_m = float(mcy) - origin_y
+                t_candidates = []
+                if dx_m > 1e-6:
+                    t_candidates.append(((float(mw) - 1.0 - margin) - origin_x) / dx_m)
+                elif dx_m < -1e-6:
+                    t_candidates.append((margin - origin_x) / dx_m)
+                if dy_m > 1e-6:
+                    t_candidates.append(((float(mh) - 1.0 - margin) - origin_y) / dy_m)
+                elif dy_m < -1e-6:
+                    t_candidates.append((margin - origin_y) / dy_m)
+                pos_t = [t_val for t_val in t_candidates if t_val > 0.0]
+                t_hit = min(pos_t) if pos_t else 0.0
+                ex_m = int(round(max(margin, min(float(mw) - 1.0 - margin, origin_x + dx_m * t_hit))))
+                ey_m = int(round(max(margin, min(float(mh) - 1.0 - margin, origin_y + dy_m * t_hit))))
+                pygame.draw.circle(minimap_surface, (255, 195, 50, 245), (ex_m, ey_m), 3)
+                pygame.draw.circle(minimap_surface, (255, 245, 185, 255), (ex_m, ey_m), 1)
 
         # 6. Radar Entity Rules
         # Remote Players: Cyan/Magenta Dot (Phase 4)

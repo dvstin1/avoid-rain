@@ -1653,6 +1653,53 @@ class World:
                     return True
         return False
 
+    def _resolve_tile_biome_at(self, tx, ty):
+        """Return the biome key for tile (tx, ty) using module_sockets or world metadata."""
+        from constants import BIOME_DISPLAY_NAMES
+        for sock in getattr(self, "module_sockets", None) or ():
+            if not isinstance(sock, dict):
+                continue
+            b = sock.get("bounds")
+            if isinstance(b, dict) and all(k in b for k in ("x", "y", "width", "height")):
+                if not (b["x"] <= tx < b["x"] + b["width"] and b["y"] <= ty < b["y"] + b["height"]):
+                    continue
+            sock_b = sock.get("biome")
+            if sock_b in BIOME_DISPLAY_NAMES:
+                return sock_b
+            plug = str(sock.get("active_plug", "")).lower()
+            for b_key in BIOME_DISPLAY_NAMES:
+                if b_key in plug:
+                    return b_key
+        for cand in (getattr(self, "biome", None), getattr(self, "name", None)):
+            if cand in BIOME_DISPLAY_NAMES:
+                return cand
+            if isinstance(cand, str):
+                low = cand.lower()
+                for b_key in BIOME_DISPLAY_NAMES:
+                    if b_key in low:
+                        return b_key
+        return None
+
+    def is_in_aqueduct_water(self, rect):
+        """Return True if rect's center tile lies on a sunlit_aqueducts Stratum 0 turquoise water channel."""
+        from constants import TILE_WALL, get_tile_stratum
+        if not self.grid:
+            return False
+        rx, ry, rw, rh = rect
+        tx = int((rx + rw * 0.5) // TILE_SIZE)
+        ty = int((ry + rh * 0.5) // TILE_SIZE)
+        if ty < 0 or ty >= len(self.grid) or tx < 0 or tx >= len(self.grid[0]):
+            return False
+        if self.grid[ty][tx] == TILE_WALL:
+            return False
+        if self._resolve_tile_biome_at(tx, ty) != "sunlit_aqueducts":
+            return False
+        return get_tile_stratum(tx, ty) == 0
+
+    def is_in_shallow_water(self, rect):
+        """Return True if rect is wading through Sanctuary pond water or Sunlit Aqueducts water channels."""
+        return self.is_in_sanctuary_pond(rect) or self.is_in_aqueduct_water(rect)
+
     def _ensure_spatial_index(self):
         """Build or refresh spatial hash buckets when self.interactables changes."""
         items = self.interactables

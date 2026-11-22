@@ -318,23 +318,25 @@ def test_all_9_events_completion_failure_and_economy_rules(act):
     assert state_hit.player.hp >= 25.0
     assert len(state_hit.enemies) == 0
 
-    # 9. The Unblotted Margin (Zero-Risk Boon + Act 2 Pristine Ink Shield)
+    # 9. The Unblotted Margin (Zero-Risk Boon: +5% mitigation + Torn Pages + Act 2 Pristine Ink Shield)
     state = _make_active_run_state(act=act)
     state.player.hp = 12.0
     state.player.flask_charges = 0
     ev = state.marginalia_engine.start_event(state, "unblotted_margin", act_variant=act)
     assert ev.status == "COMPLETED"
-    assert state.player.hp == state.player.max_hp
-    assert state.player.flask_charges == FLASK_MAX_CHARGES
+    assert state.player.hp == pytest.approx(12.0)
+    assert state.player.flask_charges == 0
+    assert state.player.damage_mitigation == pytest.approx(0.05)
     assert state.stats.data["lifetime_stats"]["pages_collected"] == (2 if act == 1 else 3)
     if act == 2:
         assert state.player.pristine_ink_shield_timer == pytest.approx(25.0)
         state.player.take_damage(40.0)
-        assert state.player.hp == state.player.max_hp
+        assert state.player.hp == pytest.approx(12.0)
 
-    # Sanctuary return resets Torn Pages to 0
+    # Sanctuary return resets Torn Pages and per-run damage_mitigation to 0
     state.on_enter_sanctuary()
     assert state.stats.data["lifetime_stats"]["pages_collected"] == 0
+    assert state.player.damage_mitigation == pytest.approx(0.0)
 
 
 def test_persistent_pursuit_breadcrumbs_and_lan_coop_sync():

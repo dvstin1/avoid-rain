@@ -821,6 +821,7 @@ class SentryEnemy(Enemy):
         self.beam_range = SENTRY_BEAM_RANGE
         self.beam_width = SENTRY_BEAM_WIDTH
         self.attack_type = "BEAM"
+        self.is_sentry = True
         self.is_parryable = True
 
         self.wind_up_duration = 0.65
@@ -833,22 +834,95 @@ class SentryEnemy(Enemy):
         packet["color_hint"] = (48, 62, 88)
         return packet
 
-    def get_attack_hitbox(self):
-        """Calculate long-range directional plasma beam hitbox."""
-        cx = self.x + self.width / 2
-        cy = self.y + self.height / 2
+    def get_beam_segment(self):
+        """Return ((sx, sy), (ex, ey)) for the true omnidirectional plasma beam along self.facing."""
+        cx = self.x + self.width / 2.0
+        cy = self.y + self.height / 2.0
         fx, fy = self.facing
-        base_offset = max(self.width, self.height) / 2 + 4.0
-
-        if abs(fx) >= abs(fy):
-            w, h = self.beam_range, self.beam_width
-            x = cx + base_offset if fx >= 0 else cx - base_offset - w
-            y = cy - h / 2
+        mag = math.hypot(fx, fy)
+        if mag < 1e-6:
+            ux, uy = 1.0, 0.0
         else:
-            w, h = self.beam_width, self.beam_range
-            x = cx - w / 2
-            y = cy + base_offset if fy >= 0 else cy - base_offset - h
-        return (x, y, w, h)
+            ux, uy = fx / mag, fy / mag
+        start_off = 14.0
+        sx, sy = cx + ux * start_off, cy + uy * start_off
+        ex, ey = cx + ux * (start_off + self.beam_range), cy + uy * (start_off + self.beam_range)
+        return (sx, sy), (ex, ey)
+
+    def _point_hits_beam(self, px, py, pad_radius):
+        """Return True if point (px, py) lies within beam_width/2 + pad_radius of the oriented beam segment."""
+        (sx, sy), (ex, ey) = self.get_beam_segment()
+        vx, vy = ex - sx, ey - sy
+        seg_len_sq = vx * vx + vy * vy
+        if seg_len_sq < 1e-6:
+            return False
+        t = max(0.0, min(1.0, ((px - sx) * vx + (py - sy) * vy) / seg_len_sq))
+        closest_x = sx + vx * t
+        closest_y = sy + vy * t
+        half_w = self.beam_width * 0.5 + pad_radius
+        return (px - closest_x) ** 2 + (py - closest_y) ** 2 <= half_w * half_w
+
+    def get_attack_hitbox(self):
+        """Return tight bounding AABB around the oriented plasma beam corridor."""
+        (sx, sy), (ex, ey) = self.get_beam_segment()
+        vx, vy = ex - sx, ey - sy
+        seg_len = math.hypot(vx, vy)
+        if seg_len < 1e-6:
+            return (sx, sy, 1.0, 1.0)
+        half_w = self.beam_width * 0.5
+        nx, ny = (-vy / seg_len) * half_w, (vx / seg_len) * half_w
+        xs = (sx + nx, sx - nx, ex + nx, ex - nx)
+        ys = (sy + ny, sy - ny, ey + ny, ey - ny)
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        return (min_x, min_y, max(1.0, max_x - min_x), max(1.0, max_y - min_y))
+
+    def attempt_damage_player(self, state):
+        """Perform true 360-degree point-to-segment plasma beam collision against active runners."""
+        if self.cooldown_timer > 0 or self.stagger_timer > 0:
+            return False
+        if hasattr(state, 'warp_controller') and state.warp_controller.blocks_enemy_updates():
+            return False
+
+        potential_victims = []
+        if (
+            not getattr(state, "in_sanctuary", False)
+            and getattr(state, "active_respite", None) is None
+            and state.player.hp > 0
+        ):
+            potential_victims.append(("local", "LOCAL", state.player))
+        remote_data = getattr(state.network_manager, 'remote_players', {})
+        for addr, p_data in remote_data.items():
+            if not p_data.get("in_sanctuary", False) and p_data.get("hp", 100) > 0:
+                potential_victims.append(("remote", addr, (p_data["x"], p_data["y"], 40, 40)))
+
+        body_rect = self.get_rect()
+        for v_type, v_id, v_obj in potential_victims:
+            v_rect = v_obj if v_type == "remote" else v_obj.rect
+            vcx = v_rect[0] + v_rect[2] * 0.5
+            vcy = v_rect[1] + v_rect[3] * 0.5
+            v_rad = min(v_rect[2], v_rect[3]) * 0.42
+            hit = self._point_hits_beam(vcx, vcy, v_rad) or check_aabb_collision(body_rect, v_rect)
+            if not hit:
+                continue
+            if v_type == "local":
+                if self.is_parryable and v_obj.is_parry_active():
+                    self._handle_parry(state)
+                    return True
+                try:
+                    v_obj.take_damage(
+                        self.damage,
+                        audio_manager=getattr(state, 'audio_manager', None),
+                        game_state=state,
+                    )
+                except TypeError:
+                    v_obj.take_damage(self.damage, audio_manager=getattr(state, 'audio_manager', None))
+                return True
+            if v_id in state.network_manager.remote_players:
+                p_data = state.network_manager.remote_players[v_id]
+                p_data["hp"] = max(0.0, p_data.get("hp", 100.0) - self.damage)
+                return True
+        return False
 
     def _update_chase(self, dt, state):
         """Maintain artillery spacing, route around obstacles, and fire beam when in range & sight."""

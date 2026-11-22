@@ -920,24 +920,25 @@ def preset_door_open(rng: random.Random, p: Dict):
         exp_decay(latch_len, 0.018, attack=0.0008),
     )
 
-    # 2. Low wooden hinge creak with stick-slip flutter (t=0.04s..end)
+    # 2. Subtle low wooden hinge creak with steeper tail fade-out (t=0.04s..end)
     creak_start = min(dur * 0.12, 0.045)
     creak_len = max(16, n - n_samples(creak_start))
     creak_osc = oscillator(freq_curve(p["creak_start_hz"], p["creak_end_hz"], creak_len), "saw")
     creak_band = normalize(biquad(creak_osc, "bandpass", p["creak_body_hz"], 2.4))
-    stick_slip = lfo(creak_len, p["creak_flutter_hz"], 0.42)
-    creak_env = multiply(arch(creak_len, 0.32, 1.3, 1.7), stick_slip)
-    creak = multiply(soft_clip(creak_band, 1.6), creak_env)
+    stick_slip = lfo(creak_len, p["creak_flutter_hz"], 0.32)
+    creak_fade = multiply(arch(creak_len, 0.24, 1.2, 2.2), exp_decay(creak_len, 0.075, attack=0.012))
+    creak_env = multiply(creak_fade, stick_slip)
+    creak = multiply(soft_clip(creak_band, 1.3), creak_env)
 
-    # 3. Warm low-passed oak swing wood-body air movement
+    # 3. Warm low-passed oak swing wood-body air movement with gentle tail decay
     wood_body = multiply(
-        normalize(biquad(pink_noise(creak_len, rng), "lowpass", 520.0, q=0.9, order=2)),
-        arch(creak_len, 0.40, 1.2, 1.5),
+        normalize(biquad(pink_noise(creak_len, rng), "lowpass", 480.0, q=0.9, order=2)),
+        multiply(arch(creak_len, 0.32, 1.2, 1.8), exp_decay(creak_len, 0.095, attack=0.01)),
     )
 
     return mix(
         (latch_click, p["latch_level"], 0.0),
-        (bolt_thud, p["latch_level"] * 0.72, 0.004),
+        (bolt_thud, p["latch_level"] * 0.65, 0.004),
         (creak, p["creak_level"], creak_start),
         (wood_body, p["wood_level"], creak_start),
     )
@@ -1102,6 +1103,80 @@ def preset_ice_shatter(rng: random.Random, p: Dict):
     return mix(*layers)
 
 
+def preset_water_step(rng: random.Random, p: Dict):
+    """Subtle shallow-water wading footstep splash (~0.18s)."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+
+    # Soft water displacement body (band-passed pink noise)
+    splash = normalize(biquad(pink_noise(n, rng), "bandpass", float(p["splash_hz"]), 1.6))
+    splash = multiply(splash, adsr(n, 0.012, 0.05, 0.35, 0.07))
+
+    # Gentle high droplet shimmer
+    mist = normalize(biquad(white_noise(n, rng), "bandpass", float(p["mist_hz"]), 2.2))
+    mist = multiply(mist, exp_decay(n, 0.032, attack=0.006))
+
+    # Tiny rising water bubble bloop
+    bloop_len = min(n, n_samples(0.065))
+    bloop = multiply(
+        oscillator(freq_curve(280.0, 520.0, bloop_len), "sine"),
+        exp_decay(bloop_len, 0.018, attack=0.004),
+    )
+    return mix(
+        (splash, float(p["splash_level"]), 0.0),
+        (mist, float(p["mist_level"]), 0.008),
+        (bloop, float(p["bloop_level"]), 0.014),
+    )
+
+
+def preset_player_hurt(rng: random.Random, p: Dict):
+    """Quiet low impact thud + soft cloth/parchment rustle when the Scholar takes combat damage (~0.22s)."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+
+    thud = multiply(
+        oscillator(pitch_drop(n, float(p["thud_start_hz"]), float(p["thud_end_hz"]), 0.028), "sine"),
+        exp_decay(n, 0.052, attack=0.002),
+    )
+    cloth = normalize(biquad(pink_noise(n, rng), "bandpass", float(p["cloth_hz"]), 1.5))
+    cloth = multiply(cloth, exp_decay(n, 0.045, attack=0.004))
+    grit = normalize(biquad(white_noise(n, rng), "bandpass", 2400.0, 2.0))
+    grit = multiply(grit, exp_decay(n, 0.018, attack=0.001))
+
+    return mix(
+        (thud, float(p["thud_level"]), 0.0),
+        (cloth, float(p["cloth_level"]), 0.006),
+        (grit, float(p["grit_level"]), 0.0),
+    )
+
+
+def preset_flask_empty(rng: random.Random, p: Dict):
+    """Hollow dry glass clink + muted cork pop when attempting to drink an empty/unneeded flask (~0.18s)."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+
+    # Dry cork pop / hollow glass knock
+    knock_len = min(n, n_samples(0.055))
+    knock = multiply(
+        oscillator(freq_curve(420.0, 240.0, knock_len), "sine"),
+        exp_decay(knock_len, 0.014, attack=0.001),
+    )
+    # Brittle hollow glass double-clink
+    clink_hz = float(p["clink_hz"])
+    c1 = multiply(oscillator(constant(clink_hz, n), "sine"), exp_decay(n, 0.036, attack=0.001))
+    c2 = multiply(oscillator(constant(clink_hz * 1.48, n), "sine"), exp_decay(n, 0.022, attack=0.001))
+    glass = mix((c1, 0.72), (c2, 0.45))
+
+    tap = normalize(biquad(white_noise(n, rng), "bandpass", 3600.0, 2.8))
+    tap = multiply(tap, exp_decay(n, 0.009, attack=0.0005))
+
+    return mix(
+        (knock, float(p["knock_level"]), 0.0),
+        (glass, float(p["glass_level"]), 0.010),
+        (tap, float(p["tap_level"]), 0.004),
+    )
+
+
 PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
     "slash": (preset_slash, {
         "duration": 0.32, "sweep_start_hz": 700.0, "sweep_end_hz": 5200.0, "sweep_q": 1.4, "peak_pos": 0.35,
@@ -1198,10 +1273,10 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "crack1_time": 0.35, "crack2_time": 1.25, "peak": 0.85,
     }, "Swelling rain + lightning crack + rolling thunder intro"),
     "door_open": (preset_door_open, {
-        "duration": 0.35, "latch_hz": 2400.0, "latch_level": 0.85,
-        "creak_start_hz": 165.0, "creak_end_hz": 215.0, "creak_body_hz": 440.0,
-        "creak_flutter_hz": 24.0, "creak_level": 0.65, "wood_level": 0.45, "peak": 0.68,
-    }, "Wooden latch click + low oak hinge creak"),
+        "duration": 0.35, "latch_hz": 2400.0, "latch_level": 0.75,
+        "creak_start_hz": 160.0, "creak_end_hz": 200.0, "creak_body_hz": 410.0,
+        "creak_flutter_hz": 22.0, "creak_level": 0.24, "wood_level": 0.30, "peak": 0.50,
+    }, "Wooden latch click + soft fading oak hinge creak"),
     "slug_boss_slime": (preset_slug_boss_slime, {
         "duration": 0.55, "bellow_start_hz": 74.0, "bellow_end_hz": 44.0,
         "bellow_formant_hz": 220.0, "warble_hz": 17.0, "bellow_level": 0.85,
@@ -1224,6 +1299,18 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "duration": 0.45, "burst_level": 0.88, "thud_level": 0.40, "shard_count": 9,
         "shard_level": 0.52, "peak": 0.84,
     }, "Cascading multi-shard ice-crystal burst"),
+    "water_step": (preset_water_step, {
+        "duration": 0.18, "splash_hz": 1150.0, "mist_hz": 3200.0,
+        "splash_level": 0.78, "mist_level": 0.38, "bloop_level": 0.32, "peak": 0.36,
+    }, "Subtle shallow-water wading footstep splash"),
+    "player_hurt": (preset_player_hurt, {
+        "duration": 0.22, "thud_start_hz": 148.0, "thud_end_hz": 48.0, "cloth_hz": 860.0,
+        "thud_level": 0.85, "cloth_level": 0.58, "grit_level": 0.28, "peak": 0.58,
+    }, "Quiet low thud + cloth rustle on Scholar hit"),
+    "flask_empty": (preset_flask_empty, {
+        "duration": 0.18, "clink_hz": 2450.0, "knock_level": 0.72, "glass_level": 0.62,
+        "tap_level": 0.40, "peak": 0.55,
+    }, "Hollow dry glass clink + muted cork pop for empty/unneeded flask"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1282,12 +1369,15 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
                                         "peak": 0.5}),
     "menu_confirm.ogg": ("ui_select", {"duration": 0.3, "tone_hz": 880.0, "tone_level": 0.35, "stamp": True,
                                        "peak": 0.75}),
-    "door_open.ogg": ("door_open", {"duration": 0.35, "peak": 0.68}),
+    "door_open.ogg": ("door_open", {"duration": 0.35, "peak": 0.50}),
     "slug_boss_slime.ogg": ("slug_boss_slime", {"duration": 0.55, "peak": 0.80}),
     "meadow_censor_whistle.ogg": ("meadow_censor_whistle", {"duration": 0.45, "peak": 0.78}),
     "frost_breath.ogg": ("frost_breath", {"duration": 0.60, "peak": 0.80}),
     "ice_crack.ogg": ("ice_crack", {"duration": 0.22, "peak": 0.82}),
     "ice_shatter.ogg": ("ice_shatter", {"duration": 0.45, "peak": 0.84}),
+    "water_step.ogg": ("water_step", {"duration": 0.18, "peak": 0.36}),
+    "player_hurt.ogg": ("player_hurt", {"duration": 0.22, "peak": 0.58}),
+    "flask_empty.ogg": ("flask_empty", {"duration": 0.18, "peak": 0.55}),
 }
 
 # Keyword heuristics for unknown missing references (first match wins)

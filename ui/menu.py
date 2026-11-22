@@ -274,12 +274,6 @@ def draw_binder_weave_menu(screen, font, state):
             prefix = "> " if focused else "  "
             screen.blit(font.render(f"{prefix}{label}", True, col), (x + 28, y + 88 + idx * 34))
 
-        hint = font.render(
-            "[UP/DOWN] Select   [X / ENTER] Confirm   [Circle / ESC] Cancel",
-            True,
-            constants.COLOR_GREY,
-        )
-        screen.blit(hint, (x + 24, y + h - 34))
         return panel
 
     if mode == "consult":
@@ -301,12 +295,6 @@ def draw_binder_weave_menu(screen, font, state):
             screen.blit(font.render(line, True, constants.COLOR_WHITE), (x + 24, y + status_y))
             status_y += line_step
 
-        hint = font.render(
-            "[X / Circle] Close",
-            True,
-            constants.COLOR_GREY,
-        )
-        screen.blit(hint, (x + 24, y + h - 34))
         return panel
 
     from engine.binder_scripts import (
@@ -395,12 +383,6 @@ def draw_binder_weave_menu(screen, font, state):
         screen.blit(font.render(f"{prefix}{row_str}", True, col), (x + 28, y + y_off))
         y_off += spacing
 
-    hint = font.render(
-        "[UP/DOWN] Navigate   [ENTER/E] Weave / Toggle Stitch   [ESC] Close Loom",
-        True,
-        constants.COLOR_GREY,
-    )
-    screen.blit(hint, (x + 24, y + h - 32))
     return panel
 
 

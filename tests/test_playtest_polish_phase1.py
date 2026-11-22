@@ -275,8 +275,4 @@ def test_binder_consult_wraps_without_truncation_or_overlap():
     assert len(status_blits) == len(wrapped)
     assert not any("..." in item[0] for item in status_blits)
     assert not option_blits, "Consult view should display only dialogue prose without upgrade options"
-    assert footer_blits, "Expected footer close hint to be rendered"
-
-    lowest_status_bottom = max(pos[1] + h for _, pos, h in status_blits)
-    footer_top = min(pos[1] for _, pos, _ in footer_blits)
-    assert footer_top > lowest_status_bottom
+    assert not footer_blits, "Obsolete shortcut footer should not be rendered in Consult view"

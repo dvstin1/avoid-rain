@@ -71,6 +71,7 @@ class Player:
         # Anomalous weapon state modifiers
         self.negation_timer = 0.0
         self.negation_amount = 0.0
+        self.damage_mitigation = 0.0
 
         # Marginalia Event Buff / Debuff Timers
         self.storm_immunity_timer = 0.0
@@ -425,13 +426,16 @@ class Player:
         }
 
     def use_flask(self, audio_manager=None):
-        """Consume a flask charge to restore HP. Returns True if heal performed."""
+        """Consume a flask charge to restore HP; play flask_empty.ogg if empty or at full HP."""
         if self.flask_charges > 0 and self.hp < self.max_hp:
             self.flask_charges -= 1
             self.hp = min(self.max_hp, self.hp + FLASK_HEAL_AMOUNT)
             if audio_manager:
                 audio_manager.play_sfx("flask_use.ogg")
             return True
+        if audio_manager:
+            from constants import FLASK_EMPTY_SFX
+            audio_manager.play_sfx(FLASK_EMPTY_SFX)
         return False
 
     def take_damage(
@@ -461,6 +465,7 @@ class Player:
                 return
 
         # 1. Apply active blocking / warding reduction
+        was_blocked = False
         if self.state == PlayerStateEnum.BLOCKING:
             if bypass_stagger:
                 from constants import WARDING_RAIN_DAMAGE_REDUCTION
@@ -468,14 +473,17 @@ class Player:
             else:
                 from constants import BLOCK_DAMAGE_REDUCTION
                 amount *= BLOCK_DAMAGE_REDUCTION
+                was_blocked = True
                 if audio_manager:
                     audio_manager.play_sfx("player_block.ogg")
 
-        # 1b. Apply compiled Binder Script damage mitigation
+        # 1b. Apply compiled Binder Script + persistent run damage mitigation (e.g., Unblotted Margin)
         from constants import BINDER_MAX_DAMAGE_MITIGATION
         script_mit = float(getattr(self, "script_modifiers", {}).get("damage_mitigation", 0.0))
-        if script_mit > 0.0:
-            amount *= (1.0 - min(BINDER_MAX_DAMAGE_MITIGATION, max(0.0, script_mit)))
+        bonus_mit = max(0.0, float(getattr(self, "damage_mitigation", 0.0)))
+        total_mit = min(BINDER_MAX_DAMAGE_MITIGATION, max(0.0, script_mit)) + bonus_mit
+        if total_mit > 0.0:
+            amount *= (1.0 - min(0.85, total_mit))
 
         # 2. Apply passive Edification parsing (Global Level)
         from constants import PROWESS_ATTACK_STEP, FORTIFICATION_HP_STEP
@@ -499,6 +507,11 @@ class Player:
             amount *= (1.0 - reduction)
 
         self.hp = max(0.0, self.hp - amount)
+
+        # Play quiet combat hurt SFX on unblocked combat hits
+        if not bypass_stagger and not was_blocked and amount > 0 and audio_manager:
+            from constants import PLAYER_HURT_SFX
+            audio_manager.play_sfx(PLAYER_HURT_SFX)
 
         # Spawn Glyph Splatter on player damage
         if amount > 0 and game_state and hasattr(game_state, 'glyph_particles'):

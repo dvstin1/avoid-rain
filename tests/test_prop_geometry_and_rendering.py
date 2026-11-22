@@ -122,7 +122,8 @@ def test_lore_fragment_rendered_centered_in_rect(monkeypatch):
 
     parchment_rects = [r for col, r in drawn_rects if col == (235, 224, 194)]
     assert parchment_rects == [(89, 127, 22, 26)]
-    assert any(col == (215, 180, 95) and center == (100, 140) for col, center, _rad in drawn_circles)
+    assert any(col == (175, 48, 56) for col, _center, _rad in drawn_circles)
+    assert not any(col == (215, 180, 95) for col, _center, _rad in drawn_circles)
 
 
 def test_rock_non_solid_visual_alignment_and_no_tall_pillars():

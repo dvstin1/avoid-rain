@@ -731,10 +731,12 @@ class MarginaliaEventEngine:
         ev.spawned_enemy_ids.add(censor.network_id)
 
     def _apply_unblotted_margin_boon(self, state: Any, ev: MarginaliaEvent) -> None:
+        from constants import UNBLOTTED_MARGIN_MITIGATION_BONUS
         player = getattr(state, "player", None)
         if player is not None:
-            player.hp = float(player.max_hp)
-            player.flask_charges = int(FLASK_MAX_CHARGES)
+            player.damage_mitigation = float(getattr(player, "damage_mitigation", 0.0)) + float(
+                UNBLOTTED_MARGIN_MITIGATION_BONUS
+            )
             if ev.act_variant >= 2:
                 player.pristine_ink_shield_timer = MARGINALIA_PRISTINE_SHIELD_DURATION
         pages_bonus = 2 if ev.act_variant == 1 else 3
