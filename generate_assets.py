@@ -4239,6 +4239,145 @@ def generate_slug_boss_crown(
     return surf
 
 
+def generate_pastoral_shepherd_cairn(
+    width: int = 40, height: int = 60, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate a 40x60 weathered stone milestone with shepherd's crook, brass lantern ring & tar-stained wheat."""
+    if rng is None:
+        rng = random.Random(5101)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+
+    # Ground contact shadow and creeping dark-plum tar smear at foot
+    pygame.draw.ellipse(surf, (24, 14, 34, 118), (4, height - 12, width - 8, 9))
+    pygame.draw.ellipse(surf, (46, 20, 68, 150), (16, height - 11, 18, 6))
+
+    # Weathered limestone / sandstone cairn milestone body
+    stone_poly = [
+        (11, height - 9),
+        (12, 20),
+        (16, 13),
+        (24, 14),
+        (28, 21),
+        (29, height - 9),
+    ]
+    pygame.draw.polygon(surf, (176, 158, 126, 255), stone_poly)
+    # Right-side shadow facet
+    shade_poly = [
+        (21, height - 9),
+        (22, 14),
+        (24, 14),
+        (28, 21),
+        (29, height - 9),
+    ]
+    pygame.draw.polygon(surf, (134, 116, 88, 255), shade_poly)
+    pygame.draw.polygon(surf, (56, 44, 34, 255), stone_poly, 1)
+
+    # Warm parchment top-left highlight & weathered stone cracks
+    pygame.draw.lines(
+        surf,
+        (226, 208, 174, 255),
+        False,
+        [(13, height - 13), (13, 21), (16, 14), (22, 15)],
+        2,
+    )
+    pygame.draw.line(surf, (96, 82, 64, 220), (14, 30), (24, 32), 1)
+    pygame.draw.line(surf, (96, 82, 64, 220), (15, 42), (25, 40), 1)
+    for _ in range(18):
+        px = rng.randint(13, 26)
+        py = rng.randint(17, height - 13)
+        delta = rng.choice((-14, 12))
+        base = (168, 148, 118)
+        col = tuple(max(0, min(255, c + delta)) for c in base) + (255,)
+        surf.set_at((px, py), col)
+
+    # Meadow moss tufts tucked around stone base
+    pygame.draw.ellipse(surf, (52, 146, 68, 255), (8, height - 14, 11, 6))
+    pygame.draw.ellipse(surf, (96, 204, 102, 255), (10, height - 14, 7, 4))
+
+    # Leaning wooden shepherd's crook resting against the left flank
+    wood_dark = (74, 44, 24, 255)
+    wood_mid = (128, 82, 42, 255)
+    wood_hi = (176, 124, 68, 255)
+    pygame.draw.line(surf, wood_dark, (6, height - 7), (14, 12), 4)
+    pygame.draw.line(surf, wood_mid, (6, height - 7), (14, 12), 2)
+    pygame.draw.line(surf, wood_hi, (7, height - 10), (13, 14), 1)
+    crook_pts = [(14, 12), (16, 6), (21, 6), (23, 10), (20, 14)]
+    pygame.draw.lines(surf, wood_dark, False, crook_pts, 4)
+    pygame.draw.lines(surf, wood_mid, False, crook_pts, 2)
+
+    # Brass lantern ring mounted on the upper stone face
+    pygame.draw.circle(surf, (132, 94, 32, 255), (23, 25), 4, 2)
+    pygame.draw.circle(surf, (232, 188, 72, 255), (23, 25), 3, 1)
+    pygame.draw.circle(surf, (252, 224, 126, 230), (23, 26), 1)
+
+    # Tar-stained golden wheat sheaf leaning on lower-right side
+    wheat_gold = (224, 186, 84, 255)
+    wheat_shadow = (174, 134, 52, 255)
+    tar_stain = (54, 22, 76, 255)
+    for ox_s, tip_x, tip_y in ((26, 33, 35), (28, 35, 39), (24, 30, 33)):
+        pygame.draw.line(surf, wheat_shadow, (ox_s, height - 10), (tip_x, tip_y), 2)
+        pygame.draw.line(surf, wheat_gold, (ox_s, height - 10), (tip_x - 1, tip_y), 1)
+        pygame.draw.circle(surf, wheat_gold, (tip_x, tip_y), 2)
+    # Binding twine and dark plum tar splash staining the bottom of the sheaf
+    pygame.draw.line(surf, (108, 68, 34, 255), (24, height - 17), (32, height - 15), 2)
+    pygame.draw.ellipse(surf, tar_stain, (24, height - 14, 9, 5))
+    return surf
+
+
+def generate_pastoral_hay_crate(
+    width: int = 40, height: int = 40, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate a 40x40 destructible golden bound wheat bale / tar-stained shepherd crate."""
+    if rng is None:
+        rng = random.Random(5102)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+
+    # Ground contact shadow
+    pygame.draw.ellipse(surf, (26, 16, 32, 112), (4, height - 9, width - 8, 7))
+
+    # Main golden hay bale / rustic crate body
+    bale_rect = pygame.Rect(6, 8, width - 12, height - 14)
+    pygame.draw.rect(surf, (198, 158, 70, 255), bale_rect, border_radius=4)
+    # Sunlit top bevel face
+    pygame.draw.rect(surf, (232, 198, 106, 255), (7, 9, width - 14, 9), border_radius=3)
+    # Lower shaded face
+    pygame.draw.rect(surf, (154, 116, 46, 255), (7, height - 14, width - 14, 7), border_radius=2)
+
+    # Woven horizontal straw texture lines
+    for sy in range(11, height - 8, 3):
+        x0 = 8 + rng.randint(0, 3)
+        x1 = width - 9 - rng.randint(0, 3)
+        col = (242, 212, 126, 235) if sy % 2 == 0 else (162, 122, 48, 235)
+        pygame.draw.line(surf, col, (x0, sy), (x1, sy), 1)
+
+    # Protruding loose straw wisps around edges
+    for (sx, sy), (ex, ey) in (
+        ((6, 13), (3, 11)),
+        ((6, 22), (2, 24)),
+        ((width - 7, 14), (width - 3, 12)),
+        ((width - 7, 25), (width - 3, 27)),
+        ((15, 8), (13, 5)),
+        ((26, 8), (28, 5)),
+    ):
+        pygame.draw.line(surf, (234, 198, 98, 255), (sx, sy), (ex, ey), 1)
+
+    # Two dark-timber / hemp rope binding straps
+    for bx in (13, width - 16):
+        pygame.draw.rect(surf, (88, 54, 28, 255), (bx, 8, 3, height - 14))
+        pygame.draw.line(surf, (142, 98, 54, 255), (bx + 1, 9), (bx + 1, height - 8), 1)
+
+    # Crisp dark outline
+    pygame.draw.rect(surf, (58, 38, 22, 255), bale_rect, 1, border_radius=4)
+
+    # Creeping deep-plum tar-ink stain on lower-left corner
+    pygame.draw.ellipse(surf, (44, 18, 64, 235), (7, height - 17, 12, 10))
+    pygame.draw.ellipse(surf, (78, 34, 108, 215), (9, height - 15, 7, 6))
+    surf.set_at((12, height - 13), (146, 72, 186, 220))
+    return surf
+
+
 def generate_all_assets(
     floor_path: str = DEFAULT_FLOOR_PATH,
     wall_path: str = DEFAULT_WALL_PATH,
@@ -4589,6 +4728,14 @@ def generate_all_assets(
         (
             "slug_boss_crown",
             generate_slug_boss_crown(44, 32, rng=_rng("slug_boss_crown")),
+        ),
+        (
+            "pastoral_shepherd_cairn",
+            generate_pastoral_shepherd_cairn(TILE_WIDTH, 60, rng=_rng("pastoral_shepherd_cairn")),
+        ),
+        (
+            "pastoral_hay_crate",
+            generate_pastoral_hay_crate(TILE_WIDTH, TILE_HEIGHT, rng=_rng("pastoral_hay_crate")),
         ),
     )
     for sp_key, sp_surf in sanctuary_prop_specs:

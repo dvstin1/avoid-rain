@@ -497,6 +497,62 @@ class Renderer:
             fl.set_at((1, 1), s_base)
         return fl
 
+    @classmethod
+    def _build_pastoral_valley_stratum_variant(cls, ts, s_idx, v_idx, s_base):
+        """Generate a 40x40 tar-sink, ledger-lined meadow, or worn-pathway variant for pastoral_valley."""
+        fl = pygame.Surface((ts, ts))
+        fl.fill(s_base)
+        rng = random.Random(5200 + s_idx * 97 + v_idx * 19)
+
+        if s_idx == 0:
+            # Deep-Plum Tar Sinks: subtle dark-violet viscosity ripples & sunken parchment ink flecks
+            trough = cls._shift_rgb_clamped(s_base, -6, -4, -8)
+            sheen = cls._shift_rgb_clamped(s_base, 10, 6, 12)
+            fleck = cls._shift_rgb_clamped(s_base, 18, 12, 16)
+            phase = (v_idx * 3) % 8
+            for gy in range(4 + phase, ts - 2, 10):
+                x0 = rng.randint(2, 10)
+                x1 = min(ts - 2, x0 + rng.randint(12, 22))
+                pygame.draw.line(fl, trough, (x0, gy), (x1, gy), 1)
+                if gy + 1 < ts:
+                    pygame.draw.line(fl, sheen, (x0 + 2, gy + 1), (max(x0 + 2, x1 - 2), gy + 1), 1)
+            for _ in range(10):
+                fl.set_at((rng.randrange(1, ts - 1), rng.randrange(1, ts - 1)), fleck)
+        elif s_idx == 1:
+            # Sunlit Meadow Turf: faint horizontal ruled parchment ledger lines (~10px spacing) & soft turf grain
+            ledger_col = cls._shift_rgb_clamped(s_base, 14, -4, -10)
+            blade_hi = cls._shift_rgb_clamped(s_base, 8, 10, 8)
+            blade_lo = cls._shift_rgb_clamped(s_base, -8, -10, -8)
+            for ly in range(8, ts, 10):
+                pygame.draw.line(fl, ledger_col, (0, ly), (ts - 1, ly), 1)
+            for idx in range(18):
+                fx = rng.randint(1, ts - 6)
+                fy = rng.randint(2, ts - 3)
+                flen = rng.randint(3, 7)
+                col = blade_hi if idx % 2 == 0 else blade_lo
+                pygame.draw.line(fl, col, (fx, fy), (min(ts - 1, fx + flen), fy), 1)
+            for _ in range(22):
+                px, py = rng.randrange(0, ts), rng.randrange(0, ts)
+                d = rng.randint(-6, 6)
+                fl.set_at((px, py), cls._shift_rgb_clamped(s_base, d, d, d))
+        else:
+            # Warm Tan Pathways: worn parchment/sandstone grain & faint horizontal cart-rut texture
+            rut_lo = cls._shift_rgb_clamped(s_base, -10, -9, -8)
+            grain_hi = cls._shift_rgb_clamped(s_base, 10, 9, 8)
+            rut_y = 11 + (v_idx % 2) * 14
+            pygame.draw.line(fl, rut_lo, (0, rut_y), (ts - 1, rut_y), 1)
+            if rut_y + 1 < ts:
+                pygame.draw.line(fl, grain_hi, (0, rut_y + 1), (ts - 1, rut_y + 1), 1)
+            for _ in range(26):
+                px, py = rng.randrange(0, ts), rng.randrange(0, ts)
+                d = rng.randint(-7, 7)
+                fl.set_at((px, py), cls._shift_rgb_clamped(s_base, d, d, (d * 3) // 4))
+
+        # Preserve exact pixel (1, 1) == s_base invariant for stratum verification tests
+        if v_idx == 0:
+            fl.set_at((1, 1), s_base)
+        return fl
+
     def _generate_biome_tile_cache(self):
         """Procedurally generate seamless base floor and wall surfaces per biome."""
         ts = constants.TILE_SIZE
@@ -523,6 +579,8 @@ class Renderer:
                         fl = self._build_tech_tower_stratum_variant(ts, s_idx, v_idx, s_base)
                     elif biome == "swamp_mire":
                         fl = self._build_swamp_mire_stratum_variant(ts, s_idx, v_idx, s_base)
+                    elif biome == "pastoral_valley":
+                        fl = self._build_pastoral_valley_stratum_variant(ts, s_idx, v_idx, s_base)
                     else:
                         fl = pygame.Surface((ts, ts))
                         fl.fill(s_base)
@@ -888,6 +946,8 @@ class Renderer:
                 (constants.SLUG_BOSS_CROWN_WIDTH, constants.SLUG_BOSS_CROWN_HEIGHT),
                 True,
             ),
+            ("pastoral_shepherd_cairn.png", "PastoralShepherdCairn", (ts, 60), True),
+            ("pastoral_hay_crate.png", "PastoralHayCrate", (ts, ts), True),
         )
         for sx_file, sx_key, sx_size, has_alpha in sanctuary_extra_defs:
             sx_path = os.path.join(base_path, sx_file)
@@ -1650,6 +1710,102 @@ class Renderer:
             if not wall_e:
                 target_surf.fill(mortar, (sx + ts - 2, sy, 2, ts))
 
+    @staticmethod
+    def _draw_pastoral_valley_floor_details(target_surf, pal, s_idx, tile_geom, pat):
+        """Render pastoral_valley floor motifs: tar stepping stones, meadow wildflowers, and tan pathways."""
+        x, y, sx, sy, ts = tile_geom
+        ax = sx - (x % 2) * ts
+        ay = sy - (y % 2) * ts
+
+        if s_idx == 0:
+            # Recessed Tar / Poison Swamp: multi-tile currents, vortex rings, and weathered stepping stones/planks
+            pygame.draw.ellipse(target_surf, (46, 20, 68), (ax + 8, ay + 12, 64, 56))
+            pygame.draw.ellipse(target_surf, (28, 12, 42), (ax + 16, ay + 20, 48, 40))
+            if pat == 0:
+                pygame.draw.ellipse(target_surf, (148, 56, 182), (ax + 18, ay + 22, 44, 34), 2)
+                pygame.draw.ellipse(target_surf, (195, 95, 225), (ax + 28, ay + 30, 24, 18), 1)
+            elif pat == 1:
+                # Weathered pale-parchment stepping stones bridged over the dark-plum tar sink
+                pygame.draw.ellipse(target_surf, (186, 166, 134), (ax + 12, ay + 22, 22, 16))
+                pygame.draw.ellipse(target_surf, (218, 202, 168), (ax + 15, ay + 24, 15, 10))
+                pygame.draw.ellipse(target_surf, (88, 66, 52), (ax + 12, ay + 22, 22, 16), 1)
+                pygame.draw.ellipse(target_surf, (176, 154, 122), (ax + 44, ay + 44, 24, 16))
+                pygame.draw.ellipse(target_surf, (212, 194, 160), (ax + 47, ay + 46, 16, 10))
+                pygame.draw.ellipse(target_surf, (88, 66, 52), (ax + 44, ay + 44, 24, 16), 1)
+                pygame.draw.circle(target_surf, (185, 82, 215), (ax + 52, ay + 24), 5, 1)
+            elif pat == 2:
+                for ry_off in (24, 38, 52):
+                    pygame.draw.arc(
+                        target_surf, (96, 42, 134), (ax + 18, ay + ry_off - 8, 44, 20), 0.3, 2.8, 2
+                    )
+            else:
+                # Sunken wooden causeway planks partially gripped by tar
+                for py_off in (22, 34, 48):
+                    pygame.draw.rect(target_surf, (124, 92, 62), (ax + 16, ay + py_off, 48, 8), border_radius=2)
+                    pygame.draw.line(
+                        target_surf, (174, 138, 96), (ax + 18, ay + py_off + 2), (ax + 61, ay + py_off + 2), 1
+                    )
+                    pygame.draw.rect(target_surf, (52, 30, 48), (ax + 16, ay + py_off, 48, 8), 1, border_radius=2)
+        elif s_idx == 2:
+            # Warm Tan Pathway: sandstone slabs, cart tracks, and plaza rings
+            if pat == 0:
+                pygame.draw.rect(target_surf, (224, 192, 134), (ax + 10, ay + 10, 58, 28), border_radius=8)
+                pygame.draw.rect(target_surf, (164, 124, 74), (ax + 10, ay + 10, 58, 28), 2, border_radius=8)
+                pygame.draw.rect(target_surf, (216, 182, 124), (ax + 14, ay + 44, 52, 26), border_radius=8)
+            elif pat == 1:
+                pygame.draw.rect(target_surf, (168, 128, 76), (ax, ay + 22, 80, 6))
+                pygame.draw.rect(target_surf, (168, 128, 76), (ax, ay + 52, 80, 6))
+                pygame.draw.rect(target_surf, (228, 198, 142), (ax, ay + 32, 80, 14))
+            elif pat == 2:
+                pygame.draw.circle(target_surf, (224, 192, 134), (ax + 40, ay + 40), 26)
+                pygame.draw.circle(target_surf, (164, 124, 74), (ax + 40, ay + 40), 26, 2)
+                pygame.draw.circle(target_surf, (198, 162, 106), (ax + 40, ay + 40), 14)
+            else:
+                pygame.draw.ellipse(target_surf, (224, 192, 134), (ax + 14, ay + 18, 52, 42))
+                pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 26, ay + 32, 26, 14))
+        else:
+            # Sunlit Lime/Mint Meadow: connected tuft groves, fairy rings, sweeping turf swells & wildflowers
+            if pat == 0:
+                pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 12, ay + 22, 56, 32))
+                pygame.draw.ellipse(target_surf, (144, 244, 152), (ax + 18, ay + 18, 44, 22))
+                pygame.draw.rect(target_surf, (162, 250, 168), (ax + 24, ay + 24, 32, 6), border_radius=3)
+            elif pat == 1:
+                for ang in range(0, 360, 60):
+                    rad_a = math.radians(ang)
+                    cx_r = int(ax + 40 + math.cos(rad_a) * 22)
+                    cy_r = int(ay + 40 + math.sin(rad_a) * 20)
+                    pygame.draw.circle(target_surf, pal["floor_accent"], (cx_r, cy_r), 9)
+                    pygame.draw.circle(target_surf, (144, 244, 152), (cx_r - 1, cy_r - 2), 6)
+            elif pat == 2:
+                pygame.draw.rect(target_surf, (64, 178, 78), (ax + 6, ay + 16, 68, 10), border_radius=5)
+                pygame.draw.rect(target_surf, (144, 244, 152), (ax + 10, ay + 14, 58, 5), border_radius=2)
+                pygame.draw.rect(target_surf, (64, 178, 78), (ax + 12, ay + 52, 58, 10), border_radius=5)
+                pygame.draw.rect(target_surf, (144, 244, 152), (ax + 16, ay + 50, 48, 5), border_radius=2)
+            else:
+                pygame.draw.ellipse(target_surf, (186, 152, 98), (ax + 20, ay + 28, 40, 22))
+                pygame.draw.ellipse(target_surf, (218, 186, 128), (ax + 26, ay + 31, 28, 14))
+                pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 20, ay + 28), 8)
+                pygame.draw.circle(target_surf, (144, 244, 152), (ax + 20, ay + 26), 5)
+
+            # Small wildflower clusters (gold, cream-white, and pale lavender petals) scattered across meadow tiles
+            flower_hash = ((x * 53 + y * 97) & 0x7FFFFFFF) % 5
+            if flower_hash in (0, 2):
+                petals = (
+                    (248, 224, 96),   # sunlit buttercup gold
+                    (248, 244, 228),  # daisy white
+                    (214, 184, 242),  # pale meadow lavender
+                )
+                cluster = (
+                    ((10, 12), (17, 15), (12, 22), (27, 29))
+                    if flower_hash == 0
+                    else ((25, 11), (31, 16), (14, 30))
+                )
+                for f_idx, (fx_o, fy_o) in enumerate(cluster):
+                    pcol = petals[(f_idx + x + y) % len(petals)]
+                    fx_p, fy_p = sx + fx_o, sy + fy_o
+                    pygame.draw.circle(target_surf, pcol, (fx_p, fy_p), 2)
+                    target_surf.set_at((fx_p, fy_p), (132, 106, 36))
+
     def _draw_connected_floor_patterns(self, target_surf, biome_info, coords, dr):
         """Draw multi-tile connected shapes across same-surface tiles (restoring 70ed514 legacy)."""
         if not isinstance(target_surf, pygame.Surface):
@@ -1729,65 +1885,7 @@ class Renderer:
         pat = ((bx * 37 + by * 59 + zx * 13 + zy * 29 + s_idx * 7) & 0x7FFFFFFF) % 4
 
         if biome == "pastoral_valley":
-            if s_idx == 0:
-                # Recessed Tar / Poison Swamp: large multi-tile currents, vortex rings, and submerged ribs
-                pygame.draw.ellipse(target_surf, (46, 20, 68), (ax + 8, ay + 12, 64, 56))
-                pygame.draw.ellipse(target_surf, (28, 12, 42), (ax + 16, ay + 20, 48, 40))
-                if pat == 0:
-                    pygame.draw.ellipse(target_surf, (148, 56, 182), (ax + 18, ay + 22, 44, 34), 2)
-                    pygame.draw.ellipse(target_surf, (195, 95, 225), (ax + 28, ay + 30, 24, 18), 1)
-                elif pat == 1:
-                    pygame.draw.rect(target_surf, (132, 48, 168), (ax + 12, ay + 34, 56, 10), border_radius=5)
-                    pygame.draw.circle(target_surf, (185, 82, 215), (ax + 26, ay + 24), 6, 1)
-                    pygame.draw.circle(target_surf, (185, 82, 215), (ax + 54, ay + 52), 8, 1)
-                elif pat == 2:
-                    for ry_off in (24, 38, 52):
-                        pygame.draw.arc(
-                            target_surf, (96, 42, 134), (ax + 18, ay + ry_off - 8, 44, 20), 0.3, 2.8, 2
-                        )
-                else:
-                    pygame.draw.rect(target_surf, (78, 34, 112), (ax + 14, ay + 26, 52, 6), border_radius=3)
-                    pygame.draw.rect(target_surf, (78, 34, 112), (ax + 22, ay + 48, 38, 5), border_radius=2)
-            elif s_idx == 2:
-                # Warm Tan Pathway: large multi-tile sandstone slabs, cart tracks, and plaza rings
-                if pat == 0:
-                    pygame.draw.rect(target_surf, (224, 192, 134), (ax + 10, ay + 10, 58, 28), border_radius=8)
-                    pygame.draw.rect(target_surf, (164, 124, 74), (ax + 10, ay + 10, 58, 28), 2, border_radius=8)
-                    pygame.draw.rect(target_surf, (216, 182, 124), (ax + 14, ay + 44, 52, 26), border_radius=8)
-                elif pat == 1:
-                    pygame.draw.rect(target_surf, (168, 128, 76), (ax, ay + 22, 80, 6))
-                    pygame.draw.rect(target_surf, (168, 128, 76), (ax, ay + 52, 80, 6))
-                    pygame.draw.rect(target_surf, (228, 198, 142), (ax, ay + 32, 80, 14))
-                elif pat == 2:
-                    pygame.draw.circle(target_surf, (224, 192, 134), (ax + 40, ay + 40), 26)
-                    pygame.draw.circle(target_surf, (164, 124, 74), (ax + 40, ay + 40), 26, 2)
-                    pygame.draw.circle(target_surf, (198, 162, 106), (ax + 40, ay + 40), 14)
-                else:
-                    pygame.draw.ellipse(target_surf, (224, 192, 134), (ax + 14, ay + 18, 52, 42))
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 26, ay + 32, 26, 14))
-            else:
-                # Bright Lime/Mint Meadow: connected tuft groves, fairy rings, and sweeping turf swells
-                if pat == 0:
-                    pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 12, ay + 22, 56, 32))
-                    pygame.draw.ellipse(target_surf, (144, 244, 152), (ax + 18, ay + 18, 44, 22))
-                    pygame.draw.rect(target_surf, (162, 250, 168), (ax + 24, ay + 24, 32, 6), border_radius=3)
-                elif pat == 1:
-                    for ang in range(0, 360, 60):
-                        rad_a = math.radians(ang)
-                        cx_r = int(ax + 40 + math.cos(rad_a) * 22)
-                        cy_r = int(ay + 40 + math.sin(rad_a) * 20)
-                        pygame.draw.circle(target_surf, pal["floor_accent"], (cx_r, cy_r), 9)
-                        pygame.draw.circle(target_surf, (144, 244, 152), (cx_r - 1, cy_r - 2), 6)
-                elif pat == 2:
-                    pygame.draw.rect(target_surf, (64, 178, 78), (ax + 6, ay + 16, 68, 10), border_radius=5)
-                    pygame.draw.rect(target_surf, (144, 244, 152), (ax + 10, ay + 14, 58, 5), border_radius=2)
-                    pygame.draw.rect(target_surf, (64, 178, 78), (ax + 12, ay + 52, 58, 10), border_radius=5)
-                    pygame.draw.rect(target_surf, (144, 244, 152), (ax + 16, ay + 50, 48, 5), border_radius=2)
-                else:
-                    pygame.draw.ellipse(target_surf, (186, 152, 98), (ax + 20, ay + 28, 40, 22))
-                    pygame.draw.ellipse(target_surf, (218, 186, 128), (ax + 26, ay + 31, 28, 14))
-                    pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 20, ay + 28), 8)
-                    pygame.draw.circle(target_surf, (144, 244, 152), (ax + 20, ay + 26), 5)
+            self._draw_pastoral_valley_floor_details(target_surf, pal, s_idx, (x, y, sx, sy, ts), pat)
         elif biome == "tech_tower":
             self._draw_tech_tower_floor_patterns(target_surf, pal, s_idx, (x, y, sx, sy, ts))
         elif biome == "swamp_mire":
@@ -2992,6 +3090,8 @@ class Renderer:
                     self._draw_tech_canister(sx_o, sy_o, obj, prop_cache)
                 elif obj_biome == "swamp_mire":
                     self._draw_swamp_spore_pod(sx_o, sy_o, obj, prop_cache)
+                elif obj_biome == "pastoral_valley":
+                    self._draw_pastoral_hay_crate(sx_o, sy_o, obj, prop_cache)
                 else:
                     img = self.image_cache.get("barrel_0.png")
                     if img:
@@ -3030,6 +3130,8 @@ class Renderer:
                     self.screen.blit(prop_cache["RuinsRubble"], (int(sx_o), int(sy_o)))
                 elif obj_biome == "tech_tower":
                     self._draw_tech_server_pylon(sx_o, sy_o, prop_cache)
+                elif obj_biome == "pastoral_valley":
+                    self._draw_pastoral_shepherd_cairn(sx_o, sy_o, prop_cache)
                 else:
                     tree_surf = prop_cache.get("Structure")
                     if tree_surf is not None:
@@ -3312,6 +3414,7 @@ class Renderer:
         self.draw_windy_ridge_atmosphere(state, ox, oy, now=now)
         self.draw_tech_tower_atmosphere(state, ox, oy, now=now)
         self.draw_swamp_mire_atmosphere(state, ox, oy, now=now)
+        self.draw_pastoral_valley_atmosphere(state, ox, oy, now=now)
         self.draw_sanctuary_roofs_and_blackout(state, ox, oy)
 
         if getattr(state.player, 'current_interactable', None):
@@ -4677,7 +4780,7 @@ class Renderer:
             )
 
         for i in range(2):
-            sx, sy = 10 + i * (constants.HUD_SLOT_W + 100), 45
+            sx, sy = 10 + i * (constants.HUD_SLOT_W + 118), 45
             sr = pygame.Rect(sx, sy, constants.HUD_SLOT_W, constants.HUD_SLOT_H)
             pygame.draw.rect(hud_surf, (40, 40, 50), sr)
             
@@ -4691,7 +4794,7 @@ class Renderer:
                 wpn = player.weapons[i]
                 col = constants.COLOR_PURPLE if "modifiers" in wpn else constants.COLOR_WHITE
                 
-                name_surf = self.small_font.render(wpn.get("name", "Unknown")[:12], True, col)
+                name_surf = self.small_font.render(wpn.get("name", "Unknown")[:13], True, col)
                 hud_surf.blit(name_surf, (sx + 5, sy + 20))
                 
                 dmg_text = f"DMG: {wpn.get('damage', 0)}"
@@ -4700,8 +4803,8 @@ class Renderer:
         swr = pygame.Rect(constants.HUD_SWAP_BTN_RECT)
         pygame.draw.rect(hud_surf, (60, 60, 80), swr)
         pygame.draw.rect(hud_surf, constants.COLOR_WHITE, swr, 1)
-        swt = self.hud_font.render("Q / L1 (GP)", True, constants.COLOR_WHITE)
-        hud_surf.blit(swt, (swr.centerx - swt.get_width()//2, swr.centery - swt.get_height()//2))
+        swt = self.slot_font.render("Q / L1 (GP)", True, constants.COLOR_WHITE)
+        hud_surf.blit(swt, (swr.centerx - swt.get_width() // 2, swr.centery - swt.get_height() // 2))
 
         # [PICK UP] Button - only visible if standing over a WeaponPickup
         from engine.world import WeaponPickup
@@ -4713,11 +4816,11 @@ class Renderer:
             col = constants.COLOR_PURPLE if "modifiers" in target.weapon_data else constants.COLOR_WHITE
             pygame.draw.rect(hud_surf, (40, 60, 40), pkr) # Dark green tint for pickup
             pygame.draw.rect(hud_surf, col, pkr, 2)
-            pkt = self.hud_font.render("SPACE / A (GP)", True, constants.COLOR_WHITE)
-            hud_surf.blit(pkt, (pkr.centerx - pkt.get_width()//2, pkr.centery - pkt.get_height()//2))
+            pkt = self.slot_font.render("SPACE / A (GP)", True, constants.COLOR_WHITE)
+            hud_surf.blit(pkt, (pkr.centerx - pkt.get_width() // 2, pkr.centery - pkt.get_height() // 2))
 
         # Draw Active Status Effects on HUD
-        status_x = 325
+        status_x = 360
         status_y = 50
         active_statuses = []
         if getattr(player, 'negation_timer', 0.0) > 0.0:
@@ -5567,6 +5670,125 @@ class Renderer:
                 pygame.draw.circle(m_surf, core, (4, 4), 1)
                 cache[m_key] = m_surf
             self.screen.blit(m_surf, (mx - 4, my - 4))
+
+    def _draw_pastoral_shepherd_cairn(self, sx_o, sy_o, prop_cache):
+        """Render a 40x60 PastoralShepherdCairn anchored on its 40x40 base footprint with ground shadow."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        if isinstance(self.screen, pygame.Surface):
+            cache = getattr(self, "_fx_surface_cache", None)
+            s_key = ("pastoral_cairn_shadow", 34, 10)
+            sh_surf = cache.get(s_key) if cache is not None else None
+            if sh_surf is None:
+                sh_surf = pygame.Surface((34, 10), pygame.SRCALPHA)
+                pygame.draw.ellipse(sh_surf, (24, 14, 32, 98), (0, 0, 34, 10))
+                if cache is not None:
+                    cache[s_key] = sh_surf
+            self.screen.blit(sh_surf, (tx_i + 3, ty_i + 30))
+
+        cairn_surf = prop_cache.get("PastoralShepherdCairn")
+        if cairn_surf is not None:
+            self.screen.blit(cairn_surf, (tx_i, ty_i - 20))
+        elif isinstance(self.screen, pygame.Surface):
+            # Graceful procedural fallback: limestone milestone + shepherd's crook + brass lantern ring
+            poly = [
+                (tx_i + 11, ty_i + 32), (tx_i + 12, ty_i - 2),
+                (tx_i + 16, ty_i - 8), (tx_i + 24, ty_i - 7),
+                (tx_i + 28, ty_i), (tx_i + 29, ty_i + 32),
+            ]
+            pygame.draw.polygon(self.screen, (176, 158, 126), poly)
+            pygame.draw.polygon(self.screen, (56, 44, 34), poly, 1)
+            pygame.draw.line(self.screen, (128, 82, 42), (tx_i + 6, ty_i + 33), (tx_i + 14, ty_i - 8), 2)
+            pygame.draw.circle(self.screen, (232, 188, 72), (tx_i + 23, ty_i + 5), 3, 1)
+
+    def _draw_pastoral_hay_crate(self, sx_o, sy_o, obj, prop_cache):
+        """Render a 40x40 bound golden hay bale / shepherd crate replacing barrels in pastoral_valley."""
+        tx_i, ty_i = int(sx_o), int(sy_o)
+        crate_surf = prop_cache.get("PastoralHayCrate")
+        if crate_surf is not None:
+            self.screen.blit(crate_surf, (tx_i, ty_i))
+        elif isinstance(self.screen, pygame.Surface):
+            sw_o = max(16, int(getattr(obj, "width", constants.TILE_SIZE)))
+            sh_o = max(16, int(getattr(obj, "height", constants.TILE_SIZE)))
+            pygame.draw.rect(
+                self.screen, (198, 158, 70), (tx_i + 6, ty_i + 8, sw_o - 12, sh_o - 14), border_radius=4
+            )
+            pygame.draw.rect(
+                self.screen, (88, 54, 28), (tx_i + 13, ty_i + 8, 3, sh_o - 14)
+            )
+            pygame.draw.rect(
+                self.screen, (88, 54, 28), (tx_i + sw_o - 16, ty_i + 8, 3, sh_o - 14)
+            )
+            pygame.draw.ellipse(self.screen, (48, 20, 68), (tx_i + 7, ty_i + sh_o - 17, 11, 9))
+
+    def draw_pastoral_valley_atmosphere(self, state, ox, oy, now=None):
+        """Render soft diagonal warm sunbeams and gently drifting golden pollen motes on pastoral_valley."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        player = getattr(state, "player", None)
+        world = getattr(state, "world", None)
+        if player is None or world is None:
+            return
+        ts = constants.TILE_SIZE
+        px_c, py_c = player.get_center()
+        if self._resolve_tile_biome(state, int(px_c // ts), int(py_c // ts)) != "pastoral_valley":
+            return
+
+        t_now = time.time() if now is None else float(now)
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        cache = self._fx_surface_cache
+
+        # 1. Soft diagonal sunlit shafts (cached SRCALPHA, alpha 16..28)
+        span_w = sw + 220
+        span_h = sh + 160
+        for idx in range(4):
+            beam_w = 84 + (idx % 2) * 28
+            beam_h = 170 + (idx % 3) * 32
+            bx = int(((idx * 313.0 + t_now * 6.0 - ox * 0.72) % span_w) - 110)
+            by = int(((idx * 179.0 - oy * 0.72) % span_h) - 80)
+            pulse = (math.sin(t_now * 0.85 + idx * 1.4) + 1.0) * 0.5
+            q_alpha = 16 + int(pulse * 6) * 2  # 16..28
+            b_key = ("pastoral_sunbeam", beam_w, beam_h, q_alpha)
+            b_surf = cache.get(b_key)
+            if b_surf is None:
+                b_surf = pygame.Surface((beam_w + 48, beam_h), pygame.SRCALPHA)
+                pts = [
+                    (40, 0),
+                    (beam_w + 40, 0),
+                    (beam_w, beam_h),
+                    (0, beam_h),
+                ]
+                pygame.draw.polygon(b_surf, (252, 236, 164, q_alpha), pts)
+                inner_pts = [
+                    (52, 8),
+                    (beam_w + 26, 8),
+                    (beam_w - 14, beam_h - 8),
+                    (14, beam_h - 8),
+                ]
+                pygame.draw.polygon(b_surf, (255, 248, 206, max(10, q_alpha - 4)), inner_pts)
+                cache[b_key] = b_surf
+            self.screen.blit(b_surf, (bx, by))
+
+        # 2. 14 gently drifting warm-gold meadow pollen motes
+        m_span_w = sw + 80
+        m_span_h = sh + 80
+        for idx in range(14):
+            drift_x = 18.0 + (idx % 4) * 6.0
+            drift_y = 6.0 + (idx % 3) * 3.0
+            mx = int(((idx * 163.0 + t_now * drift_x - ox * 0.90) % m_span_w) - 40)
+            my = int(
+                ((idx * 101.0 + t_now * drift_y + math.sin(t_now * 1.6 + idx * 1.1) * 16.0 - oy * 0.90) % m_span_h)
+                - 40
+            )
+            m_pulse = (math.sin(t_now * 2.4 + idx * 1.5) + 1.0) * 0.5
+            q_ma = 96 + int(m_pulse * 8) * 12  # 96..192
+            p_key = ("pastoral_pollen_mote", q_ma)
+            p_surf = cache.get(p_key)
+            if p_surf is None:
+                p_surf = pygame.Surface((10, 10), pygame.SRCALPHA)
+                pygame.draw.circle(p_surf, (246, 214, 98, q_ma // 2), (5, 5), 4)
+                pygame.draw.circle(p_surf, (255, 246, 184, min(255, q_ma)), (5, 5), 2)
+                cache[p_key] = p_surf
+            self.screen.blit(p_surf, (mx - 5, my - 5))
 
     def _draw_sanctuary_tree_canopy(self, obj, ox, oy, prop_cache):
         """Draw a SanctuaryTreeCanopy (80x100) anchored onto its 40x40 solid trunk footprint."""
