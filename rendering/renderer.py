@@ -3597,6 +3597,7 @@ class Renderer:
             self.screen.blit(s, (obj.x - ox, obj.y - oy))
 
         self.draw_slime_pools(state, ox, oy)
+        self.draw_boss_summon_rituals(state, ox, oy, layer="ground")
 
         try:
             for enemy in getattr(state, 'enemies', []):
@@ -3611,6 +3612,7 @@ class Renderer:
         except Exception as e:
             print(f"[RENDER ERROR] Enemy Loop: {e}")
 
+        self.draw_boss_summon_rituals(state, ox, oy, layer="squares")
         self.draw_boss_projectiles(state, ox, oy)
 
         # Local Player Rendering
@@ -3829,8 +3831,119 @@ class Renderer:
         cnt_surf = self.small_font.render(counter_str, True, constants.COLOR_WHITE)
         self.screen.blit(cnt_surf, (panel_rect.right - cnt_surf.get_width() - 12, panel_y + 22))
 
+    def draw_boss_summon_rituals(self, state, offset_x, offset_y, layer="all"):
+        """Render Batch 15 Ink-Unsealing boss summoning circles (ground) and rising glyph squares (above actors)."""
+        rituals = getattr(state, "active_boss_summons", None)
+        if not rituals or not isinstance(self.screen, pygame.Surface):
+            return
+
+        sw, sh = self.screen.get_size()
+        if not hasattr(self, "_summon_glyph_cache"):
+            self._summon_glyph_cache = {}
+
+        if layer in ("all", "ground"):
+            for ritual in rituals:
+                cur_r = float(ritual.get("circle_radius", 0.0))
+                if cur_r < 1.5:
+                    continue
+                sx = int(round(float(ritual.get("cx", 0.0)) - offset_x))
+                sy = int(round(float(ritual.get("cy", 0.0)) - offset_y))
+                pad = int(cur_r) + 10
+                if sx + pad < 0 or sx - pad > sw or sy + pad < 0 or sy - pad > sh:
+                    continue
+                dim = pad * 2
+                surf = pygame.Surface((dim, dim), pygame.SRCALPHA)
+                center = (pad, pad)
+                ir = max(1, int(round(cur_r)))
+                # Grey vellum outer disc and crisp parchment border ring
+                pygame.draw.circle(surf, (148, 144, 152, 185), center, ir)
+                pygame.draw.circle(surf, (206, 202, 210, 235), center, ir, 2)
+                inner_ring = max(1, int(ir * 0.78))
+                pygame.draw.circle(surf, (176, 172, 182, 170), center, inner_ring, 1)
+
+                # Rotating marginalia colophon tick marks around the ring perimeter
+                elapsed = float(ritual.get("elapsed", 0.0))
+                for tick_idx in range(12):
+                    ang = elapsed * 1.45 + tick_idx * (2.0 * math.pi / 12.0)
+                    r0 = cur_r * 0.82
+                    r1 = cur_r * 1.04
+                    p0 = (int(pad + math.cos(ang) * r0), int(pad + math.sin(ang) * r0))
+                    p1 = (int(pad + math.cos(ang) * r1), int(pad + math.sin(ang) * r1))
+                    pygame.draw.line(surf, (220, 216, 224, 225), p0, p1, 2)
+
+                # Expanding pitch-black ink disc filling outward from the center
+                black_r = int(round(float(ritual.get("black_radius", 0.0))))
+                if black_r >= 1:
+                    pygame.draw.circle(surf, (8, 6, 12, 245), center, min(ir, black_r))
+
+                self.screen.blit(surf, (sx - pad, sy - pad))
+
+        if layer in ("all", "squares"):
+            glyph_font = getattr(self, "glyph_font", None)
+            for ritual in rituals:
+                for sq in ritual.get("squares", ()):
+                    if not sq.get("active", False):
+                        continue
+                    alpha = max(0, min(255, int(sq.get("alpha", 255))))
+                    if alpha <= 0:
+                        continue
+                    qx = int(round(float(sq["x"]) - offset_x))
+                    qy = int(round(float(sq["y"]) - offset_y))
+                    sz = max(2, int(round(float(sq.get("size", 6.0)))))
+                    if qx + sz < 0 or qx - sz > sw or qy + sz < 0 or qy - sz > sh:
+                        continue
+                    col = tuple(sq.get("color", (246, 244, 240)))[:3]
+                    rx = qx - sz // 2
+                    ry = qy - sz // 2
+                    if alpha >= 250:
+                        pygame.draw.rect(self.screen, col, (rx, ry, sz, sz))
+                    else:
+                        sq_surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
+                        sq_surf.fill((*col, alpha))
+                        self.screen.blit(sq_surf, (rx, ry))
+
+                    if sz >= 5 and glyph_font is not None:
+                        ch = str(sq.get("glyph", "a"))
+                        g_col = tuple(sq.get("glyph_color", constants.BOSS_SUMMON_GLYPH_COLOR))[:3]
+                        cache_key = (ch, g_col, sz)
+                        g_surf = self._summon_glyph_cache.get(cache_key)
+                        if g_surf is None:
+                            raw_g = glyph_font.render(ch, True, g_col)
+                            target_d = max(4, sz - 1)
+                            g_surf = pygame.transform.smoothscale(raw_g, (target_d, target_d))
+                            self._summon_glyph_cache[cache_key] = g_surf
+                        if alpha < 250:
+                            g_surf.set_alpha(alpha)
+                            self.screen.blit(g_surf, (rx + 1, ry))
+                            g_surf.set_alpha(255)
+                        else:
+                            self.screen.blit(g_surf, (rx + 1, ry))
+
+                # Stage 2 dense white-square emergence veil over the emerging boss (1.55s .. 2.35s)
+                elapsed = float(ritual.get("elapsed", 0.0))
+                emerge_t = float(ritual.get("emerge_time", constants.BOSS_SUMMON_EMERGE_TIME))
+                duration = float(ritual.get("duration", constants.BOSS_SUMMON_DURATION))
+                boss = ritual.get("boss")
+                if boss is not None and emerge_t <= elapsed < duration:
+                    veil_ratio = max(0.0, 1.0 - (elapsed - emerge_t) / max(1e-4, duration - emerge_t))
+                    veil_alpha = int(round(220 * veil_ratio))
+                    if veil_alpha > 8:
+                        bx = int(round(float(boss.x) - offset_x))
+                        by = int(round(float(boss.y) - offset_y))
+                        bw = max(24, int(round(float(boss.width))))
+                        bh = max(24, int(round(float(boss.height))))
+                        veil_surf = pygame.Surface((bw, bh), pygame.SRCALPHA)
+                        for v_idx in range(28):
+                            vx = int(((v_idx * 37 + int(elapsed * 90)) % max(1, bw - 6)))
+                            vy = int(((v_idx * 53 - int(elapsed * 140)) % max(1, bh - 6)))
+                            vsz = 4 + (v_idx % 4)
+                            pygame.draw.rect(veil_surf, (248, 246, 252, veil_alpha), (vx, vy, vsz, vsz))
+                        self.screen.blit(veil_surf, (bx, by))
+
     def draw_actor_ghost(self, actor, ox, oy, state):
         """Draws sprites or abstract indicators for an actor based on its visual packet."""
+        if getattr(actor, "dormant_boss_summon", False):
+            return
         actor_alpha = getattr(actor, 'alpha', 255)
         if actor_alpha <= 0:
             return

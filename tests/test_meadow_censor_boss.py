@@ -91,6 +91,7 @@ def test_meadow_censor_spawns_as_pastoral_valley_night_boss():
         state.weather_manager.bleed_state = "CLAMPED"
         state.weather_manager.current_boss_idx = 0
         state._update_world_events(0.016)
+        state._update_world_events(constants.BOSS_SUMMON_DURATION)
 
         assert len(state.enemies) == 1
         boss = state.enemies[0]
@@ -110,6 +111,7 @@ def test_meadow_censor_spawns_as_pastoral_valley_night_boss():
         state.weather_manager.bleed_state = "CLAMPED"
         state.weather_manager.current_boss_idx = 0
         state._update_world_events(0.016)
+        state._update_world_events(constants.BOSS_SUMMON_DURATION)
 
         assert len(state.enemies) == 1
         assert isinstance(state.enemies[0], NightBoss)

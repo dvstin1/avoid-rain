@@ -137,6 +137,7 @@ class GameState:
         self.parry_effects = [] # Transient VFX sparks
         self.impact_sparks = [] # Transient combat hit sparks
         self.slash_effects = [] # Transient fading visual slash arcs
+        self.active_boss_summons = [] # Batch 15: Active Ink-Unsealing boss summoning rituals
         self._player_was_attacking = False
         self._hit_sfx_played_this_attack = False
         self.local_swing_seq = 0
@@ -1243,6 +1244,8 @@ class GameState:
         for enemy in enemies:
             if getattr(enemy, "hp", 1) <= 0 or (hasattr(enemy, "is_dead") and enemy.is_dead()):
                 continue
+            if getattr(enemy, "dormant_boss_summon", False):
+                continue
             ex, ey = enemy.get_center()
             if (ex - tx) ** 2 + (ey - ty) ** 2 <= rad_sq or (ex - px) ** 2 + (ey - py) ** 2 <= rad_sq:
                 return True
@@ -1341,6 +1344,60 @@ class GameState:
             alive_pools.append(pool)
         self.slime_pools = alive_pools
 
+    def start_boss_summon(self, boss, audio_manager=None):
+        """Initiate the 2.35s Ink-Unsealing summoning ritual for a Night Boss, Miniboss, or FinalAuthor."""
+        if boss is None:
+            return None
+        from constants import BOSS_SUMMON_SFX
+        from engine.particles import BossSummonManager
+
+        for existing in self.active_boss_summons:
+            if existing.get("boss") is boss:
+                return existing
+
+        boss.dormant_boss_summon = False
+        if hasattr(self, "enemies") and boss in self.enemies:
+            self.enemies.remove(boss)
+
+        ritual = BossSummonManager.create_ritual(boss)
+        self.active_boss_summons.append(ritual)
+
+        sfx_mgr = audio_manager if audio_manager is not None else getattr(self, "audio_manager", None)
+        if sfx_mgr is not None and hasattr(sfx_mgr, "play_sfx"):
+            try:
+                sfx_mgr.play_sfx(BOSS_SUMMON_SFX)
+            except Exception:
+                pass
+        return ritual
+
+    def _update_boss_summons(self, dt, audio_manager=None):
+        """Check dormant boss proximity triggers and advance active Ink-Unsealing rituals."""
+        from constants import BOSS_SUMMON_TRIGGER_RADIUS
+        from engine.actor import Actor
+        from engine.particles import BossSummonManager
+
+        runners = Actor.get_active_runner_positions(self)
+        trig_sq = float(BOSS_SUMMON_TRIGGER_RADIUS) ** 2
+        for enemy in list(getattr(self, "enemies", None) or ()):
+            if not getattr(enemy, "dormant_boss_summon", False) or getattr(enemy, "hp", 1) <= 0:
+                continue
+            ex, ey = enemy.get_center()
+            if any((ex - rx) ** 2 + (ey - ry) ** 2 <= trig_sq for rx, ry in runners):
+                self.start_boss_summon(enemy, audio_manager=audio_manager)
+
+        if self.active_boss_summons:
+            kept_rituals = []
+            for ritual in list(self.active_boss_summons):
+                if BossSummonManager.update_ritual(ritual, dt, game_state=self):
+                    kept_rituals.append(ritual)
+            self.active_boss_summons = kept_rituals
+
+        active_ritual_bosses = {r.get("boss") for r in self.active_boss_summons}
+        for enemy in getattr(self, "enemies", None) or ():
+            emerge_t = float(getattr(enemy, "summoning_emerge_timer", 0.0) or 0.0)
+            if emerge_t > 0.0 and enemy not in active_ritual_bosses:
+                enemy.summoning_emerge_timer = max(0.0, emerge_t - dt)
+
     def _update_world_events(self, dt):
         """Host-only logic for boss spawns and environmental transitions."""
         from constants import TILE_SIZE, TILE_STRUCTURE, TILE_RESPITE
@@ -1366,7 +1423,14 @@ class GameState:
 
         # 1. Boss Spawn Rule: Only if circle is closed (CLAMPED) and not already spawned
         if self.weather_manager.is_boss_spawn_ready():
-            boss_alive = any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
+            boss_summoning = any(
+                getattr(r.get("boss"), "name", "") == "Night Boss"
+                for r in getattr(self, "active_boss_summons", ())
+            )
+            boss_alive = (
+                any(getattr(e, 'name', '') == "Night Boss" for e in self.enemies)
+                or boss_summoning
+            )
             if not boss_alive and self.weather_manager.bleed_state == "CLAMPED":
                 from engine.enemy import MeadowCensorBoss, NightBoss, RimecrestArbiterBoss, SlugBoss
                 idx = self.weather_manager.current_boss_idx
@@ -1413,13 +1477,14 @@ class GameState:
                             speed_multiplier=spd_m,
                             cooldown_multiplier=cd_m,
                         )
-                    self.enemies.append(new_boss)
+                    self.start_boss_summon(new_boss)
                     self.night_boss_spawned = True
                     if getattr(self, "active_respite", None):
                         self.close_respite_menu()
-                    print(f"[THE BLEED] Night Boss manifested at ({bx}, {by}).")
+                    print(f"[THE BLEED] Night Boss summoning ritual started at ({bx}, {by}).")
                     boss_alive = True
             self.weather_manager.lock_circle_for_boss(boss_alive)
+        self._update_boss_summons(dt)
 
         # Appendix / Act Transition Rule: After Night Boss defeat & dilution interlude
         if self.weather_manager.bleed_state == "APPENDIX":
@@ -1554,6 +1619,11 @@ class GameState:
             # Enemies
             for enemy in list(self.enemies):
                 try:
+                    if (
+                        getattr(enemy, "dormant_boss_summon", False)
+                        or float(getattr(enemy, "summoning_emerge_timer", 0.0) or 0.0) > 0.0
+                    ):
+                        continue
                     net_id = getattr(enemy, 'network_id', id(enemy))
                     if net_id in self.player.hit_entities_this_attack:
                         continue
@@ -1670,7 +1740,13 @@ class GameState:
         from engine.physics import resolve_enemy_player_collision
         # Rule: Everyone resolves collision locally to prevent clipping.
         # But if we are a client, we don't push the enemies (we trust Host position).
-        resolve_enemy_player_collision(self.player, self.enemies, allow_push_enemies=(not is_client))
+        active_enemies = [
+            e
+            for e in self.enemies
+            if not getattr(e, "dormant_boss_summon", False)
+            and float(getattr(e, "summoning_emerge_timer", 0.0) or 0.0) <= 0.0
+        ]
+        resolve_enemy_player_collision(self.player, active_enemies, allow_push_enemies=(not is_client))
 
 
     def _resolve_prop_biome(self, obj):
@@ -2565,6 +2641,7 @@ class GameState:
         if reset_progress:
             self.world_debris = []
             self.slime_pools = []
+            self.active_boss_summons = []
             self.loot = []
             self.destroyed_prop_ids.clear()
             self.defeated_miniboss_ids.clear()
@@ -2750,7 +2827,13 @@ class GameState:
         if getattr(self.world, 'name', '') not in ("final_boss", "night_boss_arena"):
             return
 
-        final_boss_dead = not any(getattr(e, 'name', '') == "The Final Author" for e in self.enemies)
+        final_boss_dead = not (
+            any(getattr(e, 'name', '') == "The Final Author" for e in self.enemies)
+            or any(
+                getattr(r.get("boss"), "name", "") == "The Final Author"
+                for r in getattr(self, "active_boss_summons", ())
+            )
+        )
         last_res = getattr(self.stats, 'data', {}).get("last_run_result")
         if final_boss_dead and last_res not in ("VICTORY", "STITCH_VICTORY"):
             if self.stats:
@@ -2795,6 +2878,7 @@ class GameState:
     def start_warp(self, target, callback=None, confirmed=False):
         """Initiate the three-stage Ink & Fog transit sequence."""
         self.close_respite_menu()
+        self.active_boss_summons = []
         target_name = getattr(target, 'target_name', target if isinstance(target, str) else None)
         is_client = hasattr(self, 'network_manager') and self.network_manager.network_mode == "CLIENT"
         if not confirmed and not is_client and target_name == "macro_world":
@@ -2849,6 +2933,7 @@ class GameState:
         from constants import MAX_ACTS
         self.world_debris = []
         self.slime_pools = []
+        self.active_boss_summons = []
         self.destroyed_prop_ids.clear()
         self.chronicle_dialog = None
         self.binder_dialog = None
@@ -2946,6 +3031,7 @@ class GameState:
         self.player = self.world = None
         self.enemies = self.loot = self.world_debris = []
         self.slime_pools = []
+        self.active_boss_summons = []
         self.destroyed_prop_ids = set()
         self.active_dialogue = self.active_choice = self.active_respite = None
 
@@ -3146,6 +3232,7 @@ class GameState:
         self.fading_entities = []
         self.world_debris = []
         self.slime_pools = []
+        self.active_boss_summons = []
         self.pending_remote_sfx = []
         self._remote_combat_seqs = {}
         self.local_swing_seq = 0
@@ -3430,8 +3517,17 @@ class GameState:
         near_miniboss = near_night_boss = near_final_author = False
         near_biome_boss_track = None
         px, py = self.player.get_center()
+        summoning_bosses = {
+            r.get("boss") for r in getattr(self, "active_boss_summons", None) or ()
+        }
         for enemy in self.enemies:
             if getattr(enemy, "hp", 1) <= 0:
+                continue
+            if (
+                getattr(enemy, "dormant_boss_summon", False)
+                or float(getattr(enemy, "summoning_emerge_timer", 0.0) or 0.0) > 0.0
+                or enemy in summoning_bosses
+            ):
                 continue
             if getattr(enemy, 'is_miniboss', False):
                 ex, ey = enemy.get_center()

@@ -1177,6 +1177,46 @@ def preset_flask_empty(rng: random.Random, p: Dict):
     )
 
 
+def preset_boss_summon(rng: random.Random, p: Dict):
+    """Deep ink-well sub-bass swell (55->110 Hz), fluttering parchment-square rustle, and hollow seal chime (~2.2s)."""
+    dur = float(p["duration"])
+    n = n_samples(dur)
+
+    sub_curve = freq_curve(float(p["sub_start_hz"]), float(p["sub_end_hz"]), n)
+    sub_sine = oscillator(sub_curve, "sine")
+    sub_saw = biquad(oscillator(sub_curve, "saw"), "lowpass", 240.0, order=2)
+    sub_env = arch(n, peak_pos=0.70, rise_power=1.6, fall_power=1.8)
+    sub_swell = multiply(mix((sub_sine, 0.72), (sub_saw, 0.38)), sub_env)
+
+    rustle_buf = silence(n)
+    burst_count = int(p["rustle_count"])
+    for idx in range(burst_count):
+        frac = idx / max(1, burst_count - 1)
+        t_pos = 0.06 + (dur * 0.78) * frac + rng.uniform(-0.022, 0.022)
+        t_pos = max(0.01, min(dur - 0.12, t_pos))
+        b_len = n_samples(rng.uniform(0.065, 0.115))
+        bp_hz = 1650.0 + 2500.0 * frac + rng.uniform(-160.0, 160.0)
+        burst = normalize(biquad(pink_noise(b_len, rng), "bandpass", bp_hz, 2.1))
+        burst = multiply(burst, exp_decay(b_len, 0.032, attack=0.004))
+        _ring_add(rustle_buf, burst, offset_samples(t_pos), 0.34 + 0.36 * frac)
+
+    chime_offset = min(max(0.0, dur - 0.35), float(p["chime_time"]))
+    chime_n = max(1, n - offset_samples(chime_offset))
+    chime_hz = float(p["chime_hz"])
+    bell = normalize(metallic_ring(chime_n, chime_hz, RING_RATIOS_GLASS, 0.42, rng))
+    hollow = multiply(
+        oscillator(constant(chime_hz * 0.5, chime_n), "sine"),
+        exp_decay(chime_n, 0.48, attack=0.004),
+    )
+    chime_sig = mix((bell, 0.74), (hollow, 0.46))
+
+    return mix(
+        (sub_swell, float(p["sub_level"]), 0.0),
+        (rustle_buf, float(p["rustle_level"]), 0.0),
+        (chime_sig, float(p["chime_level"]), chime_offset),
+    )
+
+
 PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
     "slash": (preset_slash, {
         "duration": 0.32, "sweep_start_hz": 700.0, "sweep_end_hz": 5200.0, "sweep_q": 1.4, "peak_pos": 0.35,
@@ -1311,6 +1351,11 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "duration": 0.18, "clink_hz": 2450.0, "knock_level": 0.72, "glass_level": 0.62,
         "tap_level": 0.40, "peak": 0.55,
     }, "Hollow dry glass clink + muted cork pop for empty/unneeded flask"),
+    "boss_summon": (preset_boss_summon, {
+        "duration": 2.2, "sub_start_hz": 55.0, "sub_end_hz": 110.0, "sub_level": 0.86,
+        "rustle_count": 18, "rustle_level": 0.64, "chime_time": 1.52, "chime_hz": 528.0,
+        "chime_level": 0.78, "peak": 0.84,
+    }, "Deep ink-well sub-bass swell + fluttering parchment squares + hollow seal chime"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1378,6 +1423,7 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "water_step.ogg": ("water_step", {"duration": 0.18, "peak": 0.36}),
     "player_hurt.ogg": ("player_hurt", {"duration": 0.22, "peak": 0.58}),
     "flask_empty.ogg": ("flask_empty", {"duration": 0.18, "peak": 0.55}),
+    "boss_summon.ogg": ("boss_summon", {"duration": 2.2, "peak": 0.84}),
 }
 
 # Keyword heuristics for unknown missing references (first match wins)

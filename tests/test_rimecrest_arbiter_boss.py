@@ -120,6 +120,7 @@ def test_frozen_peaks_spawns_rimecrest_arbiter_and_exemptions():
         state.enemies = []
 
         state._update_world_events(0.016)
+        state._update_world_events(constants.BOSS_SUMMON_DURATION)
         bosses = [e for e in state.enemies if isinstance(e, RimecrestArbiterBoss)]
         assert len(bosses) == 1
         boss = bosses[0]

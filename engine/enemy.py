@@ -24,6 +24,28 @@ class Enemy(Actor):
         self.persistent_pursuit = False
         self._stall_timer = 0.0
         self._phase_timer = 0.0
+        self.dormant_boss_summon = False
+        self.summoning_emerge_timer = 0.0
+
+    def is_summoning_or_dormant(self) -> bool:
+        """Return True while this enemy is awaiting proximity summon or emerging from a ritual seal."""
+        return bool(getattr(self, "dormant_boss_summon", False)) or (
+            float(getattr(self, "summoning_emerge_timer", 0.0) or 0.0) > 0.0
+        )
+
+    def take_damage(self, amount, bypass_stagger=False):
+        """Ignore damage while dormant or emerging from the Ink-Unsealing ritual."""
+        if self.is_summoning_or_dormant():
+            return
+        super().take_damage(amount, bypass_stagger=bypass_stagger)
+
+    def update(self, dt, state):
+        """Freeze AI while dormant or emerging from the summoning seal, otherwise run Actor AI."""
+        if self.is_summoning_or_dormant():
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+        super().update(dt, state)
 
     def apply_act_scaling(
         self,
@@ -56,6 +78,8 @@ class Enemy(Actor):
 
     def attempt_damage_player(self, state):
         """Apply damage on contact during STRIKE frames, handling parries for all players."""
+        if self.is_summoning_or_dormant():
+            return False
         # 1. Identify all potential victims (Local + Remote); skip resting local player in Respite UI
         potential_victims = []
         if state.player and getattr(state, "active_respite", None) is None:
@@ -396,6 +420,10 @@ class Boss(Enemy):
 
     def update(self, dt, state):
         """Advance boss ranged cooldown and active ink-bolt projectiles alongside base AI."""
+        if self.is_summoning_or_dormant():
+            self.vx = 0.0
+            self.vy = 0.0
+            return
         if self.ranged_cooldown_timer > 0.0:
             self.ranged_cooldown_timer = max(0.0, self.ranged_cooldown_timer - dt)
         if self.ink_bolts:

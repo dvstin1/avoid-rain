@@ -607,7 +607,7 @@ class Respite(GameObject):
         px, py = player.get_center()
         block_r_sq = RESPITE_HOSTILE_BLOCK_RADIUS ** 2
         for enemy in getattr(game_state, "enemies", None) or []:
-            if getattr(enemy, "hp", 0) <= 0:
+            if getattr(enemy, "hp", 0) <= 0 or getattr(enemy, "dormant_boss_summon", False):
                 continue
             ex, ey = enemy.get_center()
             if (ex - px) ** 2 + (ey - py) ** 2 <= block_r_sq:
@@ -779,6 +779,8 @@ class Respite(GameObject):
                 temp_enemy.is_stationary = True
             if (temp_enemy.is_miniboss or spec.get("is_miniboss")) and enemy_id and enemy_id in defeated_ids:
                 continue
+            if getattr(temp_enemy, "is_miniboss", False):
+                temp_enemy.dormant_boss_summon = True
 
             if world is not None and hasattr(world, "find_nearest_walkable_spawn"):
                 wx, wy = world.find_nearest_walkable_spawn(
@@ -1323,6 +1325,8 @@ class LevelLoader:
                         if temp_enemy.is_miniboss and enemy_id in defeated_ids:
                             print(f"[DEBUG] Elite {enemy_id} already redacted; skipping spawn.")
                         else:
+                            if getattr(temp_enemy, "is_miniboss", False):
+                                temp_enemy.dormant_boss_summon = True
                             enemies.append(temp_enemy)
 
         if not saved_enemies and enemies:

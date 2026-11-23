@@ -1074,6 +1074,13 @@ DIALOGUE_MANIFEST = {
             "They are viscous and stubborn, often splitting into smaller blots when "
             "severed, as if trying to rewrite themselves into multiple sentences."
         ),
+        "ink_unsealing_rite": (
+            "The Ink-Unsealing Rite: When a redacted Sovereign or Censor forces its way back "
+            "from the Margin, a grey vellum colophon circle burns into the floor and fills "
+            "outward from its center with pitch-black gall-ink. Hundreds of rising typographic "
+            "ash-squares—each stamped with a grey letter torn from an erased manuscript—lift "
+            "like Reverse Rain before the seal snaps shut and the terror takes physical form."
+        ),
         "windy_ridge_chronicle": [
             (
                 "High above the Scriptorium eaves, the Windy Ridge was where fresh vellum sheets "
@@ -1520,3 +1527,52 @@ BINDER_SCRIPT_CATALOG = (
 )
 
 BINDER_SCRIPTS_BY_ID = {entry["id"]: entry for entry in BINDER_SCRIPT_CATALOG}
+
+# Batch 15: Lore-Tied Boss Summoning Ritual (The Ink-Unsealing Rite)
+BOSS_SUMMON_SFX = "boss_summon.ogg"
+BOSS_SUMMON_DURATION = 2.35
+BOSS_SUMMON_EMERGE_TIME = 1.55
+BOSS_SUMMON_CIRCLE_RADIUS = 52
+BOSS_SUMMON_TRIGGER_RADIUS = 360.0
+BOSS_SUMMON_SQUARE_COUNT = 240
+BOSS_SUMMON_SQUARE_MAX_SIZE = 8.0
+BOSS_SUMMON_SQUARE_MIN_SIZE = 2.0
+BOSS_SUMMON_SQUARE_RISE_HEIGHT = 120.0
+BOSS_SUMMON_GLYPH_COLOR = (135, 132, 142)
+
+BOSS_SUMMON_PALETTES = {
+    "SlugBoss": (
+        (246, 244, 252),
+        (196, 190, 206),
+        (146, 140, 158),
+        (168, 76, 228),
+        (122, 48, 182),
+    ),
+    "RimecrestArbiterBoss": (
+        (246, 252, 255),
+        (192, 206, 220),
+        (142, 158, 174),
+        (108, 226, 252),
+        (64, 176, 224),
+    ),
+    "MeadowCensorBoss": (
+        (248, 244, 236),
+        (194, 188, 180),
+        (238, 194, 86),
+        (168, 92, 222),
+        (124, 62, 178),
+    ),
+    "empowered": (
+        (246, 242, 246),
+        (188, 180, 194),
+        (228, 56, 84),
+        (166, 62, 218),
+        (120, 42, 158),
+    ),
+    "default": (
+        (246, 244, 240),
+        (206, 202, 198),
+        (164, 160, 156),
+        (124, 120, 116),
+    ),
+}

@@ -131,6 +131,7 @@ def test_find_nearest_walkable_spawn_snaps_wall_overlapping_enemies(tmp_path):
     state.weather_manager.bleed_state = "CLAMPED"
     state.weather_manager.active_safe_radius = constants.WEATHER_MIN_RADIUS
     state._update_world_events(0.016)
+    state._update_world_events(constants.BOSS_SUMMON_DURATION)
     night_boss = next((e for e in state.enemies if isinstance(e, NightBoss)), None)
     assert night_boss is not None
     _assert_rect_clear_of_walls_and_props(state.world, night_boss.get_rect())
