@@ -157,7 +157,7 @@ class GameState:
         self.lobby_editing_name = False
         
         # Menu indices
-        self.respite_selection_idx = 0 # 0=Rest, 1-3=Edify, 4=Finalize, 5=Close
+        self.respite_selection_idx = 5 # 0=Rest, 1-2=Edify, 4=Finalize, 5=Close (default)
         self.respite_marked_idx = -1 # Which one is staged for upgrade
 
         self._save_queue = queue.Queue(maxsize=8)
@@ -2787,7 +2787,7 @@ class GameState:
         ):
             self.active_dialogue = None
         self.respite_upgrades = {1: 0, 2: 0}
-        self.respite_selection_idx = 0
+        self.respite_selection_idx = 5
         self.respite_marked_idx = -1
         if getattr(self, "player", None) is not None:
             self.player.has_rested_this_session = False

@@ -671,7 +671,7 @@ class Respite(GameObject):
 
         # Only reset and log if first opening
         if getattr(game_state, 'active_respite', None) != self:
-            game_state.respite_selection_idx = 0
+            game_state.respite_selection_idx = 5
             game_state.respite_marked_idx = -1
             print("[RESPITE] Interaction engaged.")
         

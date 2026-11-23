@@ -331,7 +331,7 @@ def test_start_warp_auto_closes_respite_menu():
         assert state.active_respite is None
         assert state.active_dialogue is None
         assert state.respite_upgrades == {1: 0, 2: 0}
-        assert state.respite_selection_idx == 0
+        assert state.respite_selection_idx == 5
         assert state.respite_marked_idx == -1
         assert state.player.has_rested_this_session is False
     finally:

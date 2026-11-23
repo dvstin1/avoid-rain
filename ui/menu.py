@@ -129,16 +129,9 @@ def draw_respite_menu(screen, font, state):
     # 5. Close Button (Index 5)
     y_off += spacing - 2
     close_focused = sel_idx == 5
-    close_col = constants.COLOR_SELECTION if close_focused else constants.COLOR_GREY
+    close_col = constants.COLOR_SELECTION if close_focused else constants.COLOR_WHITE
     close_text = f"{'> ' if close_focused else '  '}[ CLOSE MENU ]"
     screen.blit(font.render(close_text, True, close_col), (x + 24, y + y_off))
-
-    hint = font.render(
-        "[UP/DOWN] Select   [ENTER/E] Confirm   [R] Rest   [ESC] Close",
-        True,
-        constants.COLOR_GREY,
-    )
-    screen.blit(hint, (x + 20, y + h - 30))
     return panel
 
 

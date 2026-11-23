@@ -1,94 +1,120 @@
 # Avoid Rain
 
-Small 2D engine prototype for the 'Avoid the Rain' project. A "Scriptorium Noir" action-exploration game built with Python and Pygame.
-
-## Phase: Coding — Phase 1 (Core Gameplay Loop)
+A **"Scriptorium Noir"** 2D action-exploration roguelite built with Python and Pygame. Draft your path across the **Unbound Chronicle** (a 5-Act campaign spanning 7 procedural biomes), outrun the encroaching ink-rain, weave passive scripts with The Binder, and confront each biome's Night Boss on the way to The Final Author.
 
 ---
 
-## Getting Started
+## Requirements
 
-### Prerequisites
-- **Python 3.10+**
-- **Pygame-CE** (or standard Pygame)
+- **Python 3.13**
+- **Pygame 2.6.1** (pinned in `requirements.txt`)
+- Optional: `numpy` (enables subtle runtime SFX pitch-jitter and faster procedural audio generation) and `pytest` / `pylint` for development.
 
-### Installation
-1. Clone the repository.
-2. Install dependencies:
+---
+
+## Windows
+
+> **Note:** Python 3.14+ is currently not supported due to pygame installation issues.
+
+1. Install **Python 3.13** from [python.org](https://www.python.org/downloads/) (enable the `py` launcher during setup).
+2. Clone the repository and open a terminal in the project root.
+3. Create and activate a Python 3.13 virtual environment, then install dependencies:
+   ```powershell
+   py -3.13 -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   ```
+4. Launch the game:
+   ```powershell
+   python main.py
+   ```
+
+---
+
+## Linux/macOS
+
+1. Ensure **Python 3.13** is installed (`python3.13 --version`).
+2. Clone the repository and open a terminal in the project root.
+3. Create and activate a Python 3.13 virtual environment, then install dependencies:
    ```bash
-   pip install pygame-ce
+   python3.13 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+4. Launch the game:
+   ```bash
+   python main.py
    ```
 
 ---
 
 ## Running the Game
-To launch the game:
+
 ```bash
 python main.py
 ```
 
 ### Command-Line Arguments
-- `--fullscreen`: Launches the game in fullscreen mode (1280x720 scaled).
+- `--fullscreen`: Launches the game in scaled fullscreen mode (1280x720 internal canvas).
 
 ---
 
 ## Controls
-- **WASD / Arrows:** Move Player / Navigate Menus
+
+All primary keyboard bindings can be remapped at any time from the **Title Menu -> Controls** or **Pause Menu -> Controls** screen (persisted automatically to `save_data.json`). Both keyboard/mouse and gamepad inputs are supported with seamless auto-switching.
+
+### Default Bindings
+- **WASD / Arrows / Left Stick / D-Pad:** Move / Navigate Menus
 - **SPACE / (A):** Attack / Interact / Confirm
-- **L-SHIFT / (B):** Dash (Invulnerable)
-- **K / (RT):** Block (Negates damage, parries on startup)
-- **Q / (LB):** Swap Weapons
-- **1 / (Y):** Use Healing Flask
-- **ESC / (Start):** Pause Menu
+- **L-SHIFT / (B):** Dash (Invulnerable / Break Free from Ice Encasement)
+- **K / (RT):** Block & Parry
+- **Q / (LB):** Swap Active Weapon (or click Slot B on the HUD)
+- **1 / (Y):** Drink Healing Flask
+- **TAB / (RB):** Inspect Nearby Weapons & Lore
+- **R:** Quick-Rest at an open Respite Anchor
+- **ESC / (Start):** Pause Menu / Close Overlay
 
 ---
 
-## Map Editor
-The project includes a native Pygame-based map editor for designing modular sub-maps and macro layouts.
+## Procedural Content & Map Editor
 
-To launch the editor:
-```bash
-python tools/edit_map.py
-```
-
-### Editor Controls
-- **WASD:** Pan camera
-- **Mouse Wheel:** Zoom
-- **1-0:** Select Tool Slot
-- **Click [SET]:** Remap tool to slot
-- **Ctrl+S:** Save Map
-- **Ctrl+O:** Open/Load Map
-- **Ctrl+R:** Resize Canvas
-- **Ctrl+N:** New Blank Map
-- **H:** Toggle Help Dialog
+- **Map Editor:** Design modular biome segments and standalone maps:
+  ```bash
+  python tools/edit_map.py
+  ```
+- **Regenerate Procedural Sprites:** `python generate_assets.py`
+- **Regenerate Procedural SFX & Music:** `python generate_sfx.py`
+- **Regenerate Biome Segment Pools:** `python generate_maps.py --generate-pools`
 
 ---
 
 ## Development & Testing
 
 ### Running Tests
-The project uses `pytest` for unit testing. To run the suite:
+Tests run headlessly via SDL dummy video/audio drivers:
 ```bash
-pytest tests/
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy pytest -q
 ```
-*Note: Tests are configured for headless execution and do not require a display.*
 
 ### Linting
-All code must pass `pylint` with a score of 8.0 or higher.
+All Python source files must adhere to a **120-character** maximum line length and pass `pylint` with a score of **8.0 or higher**:
 ```bash
-pylint engine/ rendering/ main.py
+pylint --max-line-length=120 main.py constants.py engine/ rendering/ ui/
 ```
 
 ---
 
 ## Documentation
-Comprehensive documentation is located in the `docs/` directory:
-- `architecture.md`: System specs and execution flow.
-- `navigation_and_ui.md`: Input and viewport management.
-- `modular_system.md`: Level serialization and generation.
-- `docs/CHANGELOG.md`: Project history and completed tasks.
+
+Detailed architectural and design references live in `docs/`:
+- `docs/architecture.md`: Engine systems, state schemas, and combat rules.
+- `docs/navigation_and_ui.md`: Camera, HUD, minimap, and input handling.
+- `docs/modular_system.md`: Level serialization and Master Loom assembly.
+- `docs/visual_style_and_assets.md`: Sprite, tile, and art blueprints.
+- `docs/CHANGELOG.md`: Historical archive of completed milestones.
 
 ---
 
 ## License
-GNU GPL v2 (see LICENSE)
+
+GNU GPL v2 (see `LICENSE`).
