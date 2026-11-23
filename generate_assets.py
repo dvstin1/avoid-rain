@@ -2950,6 +2950,507 @@ def generate_flutter_frame(
     return surf
 
 
+def _boss_stride_offsets(frame: int) -> tuple[int, int, int]:
+    """Return (left_shift_y, right_shift_y, sway_x) for 3-frame boss stride animation."""
+    f_idx = int(frame) % 3
+    if f_idx == 1:
+        return (-2, 2, -2)
+    if f_idx == 2:
+        return (2, -2, 2)
+    return (0, 0, 0)
+
+
+def generate_miniboss_sprite(
+    width: int = 40,
+    height: int = 40,
+    rng: random.Random | None = None,
+    direction: str = "down",
+    frame: int = 0,
+) -> pygame.Surface:
+    """Generate a 40x40 SRCALPHA Archivist Enforcer miniboss sprite (down/up/side x frames 0..2)."""
+    d_key = direction if direction in ("down", "up", "side") else "down"
+    f_idx = int(frame) % 3
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, f"miniboss_{d_key}_{f_idx}")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+    l_dy, r_dy, sway = _boss_stride_offsets(f_idx)
+    bob = -1 if f_idx != 0 else 0
+
+    # Ground shadow & heavy armored boots
+    pygame.draw.ellipse(surf, (14, 14, 20, 125), (6, height - 9, width - 12, 7))
+    slate_dark = (36, 40, 50, 255)
+    slate_mid = (58, 64, 78, 255)
+    slate_hi = (98, 108, 126, 255)
+    brass = (182, 146, 72, 255)
+    brass_hi = (232, 198, 108, 255)
+    parchment = (212, 198, 166, 255)
+    outline = (16, 18, 24, 255)
+
+    if d_key == "side":
+        # Three-quarter right-facing Archivist Enforcer
+        # Striding boots
+        pygame.draw.rect(surf, slate_dark, (cx - 7 - sway, height - 11, 6, 7), border_radius=2)
+        pygame.draw.rect(surf, slate_mid, (cx + 1 + sway, height - 10, 6, 7), border_radius=2)
+        # Swept-back slate cloak tail trailing left
+        cloak = [(cx - 3, 13 + bob), (6 - sway // 2, 22), (4 - sway // 2, height - 9), (cx + 4, height - 9)]
+        pygame.draw.polygon(surf, (30, 34, 44, 255), cloak)
+        pygame.draw.polygon(surf, outline, cloak, 1)
+        # Armored torso & leather-ledger tabard
+        torso = pygame.Rect(cx - 7, 13 + bob, 16, 19)
+        pygame.draw.rect(surf, slate_mid, torso, border_radius=4)
+        pygame.draw.rect(surf, outline, torso, 1, border_radius=4)
+        pygame.draw.line(surf, brass, (cx + 4, 15 + bob), (cx + 4, 30 + bob), 2)
+        # Heavy iron-bound ledger shield-pauldron on forward right shoulder
+        shield = pygame.Rect(cx - 2, 13 + l_dy // 2 + bob, 13, 12)
+        pygame.draw.rect(surf, (52, 42, 36, 255), shield, border_radius=2)
+        pygame.draw.rect(surf, parchment, (shield.left + 2, shield.bottom - 3, shield.width - 4, 2))
+        pygame.draw.rect(surf, brass, shield, 1, border_radius=2)
+        # Hooded cowl & riveted brass brow-plate facing right with glowing amber lantern eye
+        hood = [(cx - 7, 14 + bob), (cx - 4, 4 + bob), (cx + 6, 5 + bob), (cx + 9, 13 + bob)]
+        pygame.draw.polygon(surf, slate_dark, hood)
+        pygame.draw.polygon(surf, outline, hood, 1)
+        pygame.draw.rect(surf, brass, (cx - 2, 7 + bob, 10, 3))
+        surf.set_at((cx + 1, 8 + bob), brass_hi)
+        surf.set_at((cx + 5, 8 + bob), brass_hi)
+        pygame.draw.rect(surf, (14, 14, 20, 255), (cx + 1, 10 + bob, 7, 4))
+        pygame.draw.circle(surf, (246, 188, 72, 255), (cx + 5, 12 + bob), 2)
+        surf.set_at((cx + 5, 11 + bob), (255, 240, 178, 255))
+    elif d_key == "up":
+        # Back-turned Archivist Enforcer (iron-spined cloak & heavy shield pauldrons, no eyes)
+        pygame.draw.rect(surf, slate_dark, (cx - 8, height - 10 + l_dy // 2, 6, 7), border_radius=2)
+        pygame.draw.rect(surf, slate_dark, (cx + 2, height - 10 + r_dy // 2, 6, 7), border_radius=2)
+        cloak = [
+            (cx - 12, 13 + bob), (cx + 12, 13 + bob),
+            (cx + 14 + sway // 2, height - 8), (cx, height - 6), (cx - 14 + sway // 2, height - 8),
+        ]
+        pygame.draw.polygon(surf, slate_dark, cloak)
+        pygame.draw.polygon(surf, outline, cloak, 1)
+        pygame.draw.line(surf, brass, (cx, 15 + bob), (cx + sway // 2, height - 9), 2)
+        # Heavy rear ledger shield-pauldrons
+        for sx_p, dy_p in ((5, l_dy // 2), (width - 15, r_dy // 2)):
+            pr = pygame.Rect(sx_p, 12 + dy_p + bob, 10, 11)
+            pygame.draw.rect(surf, slate_mid, pr, border_radius=2)
+            pygame.draw.rect(surf, brass, pr, 1, border_radius=2)
+        # Hood crown from behind + brass brow-band wrap
+        pygame.draw.ellipse(surf, slate_mid, (cx - 8, 4 + bob, 16, 13))
+        pygame.draw.ellipse(surf, outline, (cx - 8, 4 + bob, 16, 13), 1)
+        pygame.draw.line(surf, slate_hi, (cx - 4, 6 + bob), (cx + 4, 6 + bob), 1)
+        pygame.draw.rect(surf, brass, (cx - 7, 11 + bob, 14, 2))
+    else:
+        # Front-facing Archivist Enforcer (canonical miniboss.png)
+        pygame.draw.rect(surf, slate_dark, (cx - 8, height - 10 + l_dy // 2, 6, 7), border_radius=2)
+        pygame.draw.rect(surf, slate_dark, (cx + 2, height - 10 + r_dy // 2, 6, 7), border_radius=2)
+        # Heavy iron-bound ledger shield-pauldrons with stacked parchment edge & brass clasps
+        for sx_p, dy_p in ((3, l_dy // 2), (width - 13, r_dy // 2)):
+            pr = pygame.Rect(sx_p, 12 + dy_p + bob, 10, 13)
+            pygame.draw.rect(surf, (52, 42, 36, 255), pr, border_radius=2)
+            pygame.draw.rect(surf, parchment, (pr.left + 2, pr.bottom - 3, pr.width - 4, 2))
+            pygame.draw.rect(surf, slate_hi, (pr.left + 1, pr.top + 1, pr.width - 2, 3))
+            pygame.draw.rect(surf, brass, pr, 1, border_radius=2)
+            surf.set_at((pr.centerx, pr.top + 5), brass_hi)
+        # Armored cuirass & parchment tabard
+        torso = pygame.Rect(10, 12 + bob, width - 20, height - 19)
+        pygame.draw.rect(surf, slate_mid, torso, border_radius=5)
+        pygame.draw.rect(surf, outline, torso, 1, border_radius=5)
+        tab = pygame.Rect(cx - 4, 20 + bob, 8, height - 27)
+        pygame.draw.rect(surf, parchment, tab)
+        pygame.draw.line(surf, (92, 74, 52, 230), (cx, 21 + bob), (cx, height - 9), 1)
+        # Hooded dark-slate cowl & riveted brass brow-plate
+        hood = [(cx - 9, 16 + bob), (cx - 7, 4 + bob), (cx + 7, 4 + bob), (cx + 9, 16 + bob)]
+        pygame.draw.polygon(surf, slate_dark, hood)
+        pygame.draw.polygon(surf, outline, hood, 1)
+        pygame.draw.rect(surf, brass, (cx - 8, 8 + bob, 16, 3))
+        for rx in (cx - 6, cx, cx + 6):
+            surf.set_at((rx, 9 + bob), brass_hi)
+        # Shadowed visor recess & twin warm-amber lantern eyes
+        pygame.draw.rect(surf, (14, 14, 20, 255), (cx - 6, 11 + bob, 12, 5), border_radius=2)
+        eye_dx = -1 if f_idx == 1 else (1 if f_idx == 2 else 0)
+        pygame.draw.circle(surf, (246, 188, 72, 255), (cx - 3 + eye_dx, 13 + bob), 2)
+        pygame.draw.circle(surf, (246, 188, 72, 255), (cx + 3 + eye_dx, 13 + bob), 2)
+        surf.set_at((cx - 3 + eye_dx, 13 + bob), (255, 242, 184, 255))
+        surf.set_at((cx + 3 + eye_dx, 13 + bob), (255, 242, 184, 255))
+
+    for _ in range(18):
+        gx, gy = gen.randint(5, width - 6), gen.randint(6, height - 8)
+        c = surf.get_at((gx, gy))
+        if c.a > 200:
+            d = gen.randint(-8, 8)
+            surf.set_at((gx, gy), (max(0, min(255, c.r + d)), max(0, min(255, c.g + d)), max(0, min(255, c.b + d)), 255))
+    return surf
+
+
+def generate_night_boss_sprite(
+    width: int = 64,
+    height: int = 64,
+    rng: random.Random | None = None,
+    direction: str = "down",
+    frame: int = 0,
+) -> pygame.Surface:
+    """Generate a 64x64 SRCALPHA Margin Warden Night Boss sprite (down/up/side x frames 0..2)."""
+    d_key = direction if direction in ("down", "up", "side") else "down"
+    f_idx = int(frame) % 3
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, f"night_boss_{d_key}_{f_idx}")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+    l_dy, r_dy, sway = _boss_stride_offsets(f_idx)
+    bob = -1 if f_idx != 0 else 0
+
+    indigo_dark = (22, 24, 42, 255)
+    indigo_mid = (38, 42, 70, 255)
+    indigo_rim = (96, 114, 162, 255)
+    gold = (198, 162, 74, 255)
+    gold_hi = (244, 220, 128, 255)
+    parchment = (188, 174, 140, 245)
+    rune_cyan = (116, 224, 246, 245)
+    outline = (12, 14, 24, 255)
+
+    # Soft ground shadow
+    pygame.draw.ellipse(surf, (10, 12, 22, 135), (12, height - 12, width - 24, 9))
+
+    if d_key == "side":
+        # Three-quarter right-facing Margin Warden with sweeping tattered cloak & spectral cyan eye
+        cloak = [
+            (cx - 2, 14 + bob), (cx + 12, 20 + bob), (cx + 15 + sway, height - 9),
+            (cx + 4 + sway, height - 6), (cx - 6 + sway, height - 10),
+            (10 - sway, height - 8), (14 - sway, 38), (cx - 10, 22 + bob),
+        ]
+        pygame.draw.polygon(surf, indigo_dark, cloak)
+        pygame.draw.polygon(surf, indigo_mid, [(cx - 6, 20 + bob), (cx + 10, 21 + bob), (cx + 10, 48), (cx - 8, 46)])
+        pygame.draw.lines(surf, indigo_rim, False, [(14 - sway, 38), (cx - 10, 22 + bob), (cx - 2, 14 + bob)], 2)
+        pygame.draw.polygon(surf, outline, cloak, 1)
+        # Forward gold-clasped rune stole & parchment sash
+        stole = [(cx + 2, 23 + bob), (cx + 11, 23 + bob), (cx + 13 + sway, height - 11), (cx + 4 + sway, height - 13)]
+        pygame.draw.polygon(surf, parchment, stole)
+        pygame.draw.polygon(surf, (88, 76, 56, 255), stole, 1)
+        for ry in range(29 + bob, height - 16, 6):
+            pygame.draw.line(surf, rune_cyan, (cx + 5, ry), (cx + 10, ry + 1), 1)
+        pygame.draw.rect(surf, gold, (cx + 1, 21 + bob, 10, 4), border_radius=1)
+        surf.set_at((cx + 6, 22 + bob), gold_hi)
+        # Turned cowl hood with single spectral cyan eye facing right
+        cowl = [(cx - 10, 21 + bob), (cx - 5, 7 + bob), (cx + 9, 8 + bob), (cx + 13, 19 + bob)]
+        pygame.draw.polygon(surf, indigo_mid, cowl)
+        pygame.draw.polygon(surf, outline, cowl, 1)
+        pygame.draw.ellipse(surf, (10, 12, 20, 255), (cx + 1, 12 + bob, 10, 9))
+        pygame.draw.circle(surf, rune_cyan, (cx + 7, 16 + bob), 2)
+        surf.set_at((cx + 7, 16 + bob), (235, 252, 255, 255))
+    elif d_key == "up":
+        # Back-turned towering tattered cloak with layered mantle & fluttering parchment sash ends
+        cloak = [
+            (cx - 18, 20 + bob), (cx + 18, 20 + bob),
+            (width - 10 + sway, height - 9), (cx + 10 + sway, height - 5),
+            (cx, height - 11), (cx - 10 + sway, height - 5), (10 + sway, height - 9),
+        ]
+        pygame.draw.polygon(surf, indigo_dark, cloak)
+        mantle = [(cx - 20, 22 + l_dy // 2 + bob), (cx, 15 + bob), (cx + 20, 22 + r_dy // 2 + bob), (cx + 15, 36 + bob), (cx - 15, 36 + bob)]
+        pygame.draw.polygon(surf, indigo_mid, mantle)
+        pygame.draw.lines(surf, indigo_rim, False, [(cx - 19, 22 + l_dy // 2 + bob), (cx, 15 + bob), (cx + 19, 22 + r_dy // 2 + bob)], 2)
+        pygame.draw.polygon(surf, outline, cloak, 1)
+        # Trailing rear parchment sash ribbons with cyan script flecks
+        for ox_s, dy_s in ((-7, l_dy), (5, r_dy)):
+            rib = [(cx + ox_s, 32 + bob), (cx + ox_s + 5, 32 + bob), (cx + ox_s + 4 + sway, height - 9 + dy_s // 2), (cx + ox_s - 1 + sway, height - 11 + dy_s // 2)]
+            pygame.draw.polygon(surf, parchment, rib)
+            pygame.draw.line(surf, rune_cyan, (cx + ox_s + 2, 38 + bob), (cx + ox_s + 2 + sway // 2, 48 + bob), 1)
+        # Rear pointed cowl hood + gold collar clasp
+        hood = [(cx - 12, 22 + bob), (cx, 5 + bob), (cx + 12, 22 + bob)]
+        pygame.draw.polygon(surf, indigo_mid, hood)
+        pygame.draw.polygon(surf, outline, hood, 1)
+        pygame.draw.line(surf, gold, (cx - 10, 22 + bob), (cx + 10, 22 + bob), 2)
+    else:
+        # Front-facing Margin Warden (canonical night_boss.png)
+        cloak = [
+            (cx - 17, 21 + bob), (cx + 17, 21 + bob),
+            (width - 9 + sway, height - 9), (cx + 13 + sway, height - 6),
+            (cx + 5, height - 11), (cx - 5, height - 11),
+            (cx - 13 + sway, height - 6), (9 + sway, height - 9),
+        ]
+        pygame.draw.polygon(surf, indigo_dark, cloak)
+        pygame.draw.polygon(surf, outline, cloak, 1)
+        # Layered tattered shoulder mantle with indigo-silver rim highlights
+        mantle = [
+            (cx - 21, 24 + l_dy // 2 + bob), (cx - 10, 17 + bob),
+            (cx + 10, 17 + bob), (cx + 21, 24 + r_dy // 2 + bob),
+            (cx + 16, 36 + r_dy // 2 + bob), (cx - 16, 36 + l_dy // 2 + bob),
+        ]
+        pygame.draw.polygon(surf, indigo_mid, mantle)
+        pygame.draw.lines(surf, indigo_rim, False, [(cx - 20, 24 + l_dy // 2 + bob), (cx - 10, 17 + bob), (cx + 10, 17 + bob), (cx + 20, 24 + r_dy // 2 + bob)], 2)
+        # Twin weathered parchment stoles etched with glowing cyan script runes
+        for side_s, dy_s in ((-1, l_dy), (1, r_dy)):
+            sx0 = cx + side_s * 7
+            stole = [
+                (sx0 - 4, 24 + bob), (sx0 + 4, 24 + bob),
+                (sx0 + 5 + sway // 2, height - 10 + dy_s // 2),
+                (sx0 - 3 + sway // 2, height - 12 + dy_s // 2),
+            ]
+            pygame.draw.polygon(surf, parchment, stole)
+            pygame.draw.polygon(surf, (92, 78, 58, 255), stole, 1)
+            for ry in range(30 + bob, height - 16, 6):
+                pygame.draw.line(surf, rune_cyan, (sx0 - 2, ry), (sx0 + 2, ry), 1)
+        # Gold collar clasps linking stoles
+        pygame.draw.rect(surf, gold, (cx - 13, 22 + l_dy // 2 + bob, 6, 4), border_radius=1)
+        pygame.draw.rect(surf, gold, (cx + 7, 22 + r_dy // 2 + bob, 6, 4), border_radius=1)
+        pygame.draw.line(surf, gold_hi, (cx - 7, 24 + bob), (cx + 7, 24 + bob), 1)
+        # Shadowed pointed cowl & twin spectral cyan eyes
+        hood = [(cx - 13, 23 + bob), (cx - 9, 8 + bob), (cx, 5 + bob), (cx + 9, 8 + bob), (cx + 13, 23 + bob)]
+        pygame.draw.polygon(surf, indigo_mid, hood)
+        pygame.draw.polygon(surf, outline, hood, 1)
+        pygame.draw.ellipse(surf, (10, 12, 20, 255), (cx - 8, 12 + bob, 16, 11))
+        eye_dx = -1 if f_idx == 1 else (1 if f_idx == 2 else 0)
+        pygame.draw.circle(surf, rune_cyan, (cx - 3 + eye_dx, 17 + bob), 2)
+        pygame.draw.circle(surf, rune_cyan, (cx + 3 + eye_dx, 17 + bob), 2)
+        surf.set_at((cx - 3 + eye_dx, 17 + bob), (240, 254, 255, 255))
+        surf.set_at((cx + 3 + eye_dx, 17 + bob), (240, 254, 255, 255))
+
+    for _ in range(32):
+        gx, gy = gen.randint(10, width - 11), gen.randint(8, height - 10)
+        c = surf.get_at((gx, gy))
+        if c.a > 200:
+            d = gen.randint(-9, 9)
+            surf.set_at((gx, gy), (max(0, min(255, c.r + d)), max(0, min(255, c.g + d)), max(0, min(255, c.b + d)), 255))
+    return surf
+
+
+def generate_final_author_sprite(
+    width: int = 80,
+    height: int = 80,
+    rng: random.Random | None = None,
+    direction: str = "down",
+    frame: int = 0,
+) -> pygame.Surface:
+    """Generate an 80x80 SRCALPHA Final Author sovereign arbiter sprite (down/up/side x frames 0..2)."""
+    d_key = direction if direction in ("down", "up", "side") else "down"
+    f_idx = int(frame) % 3
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, f"final_author_{d_key}_{f_idx}")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+    l_dy, r_dy, sway = _boss_stride_offsets(f_idx)
+    bob = -1 if f_idx != 0 else 0
+
+    obsidian = (24, 22, 34, 255)
+    robe_mid = (42, 38, 56, 255)
+    parchment = (212, 196, 152, 255)
+    parchment_hi = (242, 232, 196, 255)
+    gold = (196, 158, 68, 255)
+    gold_hi = (248, 224, 128, 255)
+    outline = (14, 12, 20, 255)
+
+    pygame.draw.ellipse(surf, (10, 8, 16, 140), (14, height - 13, width - 28, 10))
+
+    if d_key == "side":
+        # Regal three-quarter right-facing sovereign silhouette
+        robe = [
+            (cx - 4, 24 + bob), (cx + 15, 27 + bob), (cx + 19 + sway, height - 8),
+            (cx + 4 + sway, height - 5), (12 - sway, height - 8), (17 - sway, 46), (cx - 12, 28 + bob),
+        ]
+        pygame.draw.polygon(surf, obsidian, robe)
+        pygame.draw.polygon(surf, outline, robe, 1)
+        # Gold script trim running along sweeping robe hem & front edge
+        pygame.draw.line(surf, gold, (cx + 12, 28 + bob), (cx + 15 + sway, height - 10), 3)
+        pygame.draw.line(surf, gold_hi, (cx + 12, 28 + bob), (cx + 15 + sway, height - 10), 1)
+        # Sculpted high gilded-parchment collar framing turned profile
+        collar = [(cx - 16, 30 + bob), (cx - 12, 12 + bob), (cx + 4, 17 + bob), (cx + 10, 32 + bob)]
+        pygame.draw.polygon(surf, parchment, collar)
+        pygame.draw.polygon(surf, gold, collar, 2)
+        # Angled three-spired quill/ink-nib crown
+        for ox_q, top_y in ((-5, 5), (2, 3), (8, 7)):
+            pygame.draw.polygon(surf, parchment_hi, [(cx + ox_q + 2, top_y + bob), (cx + ox_q - 2, 17 + bob), (cx + ox_q + 4, 17 + bob)])
+            pygame.draw.line(surf, gold, (cx + ox_q + 2, top_y + bob), (cx + ox_q + 1, 17 + bob), 1)
+        # Shadowed visage & piercing golden eye facing right
+        pygame.draw.ellipse(surf, (14, 12, 20, 255), (cx - 2, 15 + bob, 14, 13))
+        pygame.draw.circle(surf, gold_hi, (cx + 7, 21 + bob), 2)
+        surf.set_at((cx + 7, 21 + bob), (255, 252, 224, 255))
+    elif d_key == "up":
+        # Regal back-turned mantle, tall gilded collar & vertical gold script spine-band (no eyes)
+        robe = [
+            (cx - 24, 28 + bob), (cx + 24, 28 + bob),
+            (width - 10 + sway, height - 8), (cx, height - 4), (10 + sway, height - 8),
+        ]
+        pygame.draw.polygon(surf, obsidian, robe)
+        pygame.draw.polygon(surf, robe_mid, [(cx - 18, 30 + bob), (cx + 18, 30 + bob), (cx + 20 + sway, height - 11), (cx - 20 + sway, height - 11)])
+        pygame.draw.polygon(surf, outline, robe, 1)
+        # Vertical gold script spine band down back of mantle
+        pygame.draw.rect(surf, gold, (cx - 4 + sway // 2, 30 + bob, 8, height - 38))
+        for sy in range(35 + bob, height - 12, 7):
+            pygame.draw.line(surf, obsidian, (cx - 2 + sway // 2, sy), (cx + 2 + sway // 2, sy), 1)
+        # Tall gilded-parchment rear high collar
+        collar = [(cx - 22, 32 + l_dy // 2 + bob), (cx - 18, 12 + bob), (cx, 18 + bob), (cx + 18, 12 + bob), (cx + 22, 32 + r_dy // 2 + bob)]
+        pygame.draw.polygon(surf, parchment, collar)
+        pygame.draw.polygon(surf, gold, collar, 2)
+        # Rear silhouette of three-spired quill crown
+        for qx, top_y in ((cx - 10, 6), (cx, 3), (cx + 10, 6)):
+            pygame.draw.polygon(surf, parchment_hi, [(qx, top_y + bob), (qx - 4, 18 + bob), (qx + 4, 18 + bob)])
+            pygame.draw.polygon(surf, gold, [(qx, top_y + bob), (qx - 4, 18 + bob), (qx + 4, 18 + bob)], 1)
+    else:
+        # Front-facing Final Author (canonical final_author.png)
+        robe = [
+            (cx - 24, 28 + bob), (cx + 24, 28 + bob),
+            (width - 10 + sway, height - 8), (cx + 14 + sway, height - 5),
+            (cx, height - 8), (cx - 14 + sway, height - 5), (10 + sway, height - 8),
+        ]
+        pygame.draw.polygon(surf, obsidian, robe)
+        pygame.draw.polygon(surf, outline, robe, 1)
+        # Flowing gold-trimmed inner vestment & script bands
+        vestment = [(cx - 14, 30 + bob), (cx + 14, 30 + bob), (cx + 11 + sway // 2, height - 10), (cx - 11 + sway // 2, height - 10)]
+        pygame.draw.polygon(surf, robe_mid, vestment)
+        pygame.draw.polygon(surf, gold, vestment, 2)
+        for sy in range(36 + bob, height - 14, 7):
+            pygame.draw.line(surf, gold_hi, (cx - 7, sy), (cx + 7, sy), 1)
+        # Tall gilded-parchment high collar & sculpted regal shoulder mantle
+        collar = [
+            (cx - 26, 33 + l_dy // 2 + bob), (cx - 20, 13 + bob),
+            (cx - 10, 22 + bob), (cx + 10, 22 + bob),
+            (cx + 20, 13 + bob), (cx + 26, 33 + r_dy // 2 + bob),
+            (cx + 16, 40 + r_dy // 2 + bob), (cx - 16, 40 + l_dy // 2 + bob),
+        ]
+        pygame.draw.polygon(surf, parchment, collar)
+        pygame.draw.polygon(surf, gold, collar, 2)
+        pygame.draw.polygon(surf, gold, [(cx - 18, 30 + bob), (cx + 18, 30 + bob), (cx + 10, 41 + bob), (cx - 10, 41 + bob)])
+        # Three-spired quill/ink-nib crown
+        for qx, top_y in ((cx - 11, 6), (cx, 2), (cx + 11, 6)):
+            spire = [(qx, top_y + bob), (qx - 4, 18 + bob), (qx + 4, 18 + bob)]
+            pygame.draw.polygon(surf, parchment_hi, spire)
+            pygame.draw.polygon(surf, gold, spire, 1)
+            pygame.draw.line(surf, (64, 52, 36, 230), (qx, top_y + 2 + bob), (qx, 16 + bob), 1)
+        # Shadowed visage & twin sovereign golden eyes
+        pygame.draw.ellipse(surf, (14, 12, 20, 255), (cx - 11, 15 + bob, 22, 16))
+        eye_dx = -1 if f_idx == 1 else (1 if f_idx == 2 else 0)
+        pygame.draw.circle(surf, gold_hi, (cx - 4 + eye_dx, 22 + bob), 2)
+        pygame.draw.circle(surf, gold_hi, (cx + 4 + eye_dx, 22 + bob), 2)
+        surf.set_at((cx - 4 + eye_dx, 22 + bob), (255, 252, 226, 255))
+        surf.set_at((cx + 4 + eye_dx, 22 + bob), (255, 252, 226, 255))
+
+    for _ in range(44):
+        gx, gy = gen.randint(12, width - 13), gen.randint(10, height - 10)
+        c = surf.get_at((gx, gy))
+        if c.a > 200:
+            d = gen.randint(-8, 8)
+            surf.set_at((gx, gy), (max(0, min(255, c.r + d)), max(0, min(255, c.g + d)), max(0, min(255, c.b + d)), 255))
+    return surf
+
+
+def generate_boss_empowered_sprite(
+    width: int = 64,
+    height: int = 64,
+    rng: random.Random | None = None,
+    direction: str = "down",
+    frame: int = 0,
+) -> pygame.Surface:
+    """Generate a 64x64 SRCALPHA Abyssal Sentinel empowered boss sprite (down/up/side x frames 0..2)."""
+    d_key = direction if direction in ("down", "up", "side") else "down"
+    f_idx = int(frame) % 3
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, f"boss_empowered_{d_key}_{f_idx}")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+    l_dy, r_dy, sway = _boss_stride_offsets(f_idx)
+    bob = -1 if f_idx != 0 else 0
+
+    obsidian = (20, 16, 28, 255)
+    plate_mid = (42, 34, 54, 255)
+    plate_hi = (78, 64, 98, 255)
+    crimson = (196, 36, 70, 255)
+    crimson_hi = (252, 92, 124, 255)
+    violet = (162, 68, 226, 220)
+
+    pygame.draw.ellipse(surf, (12, 6, 18, 140), (10, height - 12, width - 20, 9))
+    # Floating violet-crimson arcane sigil arcs pulsing around silhouette
+    sig_off = (-2, 0, 2)[f_idx]
+    pygame.draw.arc(surf, violet, (5, 7 + sig_off, width - 10, height - 18), 0.3, 1.35, 2)
+    pygame.draw.arc(surf, crimson, (5, 7 - sig_off, width - 10, height - 18), 1.8, 2.85, 2)
+
+    if d_key == "side":
+        # Three-quarter right-facing Abyssal Sentinel with forward horned helm & spiked pauldron
+        cape = [(cx - 4, 19 + bob), (9 - sway, 32), (6 - sway, height - 9), (cx + 4, height - 9)]
+        pygame.draw.polygon(surf, (44, 16, 30, 255), cape)
+        pygame.draw.line(surf, crimson, (9 - sway, 32), (6 - sway, height - 9), 2)
+        # Armored legs striding
+        pygame.draw.polygon(surf, obsidian, [(cx - 6 - sway, 44), (cx - 1 - sway, 44), (cx - 3 - sway, height - 7), (cx - 9 - sway, height - 7)])
+        pygame.draw.polygon(surf, plate_mid, [(cx + 2 + sway, 44), (cx + 9 + sway, 44), (cx + 11 + sway, height - 7), (cx + 4 + sway, height - 7)])
+        # Faceted cuirass torso
+        cuirass = [(cx - 10, 21 + bob), (cx + 11, 21 + bob), (cx + 13, 45 + bob), (cx - 8, 45 + bob)]
+        pygame.draw.polygon(surf, obsidian, cuirass)
+        pygame.draw.polygon(surf, crimson, cuirass, 2)
+        # Prominent forward spiked pauldron
+        pauldron = [(cx - 4, 21 + l_dy // 2 + bob), (cx + 8, 15 + l_dy // 2 + bob), (cx + 16, 25 + l_dy // 2 + bob), (cx + 2, 31 + l_dy // 2 + bob)]
+        pygame.draw.polygon(surf, plate_mid, pauldron)
+        pygame.draw.polygon(surf, crimson, pauldron, 2)
+        pygame.draw.polygon(surf, plate_hi, [(cx + 8, 15 + l_dy // 2 + bob), (cx + 14, 10 + l_dy // 2 + bob), (cx + 12, 19 + l_dy // 2 + bob)])
+        # Horned obsidian helm facing right + glowing crimson visor slit
+        helm = [(cx - 7, 21 + bob), (cx - 5, 10 + bob), (cx + 8, 10 + bob), (cx + 12, 19 + bob)]
+        pygame.draw.polygon(surf, obsidian, helm)
+        pygame.draw.polygon(surf, violet, helm, 1)
+        pygame.draw.polygon(surf, crimson, [(cx - 4, 11 + bob), (cx - 10, 4 + bob), (cx, 10 + bob)])
+        pygame.draw.polygon(surf, crimson, [(cx + 4, 11 + bob), (cx + 12, 4 + bob), (cx + 8, 12 + bob)])
+        pygame.draw.line(surf, crimson_hi, (cx + 3, 15 + bob), (cx + 11, 15 + bob), 2)
+    elif d_key == "up":
+        # Back-turned Abyssal Sentinel (crimson-edged cape, jagged backplate, rear horns, no visor)
+        cape = [(cx - 18, 22 + bob), (cx + 18, 22 + bob), (width - 9 + sway, height - 8), (cx, height - 5), (9 + sway, height - 8)]
+        pygame.draw.polygon(surf, (38, 14, 28, 255), cape)
+        pygame.draw.polygon(surf, crimson, cape, 2)
+        backplate = [(cx - 14, 22 + bob), (cx + 14, 22 + bob), (cx + 10, 44 + bob), (cx, 48 + bob), (cx - 10, 44 + bob)]
+        pygame.draw.polygon(surf, obsidian, backplate)
+        pygame.draw.polygon(surf, plate_hi, backplate, 1)
+        pygame.draw.line(surf, violet, (cx, 24 + bob), (cx, 45 + bob), 2)
+        for side_p, dy_p in ((-1, l_dy // 2), (1, r_dy // 2)):
+            px0 = cx + side_p * 16
+            sp = [(px0 - side_p * 5, 22 + dy_p + bob), (px0 + side_p * 7, 15 + dy_p + bob), (px0 + side_p * 9, 28 + dy_p + bob), (px0 - side_p * 3, 30 + dy_p + bob)]
+            pygame.draw.polygon(surf, plate_mid, sp)
+            pygame.draw.polygon(surf, crimson, sp, 1)
+        # Rear horned helm crest
+        pygame.draw.ellipse(surf, obsidian, (cx - 9, 10 + bob, 18, 14))
+        pygame.draw.polygon(surf, crimson, [(cx - 8, 13 + bob), (cx - 15, 4 + bob), (cx - 4, 10 + bob)])
+        pygame.draw.polygon(surf, crimson, [(cx + 8, 13 + bob), (cx + 15, 4 + bob), (cx + 4, 10 + bob)])
+    else:
+        # Front-facing Abyssal Sentinel (canonical boss_empowered.png)
+        # Armored greaves & tassets
+        pygame.draw.polygon(surf, obsidian, [(cx - 12, 46), (cx - 4, 46), (cx - 5, height - 7 + l_dy // 2), (cx - 13, height - 7 + l_dy // 2)])
+        pygame.draw.polygon(surf, obsidian, [(cx + 4, 46), (cx + 12, 46), (cx + 13, height - 7 + r_dy // 2), (cx + 5, height - 7 + r_dy // 2)])
+        # Layered spiked pauldrons
+        for side_p, dy_p in ((-1, l_dy // 2), (1, r_dy // 2)):
+            px0 = cx + side_p * 16
+            pauldron = [
+                (px0 - side_p * 5, 21 + dy_p + bob),
+                (px0 + side_p * 8, 14 + dy_p + bob),
+                (px0 + side_p * 11, 27 + dy_p + bob),
+                (px0 - side_p * 2, 31 + dy_p + bob),
+            ]
+            pygame.draw.polygon(surf, plate_mid, pauldron)
+            pygame.draw.polygon(surf, crimson, pauldron, 2)
+            # Upward pauldron spike
+            pygame.draw.polygon(
+                surf, plate_hi,
+                [(px0 + side_p * 4, 16 + dy_p + bob), (px0 + side_p * 10, 9 + dy_p + bob), (px0 + side_p * 8, 19 + dy_p + bob)],
+            )
+        # Faceted obsidian-and-crimson plate cuirass
+        cuirass = [(cx - 14, 21 + bob), (cx + 14, 21 + bob), (cx + 11, 46 + bob), (cx, 52 + bob), (cx - 11, 46 + bob)]
+        pygame.draw.polygon(surf, obsidian, cuirass)
+        pygame.draw.polygon(surf, plate_mid, [(cx - 14, 21 + bob), (cx, 21 + bob), (cx, 52 + bob), (cx - 11, 46 + bob)])
+        pygame.draw.polygon(surf, violet, cuirass, 2)
+        # Glowing crimson core chest sigil
+        core = [(cx, 27 + bob), (cx + 5, 35 + bob), (cx, 43 + bob), (cx - 5, 35 + bob)]
+        pygame.draw.polygon(surf, crimson, core)
+        pygame.draw.polygon(surf, crimson_hi, [(cx, 30 + bob), (cx + 2, 35 + bob), (cx, 40 + bob), (cx - 2, 35 + bob)])
+        # Horned helm with glowing crimson visor slit
+        helm = [(cx - 10, 22 + bob), (cx - 9, 10 + bob), (cx, 7 + bob), (cx + 9, 10 + bob), (cx + 10, 22 + bob)]
+        pygame.draw.polygon(surf, obsidian, helm)
+        pygame.draw.polygon(surf, plate_hi, helm, 1)
+        pygame.draw.polygon(surf, crimson, [(cx - 8, 12 + bob), (cx - 16, 3 + bob), (cx - 4, 9 + bob)])
+        pygame.draw.polygon(surf, crimson, [(cx + 8, 12 + bob), (cx + 16, 3 + bob), (cx + 4, 9 + bob)])
+        eye_dx = -1 if f_idx == 1 else (1 if f_idx == 2 else 0)
+        pygame.draw.rect(surf, (10, 6, 16, 255), (cx - 7, 14 + bob, 14, 5), border_radius=2)
+        pygame.draw.line(surf, crimson_hi, (cx - 5 + eye_dx, 16 + bob), (cx + 5 + eye_dx, 16 + bob), 2)
+
+    for _ in range(34):
+        gx, gy = gen.randint(8, width - 9), gen.randint(6, height - 9)
+        c = surf.get_at((gx, gy))
+        if c.a > 200:
+            d = gen.randint(-10, 10)
+            surf.set_at((gx, gy), (max(0, min(255, c.r + d)), max(0, min(255, c.g + d // 2)), max(0, min(255, c.b + d)), 255))
+    return surf
+
+
 def generate_base_enemy_sprite(
     kind: str,
     width: int = 40,
@@ -3058,64 +3559,12 @@ def generate_base_enemy_sprite(
         return surf
 
     if kind == "miniboss":
-        # Armored ink-warden knight with heavy tome-plate pauldrons & tarnished brass trim
-        pygame.draw.circle(surf, (62, 66, 78, 255), (8, cy - 4), 8)
-        pygame.draw.circle(surf, (62, 66, 78, 255), (width - 8, cy - 4), 8)
-        pygame.draw.rect(surf, (44, 46, 56, 255), (7, 5, width - 14, height - 10), border_radius=6)
-        pygame.draw.rect(surf, (148, 124, 74, 255), (8, 5, width - 16, 3))
-        pygame.draw.rect(surf, (18, 20, 26, 255), (11, 12, width - 22, 6), border_radius=2)
-        pygame.draw.circle(surf, (232, 196, 108, 255), (cx - 3, 15), 2)
-        pygame.draw.circle(surf, (232, 196, 108, 255), (cx + 3, 15), 2)
-        return surf
+        return generate_miniboss_sprite(width, height, rng=rng, direction="down", frame=0)
 
     if kind == "night_boss":
-        # 64x64 towering hooded archival reaper in nocturnal ink robes
-        pygame.draw.polygon(
-            surf,
-            (28, 26, 36, 255),
-            [(cx, 6), (width - 10, height - 6), (cx, height - 2), (10, height - 6)],
-        )
-        pygame.draw.polygon(
-            surf,
-            (168, 152, 118, 235),
-            [(cx - 9, 24), (cx - 4, 24), (cx - 8, height - 10), (cx - 13, height - 12)],
-        )
-        pygame.draw.polygon(
-            surf,
-            (168, 152, 118, 235),
-            [(cx + 4, 24), (cx + 9, 24), (cx + 13, height - 12), (cx + 8, height - 10)],
-        )
-        pygame.draw.ellipse(surf, (44, 42, 56, 255), (cx - 12, 8, 24, 20))
-        pygame.draw.ellipse(surf, (14, 14, 20, 255), (cx - 8, 13, 16, 12))
-        pygame.draw.circle(surf, (158, 218, 232, 255), (cx - 3, 18), 2)
-        pygame.draw.circle(surf, (158, 218, 232, 255), (cx + 3, 18), 2)
-        pygame.draw.rect(surf, (148, 122, 68, 255), (cx - 14, 24, 5, 4))
-        pygame.draw.rect(surf, (148, 122, 68, 255), (cx + 9, 24, 5, 4))
-        return surf
+        return generate_night_boss_sprite(width, height, rng=rng, direction="down", frame=0)
 
-    # final_author (80x80): Sovereign quill-crowned ink arbiter in gilded-parchment vestments
-    pygame.draw.polygon(
-        surf,
-        (36, 34, 44, 255),
-        [(cx, 18), (width - 10, height - 6), (cx, height - 3), (10, height - 6)],
-    )
-    pygame.draw.polygon(
-        surf,
-        (194, 174, 124, 255),
-        [(cx - 22, 28), (cx + 22, 28), (cx + 14, height - 12), (cx - 14, height - 12)],
-    )
-    pygame.draw.polygon(
-        surf,
-        (154, 126, 66, 255),
-        [(cx - 20, 28), (cx + 20, 28), (cx + 12, 40), (cx - 12, 40)],
-    )
-    # Quill-crowned helm
-    for qx in (cx - 10, cx, cx + 10):
-        pygame.draw.polygon(surf, (226, 212, 168, 255), [(qx, 4), (qx - 3, 18), (qx + 3, 18)])
-    pygame.draw.ellipse(surf, (16, 14, 22, 255), (cx - 11, 14, 22, 16))
-    pygame.draw.circle(surf, (245, 216, 122, 255), (cx - 4, 21), 2)
-    pygame.draw.circle(surf, (245, 216, 122, 255), (cx + 4, 21), 2)
-    return surf
+    return generate_final_author_sprite(width, height, rng=rng, direction="down", frame=0)
 
 
 def generate_weapon_pickup_sprite(
@@ -4290,13 +4739,115 @@ def generate_swamp_spore_pod(
 
 
 def generate_slug_boss(
-    width: int = 112, height: int = 112, rng: random.Random = None
+    width: int = 112,
+    height: int = 112,
+    rng: random.Random = None,
+    direction: str = "down",
+    frame: int = 0,
 ) -> pygame.Surface:
-    """Generate a 112x112 organic asymmetrical gastropod Swamp Night Boss with 3 embedded blades and soft-gold crown."""
-    gen = rng if rng is not None else random.Random(2044)
+    """Generate a 112x112 organic asymmetrical gastropod Swamp Night Boss (down/up/side x frames 0..2)."""
+    d_key = direction if direction in ("down", "up", "side") else "down"
+    f_idx = int(frame) % 3
+    gen = rng if rng is not None else random.Random(2044 + f_idx * 17 + (0 if d_key == "down" else 101 if d_key == "up" else 211))
     surf = pygame.Surface((width, height), pygame.SRCALPHA)
     surf.fill((0, 0, 0, 0))
     cx = width // 2
+    l_dy, r_dy, sway = _boss_stride_offsets(f_idx)
+    bob = -1 if f_idx != 0 else 0
+
+    if d_key == "side":
+        # Elongated right-facing gastropod profile: curled tail left, forward-leaning crowned head right
+        pygame.draw.ellipse(surf, (18, 12, 24, 128), (6, height - 24, width - 12, 18))
+        pygame.draw.ellipse(surf, (92, 138, 38, 100), (6, height - 20, width - 20, 12))
+        foot = [
+            (8, 82), (18, 90 + l_dy // 2), (32, 87 + r_dy // 2), (48, 93 + l_dy // 2),
+            (64, 88 + r_dy // 2), (82, 92 + l_dy // 2), (98, 86), (102, 76), (16, 75),
+        ]
+        pygame.draw.polygon(surf, (146, 110, 28, 255), foot)
+        pygame.draw.polygon(surf, (64, 46, 20, 255), foot, 1)
+        body = [
+            (10, 80), (8, 69), (16, 61 + bob), (30, 56 + bob), (45, 38 + bob),
+            (64, 29 + bob), (82, 32 + bob), (96, 46 + bob), (102, 66), (96, 82), (46, 86),
+        ]
+        pygame.draw.polygon(surf, (206, 168, 50, 255), body)
+        pygame.draw.ellipse(surf, (220, 184, 62, 255), (42, 32 + bob, 50, 40))
+        pygame.draw.ellipse(surf, (172, 132, 36, 255), (16, 58, 42, 24))
+        pygame.draw.polygon(surf, (62, 44, 18, 255), body, 2)
+        # Irregular bruised-magenta dorsal blotches
+        pygame.draw.ellipse(surf, (158, 44, 106, 255), (34, 48 + bob, 28, 20))
+        pygame.draw.ellipse(surf, (214, 82, 150, 240), (42, 42 + bob, 26, 18))
+        pygame.draw.ellipse(surf, (248, 228, 136, 230), (62, 38 + bob, 16, 8))
+        # 3 angled blades along the dorsal profile
+        for (ex, ey), (hx, hy), thick in (
+            ((34, 58 + bob), (16, 36 + bob), 5),
+            ((54, 42 + bob), (42, 18 + bob), 6),
+            ((24, 72), (8, 64), 4),
+        ):
+            pygame.draw.ellipse(surf, (124, 188, 52, 255), (ex - 5, ey - 3, 10, 6))
+            mx, my = (ex + hx) // 2, (ey + hy) // 2
+            pygame.draw.line(surf, (78, 86, 100, 255), (ex, ey), (mx, my), thick)
+            pygame.draw.line(surf, (182, 192, 204, 255), (ex, ey), (mx, my), max(2, thick - 2))
+            pygame.draw.line(surf, (88, 44, 52, 255), (mx, my), (hx, hy), 3)
+            pygame.draw.circle(surf, (196, 160, 68, 255), (hx, hy), 3)
+        # Forward-angled eye-stalks on right head
+        for (ex_b, ey_b), (ex_t, ey_t) in (
+            ((86, 40 + bob), (102 + sway // 2, 22 + l_dy // 2)),
+            ((78, 36 + bob), (94 + sway // 2, 18 + r_dy // 2)),
+        ):
+            pygame.draw.line(surf, (162, 124, 34, 255), (ex_b, ey_b), (ex_t, ey_t), 5)
+            pygame.draw.line(surf, (224, 188, 66, 255), (ex_b, ey_b), (ex_t, ey_t), 3)
+            pygame.draw.circle(surf, (56, 38, 24, 255), (ex_t, ey_t), 5)
+            pygame.draw.circle(surf, (244, 238, 192, 255), (ex_t, ey_t), 3)
+            surf.set_at((ex_t + 1, ey_t), (24, 14, 24, 255))
+        # Soft burnished-gold & plum-velvet crown perched on right-facing head
+        ccx = 76
+        pygame.draw.ellipse(surf, (124, 42, 92, 255), (ccx - 13, 12 + bob, 26, 13))
+        pygame.draw.ellipse(surf, (124, 42, 92, 255), (ccx - 14, 26 + bob, 28, 6))
+        c_pts = [(ccx - 14, 28 + bob), (ccx - 16, 14 + bob), (ccx - 7, 21 + bob), (ccx, 10 + bob), (ccx + 8, 21 + bob), (ccx + 15, 14 + bob), (ccx + 13, 28 + bob)]
+        pygame.draw.polygon(surf, (222, 184, 72, 255), c_pts)
+        pygame.draw.polygon(surf, (176, 140, 56, 255), c_pts, 2)
+        pygame.draw.line(surf, (244, 222, 132, 255), (ccx - 12, 25 + bob), (ccx + 11, 25 + bob), 2)
+        return surf
+
+    if d_key == "up":
+        # Back-turned gastropod view: broad magenta-mottled rear mantle, curled tail & 3 blades (no eyes)
+        pygame.draw.ellipse(surf, (18, 12, 24, 128), (10, height - 25, width - 20, 19))
+        pygame.draw.ellipse(surf, (92, 138, 38, 100), (16, height - 21, width - 32, 13))
+        foot = [
+            (14, 82), (26, 92 + l_dy // 2), (44, 89 + r_dy // 2), (62, 94 + l_dy // 2),
+            (80, 90 + r_dy // 2), (96, 84), (94, 72), (16, 74),
+        ]
+        pygame.draw.polygon(surf, (146, 110, 28, 255), foot)
+        pygame.draw.polygon(surf, (64, 46, 20, 255), foot, 1)
+        body = [
+            (14, 78), (13, 56), (22, 34 + bob), (42, 24 + bob), (68, 26 + bob),
+            (86, 38 + bob), (96, 62), (92, 82), (56, 88), (22, 84),
+        ]
+        pygame.draw.polygon(surf, (204, 166, 48, 255), body)
+        pygame.draw.ellipse(surf, (166, 128, 34, 255), (26, 52, 62, 34))
+        pygame.draw.polygon(surf, (62, 44, 18, 255), body, 2)
+        # Broad magenta dorsal mottling dominating back view
+        pygame.draw.ellipse(surf, (158, 44, 106, 255), (30, 32 + bob, 48, 44))
+        pygame.draw.ellipse(surf, (214, 82, 150, 240), (38, 40 + bob, 32, 30))
+        pygame.draw.ellipse(surf, (246, 166, 208, 215), (46, 44 + bob, 12, 8))
+        # Rear blades protruding asymmetrically
+        for (ex, ey), (hx, hy), thick in (
+            ((30, 48 + bob), (12, 22 + bob), 6),
+            ((82, 62 + bob), (102, 50 + bob), 4),
+            ((72, 36 + bob), (92, 16 + bob), 4),
+        ):
+            pygame.draw.ellipse(surf, (124, 188, 52, 255), (ex - 5, ey - 3, 10, 6))
+            mx, my = (ex + hx) // 2, (ey + hy) // 2
+            pygame.draw.line(surf, (78, 86, 100, 255), (ex, ey), (mx, my), thick)
+            pygame.draw.line(surf, (182, 192, 204, 255), (ex, ey), (mx, my), max(2, thick - 2))
+            pygame.draw.line(surf, (88, 44, 52, 255), (mx, my), (hx, hy), 3)
+            pygame.draw.circle(surf, (196, 160, 68, 255), (hx, hy), 3)
+        # Rear rim of soft burnished-gold crown & plum velvet cap
+        pygame.draw.ellipse(surf, (124, 42, 92, 255), (cx - 14, 11 + bob, 28, 13))
+        c_pts = [(cx - 16, 26 + bob), (cx - 17, 13 + bob), (cx - 8, 19 + bob), (cx, 8 + bob), (cx + 8, 19 + bob), (cx + 17, 13 + bob), (cx + 16, 26 + bob)]
+        pygame.draw.polygon(surf, (196, 160, 64, 255), c_pts)
+        pygame.draw.polygon(surf, (176, 140, 56, 255), c_pts, 2)
+        return surf
 
     # 1. Ground slime trail & asymmetrical wet contact shadow under heavy foot & curled tail
     pygame.draw.ellipse(surf, (18, 12, 24, 128), (10, height - 25, width - 16, 19))
@@ -4305,31 +4856,32 @@ def generate_slug_boss(
 
     # 2. Undulating wet muscular gastropod foot-skirt & curled fleshy tail lobe on the east side
     foot_skirt = [
-        (12, 82), (18, 91), (28, 88), (38, 94), (50, 91), (62, 95),
-        (74, 90), (88, 92), (101, 84), (104, 74), (96, 66), (86, 72),
+        (12, 82), (18, 91 + l_dy // 2), (28, 88 + r_dy // 2), (38, 94 + l_dy // 2),
+        (50, 91 + r_dy // 2), (62, 95 + l_dy // 2), (74, 90 + r_dy // 2), (88, 92 + l_dy // 2),
+        (101 + sway // 2, 84), (104 + sway // 2, 74), (96 + sway // 2, 66), (86, 72),
         (80, 77), (16, 76),
     ]
     pygame.draw.polygon(surf, (146, 110, 28, 255), foot_skirt)
     pygame.draw.lines(
         surf, (194, 158, 56, 230), False,
-        [(16, 86), (28, 85), (40, 89), (54, 87), (68, 89), (84, 86), (97, 81)], 2,
+        [(16, 86), (28, 85 + l_dy // 2), (40, 89), (54, 87 + r_dy // 2), (68, 89), (84, 86), (97 + sway // 2, 81)], 2,
     )
     pygame.draw.polygon(surf, (64, 46, 20, 255), foot_skirt, 1)
 
     # 3. Organic asymmetrical heavy gastropod body & bulbous mantle folds (head leaning forward-left, curled rear)
     body_poly = [
-        (14, 78), (11, 63), (15, 45), (25, 33), (40, 27), (56, 28),
-        (71, 35), (82, 47), (87, 61), (95, 65), (99, 73), (92, 82),
+        (14, 78), (11, 63), (15, 45 + bob), (25, 33 + bob), (40, 27 + bob), (56, 28 + bob),
+        (71, 35 + bob), (82, 47 + bob), (87, 61), (95 + sway // 2, 65), (99 + sway // 2, 73), (92, 82),
         (77, 86), (56, 88), (32, 86),
     ]
     pygame.draw.polygon(surf, (206, 168, 50, 255), body_poly)
     # Layered bulbous mantle folds & lower-right belly weight
-    pygame.draw.ellipse(surf, (220, 184, 62, 255), (18, 32, 52, 40))
-    pygame.draw.ellipse(surf, (194, 156, 44, 255), (42, 38, 44, 40))
+    pygame.draw.ellipse(surf, (220, 184, 62, 255), (18, 32 + bob, 52, 40))
+    pygame.draw.ellipse(surf, (194, 156, 44, 255), (42, 38 + bob, 44, 40))
     pygame.draw.ellipse(surf, (166, 128, 34, 255), (50, 54, 38, 30))
     # Curled fleshy tail ridge
-    pygame.draw.ellipse(surf, (192, 154, 46, 255), (76, 62, 24, 20))
-    pygame.draw.arc(surf, (124, 92, 26, 220), (74, 62, 24, 18), 3.4, 6.0, 2)
+    pygame.draw.ellipse(surf, (192, 154, 46, 255), (76 + sway // 2, 62, 24, 20))
+    pygame.draw.arc(surf, (124, 92, 26, 220), (74 + sway // 2, 62, 24, 18), 3.4, 6.0, 2)
     # Soft belly crease folds
     pygame.draw.arc(surf, (132, 98, 28, 200), (20, 58, 38, 22), 3.3, 5.7, 2)
     pygame.draw.arc(surf, (132, 98, 28, 190), (46, 60, 34, 20), 3.5, 5.9, 2)
@@ -4337,22 +4889,22 @@ def generate_slug_boss(
 
     # 4. Irregular bruised-magenta dorsal mottling & organic blotches (asymmetrical, not a straight stripe)
     blotches = (
-        [(36, 32), (51, 31), (59, 44), (50, 56), (34, 52), (30, 41)],
-        [(46, 48), (64, 46), (72, 60), (63, 75), (48, 74), (42, 61)],
+        [(36, 32 + bob), (51, 31 + bob), (59, 44 + bob), (50, 56 + bob), (34, 52 + bob), (30, 41 + bob)],
+        [(46, 48 + bob), (64, 46 + bob), (72, 60), (63, 75), (48, 74), (42, 61)],
         [(64, 60), (79, 59), (84, 70), (74, 78), (62, 72)],
-        [(26, 50), (37, 48), (40, 62), (28, 65)],
+        [(26, 50 + bob), (37, 48 + bob), (40, 62), (28, 65)],
     )
     for b_idx, poly in enumerate(blotches):
         outer_c = (158, 44, 106, 255) if b_idx % 2 == 0 else (142, 38, 98, 255)
         pygame.draw.polygon(surf, outer_c, poly)
-    pygame.draw.ellipse(surf, (214, 82, 150, 240), (36, 36, 18, 16))
+    pygame.draw.ellipse(surf, (214, 82, 150, 240), (36, 36 + bob, 18, 16))
     pygame.draw.ellipse(surf, (224, 94, 160, 235), (48, 52, 19, 18))
     pygame.draw.ellipse(surf, (198, 68, 136, 230), (66, 64, 13, 10))
     # Wet glistening slime specular highlights along curved dorsal dome
-    pygame.draw.ellipse(surf, (248, 228, 136, 235), (22, 39, 14, 8))
-    pygame.draw.arc(surf, (252, 240, 178, 220), (24, 34, 34, 20), 1.2, 2.7, 2)
-    pygame.draw.ellipse(surf, (246, 166, 208, 210), (42, 40, 7, 4))
-    pygame.draw.ellipse(surf, (248, 232, 146, 215), (82, 67, 10, 5))
+    pygame.draw.ellipse(surf, (248, 228, 136, 235), (22, 39 + bob, 14, 8))
+    pygame.draw.arc(surf, (252, 240, 178, 220), (24, 34 + bob, 34, 20), 1.2, 2.7, 2)
+    pygame.draw.ellipse(surf, (246, 166, 208, 210), (42, 40 + bob, 7, 4))
+    pygame.draw.ellipse(surf, (248, 232, 146, 215), (82 + sway // 2, 67, 10, 5))
 
     # Organic skin mucus speckles
     for _ in range(38):
@@ -4378,12 +4930,12 @@ def generate_slug_boss(
     hilt_wrap = (88, 44, 52, 255)
 
     # Blade A: Crooked broken broadsword jutting high from left shoulder
-    a_entry, a_mid, a_hilt = (30, 50), (20, 32), (12, 19)
+    a_entry, a_mid, a_hilt = (30, 50 + bob), (20, 32 + bob), (12, 19 + bob)
     pygame.draw.ellipse(surf, (124, 188, 52, 255), (a_entry[0] - 6, a_entry[1] - 3, 12, 6))
     pygame.draw.line(surf, blade_dark, a_entry, a_mid, 7)
     pygame.draw.line(surf, blade_metal, a_entry, a_mid, 4)
-    pygame.draw.line(surf, (232, 240, 248, 255), (27, 46), (21, 35), 1)
-    pygame.draw.line(surf, hilt_gold, (12, 36), (27, 27), 4)
+    pygame.draw.line(surf, (232, 240, 248, 255), (27, 46 + bob), (21, 35 + bob), 1)
+    pygame.draw.line(surf, hilt_gold, (12, 36 + bob), (27, 27 + bob), 4)
     pygame.draw.line(surf, hilt_wrap, a_mid, a_hilt, 4)
     pygame.draw.circle(surf, hilt_gold, a_hilt, 4)
 
@@ -4397,18 +4949,18 @@ def generate_slug_boss(
     pygame.draw.circle(surf, hilt_gold, b_hilt, 2)
 
     # Blade C: Bent rapier hilt protruding obliquely from the rear upper mantle
-    c_entry, c_mid, c_hilt = (67, 41), (81, 30), (94, 22)
+    c_entry, c_mid, c_hilt = (67, 41 + bob), (81, 30 + bob), (94, 22 + bob)
     pygame.draw.ellipse(surf, (130, 192, 54, 255), (c_entry[0] - 5, c_entry[1] - 3, 10, 5))
     pygame.draw.line(surf, blade_dark, c_entry, c_mid, 4)
     pygame.draw.line(surf, (206, 216, 228, 255), c_entry, c_mid, 2)
-    pygame.draw.arc(surf, hilt_gold, (74, 23, 14, 14), 0.4, 3.6, 2)
+    pygame.draw.arc(surf, hilt_gold, (74, 23 + bob, 14, 14), 0.4, 3.6, 2)
     pygame.draw.line(surf, (74, 40, 62, 255), c_mid, c_hilt, 2)
     pygame.draw.circle(surf, (222, 188, 86, 255), c_hilt, 3)
 
     # 6. Expressive asymmetrical eye-stalks rising from forward-left head
     for (ex_b, ey_b), (ex_t, ey_t), pupil_dx in (
-        ((cx - 18, 36), (cx - 26, 18), -1),
-        ((cx + 2, 34), (cx + 8, 17), 1),
+        ((cx - 18, 36 + bob), (cx - 26 + sway // 2, 18 + l_dy // 2), -1),
+        ((cx + 2, 34 + bob), (cx + 8 + sway // 2, 17 + r_dy // 2), 1),
     ):
         pygame.draw.line(surf, (162, 124, 34, 255), (ex_b, ey_b), (ex_t, ey_t), 5)
         pygame.draw.line(surf, (224, 188, 66, 255), (ex_b, ey_b), (ex_t, ey_t), 3)
@@ -4419,34 +4971,34 @@ def generate_slug_boss(
     # 7. Soft burnished-gold crown perched atop head with plum-velvet inner cap trim (low-contrast edge)
     crown_cx = cx - 7
     # Subtle plum/magenta velvet inner cap doming behind the gold prongs & trimming the lower cushion base
-    pygame.draw.ellipse(surf, (124, 42, 92, 255), (crown_cx - 14, 11, 28, 14))
-    pygame.draw.ellipse(surf, (166, 62, 122, 245), (crown_cx - 10, 12, 20, 9))
-    pygame.draw.ellipse(surf, (124, 42, 92, 255), (crown_cx - 16, 26, 31, 6))
+    pygame.draw.ellipse(surf, (124, 42, 92, 255), (crown_cx - 14, 11 + bob, 28, 14))
+    pygame.draw.ellipse(surf, (166, 62, 122, 245), (crown_cx - 10, 12 + bob, 20, 9))
+    pygame.draw.ellipse(surf, (124, 42, 92, 255), (crown_cx - 16, 26 + bob, 31, 6))
     crown_pts = [
-        (crown_cx - 16, 28),
-        (crown_cx - 18, 13),
-        (crown_cx - 8, 20),
-        (crown_cx, 8),
-        (crown_cx + 8, 20),
-        (crown_cx + 17, 13),
-        (crown_cx + 15, 28),
+        (crown_cx - 16, 28 + bob),
+        (crown_cx - 18, 13 + bob),
+        (crown_cx - 8, 20 + bob),
+        (crown_cx, 8 + bob),
+        (crown_cx + 8, 20 + bob),
+        (crown_cx + 17, 13 + bob),
+        (crown_cx + 15, 28 + bob),
     ]
     crown_shade = [
-        (crown_cx, 28),
-        (crown_cx, 9),
-        (crown_cx + 8, 20),
-        (crown_cx + 17, 13),
-        (crown_cx + 15, 28),
+        (crown_cx, 28 + bob),
+        (crown_cx, 9 + bob),
+        (crown_cx + 8, 20 + bob),
+        (crown_cx + 17, 13 + bob),
+        (crown_cx + 15, 28 + bob),
     ]
     pygame.draw.polygon(surf, (222, 184, 72, 255), crown_pts)
     pygame.draw.polygon(surf, (192, 156, 68, 255), crown_shade)
     pygame.draw.polygon(surf, (176, 140, 56, 255), crown_pts, 2)
-    pygame.draw.line(surf, (244, 222, 132, 255), (crown_cx - 14, 25), (crown_cx + 13, 25), 2)
-    pygame.draw.line(surf, (244, 222, 132, 235), (crown_cx - 16, 15), (crown_cx - 15, 24), 1)
+    pygame.draw.line(surf, (244, 222, 132, 255), (crown_cx - 14, 25 + bob), (crown_cx + 13, 25 + bob), 2)
+    pygame.draw.line(surf, (244, 222, 132, 235), (crown_cx - 16, 15 + bob), (crown_cx - 15, 24 + bob), 1)
     for jx, jy, jcol in (
-        (crown_cx, 20, (218, 66, 142, 255)),
-        (crown_cx - 10, 24, (132, 204, 62, 255)),
-        (crown_cx + 10, 24, (132, 204, 62, 255)),
+        (crown_cx, 20 + bob, (218, 66, 142, 255)),
+        (crown_cx - 10, 24 + bob, (132, 204, 62, 255)),
+        (crown_cx + 10, 24 + bob, (132, 204, 62, 255)),
     ):
         pygame.draw.circle(surf, jcol, (jx, jy), 2)
 
@@ -4894,102 +5446,161 @@ def generate_pastoral_hay_crate(
 
 
 def generate_meadow_censor_boss(
-    width: int = 104, height: int = 104, rng: random.Random = None
+    width: int = 104,
+    height: int = 104,
+    rng: random.Random = None,
+    direction: str = "down",
+    frame: int = 0,
 ) -> pygame.Surface:
-    """Generate a 104x104 Pastoral Valley Night Boss (The Meadow Censor) sprite."""
+    """Generate a 104x104 Pastoral Valley Night Boss (The Meadow Censor) (down/up/side x frames 0..2)."""
+    d_key = direction if direction in ("down", "up", "side") else "down"
+    f_idx = int(frame) % 3
     if rng is None:
-        rng = random.Random(5201)
+        rng = random.Random(5201 + f_idx * 19 + (0 if d_key == "down" else 71 if d_key == "up" else 139))
     surf = pygame.Surface((width, height), pygame.SRCALPHA)
     surf.fill((0, 0, 0, 0))
     cx = width // 2
+    l_dy, r_dy, sway = _boss_stride_offsets(f_idx)
+    bob = -1 if f_idx != 0 else 0
 
     # 1. Ground contact shadow & seeping deep-plum tar-ink puddle at hem
     pygame.draw.ellipse(surf, (22, 10, 32, 150), (14, height - 20, width - 28, 16))
     pygame.draw.ellipse(surf, (64, 26, 92, 175), (20, height - 18, width - 40, 12))
 
-    # 2. Cracked tarnished brass astrolabe halo behind shoulders/head
-    halo_cy = 34
-    pygame.draw.circle(surf, (136, 98, 34, 230), (cx, halo_cy), 28, 3)
-    pygame.draw.circle(surf, (218, 178, 72, 240), (cx, halo_cy), 26, 2)
-    pygame.draw.circle(surf, (176, 136, 48, 200), (cx, halo_cy), 19, 1)
-    # Crosshair & fractured astrolabe spokes
+    # 2. Cracked tarnished brass astrolabe halo behind shoulders/head (subtly rotates per stride frame)
+    halo_cx = cx - 4 if d_key == "side" else cx
+    halo_cy = 34 + bob
+    rot_off = (0, 8, -8)[f_idx]
+    pygame.draw.circle(surf, (136, 98, 34, 230), (halo_cx, halo_cy), 28, 3)
+    pygame.draw.circle(surf, (218, 178, 72, 240), (halo_cx, halo_cy), 26, 2)
+    pygame.draw.circle(surf, (176, 136, 48, 200), (halo_cx, halo_cy), 19, 1)
     for ang_deg in (20, 75, 130, 210, 295, 340):
-        rad = math.radians(ang_deg)
-        x0 = int(cx + math.cos(rad) * 18)
+        rad = math.radians(ang_deg + rot_off)
+        x0 = int(halo_cx + math.cos(rad) * 18)
         y0 = int(halo_cy + math.sin(rad) * 18)
-        x1 = int(cx + math.cos(rad) * 28)
+        x1 = int(halo_cx + math.cos(rad) * 28)
         y1 = int(halo_cy + math.sin(rad) * 28)
         pygame.draw.line(surf, (226, 188, 86, 235), (x0, y0), (x1, y1), 2)
-    # Crack notches in the upper brass ring
+
+    if d_key == "side":
+        # Three-quarter right-facing inquisitor profile
+        robe = [
+            (cx - 20 - sway, height - 12), (cx - 16, 46 + bob), (cx - 12, 35 + bob),
+            (cx + 15, 36 + bob), (cx + 21 + sway, height - 12), (cx + 4 + sway, height - 10),
+        ]
+        pygame.draw.polygon(surf, (46, 24, 62, 255), robe)
+        pygame.draw.polygon(surf, (24, 10, 34, 255), robe, 2)
+        tabard = [(cx + 2, 40 + bob), (cx + 15, 40 + bob), (cx + 17 + sway, height - 18), (cx + 4 + sway, height - 16)]
+        pygame.draw.polygon(surf, (216, 198, 160, 255), tabard)
+        pygame.draw.polygon(surf, (96, 74, 52, 255), tabard, 1)
+        # Head & glowing amber eye peering right beneath tilted shepherd's hat
+        pygame.draw.ellipse(surf, (22, 12, 30, 255), (cx - 6, 24 + bob, 18, 16))
+        pygame.draw.circle(surf, (248, 206, 86, 255), (cx + 7, 32 + bob), 2)
+        surf.set_at((cx + 7, 32 + bob), (255, 248, 208, 255))
+        pygame.draw.ellipse(surf, (38, 24, 48, 255), (cx - 22, 19 + bob, 50, 12))
+        pygame.draw.ellipse(surf, (20, 10, 28, 255), (cx - 22, 19 + bob, 50, 12), 2)
+        hat_crown = [(cx - 10, 22 + bob), (cx - 5, 8 + bob), (cx + 9, 10 + bob), (cx + 13, 22 + bob)]
+        pygame.draw.polygon(surf, (52, 34, 62, 255), hat_crown)
+        pygame.draw.line(surf, (214, 174, 68, 255), (cx - 9, 20 + bob), (cx + 12, 20 + bob), 2)
+        # Forward-held redaction scythe tilting across stride frames
+        sy_off = l_dy
+        pygame.draw.line(surf, (66, 38, 22, 255), (cx - 8, height - 12), (width - 14, 18 + sy_off), 6)
+        pygame.draw.line(surf, (118, 76, 42, 255), (cx - 8, height - 12), (width - 14, 18 + sy_off), 3)
+        blade = [
+            (width - 14, 16 + sy_off), (width - 3, 23 + sy_off), (width - 4, 42 + sy_off),
+            (width - 18, 52 + sy_off), (width - 13, 35 + sy_off),
+        ]
+        pygame.draw.polygon(surf, (176, 186, 202, 255), blade)
+        pygame.draw.polygon(surf, (52, 46, 68, 255), blade, 2)
+        return surf
+
+    if d_key == "up":
+        # Back-turned shepherd-inquisitor: broad tar-soaked wool cloak, rear scythe & wide hat (no eyes)
+        robe = [
+            (cx - 24 + sway, height - 11), (cx - 19, 44 + bob), (cx - 22, 35 + bob),
+            (cx + 22, 35 + bob), (cx + 19, 44 + bob), (cx + 24 + sway, height - 11),
+            (cx, height - 8),
+        ]
+        pygame.draw.polygon(surf, (42, 20, 58, 255), robe)
+        pygame.draw.polygon(surf, (24, 10, 34, 255), robe, 2)
+        # Tar-stained lower cloak hem & rear scythe shaft crossing back
+        pygame.draw.ellipse(surf, (38, 14, 58, 235), (cx - 20 + sway, height - 24, 40, 12))
+        pygame.draw.line(surf, (66, 38, 22, 255), (20, height - 14), (width - 18, 20 + r_dy), 5)
+        pygame.draw.line(surf, (118, 76, 42, 255), (20, height - 14), (width - 18, 20 + r_dy), 2)
+        # Wide-brimmed weathered wool shepherd's hat from behind
+        pygame.draw.ellipse(surf, (38, 24, 48, 255), (cx - 26, 20 + bob, 52, 12))
+        pygame.draw.ellipse(surf, (20, 10, 28, 255), (cx - 26, 20 + bob, 52, 12), 2)
+        hat_crown = [(cx - 12, 23 + bob), (cx - 8, 9 + bob), (cx + 8, 9 + bob), (cx + 12, 23 + bob)]
+        pygame.draw.polygon(surf, (52, 34, 62, 255), hat_crown)
+        pygame.draw.line(surf, (214, 174, 68, 255), (cx - 11, 21 + bob), (cx + 11, 21 + bob), 2)
+        return surf
+
+    # Crack notches in the upper brass ring (front canonical view)
     pygame.draw.line(surf, (24, 12, 34, 255), (cx + 12, halo_cy - 24), (cx + 18, halo_cy - 18), 3)
     pygame.draw.line(surf, (24, 12, 34, 255), (cx - 22, halo_cy - 12), (cx - 15, halo_cy - 8), 2)
 
     # 3. Gaunt shepherd-inquisitor torso in tar-soaked wool robes & tattered ruled-parchment stoles
     robe_poly = [
-        (cx - 22, height - 12),
-        (cx - 17, 46),
-        (cx - 22, 36),
-        (cx + 22, 36),
-        (cx + 17, 46),
-        (cx + 24, height - 12),
-        (cx + 10, height - 16),
+        (cx - 22 + sway, height - 12),
+        (cx - 17, 46 + bob),
+        (cx - 22, 36 + l_dy // 2 + bob),
+        (cx + 22, 36 + r_dy // 2 + bob),
+        (cx + 17, 46 + bob),
+        (cx + 24 + sway, height - 12),
+        (cx + 10 + sway, height - 16),
         (cx, height - 10),
-        (cx - 10, height - 16),
+        (cx - 10 + sway, height - 16),
     ]
     pygame.draw.polygon(surf, (46, 24, 62, 255), robe_poly)
     pygame.draw.polygon(surf, (24, 10, 34, 255), robe_poly, 2)
 
     # Ruled-parchment inquisitor tabard / shoulder stoles with horizontal ledger ink lines
     tabard = [
-        (cx - 11, 39),
-        (cx + 11, 39),
-        (cx + 13, height - 20),
-        (cx, height - 15),
-        (cx - 13, height - 20),
+        (cx - 11, 39 + bob),
+        (cx + 11, 39 + bob),
+        (cx + 13 + sway // 2, height - 20),
+        (cx + sway // 2, height - 15),
+        (cx - 13 + sway // 2, height - 20),
     ]
     pygame.draw.polygon(surf, (216, 198, 160, 255), tabard)
     pygame.draw.polygon(surf, (96, 74, 52, 255), tabard, 1)
-    for ly in range(44, height - 22, 6):
+    for ly in range(44 + bob, height - 22, 6):
         pygame.draw.line(surf, (148, 124, 86, 210), (cx - 10, ly), (cx + 10, ly), 1)
     # Creeping violet-black tar stains climbing the hem of the parchment tabard
-    pygame.draw.ellipse(surf, (42, 16, 62, 245), (cx - 13, height - 30, 26, 14))
-    pygame.draw.ellipse(surf, (138, 52, 174, 210), (cx - 8, height - 26, 16, 7))
+    pygame.draw.ellipse(surf, (42, 16, 62, 245), (cx - 13 + sway // 2, height - 30, 26, 14))
+    pygame.draw.ellipse(surf, (138, 52, 174, 210), (cx - 8 + sway // 2, height - 26, 16, 7))
     for _ in range(18):
         gx = rng.randint(cx - 18, cx + 18)
         gy = rng.randint(42, height - 18)
         surf.set_at((gx, gy), (74, 34, 98, 220))
 
     # 4. Wide-brimmed dark shepherd's hat & hooded shadow face with glowing amber/violet eyes
-    pygame.draw.ellipse(surf, (22, 12, 30, 255), (cx - 11, 24, 22, 18))
-    # Glowing inquisitor eyes beneath brim
-    pygame.draw.circle(surf, (248, 206, 86, 255), (cx - 4, 33), 2)
-    pygame.draw.circle(surf, (248, 206, 86, 255), (cx + 4, 33), 2)
-    surf.set_at((cx - 4, 33), (255, 248, 208, 255))
-    surf.set_at((cx + 4, 33), (255, 248, 208, 255))
-    # Wide-brimmed weathered wool shepherd's hat
-    pygame.draw.ellipse(surf, (38, 24, 48, 255), (cx - 26, 20, 52, 12))
-    pygame.draw.ellipse(surf, (20, 10, 28, 255), (cx - 26, 20, 52, 12), 2)
-    hat_crown = [(cx - 12, 23), (cx - 8, 9), (cx + 7, 10), (cx + 12, 23)]
+    pygame.draw.ellipse(surf, (22, 12, 30, 255), (cx - 11, 24 + bob, 22, 18))
+    eye_dx = -1 if f_idx == 1 else (1 if f_idx == 2 else 0)
+    pygame.draw.circle(surf, (248, 206, 86, 255), (cx - 4 + eye_dx, 33 + bob), 2)
+    pygame.draw.circle(surf, (248, 206, 86, 255), (cx + 4 + eye_dx, 33 + bob), 2)
+    surf.set_at((cx - 4 + eye_dx, 33 + bob), (255, 248, 208, 255))
+    surf.set_at((cx + 4 + eye_dx, 33 + bob), (255, 248, 208, 255))
+    pygame.draw.ellipse(surf, (38, 24, 48, 255), (cx - 26, 20 + bob, 52, 12))
+    pygame.draw.ellipse(surf, (20, 10, 28, 255), (cx - 26, 20 + bob, 52, 12), 2)
+    hat_crown = [(cx - 12, 23 + bob), (cx - 8, 9 + bob), (cx + 7, 10 + bob), (cx + 12, 23 + bob)]
     pygame.draw.polygon(surf, (52, 34, 62, 255), hat_crown)
     pygame.draw.polygon(surf, (20, 10, 28, 255), hat_crown, 1)
-    # Brass hatband
-    pygame.draw.line(surf, (214, 174, 68, 255), (cx - 11, 21), (cx + 11, 21), 2)
+    pygame.draw.line(surf, (214, 174, 68, 255), (cx - 11, 21 + bob), (cx + 11, 21 + bob), 2)
 
     # 5. Hooked redaction scythe held diagonally across body, dripping violet-black tar-ink
-    pygame.draw.line(surf, (66, 38, 22, 255), (16, height - 10), (width - 20, 18), 6)
-    pygame.draw.line(surf, (118, 76, 42, 255), (16, height - 10), (width - 20, 18), 3)
-    # Brass collar ferrule
-    pygame.draw.circle(surf, (214, 174, 68, 255), (width - 21, 19), 4)
-    # Curved hooked crescent redaction blade
+    pygame.draw.line(surf, (66, 38, 22, 255), (16, height - 10), (width - 20, 18 + r_dy), 6)
+    pygame.draw.line(surf, (118, 76, 42, 255), (16, height - 10), (width - 20, 18 + r_dy), 3)
+    pygame.draw.circle(surf, (214, 174, 68, 255), (width - 21, 19 + r_dy), 4)
     blade_pts = [
-        (width - 20, 16),
-        (width - 6, 22),
-        (width - 4, 38),
-        (width - 14, 52),
-        (width - 24, 54),
-        (width - 16, 44),
-        (width - 13, 33),
-        (width - 17, 24),
+        (width - 20, 16 + r_dy),
+        (width - 6, 22 + r_dy),
+        (width - 4, 38 + r_dy),
+        (width - 14, 52 + r_dy),
+        (width - 24, 54 + r_dy),
+        (width - 16, 44 + r_dy),
+        (width - 13, 33 + r_dy),
+        (width - 17, 24 + r_dy),
     ]
     pygame.draw.polygon(surf, (176, 186, 202, 255), blade_pts)
     pygame.draw.polygon(surf, (52, 46, 68, 255), blade_pts, 2)
@@ -4997,11 +5608,10 @@ def generate_meadow_censor_boss(
         surf,
         (240, 244, 252, 255),
         False,
-        [(width - 18, 17), (width - 7, 23), (width - 6, 37), (width - 14, 50)],
+        [(width - 18, 17 + r_dy), (width - 7, 23 + r_dy), (width - 6, 37 + r_dy), (width - 14, 50 + r_dy)],
         2,
     )
-    # Dripping violet-black tar-ink beads falling off the scythe hook
-    for dx_t, dy_t in ((width - 14, 55), (width - 18, 63), (width - 10, 48)):
+    for dx_t, dy_t in ((width - 14, 55 + r_dy), (width - 18, 63 + r_dy), (width - 10, 48 + r_dy)):
         pygame.draw.ellipse(surf, (38, 14, 58, 245), (dx_t - 3, dy_t - 2, 6, 7))
         pygame.draw.circle(surf, (182, 84, 216, 230), (dx_t - 1, dy_t), 2)
 
@@ -5181,50 +5791,109 @@ def generate_rimecrest_arbiter_boss(
     width: int = 104,
     height: int = 104,
     rng: random.Random = None,
+    direction: str = "down",
+    frame: int = 0,
 ) -> pygame.Surface:
-    """Generate the 104x104 Rimecrest Arbiter boss sprite in faceted mirror-ice armor with frost halberd."""
+    """Generate the 104x104 Rimecrest Arbiter boss sprite (down/up/side x frames 0..2)."""
+    d_key = direction if direction in ("down", "up", "side") else "down"
+    f_idx = int(frame) % 3
     if rng is None:
-        rng = random.Random(DEFAULT_ASSET_SEED + 620)
+        rng = random.Random(DEFAULT_ASSET_SEED + 620 + f_idx * 23 + (0 if d_key == "down" else 89 if d_key == "up" else 173))
     surf = pygame.Surface((width, height), pygame.SRCALPHA)
     cx = width // 2
+    l_dy, r_dy, sway = _boss_stride_offsets(f_idx)
+    bob = -1 if f_idx != 0 else 0
 
     # Glacial frost aura shadow at base
     pygame.draw.ellipse(surf, (16, 40, 74, 128), (18, height - 18, width - 36, 14))
     pygame.draw.ellipse(surf, (124, 212, 248, 86), (22, height - 16, width - 44, 10))
 
-    # Tattered rime-frosted surcoat / lower armor skirt
+    if d_key == "side":
+        # Three-quarter right-facing mirror-ice sentinel with billowing cloak & forward halberd
+        cloak = [(cx - 8, 40 + bob), (14 - sway, 62), (10 - sway, height - 12), (cx + 12, height - 13)]
+        pygame.draw.polygon(surf, (34, 72, 124, 255), cloak)
+        pygame.draw.polygon(surf, (132, 206, 246, 220), cloak, 2)
+        # Striding faceted greaves
+        pygame.draw.polygon(surf, (52, 114, 178, 250), [(cx - 8 - sway, 68), (cx - 1 - sway, 68), (cx - 4 - sway, height - 10), (cx - 12 - sway, height - 10)])
+        pygame.draw.polygon(surf, (88, 168, 226, 252), [(cx + 4 + sway, 68), (cx + 13 + sway, 68), (cx + 16 + sway, height - 10), (cx + 6 + sway, height - 10)])
+        torso = [(cx - 12, 34 + bob), (cx + 14, 34 + bob), (cx + 16, 70 + bob), (cx - 10, 70 + bob)]
+        pygame.draw.polygon(surf, (88, 168, 226, 252), torso)
+        pygame.draw.polygon(surf, (218, 246, 255, 245), torso, 2)
+        # Prominent forward jagged crystalline pauldron
+        pauldron = [(cx - 6, 36 + l_dy // 2 + bob), (cx + 10, 26 + l_dy // 2 + bob), (cx + 22, 42 + l_dy // 2 + bob), (cx + 2, 48 + l_dy // 2 + bob)]
+        pygame.draw.polygon(surf, (118, 198, 244, 250), pauldron)
+        pygame.draw.polygon(surf, (226, 248, 255, 245), pauldron, 2)
+        # Angled crystalline crown helm & right-facing cyan visor slit
+        helm = [(cx - 10, 33 + bob), (cx - 9, 14 + bob), (cx - 2, 6 + bob), (cx + 8, 12 + bob), (cx + 14, 22 + bob), (cx + 12, 33 + bob)]
+        pygame.draw.polygon(surf, (124, 204, 248, 255), helm)
+        pygame.draw.polygon(surf, (238, 252, 255, 255), helm, 2)
+        pygame.draw.rect(surf, (16, 36, 68, 255), (cx + 2, 21 + bob, 11, 6), border_radius=2)
+        pygame.draw.line(surf, (176, 248, 255, 255), (cx + 4, 24 + bob), (cx + 12, 24 + bob), 2)
+        # Forward-braced mirror-ice halberd
+        hy_off = r_dy
+        pygame.draw.line(surf, (46, 64, 92, 255), (cx - 4, height - 14), (width - 10, 12 + hy_off), 4)
+        axe = [(width - 13, 15 + hy_off), (width - 2, 20 + hy_off), (width - 3, 38 + hy_off), (width - 14, 42 + hy_off), (width - 18, 30 + hy_off)]
+        pygame.draw.polygon(surf, (132, 214, 252, 250), axe)
+        pygame.draw.polygon(surf, (242, 252, 255, 255), axe, 2)
+        return surf
+
+    if d_key == "up":
+        # Back-turned mirror-ice sentinel: rime-frosted cape, faceted backplate, rear crown (no visor)
+        cloak = [
+            (cx - 25, 40 + bob), (cx + 25, 40 + bob), (cx + 31 + sway, height - 11),
+            (cx + 12 + sway, height - 15), (cx, height - 9), (cx - 12 + sway, height - 15), (cx - 31 + sway, height - 11),
+        ]
+        pygame.draw.polygon(surf, (30, 64, 112, 255), cloak)
+        pygame.draw.polygon(surf, (132, 206, 246, 220), cloak, 2)
+        # Rear halberd shaft angled behind shoulders
+        pygame.draw.line(surf, (46, 64, 92, 255), (cx - 18, height - 14), (width - 16, 12 + r_dy), 4)
+        # Faceted icy backplate & pauldrons
+        back = [(cx - 18, 34 + bob), (cx + 18, 34 + bob), (cx + 14, 68 + bob), (cx, 75 + bob), (cx - 14, 68 + bob)]
+        pygame.draw.polygon(surf, (56, 122, 188, 250), back)
+        pygame.draw.polygon(surf, (218, 246, 255, 240), back, 2)
+        pygame.draw.line(surf, (186, 246, 255, 240), (cx, 38 + bob), (cx, 70 + bob), 2)
+        for side_p, dy_p in ((-1, l_dy // 2), (1, r_dy // 2)):
+            p_poly = [(cx + side_p * 34, 46 + dy_p + bob), (cx + side_p * 26, 28 + dy_p + bob), (cx + side_p * 14, 32 + dy_p + bob), (cx + side_p * 16, 48 + dy_p + bob)]
+            pygame.draw.polygon(surf, (88, 168, 226, 250), p_poly)
+            pygame.draw.polygon(surf, (226, 248, 255, 245), p_poly, 2)
+        # Rear crystalline crown helm
+        helm = [(cx - 13, 33 + bob), (cx - 14, 19 + bob), (cx - 9, 9 + bob), (cx - 4, 16 + bob), (cx, 5 + bob), (cx + 4, 16 + bob), (cx + 9, 9 + bob), (cx + 14, 19 + bob), (cx + 13, 33 + bob)]
+        pygame.draw.polygon(surf, (96, 178, 232, 255), helm)
+        pygame.draw.polygon(surf, (238, 252, 255, 255), helm, 2)
+        return surf
+
+    # Tattered rime-frosted surcoat / lower armor skirt (front canonical view)
     cloak_poly = [
-        (cx - 24, 42),
-        (cx + 24, 42),
-        (cx + 30, height - 12),
-        (cx + 12, height - 16),
+        (cx - 24, 42 + bob),
+        (cx + 24, 42 + bob),
+        (cx + 30 + sway, height - 12),
+        (cx + 12 + sway, height - 16),
         (cx, height - 10),
-        (cx - 12, height - 16),
-        (cx - 30, height - 12),
+        (cx - 12 + sway, height - 16),
+        (cx - 30 + sway, height - 12),
     ]
     pygame.draw.polygon(surf, (34, 72, 124, 255), cloak_poly)
     pygame.draw.polygon(surf, (132, 206, 246, 220), cloak_poly, 2)
 
     # Faceted mirror-ice breastplate & greaves
     torso_poly = [
-        (cx - 19, 34),
-        (cx + 19, 34),
-        (cx + 15, 70),
-        (cx, 78),
-        (cx - 15, 70),
+        (cx - 19, 34 + bob),
+        (cx + 19, 34 + bob),
+        (cx + 15, 70 + bob),
+        (cx, 78 + bob),
+        (cx - 15, 70 + bob),
     ]
     pygame.draw.polygon(surf, (88, 168, 226, 252), torso_poly)
-    right_chest = [(cx, 34), (cx + 19, 34), (cx + 15, 70), (cx, 78)]
+    right_chest = [(cx, 34 + bob), (cx + 19, 34 + bob), (cx + 15, 70 + bob), (cx, 78 + bob)]
     pygame.draw.polygon(surf, (52, 114, 178, 250), right_chest)
     pygame.draw.polygon(surf, (218, 246, 255, 245), torso_poly, 2)
-    # Glowing core crystal sigil in breastplate
-    sigil = [(cx, 43), (cx + 7, 54), (cx, 65), (cx - 7, 54)]
+    sigil = [(cx, 43 + bob), (cx + 7, 54 + bob), (cx, 65 + bob), (cx - 7, 54 + bob)]
     pygame.draw.polygon(surf, (186, 246, 255, 255), sigil)
-    pygame.draw.polygon(surf, (248, 254, 255, 255), [(cx, 47), (cx + 3, 54), (cx, 61), (cx - 3, 54)])
+    pygame.draw.polygon(surf, (248, 254, 255, 255), [(cx, 47 + bob), (cx + 3, 54 + bob), (cx, 61 + bob), (cx - 3, 54 + bob)])
 
     # Jagged crystalline ice pauldrons (left & right shoulders)
-    left_pauldron = [(cx - 34, 46), (cx - 26, 28), (cx - 14, 32), (cx - 16, 48)]
-    right_pauldron = [(cx + 34, 46), (cx + 26, 28), (cx + 14, 32), (cx + 16, 48)]
+    left_pauldron = [(cx - 34, 46 + l_dy // 2 + bob), (cx - 26, 28 + l_dy // 2 + bob), (cx - 14, 32 + l_dy // 2 + bob), (cx - 16, 48 + l_dy // 2 + bob)]
+    right_pauldron = [(cx + 34, 46 + r_dy // 2 + bob), (cx + 26, 28 + r_dy // 2 + bob), (cx + 14, 32 + r_dy // 2 + bob), (cx + 16, 48 + r_dy // 2 + bob)]
     pygame.draw.polygon(surf, (118, 198, 244, 250), left_pauldron)
     pygame.draw.polygon(surf, (68, 138, 198, 250), right_pauldron)
     pygame.draw.polygon(surf, (226, 248, 255, 245), left_pauldron, 2)
@@ -5232,37 +5901,37 @@ def generate_rimecrest_arbiter_boss(
 
     # Crystalline crown helm & glowing ice-cyan visor slit
     helm_poly = [
-        (cx - 13, 33),
-        (cx - 14, 19),
-        (cx - 9, 9),
-        (cx - 4, 16),
-        (cx, 5),
-        (cx + 4, 16),
-        (cx + 9, 9),
-        (cx + 14, 19),
-        (cx + 13, 33),
+        (cx - 13, 33 + bob),
+        (cx - 14, 19 + bob),
+        (cx - 9, 9 + bob),
+        (cx - 4, 16 + bob),
+        (cx, 5 + bob),
+        (cx + 4, 16 + bob),
+        (cx + 9, 9 + bob),
+        (cx + 14, 19 + bob),
+        (cx + 13, 33 + bob),
     ]
     pygame.draw.polygon(surf, (124, 204, 248, 255), helm_poly)
     pygame.draw.polygon(surf, (238, 252, 255, 255), helm_poly, 2)
-    pygame.draw.rect(surf, (16, 36, 68, 255), (cx - 9, 22, 18, 6), border_radius=2)
-    pygame.draw.line(surf, (176, 248, 255, 255), (cx - 7, 25), (cx + 7, 25), 2)
+    eye_dx = -1 if f_idx == 1 else (1 if f_idx == 2 else 0)
+    pygame.draw.rect(surf, (16, 36, 68, 255), (cx - 9, 22 + bob, 18, 6), border_radius=2)
+    pygame.draw.line(surf, (176, 248, 255, 255), (cx - 7 + eye_dx, 25 + bob), (cx + 7 + eye_dx, 25 + bob), 2)
 
     # Long frost-bound mirror-ice halberd held diagonally on the right
     shaft_start = (cx + 12, height - 10)
-    shaft_end = (width - 14, 10)
+    shaft_end = (width - 14, 10 + r_dy)
     pygame.draw.line(surf, (46, 64, 92, 255), shaft_start, shaft_end, 4)
     pygame.draw.line(surf, (176, 228, 252, 235), (shaft_start[0] - 1, shaft_start[1]), (shaft_end[0] - 1, shaft_end[1]), 1)
-    # Halberd crescent glacier axe head + spear tip
     axe_head = [
-        (width - 17, 15),
-        (width - 4, 18),
-        (width - 3, 36),
-        (width - 15, 42),
-        (width - 21, 31),
+        (width - 17, 15 + r_dy),
+        (width - 4, 18 + r_dy),
+        (width - 3, 36 + r_dy),
+        (width - 15, 42 + r_dy),
+        (width - 21, 31 + r_dy),
     ]
     pygame.draw.polygon(surf, (132, 214, 252, 250), axe_head)
     pygame.draw.polygon(surf, (242, 252, 255, 255), axe_head, 2)
-    spear_tip = [(width - 16, 13), (width - 10, 2), (width - 9, 15)]
+    spear_tip = [(width - 16, 13 + r_dy), (width - 10, 2 + r_dy), (width - 9, 15 + r_dy)]
     pygame.draw.polygon(surf, (212, 246, 255, 255), spear_tip)
 
     # Fine frost-crystal glints across the armor
@@ -5884,6 +6553,26 @@ def generate_all_assets(
         out_path = os.path.join("assets", "graphics", f"{sp_key}.png")
         _emit(sp_key, out_path, sp_surf)
 
+    # Pipeline 16: 3-Frame Directional Boss Animations (down 1..2, up 0..2, side 0..2 for all 7 bosses)
+    boss_anim_specs = (
+        ("miniboss", 40, 40, generate_miniboss_sprite),
+        ("night_boss", 64, 64, generate_night_boss_sprite),
+        ("final_author", 80, 80, generate_final_author_sprite),
+        ("boss_empowered", 64, 64, generate_boss_empowered_sprite),
+        ("slug_boss", 112, 112, generate_slug_boss),
+        ("meadow_censor_boss", 104, 104, generate_meadow_censor_boss),
+        ("rimecrest_arbiter_boss", 104, 104, generate_rimecrest_arbiter_boss),
+    )
+    for b_stem, bw, bh, b_fn in boss_anim_specs:
+        for b_dir in ("down", "up", "side"):
+            for b_frame in (0, 1, 2):
+                if b_dir == "down" and b_frame == 0:
+                    continue  # Canonical <boss>.png already emitted above
+                v_key = f"{b_stem}_{b_frame}" if b_dir == "down" else f"{b_stem}_{b_dir}_{b_frame}"
+                out_path = os.path.join("assets", "graphics", f"{v_key}.png")
+                surf = b_fn(bw, bh, rng=_rng(v_key), direction=b_dir, frame=b_frame)
+                _emit(v_key, out_path, surf)
+
     if stats_out is not None:
         stats_out["updated"] = updated_count
         stats_out["unchanged"] = unchanged_count
@@ -5965,17 +6654,7 @@ def generate_empowered_enemy_sprite(
         pygame.draw.line(surf, bright_crimson, (width - 9, cy + 1), (width - 9, cy + 6), 2)
         pygame.draw.circle(surf, bright_crimson, (width - 12, cy - 3), 2)
     else:  # boss (Miniboss / Night Boss / Final Author)
-        pauldron_r = max(8, width // 4)
-        pygame.draw.circle(surf, charcoal, (10, cy - height // 8), pauldron_r)
-        pygame.draw.circle(surf, charcoal, (width - 10, cy - height // 8), pauldron_r)
-        pygame.draw.circle(surf, crimson, (10, cy - height // 8), pauldron_r, 2)
-        pygame.draw.circle(surf, crimson, (width - 10, cy - height // 8), pauldron_r, 2)
-        torso = pygame.Rect(8, 6, width - 16, height - 12)
-        pygame.draw.rect(surf, obsidian, torso, border_radius=10)
-        pygame.draw.rect(surf, eclipse_violet, torso, 2, border_radius=10)
-        visor = pygame.Rect(cx - width // 4, 14, width // 2, max(8, height // 6))
-        pygame.draw.rect(surf, (12, 8, 18, 255), visor, border_radius=3)
-        pygame.draw.circle(surf, bright_crimson, (cx, visor.centery), max(4, width // 12))
+        return generate_boss_empowered_sprite(width, height, rng=rng, direction="down", frame=0)
 
     # Subtle dark-fantasy grit speckles inside opaque pixels
     for _ in range((width * height) // 16):

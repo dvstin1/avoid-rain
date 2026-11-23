@@ -129,6 +129,35 @@ class Renderer:
                 tinted.set_at((x, y), (nr, ng, nb, c.a))
         return tinted
 
+    def _load_boss_directional_variants(self, stems, expected_size=None):
+        """Pre-load 3-frame directional boss PNGs (<stem>_1/2, <stem>_up_0..2, <stem>_side_0..2)."""
+        import os
+        base_path = os.path.join("assets", "graphics")
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
+        for stem in stems:
+            variant_names = (
+                f"{stem}_1.png",
+                f"{stem}_2.png",
+                f"{stem}_up_0.png",
+                f"{stem}_up_1.png",
+                f"{stem}_up_2.png",
+                f"{stem}_side_0.png",
+                f"{stem}_side_1.png",
+                f"{stem}_side_2.png",
+            )
+            for name in variant_names:
+                path = os.path.join(base_path, name)
+                if os.path.exists(path):
+                    try:
+                        img = pygame.image.load(path)
+                        if display_init:
+                            img = img.convert_alpha()
+                        if expected_size is not None and img.get_size() != expected_size:
+                            img = pygame.transform.scale(img, expected_size)
+                        self.image_cache[name] = img
+                    except Exception as e:
+                        print(f"[RENDER] Error loading {name}: {e}")
+
     def _load_base_enemy_assets(self):
         """Pre-load Act 1 / un-empowered base enemy and boss PNG sprites at native sizes."""
         import os
@@ -148,6 +177,7 @@ class Renderer:
                     self.image_cache[name] = img
                 except Exception as e:
                     print(f"[RENDER] Error loading {name}: {e}")
+        self._load_boss_directional_variants(("miniboss", "night_boss", "final_author"))
 
     def _load_empowered_enemy_assets(self):
         """Pre-load Act 2 empowered procedural enemy PNG variants."""
@@ -168,6 +198,7 @@ class Renderer:
                     self.image_cache[name] = img
                 except Exception as e:
                     print(f"[RENDER] Error loading {name}: {e}")
+        self._load_boss_directional_variants(("boss_empowered",))
 
     def _desaturate_surface(self, surf):
         """Converts a surface to grayscale (removes saturation)."""
@@ -1070,6 +1101,14 @@ class Renderer:
                     self.image_cache[sx_file] = sx_img
                 except Exception as e:
                     print(f"[RENDER] Error loading {sx_file}: {e}")
+
+        self._load_boss_directional_variants(("slug_boss",), (constants.SLUG_BOSS_SIZE, constants.SLUG_BOSS_SIZE))
+        self._load_boss_directional_variants(
+            ("meadow_censor_boss",), (constants.MEADOW_CENSOR_SIZE, constants.MEADOW_CENSOR_SIZE)
+        )
+        self._load_boss_directional_variants(
+            ("rimecrest_arbiter_boss",), (constants.RIMECREST_ARBITER_SIZE, constants.RIMECREST_ARBITER_SIZE)
+        )
         self._fx_surface_cache = {}
 
         if "SwampFungus" not in self.prop_cache:
@@ -4021,6 +4060,55 @@ class Renderer:
         prefix = "flutter_empowered" if is_empowered else "flutter"
         return f"{prefix}.png" if frame_idx == 0 else f"{prefix}_{frame_idx}.png"
 
+    def _resolve_boss_directional_sprite(self, base_key, facing, anim_t, is_moving):
+        """Select directional (down/up/side) + 3-frame ping-pong [0,1,2,1] boss sprite, pre-flipped for left."""
+        stem = str(base_key or "").removesuffix(".png")
+        canonical_key = f"{stem}.png"
+        prop_aliases = {
+            "slug_boss": "SlugBoss",
+            "meadow_censor_boss": "MeadowCensorBoss",
+            "rimecrest_arbiter_boss": "RimecrestArbiterBoss",
+        }
+        prop_alias = prop_aliases.get(stem)
+        canonical_surf = (
+            (self.prop_cache.get(prop_alias) if prop_alias else None)
+            or self.image_cache.get(canonical_key)
+        )
+        if canonical_surf is None:
+            return None
+
+        fx, fy = (float(facing[0]), float(facing[1])) if facing and len(facing) >= 2 else (0.0, 1.0)
+        flip_x = False
+        if fy < -0.45 and abs(fy) > abs(fx):
+            direction = "up"
+        elif abs(fx) >= abs(fy) and abs(fx) > 0.25:
+            direction = "side"
+            flip_x = fx < 0.0
+        else:
+            direction = "down"
+
+        rate = 6.5 if is_moving else 2.5
+        cycle = (0, 1, 2, 1)
+        frame_idx = cycle[int(max(0.0, float(anim_t)) * rate) % len(cycle)]
+        if direction == "down":
+            key = canonical_key if frame_idx == 0 else f"{stem}_{frame_idx}.png"
+        else:
+            key = f"{stem}_{direction}_{frame_idx}.png"
+
+        surf = self.image_cache.get(key)
+        if surf is None:
+            surf = canonical_surf
+        if flip_x and surf is not None:
+            cache = getattr(self, "_fx_surface_cache", None)
+            flip_key = ("boss_side_flip", key, id(surf))
+            flipped = cache.get(flip_key) if cache is not None else None
+            if flipped is None:
+                flipped = pygame.transform.flip(surf, True, False)
+                if cache is not None:
+                    cache[flip_key] = flipped
+            return flipped
+        return surf
+
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
         """Draw image sprites or procedural basic-shape graphics for enemies and bosses."""
         from engine.enemy import (
@@ -4052,8 +4140,10 @@ class Renderer:
         )
         flutter_bob_y = int(round(math.sin(anim_t * 7.0) * 2.0)) if is_flutter else 0
 
+        is_moving_boss = packet.get("base") in ("RUN", "CHASE", "PATROLLING", "WIND_UP", "STRIKE")
         if getattr(actor, "is_empowered", False):
             emp_key = None
+            used_directional_boss = False
             if isinstance(actor, BatEnemy) or "bat" in actor_tag:
                 emp_key = "bat_empowered.png"
             elif is_flutter:
@@ -4068,15 +4158,20 @@ class Renderer:
                 emp_key = "punctuation_wolf_empowered.png"
             elif is_boss or any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
                 emp_key = "boss_empowered.png"
-            emp_surf = self.image_cache.get(emp_key) if emp_key else None
+                used_directional_boss = True
+            if used_directional_boss:
+                emp_surf = self._resolve_boss_directional_sprite(emp_key, (fx, fy), anim_t, is_moving_boss)
+            else:
+                emp_surf = self.image_cache.get(emp_key) if emp_key else None
             if emp_surf is None and is_flutter:
                 emp_surf = self.image_cache.get("flutter_empowered.png")
             if emp_surf is None and is_boss:
                 emp_surf = self.image_cache.get("event_champion.png") or self.image_cache.get("miniboss.png")
+                used_directional_boss = False
             if emp_surf is not None:
                 if emp_surf.get_size() != (w, h) and w > 0 and h > 0:
                     emp_surf = pygame.transform.scale(emp_surf, (w, h))
-                if fx < 0:
+                if fx < 0 and not used_directional_boss:
                     emp_surf = pygame.transform.flip(emp_surf, True, False)
                 if is_smear:
                     self._draw_dark_enemy_ground_shadow(draw_rect)
@@ -4089,6 +4184,7 @@ class Renderer:
                 return True
         else:
             base_key = None
+            used_directional_boss = False
             if isinstance(actor, BatEnemy) or "bat" in actor_tag:
                 base_key = "bat.png"
             elif is_flutter:
@@ -4103,8 +4199,10 @@ class Renderer:
                 base_key = "punctuation_wolf.png"
             elif isinstance(actor, FinalAuthor) or "author" in actor_tag:
                 base_key = "final_author.png"
+                used_directional_boss = True
             elif isinstance(actor, NightBoss) or "night boss" in actor_tag or "night_boss" in actor_tag:
                 base_key = "night_boss.png"
+                used_directional_boss = True
             elif is_event_champion:
                 base_key = "event_champion.png"
             elif (
@@ -4113,15 +4211,20 @@ class Renderer:
                 or any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss"))
             ):
                 base_key = "miniboss.png"
-            base_surf = self.image_cache.get(base_key) if base_key else None
+                used_directional_boss = True
+            if used_directional_boss:
+                base_surf = self._resolve_boss_directional_sprite(base_key, (fx, fy), anim_t, is_moving_boss)
+            else:
+                base_surf = self.image_cache.get(base_key) if base_key else None
             if base_surf is None and is_flutter:
                 base_surf = self.image_cache.get("flutter.png")
             if base_surf is None and is_event_champion:
                 base_surf = self.image_cache.get("miniboss.png")
+                used_directional_boss = False
             if base_surf is not None:
                 if base_surf.get_size() != (w, h) and w > 0 and h > 0:
                     base_surf = pygame.transform.scale(base_surf, (w, h))
-                if fx < 0:
+                if fx < 0 and not used_directional_boss:
                     base_surf = pygame.transform.flip(base_surf, True, False)
                 if is_smear:
                     self._draw_dark_enemy_ground_shadow(draw_rect)
@@ -6053,8 +6156,9 @@ class Renderer:
             pygame.draw.circle(self.screen, (204, 174, 56), (cx_p + 4, ty_i + 20), 2)
 
     def _draw_slug_boss(self, actor, draw_rect, packet):
-        """Render the 112x112 crowned yellow/pink sword-pierced SlugBoss with squash/stretch & slime swell."""
-        fx = float(packet.get("facing", (1.0, 0.0))[0])
+        """Render the 112x112 crowned organic SlugBoss with directional animations, squash/stretch & slime swell."""
+        facing = packet.get("facing", (1.0, 0.0))
+        fx, fy = (float(facing[0]), float(facing[1])) if facing and len(facing) >= 2 else (1.0, 0.0)
         base_state = packet.get("base", "IDLE")
         attack_mode = packet.get("attack_mode", getattr(actor, "attack_mode", "CHARGE"))
         anim_t = float(packet.get("anim_timer", 0.0))
@@ -6111,12 +6215,11 @@ class Renderer:
             pygame.draw.circle(halo, (224, 86, 158, 92), (halo_r, halo_r), halo_r - 2, 2)
             self.screen.blit(halo, (dst_rect.centerx - halo_r, dst_rect.centery - halo_r))
 
-        sprite = self.prop_cache.get("SlugBoss") or self.image_cache.get("slug_boss.png")
+        is_moving = base_state in ("RUN", "CHASE", "STRIKE", "WIND_UP")
+        sprite = self._resolve_boss_directional_sprite("slug_boss", (fx, fy), anim_t, is_moving)
         if sprite is not None:
             if sprite.get_size() != (sw_s, sh_s):
                 sprite = pygame.transform.scale(sprite, (sw_s, sh_s))
-            if fx < 0:
-                sprite = pygame.transform.flip(sprite, True, False)
             self.screen.blit(sprite, dst_rect.topleft)
         elif isinstance(self.screen, pygame.Surface):
             # Graceful procedural fallback: asymmetrical gastropod body, magenta mottling, plum-trimmed soft-gold crown
@@ -6209,12 +6312,11 @@ class Renderer:
             pygame.draw.circle(halo, (195, 95, 225, 118), (halo_r, halo_r), halo_r - 2, 2)
             self.screen.blit(halo, (dst_rect.centerx - halo_r, dst_rect.centery - halo_r))
 
-        sprite = self.prop_cache.get("MeadowCensorBoss") or self.image_cache.get("meadow_censor_boss.png")
+        is_moving = base_state in ("RUN", "CHASE", "STRIKE", "WIND_UP")
+        sprite = self._resolve_boss_directional_sprite("meadow_censor_boss", (fx, fy), anim_t, is_moving)
         if sprite is not None:
             if sprite.get_size() != (w, h):
                 sprite = pygame.transform.scale(sprite, (w, h))
-            if fx < 0:
-                sprite = pygame.transform.flip(sprite, True, False)
             self.screen.blit(sprite, dst_rect.topleft)
         elif isinstance(self.screen, pygame.Surface):
             # Graceful procedural fallback: tar-soaked cloak, parchment tabard, brass halo
@@ -6336,12 +6438,11 @@ class Renderer:
                 pygame.draw.lines(cone_surf, (226, 248, 255, 220), True, outer_pts, 2)
                 self.screen.blit(cone_surf, (0, 0))
 
-        sprite = self.prop_cache.get("RimecrestArbiterBoss") or self.image_cache.get("rimecrest_arbiter_boss.png")
+        is_moving = base_state in ("RUN", "CHASE", "STRIKE", "WIND_UP")
+        sprite = self._resolve_boss_directional_sprite("rimecrest_arbiter_boss", (fx, fy), anim_t, is_moving)
         if sprite is not None:
             if sprite.get_size() != (w, h):
                 sprite = pygame.transform.scale(sprite, (w, h))
-            if fx < 0:
-                sprite = pygame.transform.flip(sprite, True, False)
             self.screen.blit(sprite, dst_rect.topleft)
         elif isinstance(self.screen, pygame.Surface):
             # Graceful procedural fallback: faceted cobalt armor + crystalline crown
