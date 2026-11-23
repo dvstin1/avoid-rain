@@ -135,7 +135,7 @@ class Renderer:
         base_path = os.path.join("assets", "graphics")
         display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
         for kind in (
-            "bat", "flutter", "bindling", "smear", "sentry", "punctuation_wolf",
+            "bat", "flutter", "flutter_1", "flutter_2", "bindling", "smear", "sentry", "punctuation_wolf",
             "event_champion", "miniboss", "night_boss", "final_author",
         ):
             name = f"{kind}.png"
@@ -154,8 +154,11 @@ class Renderer:
         import os
         base_path = os.path.join("assets", "graphics")
         display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
-        for kind in ("bat", "flutter", "bindling", "smear", "sentry", "punctuation_wolf", "boss"):
-            name = f"{kind}_empowered.png"
+        emp_names = [
+            f"{kind}_empowered.png"
+            for kind in ("bat", "flutter", "bindling", "smear", "sentry", "punctuation_wolf", "boss")
+        ] + ["flutter_empowered_1.png", "flutter_empowered_2.png"]
+        for name in emp_names:
             path = os.path.join(base_path, name)
             if os.path.exists(path):
                 try:
@@ -4008,6 +4011,16 @@ class Renderer:
         elif not is_slug and not is_slug_boss and hasattr(actor, 'get_attack_hitbox'):
             self.draw_boss_weapon(actor, ox, oy)
 
+    @staticmethod
+    def _resolve_flutter_sprite_key(anim_t, base_state, is_empowered=False):
+        """Return the active 3-frame ping-pong [0, 1, 2, 1] FlutterEnemy sprite filename."""
+        is_moving = base_state in ("RUN", "CHASE", "WIND_UP", "STRIKE", "PATROLLING")
+        rate = 11.0 if is_moving else 5.5
+        cycle = (0, 1, 2, 1)
+        frame_idx = cycle[int(max(0.0, float(anim_t)) * rate) % len(cycle)]
+        prefix = "flutter_empowered" if is_empowered else "flutter"
+        return f"{prefix}.png" if frame_idx == 0 else f"{prefix}_{frame_idx}.png"
+
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
         """Draw image sprites or procedural basic-shape graphics for enemies and bosses."""
         from engine.enemy import (
@@ -4033,16 +4046,18 @@ class Renderer:
 
         is_boss = isinstance(actor, Boss) or bool(getattr(actor, "is_miniboss", False))
         is_smear = isinstance(actor, SmearEnemy) or "smear" in actor_tag
+        is_flutter = isinstance(actor, FlutterEnemy) or "flutter" in actor_tag
         is_event_champion = is_boss and any(
             tok in actor_tag for tok in ("overwritten", "champion", "censor", "event")
         )
+        flutter_bob_y = int(round(math.sin(anim_t * 7.0) * 2.0)) if is_flutter else 0
 
         if getattr(actor, "is_empowered", False):
             emp_key = None
             if isinstance(actor, BatEnemy) or "bat" in actor_tag:
                 emp_key = "bat_empowered.png"
-            elif isinstance(actor, FlutterEnemy) or "flutter" in actor_tag:
-                emp_key = "flutter_empowered.png"
+            elif is_flutter:
+                emp_key = self._resolve_flutter_sprite_key(anim_t, packet.get("base", "IDLE"), is_empowered=True)
             elif isinstance(actor, BindlingEnemy) or "bindling" in actor_tag:
                 emp_key = "bindling_empowered.png"
             elif is_smear:
@@ -4054,6 +4069,8 @@ class Renderer:
             elif is_boss or any(tag in actor_tag for tag in ("miniboss", "scribe", "binder", "boss", "author")):
                 emp_key = "boss_empowered.png"
             emp_surf = self.image_cache.get(emp_key) if emp_key else None
+            if emp_surf is None and is_flutter:
+                emp_surf = self.image_cache.get("flutter_empowered.png")
             if emp_surf is None and is_boss:
                 emp_surf = self.image_cache.get("event_champion.png") or self.image_cache.get("miniboss.png")
             if emp_surf is not None:
@@ -4063,7 +4080,7 @@ class Renderer:
                     emp_surf = pygame.transform.flip(emp_surf, True, False)
                 if is_smear:
                     self._draw_dark_enemy_ground_shadow(draw_rect)
-                self.screen.blit(emp_surf, draw_rect.topleft)
+                self.screen.blit(emp_surf, (draw_rect.left, draw_rect.top + flutter_bob_y))
                 if is_smear:
                     self._draw_dark_enemy_rim_highlight(draw_rect, is_empowered=True)
                 if is_telegraph:
@@ -4074,8 +4091,8 @@ class Renderer:
             base_key = None
             if isinstance(actor, BatEnemy) or "bat" in actor_tag:
                 base_key = "bat.png"
-            elif isinstance(actor, FlutterEnemy) or "flutter" in actor_tag:
-                base_key = "flutter.png"
+            elif is_flutter:
+                base_key = self._resolve_flutter_sprite_key(anim_t, packet.get("base", "IDLE"), is_empowered=False)
             elif isinstance(actor, BindlingEnemy) or "bindling" in actor_tag:
                 base_key = "bindling.png"
             elif is_smear:
@@ -4097,6 +4114,8 @@ class Renderer:
             ):
                 base_key = "miniboss.png"
             base_surf = self.image_cache.get(base_key) if base_key else None
+            if base_surf is None and is_flutter:
+                base_surf = self.image_cache.get("flutter.png")
             if base_surf is None and is_event_champion:
                 base_surf = self.image_cache.get("miniboss.png")
             if base_surf is not None:
@@ -4106,7 +4125,7 @@ class Renderer:
                     base_surf = pygame.transform.flip(base_surf, True, False)
                 if is_smear:
                     self._draw_dark_enemy_ground_shadow(draw_rect)
-                self.screen.blit(base_surf, draw_rect.topleft)
+                self.screen.blit(base_surf, (draw_rect.left, draw_rect.top + flutter_bob_y))
                 if is_smear:
                     self._draw_dark_enemy_rim_highlight(draw_rect, is_empowered=False)
                 if is_telegraph:
@@ -6100,20 +6119,34 @@ class Renderer:
                 sprite = pygame.transform.flip(sprite, True, False)
             self.screen.blit(sprite, dst_rect.topleft)
         elif isinstance(self.screen, pygame.Surface):
-            # Graceful procedural fallback: yellow slug body, pink dorsal stripe, crown
-            pygame.draw.ellipse(self.screen, (212, 174, 52), dst_rect)
-            stripe = pygame.Rect(dst_rect.centerx - sw_s // 8, dst_rect.top + sh_s // 4, sw_s // 4, sh_s // 2)
-            pygame.draw.ellipse(self.screen, (224, 86, 158), stripe)
-            crown_r = pygame.Rect(dst_rect.centerx - 16, dst_rect.top + 6, 32, 14)
-            pygame.draw.rect(self.screen, (214, 174, 58), crown_r, border_radius=2)
+            # Graceful procedural fallback: asymmetrical gastropod body, magenta mottling, plum-trimmed soft-gold crown
+            body_poly = [
+                (dst_rect.left + sw_s // 8, dst_rect.bottom - sh_s // 5),
+                (dst_rect.left + sw_s // 6, dst_rect.top + sh_s // 3),
+                (dst_rect.centerx, dst_rect.top + sh_s // 4),
+                (dst_rect.right - sw_s // 5, dst_rect.top + sh_s // 2),
+                (dst_rect.right - sw_s // 10, dst_rect.bottom - sh_s // 4),
+                (dst_rect.centerx, dst_rect.bottom - sh_s // 7),
+            ]
+            pygame.draw.polygon(self.screen, (206, 168, 50), body_poly)
+            pygame.draw.ellipse(
+                self.screen,
+                (198, 68, 136),
+                (dst_rect.centerx - sw_s // 6, dst_rect.top + sh_s // 3, sw_s // 3, sh_s // 3),
+            )
+            pygame.draw.ellipse(self.screen, (124, 42, 92), (dst_rect.centerx - 16, dst_rect.top + 14, 28, 7))
+            crown_r = pygame.Rect(dst_rect.centerx - 18, dst_rect.top + 6, 32, 14)
+            pygame.draw.rect(self.screen, (222, 184, 72), crown_r, border_radius=2)
+            pygame.draw.rect(self.screen, (176, 140, 56), crown_r, 2, border_radius=2)
 
     def _draw_slug_boss_crown(self, sx_o, sy_o, prop_cache):
-        """Render the persistent non-interactive tarnished golden crown left after SlugBoss death."""
+        """Render the persistent non-interactive soft burnished-gold crown left after SlugBoss death."""
         tx_i, ty_i = int(sx_o), int(sy_o)
         crown_surf = prop_cache.get("SlugBossCrown") or self.image_cache.get("slug_boss_crown.png")
         if crown_surf is not None:
             self.screen.blit(crown_surf, (tx_i, ty_i))
         elif isinstance(self.screen, pygame.Surface):
+            pygame.draw.ellipse(self.screen, (132, 48, 98), (tx_i + 10, ty_i + 13, 24, 10))
             pts = [
                 (tx_i + 8, ty_i + 24),
                 (tx_i + 6, ty_i + 10),
@@ -6123,8 +6156,9 @@ class Renderer:
                 (tx_i + 38, ty_i + 9),
                 (tx_i + 36, ty_i + 24),
             ]
-            pygame.draw.polygon(self.screen, (206, 166, 54), pts)
-            pygame.draw.polygon(self.screen, (78, 56, 18), pts, 2)
+            pygame.draw.polygon(self.screen, (218, 180, 68), pts)
+            pygame.draw.polygon(self.screen, (176, 140, 56), pts, 2)
+            pygame.draw.line(self.screen, (244, 222, 132), (tx_i + 10, ty_i + 22), (tx_i + 27, ty_i + 22), 2)
 
     def _draw_meadow_censor_boss(self, actor, draw_rect, packet):
         """Render the 104x104 Pastoral Valley Night Boss with Phase 2 violet/gold aura & hooked scythe sweep."""

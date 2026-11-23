@@ -2860,6 +2860,96 @@ def generate_tree_structure(
     return surface
 
 
+def generate_flutter_frame(
+    frame: int = 0,
+    empowered: bool = False,
+    width: int = 40,
+    height: int = 40,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 SRCALPHA wing-pose frame (0=mid, 1=upstroke, 2=downstroke) for FlutterEnemy."""
+    f_idx = int(frame) % 3
+    tag = f"flutter_{'empowered_' if empowered else ''}{f_idx}"
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, tag)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    if empowered:
+        wing_fill = (36, 32, 42, 255)
+        wing_hi = (58, 44, 66, 255)
+        wing_edge = (186, 36, 68, 255)
+        spine_col = (18, 14, 22, 255)
+        script_col = (155, 65, 220, 220)
+        seal_col = (242, 74, 108, 255)
+        glint_col = (255, 198, 220, 255)
+    else:
+        wing_fill = (198, 184, 152, 255)
+        wing_hi = (224, 212, 182, 255)
+        wing_edge = (88, 76, 58, 255)
+        spine_col = (118, 102, 78, 255)
+        script_col = (56, 50, 46, 220)
+        seal_col = (152, 46, 48, 255)
+        glint_col = (238, 148, 134, 255)
+
+    if f_idx == 0:
+        # Frame 0: Wings spread mid-stroke with fluttering parchment corner curl
+        left_wing = [(cx, cy - 8), (5, cy - 11), (3, cy + 5), (12, cy + 10), (cx, cy + 8)]
+        right_wing = [(cx, cy - 8), (width - 6, cy - 12), (width - 4, cy + 4), (width - 11, cy + 11), (cx, cy + 8)]
+        seal_pos = (cx + 4, cy + 3)
+        glint_pos = (cx + 3, cy + 2)
+        mote_pts = ((6, cy - 12), (width - 7, cy + 11))
+    elif f_idx == 1:
+        # Frame 1: Wings arched high on the upstroke with tucked lower corners & shifted wax-seal glint
+        left_wing = [(cx, cy - 4), (6, 4), (4, 15), (13, cy + 5), (cx, cy + 9)]
+        right_wing = [(cx, cy - 4), (width - 7, 3), (width - 5, 14), (width - 13, cy + 5), (cx, cy + 9)]
+        seal_pos = (cx + 3, cy + 4)
+        glint_pos = (cx + 4, cy + 2)
+        mote_pts = ((5, 6), (width - 6, 6))
+    else:
+        # Frame 2: Wings swept low/forward on the downstroke with arched spine crease
+        left_wing = [(cx, cy - 10), (9, cy - 3), (4, height - 6), (13, height - 4), (cx, cy + 5)]
+        right_wing = [
+            (cx, cy - 10), (width - 10, cy - 3), (width - 5, height - 6),
+            (width - 14, height - 4), (cx, cy + 5),
+        ]
+        seal_pos = (cx + 2, cy)
+        glint_pos = (cx + 1, cy - 1)
+        mote_pts = ((7, height - 5), (width - 8, height - 5))
+
+    # Draw left & right parchment wing lobes
+    for poly in (left_wing, right_wing):
+        pygame.draw.polygon(surf, wing_fill, poly)
+        pygame.draw.polygon(surf, wing_edge, poly, 1)
+
+    # Subtle highlight curl along upper leading edges
+    pygame.draw.line(surf, wing_hi, left_wing[0], left_wing[1], 1)
+    pygame.draw.line(surf, wing_hi, right_wing[0], right_wing[1], 1)
+
+    # Central manuscript spine crease
+    spine_top = (cx, min(left_wing[0][1], right_wing[0][1]))
+    spine_bot = (cx, max(left_wing[-1][1], right_wing[-1][1]))
+    pygame.draw.line(surf, spine_col, spine_top, spine_bot, 2)
+
+    # Charcoal/violet script lines following wing tilt
+    tilt = 0 if f_idx == 0 else (-3 if f_idx == 1 else 3)
+    for row_off in (-4, 0, 4):
+        ly = cy + row_off
+        jit_l = gen.randint(0, 2)
+        jit_r = gen.randint(0, 2)
+        pygame.draw.line(surf, script_col, (cx - 3, ly), (cx - 11 + jit_l, ly + tilt), 1)
+        pygame.draw.line(surf, script_col, (cx + 3, ly), (cx + 11 - jit_r, ly + tilt), 1)
+
+    # Wax seal + glint & trailing ink motes
+    pygame.draw.circle(surf, seal_col, seal_pos, 3)
+    surf.set_at(glint_pos, glint_col)
+    mote_col = (155, 65, 220, 235) if empowered else (48, 44, 52, 220)
+    for mx, my in mote_pts:
+        if 0 <= mx < width and 0 <= my < height:
+            pygame.draw.circle(surf, mote_col, (mx, my), 1)
+    return surf
+
+
 def generate_base_enemy_sprite(
     kind: str,
     width: int = 40,
@@ -2891,16 +2981,7 @@ def generate_base_enemy_sprite(
         return surf
 
     if kind == "flutter":
-        # Loose aged-parchment manuscript page with charcoal script lines & wax seal
-        page_poly = [(8, 8), (width - 10, 6), (width - 6, height - 10), (10, height - 7)]
-        pygame.draw.polygon(surf, (198, 184, 152, 255), page_poly)
-        pygame.draw.polygon(surf, (88, 76, 58, 255), page_poly, 1)
-        for ly in range(12, height - 12, 4):
-            pygame.draw.line(surf, (56, 50, 46, 220), (12, ly), (width - 12 - rng.randint(0, 5), ly), 1)
-        pygame.draw.circle(surf, (148, 46, 46, 255), (cx + 4, cy + 4), 3)
-        surf.set_at((7, 14), (48, 44, 52, 220))
-        surf.set_at((width - 7, height - 14), (48, 44, 52, 220))
-        return surf
+        return generate_flutter_frame(frame=0, empowered=False, width=width, height=height, rng=rng)
 
     if kind == "bindling":
         # Stitched leather-and-twine book-construct crawler
@@ -4211,30 +4292,72 @@ def generate_swamp_spore_pod(
 def generate_slug_boss(
     width: int = 112, height: int = 112, rng: random.Random = None
 ) -> pygame.Surface:
-    """Generate a 112x112 crowned yellow/pink sword-pierced Swamp Night Boss slug sprite."""
+    """Generate a 112x112 organic asymmetrical gastropod Swamp Night Boss with 3 embedded blades and soft-gold crown."""
     gen = rng if rng is not None else random.Random(2044)
     surf = pygame.Surface((width, height), pygame.SRCALPHA)
     surf.fill((0, 0, 0, 0))
     cx = width // 2
 
-    # Ground slime shadow under massive slug belly
-    pygame.draw.ellipse(surf, (18, 12, 24, 130), (10, height - 26, width - 20, 20))
-    pygame.draw.ellipse(surf, (88, 128, 36, 90), (16, height - 22, width - 32, 14))
+    # 1. Ground slime trail & asymmetrical wet contact shadow under heavy foot & curled tail
+    pygame.draw.ellipse(surf, (18, 12, 24, 128), (10, height - 25, width - 16, 19))
+    pygame.draw.ellipse(surf, (92, 138, 38, 100), (18, height - 21, width - 22, 13))
+    pygame.draw.ellipse(surf, (132, 186, 56, 78), (66, height - 18, 38, 9))
 
-    # Muscular ochre-yellow slug foot & bloated domed body
-    foot_rect = pygame.Rect(14, height - 38, width - 28, 24)
-    body_rect = pygame.Rect(14, 28, width - 28, height - 50)
-    pygame.draw.ellipse(surf, (166, 126, 30, 255), foot_rect)
-    pygame.draw.ellipse(surf, (212, 174, 52, 255), body_rect)
-    # Shaded lower-right belly & glossy yellow upper-left flank highlight
-    pygame.draw.ellipse(surf, (176, 136, 36, 255), (cx - 10, 46, width // 2 - 4, height - 70))
-    pygame.draw.ellipse(surf, (242, 214, 102, 255), (22, 36, 26, 20))
-    pygame.draw.ellipse(surf, (56, 38, 16, 255), body_rect, 2)
+    # 2. Undulating wet muscular gastropod foot-skirt & curled fleshy tail lobe on the east side
+    foot_skirt = [
+        (12, 82), (18, 91), (28, 88), (38, 94), (50, 91), (62, 95),
+        (74, 90), (88, 92), (101, 84), (104, 74), (96, 66), (86, 72),
+        (80, 77), (16, 76),
+    ]
+    pygame.draw.polygon(surf, (146, 110, 28, 255), foot_skirt)
+    pygame.draw.lines(
+        surf, (194, 158, 56, 230), False,
+        [(16, 86), (28, 85), (40, 89), (54, 87), (68, 89), (84, 86), (97, 81)], 2,
+    )
+    pygame.draw.polygon(surf, (64, 46, 20, 255), foot_skirt, 1)
 
-    # Organic mucus mottling on ochre body
-    for _ in range(36):
-        gx = gen.randint(20, width - 21)
-        gy = gen.randint(36, height - 28)
+    # 3. Organic asymmetrical heavy gastropod body & bulbous mantle folds (head leaning forward-left, curled rear)
+    body_poly = [
+        (14, 78), (11, 63), (15, 45), (25, 33), (40, 27), (56, 28),
+        (71, 35), (82, 47), (87, 61), (95, 65), (99, 73), (92, 82),
+        (77, 86), (56, 88), (32, 86),
+    ]
+    pygame.draw.polygon(surf, (206, 168, 50, 255), body_poly)
+    # Layered bulbous mantle folds & lower-right belly weight
+    pygame.draw.ellipse(surf, (220, 184, 62, 255), (18, 32, 52, 40))
+    pygame.draw.ellipse(surf, (194, 156, 44, 255), (42, 38, 44, 40))
+    pygame.draw.ellipse(surf, (166, 128, 34, 255), (50, 54, 38, 30))
+    # Curled fleshy tail ridge
+    pygame.draw.ellipse(surf, (192, 154, 46, 255), (76, 62, 24, 20))
+    pygame.draw.arc(surf, (124, 92, 26, 220), (74, 62, 24, 18), 3.4, 6.0, 2)
+    # Soft belly crease folds
+    pygame.draw.arc(surf, (132, 98, 28, 200), (20, 58, 38, 22), 3.3, 5.7, 2)
+    pygame.draw.arc(surf, (132, 98, 28, 190), (46, 60, 34, 20), 3.5, 5.9, 2)
+    pygame.draw.polygon(surf, (62, 44, 18, 255), body_poly, 2)
+
+    # 4. Irregular bruised-magenta dorsal mottling & organic blotches (asymmetrical, not a straight stripe)
+    blotches = (
+        [(36, 32), (51, 31), (59, 44), (50, 56), (34, 52), (30, 41)],
+        [(46, 48), (64, 46), (72, 60), (63, 75), (48, 74), (42, 61)],
+        [(64, 60), (79, 59), (84, 70), (74, 78), (62, 72)],
+        [(26, 50), (37, 48), (40, 62), (28, 65)],
+    )
+    for b_idx, poly in enumerate(blotches):
+        outer_c = (158, 44, 106, 255) if b_idx % 2 == 0 else (142, 38, 98, 255)
+        pygame.draw.polygon(surf, outer_c, poly)
+    pygame.draw.ellipse(surf, (214, 82, 150, 240), (36, 36, 18, 16))
+    pygame.draw.ellipse(surf, (224, 94, 160, 235), (48, 52, 19, 18))
+    pygame.draw.ellipse(surf, (198, 68, 136, 230), (66, 64, 13, 10))
+    # Wet glistening slime specular highlights along curved dorsal dome
+    pygame.draw.ellipse(surf, (248, 228, 136, 235), (22, 39, 14, 8))
+    pygame.draw.arc(surf, (252, 240, 178, 220), (24, 34, 34, 20), 1.2, 2.7, 2)
+    pygame.draw.ellipse(surf, (246, 166, 208, 210), (42, 40, 7, 4))
+    pygame.draw.ellipse(surf, (248, 232, 146, 215), (82, 67, 10, 5))
+
+    # Organic skin mucus speckles
+    for _ in range(38):
+        gx = gen.randint(18, width - 18)
+        gy = gen.randint(34, height - 26)
         col = surf.get_at((gx, gy))
         if col.a > 200:
             delta = gen.randint(-12, 12)
@@ -4248,82 +4371,82 @@ def generate_slug_boss(
                 ),
             )
 
-    # Vibrant bruised-pink dorsal stripe running down center back
-    stripe_outer = [
-        (cx - 12, 31), (cx + 12, 31),
-        (cx + 16, 56), (cx + 13, 82),
-        (cx, 88), (cx - 13, 82),
-        (cx - 16, 56),
-    ]
-    stripe_inner = [
-        (cx - 6, 35), (cx + 6, 35),
-        (cx + 8, 58), (cx + 5, 80),
-        (cx - 5, 80), (cx - 8, 58),
-    ]
-    pygame.draw.polygon(surf, (168, 46, 112, 255), stripe_outer)
-    pygame.draw.polygon(surf, (224, 86, 158, 255), stripe_inner)
-    pygame.draw.line(surf, (248, 158, 206, 255), (cx, 38), (cx, 78), 2)
+    # 5. Three asymmetrically embedded blades (varying lengths, angles, and insertion depths)
+    blade_metal = (182, 192, 204, 255)
+    blade_dark = (78, 86, 100, 255)
+    hilt_gold = (196, 160, 68, 255)
+    hilt_wrap = (88, 44, 52, 255)
 
-    # Multiple embedded swords protruding at angles from back and flanks
-    blade_metal = (176, 186, 198, 255)
-    blade_dark = (74, 82, 96, 255)
-    hilt_gold = (196, 158, 62, 255)
-    hilt_wrap = (82, 42, 48, 255)
-    swords = (
-        ((30, 56), (12, 32), (-1, -1)),
-        ((82, 54), (100, 30), (1, -1)),
-        ((26, 74), (8, 62), (-1, 0)),
-        ((86, 72), (104, 60), (1, 0)),
-    )
-    for (ex, ey), (hx, hy), (sx_d, _sy_d) in swords:
-        # Oozing entry wound bead
-        pygame.draw.ellipse(surf, (124, 188, 52, 255), (ex - 5, ey - 3, 10, 6))
-        # Blade stub entering flesh
-        mx, my = (ex + hx) // 2, (ey + hy) // 2
-        pygame.draw.line(surf, blade_dark, (ex, ey), (mx, my), 5)
-        pygame.draw.line(surf, blade_metal, (ex, ey), (mx, my), 3)
-        # Crossguard perpendicular to blade
-        dx, dy = hx - ex, hy - ey
-        mag = math.hypot(dx, dy) or 1.0
-        px, py = -dy / mag, dx / mag
-        gx1, gy1 = int(mx - px * 7), int(my - py * 7)
-        gx2, gy2 = int(mx + px * 7), int(my + py * 7)
-        pygame.draw.line(surf, hilt_gold, (gx1, gy1), (gx2, gy2), 3)
-        # Grip & pommel
-        pygame.draw.line(surf, hilt_wrap, (mx, my), (hx, hy), 3)
-        pygame.draw.circle(surf, hilt_gold, (hx, hy), 3)
-        if sx_d < 0:
-            surf.set_at((mx, my), (232, 240, 248, 255))
+    # Blade A: Crooked broken broadsword jutting high from left shoulder
+    a_entry, a_mid, a_hilt = (30, 50), (20, 32), (12, 19)
+    pygame.draw.ellipse(surf, (124, 188, 52, 255), (a_entry[0] - 6, a_entry[1] - 3, 12, 6))
+    pygame.draw.line(surf, blade_dark, a_entry, a_mid, 7)
+    pygame.draw.line(surf, blade_metal, a_entry, a_mid, 4)
+    pygame.draw.line(surf, (232, 240, 248, 255), (27, 46), (21, 35), 1)
+    pygame.draw.line(surf, hilt_gold, (12, 36), (27, 27), 4)
+    pygame.draw.line(surf, hilt_wrap, a_mid, a_hilt, 4)
+    pygame.draw.circle(surf, hilt_gold, a_hilt, 4)
 
-    # Expressive eye-stalks & angry sunken eyes at head front
-    for side in (-1, 1):
-        ex_b = cx + side * 14
-        ey_b = 34
-        ex_t = cx + side * 20
-        ey_t = 18
-        pygame.draw.line(surf, (166, 126, 30, 255), (ex_b, ey_b), (ex_t, ey_t), 5)
-        pygame.draw.line(surf, (226, 190, 64, 255), (ex_b, ey_b), (ex_t, ey_t), 3)
-        pygame.draw.circle(surf, (44, 28, 20, 255), (ex_t, ey_t), 5)
-        pygame.draw.circle(surf, (242, 236, 188, 255), (ex_t, ey_t), 3)
-        surf.set_at((ex_t + side, ey_t), (24, 14, 24, 255))
+    # Blade B: Notched dagger wedged low and shallow in the lower-right flank
+    b_entry, b_mid, b_hilt = (81, 71), (92, 65), (103, 59)
+    pygame.draw.ellipse(surf, (118, 180, 50, 255), (b_entry[0] - 4, b_entry[1] - 3, 9, 6))
+    pygame.draw.line(surf, blade_dark, b_entry, b_mid, 4)
+    pygame.draw.line(surf, blade_metal, b_entry, b_mid, 2)
+    pygame.draw.line(surf, (152, 124, 54, 255), (89, 59), (95, 70), 3)
+    pygame.draw.line(surf, hilt_wrap, b_mid, b_hilt, 3)
+    pygame.draw.circle(surf, hilt_gold, b_hilt, 2)
 
-    # Tarnished golden crown perched atop the slug's head
+    # Blade C: Bent rapier hilt protruding obliquely from the rear upper mantle
+    c_entry, c_mid, c_hilt = (67, 41), (81, 30), (94, 22)
+    pygame.draw.ellipse(surf, (130, 192, 54, 255), (c_entry[0] - 5, c_entry[1] - 3, 10, 5))
+    pygame.draw.line(surf, blade_dark, c_entry, c_mid, 4)
+    pygame.draw.line(surf, (206, 216, 228, 255), c_entry, c_mid, 2)
+    pygame.draw.arc(surf, hilt_gold, (74, 23, 14, 14), 0.4, 3.6, 2)
+    pygame.draw.line(surf, (74, 40, 62, 255), c_mid, c_hilt, 2)
+    pygame.draw.circle(surf, (222, 188, 86, 255), c_hilt, 3)
+
+    # 6. Expressive asymmetrical eye-stalks rising from forward-left head
+    for (ex_b, ey_b), (ex_t, ey_t), pupil_dx in (
+        ((cx - 18, 36), (cx - 26, 18), -1),
+        ((cx + 2, 34), (cx + 8, 17), 1),
+    ):
+        pygame.draw.line(surf, (162, 124, 34, 255), (ex_b, ey_b), (ex_t, ey_t), 5)
+        pygame.draw.line(surf, (224, 188, 66, 255), (ex_b, ey_b), (ex_t, ey_t), 3)
+        pygame.draw.circle(surf, (56, 38, 24, 255), (ex_t, ey_t), 5)
+        pygame.draw.circle(surf, (244, 238, 192, 255), (ex_t, ey_t), 3)
+        surf.set_at((ex_t + pupil_dx, ey_t), (24, 14, 24, 255))
+
+    # 7. Soft burnished-gold crown perched atop head with plum-velvet inner cap trim (low-contrast edge)
+    crown_cx = cx - 7
+    # Subtle plum/magenta velvet inner cap doming behind the gold prongs & trimming the lower cushion base
+    pygame.draw.ellipse(surf, (124, 42, 92, 255), (crown_cx - 14, 11, 28, 14))
+    pygame.draw.ellipse(surf, (166, 62, 122, 245), (crown_cx - 10, 12, 20, 9))
+    pygame.draw.ellipse(surf, (124, 42, 92, 255), (crown_cx - 16, 26, 31, 6))
     crown_pts = [
-        (cx - 16, 28),
-        (cx - 18, 12),
-        (cx - 8, 20),
-        (cx, 8),
-        (cx + 8, 20),
-        (cx + 18, 12),
-        (cx + 16, 28),
+        (crown_cx - 16, 28),
+        (crown_cx - 18, 13),
+        (crown_cx - 8, 20),
+        (crown_cx, 8),
+        (crown_cx + 8, 20),
+        (crown_cx + 17, 13),
+        (crown_cx + 15, 28),
     ]
-    pygame.draw.polygon(surf, (214, 174, 58, 255), crown_pts)
-    pygame.draw.polygon(surf, (132, 98, 28, 255), crown_pts, 2)
-    pygame.draw.line(surf, (250, 228, 134, 255), (cx - 14, 25), (cx + 14, 25), 2)
+    crown_shade = [
+        (crown_cx, 28),
+        (crown_cx, 9),
+        (crown_cx + 8, 20),
+        (crown_cx + 17, 13),
+        (crown_cx + 15, 28),
+    ]
+    pygame.draw.polygon(surf, (222, 184, 72, 255), crown_pts)
+    pygame.draw.polygon(surf, (192, 156, 68, 255), crown_shade)
+    pygame.draw.polygon(surf, (176, 140, 56, 255), crown_pts, 2)
+    pygame.draw.line(surf, (244, 222, 132, 255), (crown_cx - 14, 25), (crown_cx + 13, 25), 2)
+    pygame.draw.line(surf, (244, 222, 132, 235), (crown_cx - 16, 15), (crown_cx - 15, 24), 1)
     for jx, jy, jcol in (
-        (cx, 20, (218, 62, 138, 255)),
-        (cx - 10, 24, (138, 212, 62, 255)),
-        (cx + 10, 24, (138, 212, 62, 255)),
+        (crown_cx, 20, (218, 66, 142, 255)),
+        (crown_cx - 10, 24, (132, 204, 62, 255)),
+        (crown_cx + 10, 24, (132, 204, 62, 255)),
     ):
         pygame.draw.circle(surf, jcol, (jx, jy), 2)
 
@@ -4333,17 +4456,20 @@ def generate_slug_boss(
 def generate_slug_boss_crown(
     width: int = 44, height: int = 32, rng: random.Random = None
 ) -> pygame.Surface:
-    """Generate a 44x32 tarnished golden crown resting tilted on the ground after SlugBoss death."""
+    """Generate a 44x32 soft burnished-gold crown resting tilted on the ground after SlugBoss death."""
     _ = rng
     surf = pygame.Surface((width, height), pygame.SRCALPHA)
     surf.fill((0, 0, 0, 0))
     cx = width // 2
 
     # Soft ground shadow & tiny residual chartreuse slime puddle beneath fallen crown
-    pygame.draw.ellipse(surf, (14, 8, 20, 124), (5, height - 10, width - 10, 8))
+    pygame.draw.ellipse(surf, (14, 8, 20, 118), (5, height - 10, width - 10, 8))
     pygame.draw.ellipse(surf, (112, 158, 46, 95), (9, height - 9, width - 18, 6))
 
-    # Slightly tilted tarnished medieval crown circlet
+    # Subtle plum velvet inner cap lining peeking behind crown prongs
+    pygame.draw.ellipse(surf, (132, 48, 98, 240), (10, 13, width - 20, 10))
+
+    # Slightly tilted burnished antique-gold crown circlet (low-contrast edge, warm highlights)
     crown_pts = [
         (8, height - 8),
         (6, 10),
@@ -4353,8 +4479,6 @@ def generate_slug_boss_crown(
         (width - 6, 9),
         (width - 8, height - 8),
     ]
-    pygame.draw.polygon(surf, (206, 166, 54, 255), crown_pts)
-    # Tarnished right-side shadow & oxidized patina
     tarnish_pts = [
         (cx, height - 8),
         (cx, 6),
@@ -4362,11 +4486,13 @@ def generate_slug_boss_crown(
         (width - 6, 9),
         (width - 8, height - 8),
     ]
-    pygame.draw.polygon(surf, (154, 118, 34, 255), tarnish_pts)
-    pygame.draw.polygon(surf, (78, 56, 18, 255), crown_pts, 2)
-    pygame.draw.line(surf, (248, 224, 128, 255), (10, height - 10), (cx + 4, height - 10), 2)
+    pygame.draw.polygon(surf, (218, 180, 68, 255), crown_pts)
+    pygame.draw.polygon(surf, (188, 152, 66, 255), tarnish_pts)
+    pygame.draw.polygon(surf, (176, 140, 56, 255), crown_pts, 2)
+    pygame.draw.line(surf, (244, 222, 132, 255), (10, height - 10), (cx + 5, height - 10), 2)
+    pygame.draw.line(surf, (244, 222, 132, 230), (8, 12), (9, height - 10), 1)
 
-    # Crown jewel studs
+    # Crown jewel studs (center jewel covers (22, 16) cleanly)
     pygame.draw.circle(surf, (216, 66, 142, 255), (cx, 17), 3)
     pygame.draw.circle(surf, (248, 174, 212, 255), (cx - 1, 16), 1)
     pygame.draw.circle(surf, (132, 204, 58, 255), (13, 19), 2)
@@ -5645,6 +5771,16 @@ def generate_all_assets(
             "sanctuary_roof_tile_3",
             generate_sanctuary_roof_tile(TILE_WIDTH, TILE_HEIGHT, rng=_rng("sanctuary_roof_tile_3"), variant=3),
         ),
+        ("flutter_1", generate_flutter_frame(1, empowered=False, width=40, height=40, rng=_rng("flutter_1"))),
+        ("flutter_2", generate_flutter_frame(2, empowered=False, width=40, height=40, rng=_rng("flutter_2"))),
+        (
+            "flutter_empowered_1",
+            generate_flutter_frame(1, empowered=True, width=40, height=40, rng=_rng("flutter_empowered_1")),
+        ),
+        (
+            "flutter_empowered_2",
+            generate_flutter_frame(2, empowered=True, width=40, height=40, rng=_rng("flutter_empowered_2")),
+        ),
         ("barrel_0", generate_barrel_frame(0, TILE_WIDTH, TILE_HEIGHT, rng=_rng("barrel_0"))),
         ("barrel_1", generate_barrel_frame(1, TILE_WIDTH, TILE_HEIGHT, rng=_rng("barrel_1"))),
         ("barrel_2", generate_barrel_frame(2, TILE_WIDTH, TILE_HEIGHT, rng=_rng("barrel_2"))),
@@ -5785,13 +5921,7 @@ def generate_empowered_enemy_sprite(
         pygame.draw.circle(surf, bright_crimson, (cx - 3, cy - 2), 2)
         pygame.draw.circle(surf, bright_crimson, (cx + 3, cy - 2), 2)
     elif kind == "flutter":
-        pygame.draw.polygon(surf, charcoal, [(cx - 4, cy), (3, 6), (6, height - 8)])
-        pygame.draw.polygon(surf, charcoal, [(cx + 4, cy), (width - 4, 6), (width - 7, height - 8)])
-        core = pygame.Rect(cx - width // 5, cy - height // 5, width * 2 // 5, height * 2 // 5)
-        pygame.draw.rect(surf, obsidian, core, border_radius=3)
-        pygame.draw.rect(surf, crimson, core, 2, border_radius=3)
-        pygame.draw.circle(surf, eclipse_violet, (cx - 10, 8), 2)
-        pygame.draw.circle(surf, bright_crimson, (cx + 10, height - 9), 2)
+        return generate_flutter_frame(frame=0, empowered=True, width=width, height=height, rng=rng)
     elif kind == "bindling":
         body = pygame.Rect(6, 5, width - 12, height - 10)
         pygame.draw.rect(surf, obsidian, body, border_radius=6)
