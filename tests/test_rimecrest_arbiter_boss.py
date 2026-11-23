@@ -162,15 +162,26 @@ def test_frost_breath_encasement_vulnerability_3_dash_breakout_and_ice_rubble():
         boss.combat_timer = 1.5
         state.enemies = [boss]
 
-        # Tick Frost Breath cone until player reaches >= 1.0 frost_exposure and becomes encased
-        for _ in range(14):
-            boss._update_strike(0.1, state)
-            if state.player.frozen_hits_remaining > 0:
-                break
+        # Hit 1 via Frost Breath applies 0.5 chill once per breath attack and starts the 10.0s window
+        boss._update_strike(0.1, state)
+        boss._update_strike(0.1, state)
         assert constants.FROST_BREATH_SFX in audio.sfx_played
-        assert state.player.frozen_hits_remaining == constants.FROZEN_ICE_BLOCK_HITS
-        assert state.player.just_cracked_ice is True
+        assert state.player.frost_exposure == pytest.approx(constants.RIMECREST_CHILL_HIT_AMOUNT)
+        assert state.player.frost_window_timer == pytest.approx(constants.RIMECREST_FREEZE_WINDOW)
+        assert state.player.frozen_hits_remaining == 0
         assert state.player.hp < state.player.max_hp  # Light chill damage applied
+
+        # Complete breath strike so per-attack hit flag resets, then Hit 2 within 10s freezes the player
+        boss._update_strike(1.5, state)
+        assert boss.state != ActorState.STRIKE
+        boss.attack_mode = "FROST_BREATH"
+        boss.state = ActorState.STRIKE
+        boss.combat_timer = 1.5
+        boss._update_strike(0.1, state)
+        assert state.player.frozen_hits_remaining == constants.FROZEN_ICE_BLOCK_HITS
+        assert state.player.frost_exposure == 0.0
+        assert state.player.frost_window_timer == 0.0
+        assert state.player.just_cracked_ice is True
 
         # Encased player cannot move, attack, block, or dash away, AND remains fully vulnerable to consecutive hits
         start_x, start_y = state.player.x, state.player.y
@@ -229,17 +240,24 @@ def test_frost_breath_encasement_vulnerability_3_dash_breakout_and_ice_rubble():
         state._update_shared_world(2.6)
         assert not any(d.get("name") == "IceRubble" for d in state.world_debris)
 
-        # Unfrozen frost exposure decays naturally and resets in Sanctuary / respawn
-        state.player.apply_frost_exposure(0.6)
-        assert state.player.frost_exposure == pytest.approx(0.6)
-        state._update_player_lifecycle(0.5, {**base_actions, "move": (0.0, 0.0), "dash": False, "attack": False, "block": False}, False, audio)
-        assert state.player.frost_exposure < 0.6
+        # Chill mark holds steady at 0.5 across the 10.0s window, clears after 10.0s, and resets in Sanctuary
+        idle_actions = {**base_actions, "move": (0.0, 0.0), "dash": False, "attack": False, "block": False}
+        state.player.apply_frost_exposure(constants.RIMECREST_CHILL_HIT_AMOUNT)
+        assert state.player.frost_exposure == pytest.approx(0.5)
+        assert state.player.frost_window_timer == pytest.approx(constants.RIMECREST_FREEZE_WINDOW)
+        state._update_player_lifecycle(4.0, idle_actions, False, audio)
+        assert state.player.frost_exposure == pytest.approx(0.5)
+        assert state.player.frost_window_timer == pytest.approx(6.0)
+        state._update_player_lifecycle(6.1, idle_actions, False, audio)
+        assert state.player.frost_exposure == 0.0
+        assert state.player.frost_window_timer == 0.0
 
         state.player.apply_frost_exposure(1.0)
         assert state.player.frozen_hits_remaining == 3
         state.on_enter_sanctuary()
         assert state.player.frozen_hits_remaining == 0
         assert state.player.frost_exposure == 0.0
+        assert state.player.frost_window_timer == 0.0
     finally:
         state.shutdown_save_worker(timeout=1.0)
 

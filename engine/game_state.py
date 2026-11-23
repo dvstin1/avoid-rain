@@ -2096,13 +2096,19 @@ class GameState:
                 return
 
             move_dir = actions.get('move', (0, 0))
-            if self.menu_nav_cooldown <= 0:
+            if not self.input_ratchet_latched and self.menu_nav_cooldown <= 0:
                 if move_dir[1] > 0.6:
                     self.respite_selection_idx = self._get_next_respite_idx(self.respite_selection_idx)
-                    self.menu_nav_cooldown = 0.10
+                    self.input_ratchet_latched = True
+                    self.menu_nav_cooldown = 0.2
+                    if audio_manager:
+                        audio_manager.play_sfx("menu_navigate.ogg")
                 elif move_dir[1] < -0.6:
                     self.respite_selection_idx = self._get_prev_respite_idx(self.respite_selection_idx)
-                    self.menu_nav_cooldown = 0.10
+                    self.input_ratchet_latched = True
+                    self.menu_nav_cooldown = 0.2
+                    if audio_manager:
+                        audio_manager.play_sfx("menu_navigate.ogg")
             if attack_pressed and not self.input_ratchet_latched:
                 self.input_ratchet_latched = True
                 if self.respite_selection_idx == 0:

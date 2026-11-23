@@ -83,6 +83,7 @@ class Player:
 
         # Frozen Peaks frost exposure & Ice Block encasement state
         self.frost_exposure = 0.0
+        self.frost_window_timer = 0.0
         self.frozen_hits_remaining = 0
         self.frozen_dash_latched = False
         self.just_cracked_ice = False
@@ -92,6 +93,7 @@ class Player:
     def reset_frost_state(self):
         """Clear all frost exposure and Ice Block encasement state."""
         self.frost_exposure = 0.0
+        self.frost_window_timer = 0.0
         self.frozen_hits_remaining = 0
         self.frozen_dash_latched = False
         self.just_cracked_ice = False
@@ -99,13 +101,14 @@ class Player:
         self._last_dash_held = False
 
     def apply_frost_exposure(self, amount, dash_held=None):
-        """Accumulate frost exposure; at >= 1.0 encase the player in a 3-Dash Ice Block."""
+        """Accumulate frost chill within a 10s window; at >= 1.0 encase the player in a 3-Dash Ice Block."""
         if self.frozen_hits_remaining > 0 or amount <= 0.0:
             return False
-        from constants import FROZEN_ICE_BLOCK_HITS
+        from constants import FROZEN_ICE_BLOCK_HITS, RIMECREST_FREEZE_WINDOW
         self.frost_exposure = max(0.0, float(self.frost_exposure) + float(amount))
         if self.frost_exposure >= 1.0:
             self.frost_exposure = 0.0
+            self.frost_window_timer = 0.0
             self.frozen_hits_remaining = int(FROZEN_ICE_BLOCK_HITS)
             held = self._last_dash_held if dash_held is None else bool(dash_held)
             self.frozen_dash_latched = bool(held)
@@ -117,6 +120,7 @@ class Player:
             self.attack_timer = 0.0
             self.dash_timer = 0.0
             return True
+        self.frost_window_timer = float(RIMECREST_FREEZE_WINDOW)
         return False
 
     def swap_weapon(self, audio_manager=None):
@@ -208,7 +212,6 @@ class Player:
             DASH_SUBSTEP_MAX_PX,
             BLOCK_SPEED_MULTIPLIER,
             PARRY_WINDOW,
-            FROZEN_EXPOSURE_DECAY_RATE,
         )
         world_pixel_width = world_width if world_width is not None else GRID_WIDTH * TILE_SIZE
         world_pixel_height = world_height if world_height is not None else GRID_HEIGHT * TILE_SIZE
@@ -242,9 +245,11 @@ class Player:
                 self.frozen_dash_latched = False
             return False
 
-        # Decay frost exposure when not encased
-        if self.frost_exposure > 0.0:
-            self.frost_exposure = max(0.0, self.frost_exposure - FROZEN_EXPOSURE_DECAY_RATE * dt)
+        # Tick 10-second frost chill window (holds HUD bar steady until window expires)
+        if self.frost_window_timer > 0.0:
+            self.frost_window_timer = max(0.0, self.frost_window_timer - dt)
+            if self.frost_window_timer <= 0.0:
+                self.frost_exposure = 0.0
         self.frozen_dash_latched = False
 
         if self.state == PlayerStateEnum.STAGGERED:

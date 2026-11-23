@@ -1779,6 +1779,7 @@ class RimecrestArbiterBoss(NightBoss):
         self.phase = 1
         self.minions_summoned = False
         self._breath_sfx_played = False
+        self._breath_hit_applied = False
 
     def get_visual_packet(self):
         """Include RimecrestArbiterBoss attack mode & phase so renderer draws halberd arcs, frost cone, and aura."""
@@ -1818,8 +1819,8 @@ class RimecrestArbiterBoss(NightBoss):
         return math.acos(dot) <= float(RIMECREST_ARBITER_BREATH_HALF_ANGLE)
 
     def _apply_frost_breath_tick(self, dt, game_state):
-        """Project Frost Breath cone: build player frost_exposure and deal light chill damage."""
-        from constants import RIMECREST_ARBITER_BREATH_DPS, RIMECREST_ARBITER_EXPOSURE_RATE
+        """Project Frost Breath cone: apply one 0.5 chill hit per breath attack and deal light chill damage."""
+        from constants import RIMECREST_ARBITER_BREATH_DPS, RIMECREST_CHILL_HIT_AMOUNT
         player = getattr(game_state, "player", None)
         if player is None or getattr(player, "hp", 0) <= 0:
             return
@@ -1828,8 +1829,9 @@ class RimecrestArbiterBoss(NightBoss):
         px, py = player.get_center()
         if not self._is_point_in_frost_cone(px, py):
             return
-        if hasattr(player, "apply_frost_exposure"):
-            player.apply_frost_exposure(float(RIMECREST_ARBITER_EXPOSURE_RATE) * dt)
+        if not self._breath_hit_applied and hasattr(player, "apply_frost_exposure"):
+            self._breath_hit_applied = True
+            player.apply_frost_exposure(float(RIMECREST_CHILL_HIT_AMOUNT))
         chill_dmg = float(RIMECREST_ARBITER_BREATH_DPS) * dt
         if chill_dmg > 0.0:
             player.take_damage(
@@ -1973,16 +1975,16 @@ class RimecrestArbiterBoss(NightBoss):
                     pass
 
     def _update_strike(self, dt, game_state):
-        """Execute frost-bound HALBERD cleave (+0.35 exposure) or directional FROST_BREATH cone, then alternate."""
+        """Execute HALBERD cleave (+0.5 chill) or FROST_BREATH cone (+0.5 chill once per breath), then alternate."""
         self.vx, self.vy = 0.0, 0.0
         if self.attack_mode == "HALBERD":
             if not self.has_hit_this_attack and self.attempt_damage_player(game_state):
                 self.has_hit_this_attack = True
                 if self.stagger_timer <= 0.0:
-                    from constants import RIMECREST_ARBITER_HALBERD_EXPOSURE
+                    from constants import RIMECREST_CHILL_HIT_AMOUNT
                     player = getattr(game_state, "player", None)
                     if player is not None and hasattr(player, "apply_frost_exposure"):
-                        player.apply_frost_exposure(RIMECREST_ARBITER_HALBERD_EXPOSURE)
+                        player.apply_frost_exposure(float(RIMECREST_CHILL_HIT_AMOUNT))
         else:
             if not self._breath_sfx_played:
                 self._on_start_strike(game_state)
@@ -1993,6 +1995,7 @@ class RimecrestArbiterBoss(NightBoss):
         if self.state != ActorState.STRIKE:
             self.vx, self.vy = 0.0, 0.0
             self._breath_sfx_played = False
+            self._breath_hit_applied = False
             self.attack_mode = "FROST_BREATH" if self.attack_mode == "HALBERD" else "HALBERD"
 
     def on_death(self, state):

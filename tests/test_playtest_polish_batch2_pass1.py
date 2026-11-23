@@ -128,14 +128,14 @@ def test_compact_responsive_respite_menu_inputs_and_dimensions(tmp_path):
     handle_game_events(state, pause_menu=pause_menu)
     assert state.player.has_rested_this_session is True
 
-    # 2. Navigating down while holding movement sets 0.10s cooldown and does NOT block confirm
+    # 2. Navigating down while holding movement ratchets with 0.2s cooldown; Enter still unlatches confirm
     state.respite_selection_idx = 0
     state.menu_nav_cooldown = 0.0
     state.input_ratchet_latched = False
     state._handle_dialogue_ui({"move": (0, 1.0)}, attack_pressed=False, audio_manager=None)
     assert state.respite_selection_idx == 1
-    assert abs(state.menu_nav_cooldown - 0.10) < 1e-6
-    assert state.input_ratchet_latched is False
+    assert abs(state.menu_nav_cooldown - 0.20) < 1e-6
+    assert state.input_ratchet_latched is True
 
     # Confirming with Enter / E while movement is still held stages Prowess upgrade immediately
     pygame.event.clear()
