@@ -48,6 +48,14 @@ A **"Scriptorium Noir"** 2D action-exploration roguelite built with Python and P
 
 ---
 
+### Linux Desktop Launchers
+Install application-menu entries (windowed and `--fullscreen`):
+```bash
+sudo python3 install-linux.py                                  # /usr/share/applications
+python3 install-linux.py --dest ~/.local/share/applications    # per-user, no sudo
+sudo python3 install-linux.py --uninstall
+```
+
 ## Running the Game
 
 ```bash
