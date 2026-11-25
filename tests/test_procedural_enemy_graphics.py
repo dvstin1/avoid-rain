@@ -1,5 +1,5 @@
 """Unit tests for procedural basic-shape enemy, player, and weapon graphics in the Renderer."""
-# pylint: disable=no-member
+# pylint: disable=no-member,protected-access,too-many-statements
 from types import SimpleNamespace
 import pygame
 import constants
@@ -139,20 +139,37 @@ def test_procedural_enemy_unknown_fallback(monkeypatch):
 
 
 def test_procedural_player_and_weapons(monkeypatch):
-    """Verify Scholar player rendering, attack slash arc, and boss tapered greatblade."""
+    """Verify Scholar hybrid rig, procedural fallback, attack slash arc, and boss tapered greatblade."""
     recorded = []
     renderer = _create_headless_renderer(monkeypatch, recorded)
 
     player = Player(200, 200)
-    # 1. Idle Scholar renders cloak, mantle, hood, eyes, and side-carried sword
+    # 1. Idle Scholar uses preloaded 8-direction hood sprites + procedural cloak base + equipped weapon
+    assert ("e", "idle") in renderer.player_rig_sprites
     renderer.draw_actor_ghost(player, 0, 0, None)
     colors_drawn = [call[1] for call in recorded]
     assert constants.COLOR_PLAYER_CLOAK in colors_drawn
-    assert constants.COLOR_PLAYER_MANTLE in colors_drawn
-    assert constants.COLOR_PLAYER_HOOD in colors_drawn
-    assert constants.COLOR_PLAYER_EYE in colors_drawn
-    assert constants.COLOR_WEAPON_BLADE in colors_drawn
-    assert constants.COLOR_WEAPON_GUARD in colors_drawn
+    assert "body_sprite" in renderer._last_player_rig_draw_order
+    assert "weapon_front" in renderer._last_player_rig_draw_order
+
+    # 1b. Procedural fallback still draws cloak, mantle, hood, eyes, and blade when sprites are absent
+    saved_rig = dict(renderer.player_rig_sprites)
+    saved_wpn = renderer.prop_cache.pop("WeaponQuillStandard", None)
+    renderer.player_rig_sprites.clear()
+    recorded.clear()
+    try:
+        renderer.draw_actor_ghost(player, 0, 0, None)
+        fallback_colors = [call[1] for call in recorded]
+        assert constants.COLOR_PLAYER_CLOAK in fallback_colors
+        assert constants.COLOR_PLAYER_MANTLE in fallback_colors
+        assert constants.COLOR_PLAYER_HOOD in fallback_colors
+        assert constants.COLOR_PLAYER_EYE in fallback_colors
+        assert constants.COLOR_WEAPON_BLADE in fallback_colors
+        assert constants.COLOR_WEAPON_GUARD in fallback_colors
+    finally:
+        renderer.player_rig_sprites.update(saved_rig)
+        if saved_wpn is not None:
+            renderer.prop_cache["WeaponQuillStandard"] = saved_wpn
 
     # 2. Blocking Scholar raises ward shield
     recorded.clear()
@@ -161,15 +178,25 @@ def test_procedural_player_and_weapons(monkeypatch):
     colors_drawn = [call[1] for call in recorded]
     assert constants.COLOR_PLAYER_SHIELD in colors_drawn
 
-    # 3. Player sword slash attack renders slash trail and tapered blade
+    # 3. Player sword slash attack renders slash trail (and tapered blade fallback when weapon sprite absent)
     recorded.clear()
     player.state = PlayerStateEnum.ATTACKING
     player.attack_timer = constants.SWORD_DURATION * 0.5
     renderer.draw_player_weapon_attack(player, 0, 0)
     colors_drawn = [call[1] for call in recorded]
     assert constants.COLOR_CYAN in colors_drawn
-    assert constants.COLOR_WEAPON_BLADE in colors_drawn
-    assert constants.COLOR_WEAPON_GUARD in colors_drawn
+
+    saved_wpn = renderer.prop_cache.pop("WeaponQuillStandard", None)
+    recorded.clear()
+    try:
+        renderer.draw_player_weapon_attack(player, 0, 0)
+        fallback_attack_colors = [call[1] for call in recorded]
+        assert constants.COLOR_CYAN in fallback_attack_colors
+        assert constants.COLOR_WEAPON_BLADE in fallback_attack_colors
+        assert constants.COLOR_WEAPON_GUARD in fallback_attack_colors
+    finally:
+        if saved_wpn is not None:
+            renderer.prop_cache["WeaponQuillStandard"] = saved_wpn
 
     # 4. Boss weapon renders tapered steel greatblade with crossguard and fuller
     recorded.clear()

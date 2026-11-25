@@ -63,11 +63,16 @@ class Renderer:
         self.sanctuary_wood_floor_variants = []
         self.wall_tile_surf = None
         self.grass_natural_surf = None
+        self.player_rig_sprites = {}
+        self._clean_held_weapons = {}
+        self._held_weapon_rot_cache = {}
+        self._last_player_rig_draw_order = []
         self._load_barrel_assets()
         self._load_tile_assets()
         self._load_slug_assets()
         self._load_base_enemy_assets()
         self._load_empowered_enemy_assets()
+        self._load_player_rig_assets()
         self.grass_pools = {}
         self._load_grass_assets()
         self._generate_prop_cache()
@@ -200,6 +205,123 @@ class Renderer:
                 except Exception as e:
                     print(f"[RENDER] Error loading {name}: {e}")
         self._load_boss_directional_variants(("boss_empowered",))
+
+    def _load_player_rig_assets(self):
+        """Pre-load 5-direction x 4-pose Scholar hood sprites and mirror NW/W/SW in RAM."""
+        import os
+        base_path = os.path.join("assets", "graphics")
+        display_init = pygame.display.get_init() and (pygame.display.get_surface() is not None)
+        target_size = (constants.PLAYER_RIG_SPRITE_WIDTH, constants.PLAYER_RIG_SPRITE_HEIGHT)
+
+        for p_dir in constants.PLAYER_RIG_UNIQUE_DIRECTIONS:
+            for p_pose in constants.PLAYER_RIG_POSES:
+                fname = f"player_hood_{p_dir}_{p_pose}.png"
+                path = os.path.join(base_path, fname)
+                if not os.path.exists(path):
+                    continue
+                try:
+                    img = pygame.image.load(path)
+                    if display_init:
+                        img = img.convert_alpha()
+                    if img.get_size() != target_size:
+                        img = pygame.transform.scale(img, target_size)
+                    self.image_cache[fname] = img
+                    self.player_rig_sprites[(p_dir, p_pose)] = img
+                except Exception as e:
+                    print(f"[RENDER] Error loading {fname}: {e}")
+
+        # Populate mirrored western orientations (nw, w, sw) from (ne, e, se)
+        for d8, (canon_dir, flip_x) in constants.PLAYER_RIG_MIRROR_MAP.items():
+            if not flip_x:
+                continue
+            for p_pose in constants.PLAYER_RIG_POSES:
+                base_surf = self.player_rig_sprites.get((canon_dir, p_pose))
+                if base_surf is not None:
+                    mirrored = pygame.transform.flip(base_surf, True, False)
+                    if display_init:
+                        mirrored = mirrored.convert_alpha()
+                    self.player_rig_sprites[(d8, p_pose)] = mirrored
+
+    def _get_clean_held_weapon_surface(self, weapon_key):
+        """Return a floor-shadow-stripped copy of a prop_cache weapon pickup sprite, or None."""
+        if not weapon_key or weapon_key not in self.prop_cache:
+            return None
+        src = self.prop_cache.get(weapon_key)
+        if src is None:
+            return None
+        cached = self._clean_held_weapons.get(weapon_key)
+        if cached is not None and cached[0] is src:
+            return cached[1]
+        w, h = src.get_size()
+        clean = src.copy()
+        shadow_y_start = max(0, h - 10)
+        for py in range(shadow_y_start, h):
+            for px in range(w):
+                col = clean.get_at((px, py))
+                if 80 <= col.a <= 145 and col.r <= 20 and col.g <= 18 and col.b <= 24:
+                    clean.set_at((px, py), (0, 0, 0, 0))
+        self._clean_held_weapons[weapon_key] = (src, clean)
+        return clean
+
+    def _get_rotated_held_weapon_surface(self, weapon_key, aim_rad, scale=None):
+        """Return a cached rotated/scaled equipped-weapon surface pointing along aim_rad."""
+        clean = self._get_clean_held_weapon_surface(weapon_key)
+        if clean is None:
+            return None
+        step = max(1.0, float(constants.PLAYER_RIG_WEAPON_ROT_STEP_DEG))
+        raw_deg = constants.compute_player_weapon_rotation_deg(aim_rad, weapon_key)
+        q_deg = (round(raw_deg / step) * step) % 360.0
+        scale_val = round(
+            float(constants.PLAYER_RIG_WEAPON_SCALE if scale is None else scale), 2
+        )
+        cache_key = (weapon_key, id(clean), q_deg, scale_val)
+        cached = self._held_weapon_rot_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        if len(self._held_weapon_rot_cache) >= 2048:
+            self._held_weapon_rot_cache.clear()
+        rot_surf = pygame.transform.rotozoom(clean, q_deg, scale_val)
+        self._held_weapon_rot_cache[cache_key] = rot_surf
+        return rot_surf
+
+    def _draw_equipped_weapon_layer(
+        self,
+        hand_pos,
+        aim_rad,
+        weapon_data=None,
+        weapon_key=None,
+        scale=None,
+        reach_offset=None,
+        fallback_tip=None,
+        fallback_width=3.5,
+    ):
+        """Draw the actual equipped floor-pickup weapon sprite rotated along aim_rad.
+
+        Returns True when a weapon sprite was blitted, False when falling back to tapered blade.
+        """
+        w_key = weapon_key or self._select_weapon_pickup_sprite_key(weapon_data)
+        rot_surf = self._get_rotated_held_weapon_surface(w_key, aim_rad, scale=scale)
+        hx, hy = float(hand_pos[0]), float(hand_pos[1])
+        offset = float(
+            constants.PLAYER_RIG_WEAPON_CARRY_REACH_PX if reach_offset is None else reach_offset
+        )
+        if rot_surf is not None:
+            wx = hx + math.cos(aim_rad) * offset
+            wy = hy + math.sin(aim_rad) * offset
+            blit_rect = rot_surf.get_rect(center=(int(round(wx)), int(round(wy))))
+            self.screen.blit(rot_surf, blit_rect.topleft)
+            return True
+
+        wpn = weapon_data if isinstance(weapon_data, dict) else {}
+        is_anomalous = bool(wpn.get("modifiers")) or "anomalous" in str(wpn.get("name", "")).lower()
+        edge_col = constants.get_weapon_passive_color(wpn) if is_anomalous else constants.COLOR_WEAPON_EDGE
+        if fallback_tip is not None:
+            tip_pos = fallback_tip
+        else:
+            tip_len = offset + 16.0
+            tip_pos = (hx + math.cos(aim_rad) * tip_len, hy + math.sin(aim_rad) * tip_len)
+        self._draw_tapered_blade((hx, hy), tip_pos, fallback_width, edge_col)
+        return False
 
     def _desaturate_surface(self, surf):
         """Converts a surface to grayscale (removes saturation)."""
@@ -4719,76 +4841,310 @@ class Renderer:
         pygame.draw.circle(self.screen, constants.COLOR_WEAPON_GUARD, (g1x, g1y), 2)
         pygame.draw.circle(self.screen, constants.COLOR_WEAPON_GUARD, (g2x, g2y), 2)
 
-    def draw_procedural_player(self, actor, draw_rect, packet, state_color, debug_text_enabled=False):
-        """Draw the player character as a hooded Scriptorium Scholar with animated stride and gear."""
-        cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
-        w, h = int(draw_rect.width), int(draw_rect.height)
-        fx, fy = packet.get("facing", (1.0, 0.0))
-        base_state = packet.get("base", "IDLE")
-        now = time.time()
+    def _draw_player_ground_shadow(self, draw_rect):
+        """Blit a soft steep-overhead elliptical ground shadow beneath the Scholar's feet."""
+        sh_w = max(12, int(round(draw_rect.width * constants.PLAYER_RIG_SHADOW_W_RATIO)))
+        sh_h = max(5, int(round(constants.PLAYER_RIG_SHADOW_H_PX * (draw_rect.height / 40.0))))
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        cache_key = ("player_rig_shadow", sh_w, sh_h)
+        shadow_surf = self._fx_surface_cache.get(cache_key)
+        if shadow_surf is None:
+            shadow_surf = pygame.Surface((sh_w, sh_h), pygame.SRCALPHA)
+            pygame.draw.ellipse(
+                shadow_surf,
+                (10, 10, 18, constants.PLAYER_RIG_SHADOW_ALPHA),
+                (0, 0, sh_w, sh_h),
+            )
+            self._fx_surface_cache[cache_key] = shadow_surf
+        sx = int(draw_rect.centerx - sh_w // 2)
+        sy = int(draw_rect.bottom - sh_h + 1)
+        self.screen.blit(shadow_surf, (sx, sy))
 
-        # 1. Base cloak silhouette (maintains exact draw_rect call for camera offset verification)
+    def _draw_player_cloak_hem_base(
+        self, draw_rect, direction_8, pose, cloak_col, trim_col, lunge_x, lunge_y
+    ):
+        """Draw the procedural boots and steep-overhead lower cloak-hem base layer."""
+        cx = int(draw_rect.centerx + lunge_x)
+        bottom = int(draw_rect.bottom + lunge_y)
+        sx = draw_rect.width / 40.0
+        sy = draw_rect.height / 40.0
+
+        # 1. Animated boots tucked under the cloak hem
+        stride = 3 if pose == "walk_0" else (-3 if pose == "walk_1" else 0)
+        if direction_8 in ("e", "w"):
+            b1 = (cx - int(round((5 + stride) * sx)), bottom - int(round(4 * sy)))
+            b2 = (cx + int(round((5 + stride) * sx)), bottom - int(round(3 * sy)))
+        else:
+            b1 = (cx - int(round(6 * sx)), bottom - int(round((4 - stride) * sy)))
+            b2 = (cx + int(round(6 * sx)), bottom - int(round((4 + stride) * sy)))
+        boot_r = max(2, int(round(3.5 * min(sx, sy))))
+        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_BOOT, b1, boot_r)
+        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_BOOT, b2, boot_r)
+
+        # 2. Flared lower cloak-hem skirt shifted slightly opposite facing for steep-overhead depth
+        hem_top = int(draw_rect.y + round(21 * sy) + lunge_y)
+        hem_bot = bottom - int(round(4 * sy))
+        sway_x = -2 if pose == "walk_0" else (2 if pose == "walk_1" else 0)
+        dir_flare = {
+            "e": -3,
+            "se": -2,
+            "ne": -2,
+            "w": 3,
+            "sw": 2,
+            "nw": 2,
+        }.get(direction_8, 0)
+        half_top = int(round(10 * sx))
+        half_bot = int(round(13 * sx))
+        hem_poly = [
+            (cx - half_top, hem_top),
+            (cx + half_top, hem_top),
+            (cx + half_bot + dir_flare + sway_x, hem_bot),
+            (cx + dir_flare // 2 + sway_x, hem_bot + int(round(2 * sy))),
+            (cx - half_bot + dir_flare + sway_x, hem_bot),
+        ]
+        if isinstance(self.screen, pygame.Surface):
+            pygame.draw.polygon(self.screen, cloak_col, hem_poly)
+            pygame.draw.polygon(self.screen, constants.PLAYER_RIG_CLOAK_SHADOW, hem_poly, 1)
+        else:
+            pygame.draw.rect(self.screen, cloak_col, draw_rect, border_radius=10)
+        pygame.draw.line(
+            self.screen,
+            trim_col,
+            (cx - half_bot + dir_flare + sway_x + 2, hem_bot - 1),
+            (cx + half_bot + dir_flare + sway_x - 2, hem_bot - 1),
+            2,
+        )
+
+    def _draw_player_hand_anchor(self, hand_pos):
+        """Draw a compact procedural cuff and hand anchor gripping the equipped weapon."""
+        hx, hy = int(round(hand_pos[0])), int(round(hand_pos[1]))
+        pygame.draw.circle(self.screen, constants.PLAYER_RIG_CUFF_COLOR, (hx, hy), 4)
+        pygame.draw.circle(self.screen, constants.PLAYER_RIG_HAND_COLOR, (hx, hy), 2)
+
+    def _draw_player_body_fallback(self, draw_rect, ux, uy, direction_8, trim_col, bob, lunge_x, lunge_y):
+        """Procedural hood-and-mantle fallback used only if player_hood_*.png assets are absent."""
+        cx = int(draw_rect.centerx + lunge_x)
+        w, h = int(draw_rect.width), int(draw_rect.height)
+        mantle_rect = pygame.Rect(
+            draw_rect.x + 3 + lunge_x,
+            draw_rect.y + 8 + bob + lunge_y,
+            max(8, w - 6),
+            max(8, h // 2),
+        )
+        pygame.draw.rect(self.screen, constants.COLOR_PLAYER_MANTLE, mantle_rect, border_radius=7)
+        pygame.draw.line(
+            self.screen,
+            trim_col,
+            (mantle_rect.left + 3, mantle_rect.bottom - 2),
+            (mantle_rect.right - 3, mantle_rect.bottom - 2),
+            2,
+        )
+        pygame.draw.line(
+            self.screen,
+            trim_col,
+            (cx, mantle_rect.top + 4),
+            (cx, draw_rect.bottom - 5 + lunge_y),
+            2,
+        )
+        head_y = draw_rect.y + h // 3 + bob + lunge_y
+        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_HOOD, (cx, head_y), max(7, w // 3))
+        if direction_8 not in constants.PLAYER_RIG_NORTH_DIRECTIONS:
+            cowl_x, cowl_y = cx + int(ux * 3), head_y + int(uy * 2)
+            pygame.draw.circle(self.screen, constants.COLOR_PLAYER_COWL, (cowl_x, cowl_y), max(5, w // 4))
+            perp_x, perp_y = -uy, ux
+            eye1 = (int(cowl_x + ux * 2 + perp_x * 3), int(cowl_y + uy * 2 + perp_y * 3))
+            eye2 = (int(cowl_x + ux * 2 - perp_x * 3), int(cowl_y + uy * 2 - perp_y * 3))
+            pygame.draw.circle(self.screen, constants.COLOR_PLAYER_EYE, eye1, 2)
+            pygame.draw.circle(self.screen, constants.COLOR_PLAYER_EYE, eye2, 2)
+
+    def draw_player_rig(
+        self,
+        draw_rect,
+        facing=(0.0, 1.0),
+        base_state="IDLE",
+        weapon_data=None,
+        weapon_key=None,
+        anim_time=None,
+        attack_progress=None,
+        trim_color=None,
+        debug_text_enabled=False,
+        draw_weapon_during_attack=True,
+        record_layers=None,
+    ):
+        """Reusable hybrid 8-direction steep-overhead paper-doll rig for local and remote players.
+
+        Combines:
+          1. Procedural ground shadow, dash streaks, cloak-hem/boots base, and hand anchor.
+          2. Generated 5-angle (+3 mirrored) hood-and-shoulder pixmaps across idle/walk/attack.
+          3. Separate rotated equipped-weapon sprite layer using the actual floor-pickup weapon,
+             layered behind the body when facing north (N/NE/NW) and in front otherwise.
+        """
+        fx, fy = (facing[0], facing[1]) if facing and len(facing) >= 2 else (0.0, 1.0)
+        f_mag = math.hypot(fx, fy)
+        ux, uy = (fx / f_mag, fy / f_mag) if f_mag > 1e-6 else (0.0, 1.0)
+        direction_8 = constants.facing_to_direction_8((ux, uy))
+        t_now = time.time() if anim_time is None else float(anim_time)
+
+        if base_state == "ATTACK":
+            pose = "attack"
+        elif base_state in ("RUN", "DASH"):
+            walk_idx = int(t_now * constants.PLAYER_RIG_WALK_FRAME_RATE) % 2
+            pose = f"walk_{walk_idx}"
+        else:
+            pose = "idle"
+
+        weapon_layer = constants.get_player_weapon_layer(direction_8)
+        trim_col = trim_color if trim_color is not None else constants.COLOR_PLAYER_TRIM
         cloak_col = constants.COLOR_PLAYER_CLOAK
         if base_state == "DASH" and debug_text_enabled:
             cloak_col = constants.COLOR_CYAN
         elif base_state == "BLOCK":
             cloak_col = constants.COLOR_PLAYER_SHIELD
-        pygame.draw.rect(self.screen, cloak_col, draw_rect, border_radius=10)
 
-        # Dash wind-streaks behind the Scholar
+        lunge_px = constants.PLAYER_RIG_ATTACK_LUNGE_PX if base_state == "ATTACK" else 0.0
+        lunge_x = int(round(ux * lunge_px))
+        lunge_y = int(round(uy * lunge_px))
+        bob = int(round(math.sin(t_now * constants.PLAYER_RIG_IDLE_BOB_SPEED))) if base_state == "IDLE" else 0
+
+        sx_scale = draw_rect.width / float(constants.PLAYER_RIG_SPRITE_WIDTH)
+        sy_scale = draw_rect.height / float(constants.PLAYER_RIG_SPRITE_HEIGHT)
+        anchor_dx, anchor_dy = constants.PLAYER_RIG_HAND_ANCHORS.get(direction_8, (8.0, 6.0))
+        stride_sway = 2.0 if pose == "walk_0" else (-2.0 if pose == "walk_1" else 0.0)
+        hand_x = draw_rect.centerx + (anchor_dx * sx_scale) + lunge_x + (-uy * stride_sway * 0.5)
+        hand_y = draw_rect.centery + (anchor_dy * sy_scale) + lunge_y + bob + (ux * stride_sway * 0.5)
+
+        base_ang = math.atan2(uy, ux)
+        if base_state == "ATTACK" and attack_progress is not None:
+            prog = max(0.0, min(1.0, float(attack_progress)))
+            weapon_aim_rad = (base_ang - constants.SWORD_ARC_RADIANS * 0.5) + prog * constants.SWORD_ARC_RADIANS
+            weapon_scale = constants.PLAYER_RIG_WEAPON_ATTACK_SCALE
+            weapon_reach = constants.PLAYER_RIG_WEAPON_ATTACK_OFFSET_PX * 0.65
+        else:
+            cant = constants.PLAYER_RIG_WEAPON_CARRY_CANT_RAD
+            cant_sign = -1.0 if direction_8 in ("s", "sw", "w", "nw") else 1.0
+            weapon_aim_rad = base_ang + cant * cant_sign
+            weapon_scale = constants.PLAYER_RIG_WEAPON_SCALE
+            weapon_reach = constants.PLAYER_RIG_WEAPON_CARRY_REACH_PX
+
+        should_draw_weapon = (base_state != "BLOCK") and (
+            base_state != "ATTACK" or bool(draw_weapon_during_attack)
+        )
+        layers_drawn = []
+
+        # 1. Ground shadow
+        self._draw_player_ground_shadow(draw_rect)
+        layers_drawn.append("shadow")
+
+        # 2. Dash wind-streaks behind the Scholar (plus debug cyan dash indicator when debug enabled)
         if base_state == "DASH":
+            if debug_text_enabled:
+                pygame.draw.rect(self.screen, constants.COLOR_CYAN, draw_rect, 2, border_radius=8)
+            cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
             for i in (-8, 0, 8):
-                sx, sy = cx - int(fx * 12) - int(fy * i), cy - int(fy * 12) + int(fx * i)
-                ex, ey = sx - int(fx * 16), sy - int(fy * 16)
-                pygame.draw.line(self.screen, constants.COLOR_WHITE, (sx, sy), (ex, ey), 2)
+                sx_l, sy_l = cx - int(ux * 12) - int(uy * i), cy - int(uy * 12) + int(ux * i)
+                ex_l, ey_l = sx_l - int(ux * 16), sy_l - int(uy * 16)
+                pygame.draw.line(self.screen, constants.COLOR_WHITE, (sx_l, sy_l), (ex_l, ey_l), 2)
+            layers_drawn.append("dash_streaks")
 
-        # 2. Animated boots at bottom of cloak
-        stride = int(math.sin(now * 16.0) * 4) if base_state == "RUN" else 0
-        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_BOOT, (cx - 7, draw_rect.bottom - 3 + stride), 4)
-        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_BOOT, (cx + 7, draw_rect.bottom - 3 - stride), 4)
+        # 3. North-facing equipped weapon layer (BEHIND cloak & hood-and-shoulder body)
+        if should_draw_weapon and weapon_layer == "behind":
+            self._draw_equipped_weapon_layer(
+                (hand_x, hand_y),
+                weapon_aim_rad,
+                weapon_data=weapon_data,
+                weapon_key=weapon_key,
+                scale=weapon_scale,
+                reach_offset=weapon_reach,
+            )
+            layers_drawn.append("weapon_behind")
+            self._draw_player_hand_anchor((hand_x, hand_y))
+            layers_drawn.append("hand_anchor")
 
-        # 3. Layered shoulder mantle and gold scholar stole/trim
-        bob = int(math.sin(now * 6.0) * 1) if base_state == "IDLE" else 0
-        mantle_rect = pygame.Rect(draw_rect.x + 3, draw_rect.y + 8 + bob, max(8, w - 6), max(8, h // 2))
-        pygame.draw.rect(self.screen, constants.COLOR_PLAYER_MANTLE, mantle_rect, border_radius=7)
-        pygame.draw.line(
-            self.screen, constants.COLOR_PLAYER_TRIM,
-            (mantle_rect.left + 3, mantle_rect.bottom - 2), (mantle_rect.right - 3, mantle_rect.bottom - 2), 2
+        # 4. Procedural boots & flared cloak-hem base layer
+        self._draw_player_cloak_hem_base(
+            draw_rect, direction_8, pose, cloak_col, trim_col, lunge_x, lunge_y
         )
-        pygame.draw.line(
-            self.screen, constants.COLOR_PLAYER_TRIM, (cx, mantle_rect.top + 4), (cx, draw_rect.bottom - 5), 2
-        )
+        layers_drawn.append("cloak_base")
 
-        # 4. Scholar's hood, shadowed cowl, and directional glowing eyes
-        head_y = draw_rect.y + h // 3 + bob
-        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_HOOD, (cx, head_y), max(7, w // 3))
-        cowl_x, cowl_y = cx + int(fx * 3), head_y + int(fy * 2)
-        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_COWL, (cowl_x, cowl_y), max(5, w // 4))
-        perp_x, perp_y = -fy, fx
-        eye1 = (int(cowl_x + fx * 2 + perp_x * 3), int(cowl_y + fy * 2 + perp_y * 3))
-        eye2 = (int(cowl_x + fx * 2 - perp_x * 3), int(cowl_y + fy * 2 - perp_y * 3))
-        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_EYE, eye1, 2)
-        pygame.draw.circle(self.screen, constants.COLOR_PLAYER_EYE, eye2, 2)
+        # 5. Generated 8-direction steep-overhead hood-and-shoulder sprite (or procedural fallback)
+        hood_surf = self.player_rig_sprites.get((direction_8, pose))
+        if hood_surf is not None:
+            blit_surf = hood_surf
+            if blit_surf.get_size() != (draw_rect.width, draw_rect.height):
+                blit_surf = pygame.transform.scale(
+                    blit_surf, (max(1, int(draw_rect.width)), max(1, int(draw_rect.height)))
+                )
+            self.screen.blit(blit_surf, (int(draw_rect.x + lunge_x), int(draw_rect.y + lunge_y + bob)))
+            if trim_color is not None and trim_color != constants.COLOR_PLAYER_TRIM:
+                badge_y = int(draw_rect.y + round(22 * sy_scale) + lunge_y + bob)
+                pygame.draw.line(
+                    self.screen,
+                    trim_col,
+                    (int(draw_rect.centerx + lunge_x - 6 * sx_scale), badge_y),
+                    (int(draw_rect.centerx + lunge_x + 6 * sx_scale), badge_y),
+                    2,
+                )
+            layers_drawn.append("body_sprite")
+        else:
+            self._draw_player_body_fallback(
+                draw_rect, ux, uy, direction_8, trim_col, bob, lunge_x, lunge_y
+            )
+            layers_drawn.append("body_fallback")
 
-        # 5. Off-hand ward shield when blocking, or carried sword at side when not attacking
-        wpn = actor.get_active_weapon() if hasattr(actor, "get_active_weapon") and actor.weapons else {}
-        is_anomalous = bool(wpn.get("modifiers")) or "anomalous" in wpn.get("name", "").lower()
-        edge_col = constants.get_weapon_passive_color(wpn) if is_anomalous else constants.COLOR_WEAPON_EDGE
+        # 6. South/lateral equipped weapon layer (IN FRONT of cloak & hood-and-shoulder body)
+        if should_draw_weapon and weapon_layer == "front":
+            self._draw_player_hand_anchor((hand_x, hand_y))
+            layers_drawn.append("hand_anchor")
+            self._draw_equipped_weapon_layer(
+                (hand_x, hand_y),
+                weapon_aim_rad,
+                weapon_data=weapon_data,
+                weapon_key=weapon_key,
+                scale=weapon_scale,
+                reach_offset=weapon_reach,
+            )
+            layers_drawn.append("weapon_front")
 
+        # 7. Off-hand ward shield when blocking
         if base_state == "BLOCK":
-            sh_x, sh_y = cx + int(fx * (w * 0.45)), cy + int(fy * (h * 0.45))
+            w, h = int(draw_rect.width), int(draw_rect.height)
+            sh_x = int(draw_rect.centerx + ux * (w * 0.42))
+            sh_y = int(draw_rect.centery + uy * (h * 0.42))
             pygame.draw.circle(self.screen, constants.COLOR_PLAYER_SHIELD, (sh_x, sh_y), 11)
-            pygame.draw.circle(self.screen, constants.COLOR_PLAYER_TRIM, (sh_x, sh_y), 11, 2)
+            pygame.draw.circle(self.screen, trim_col, (sh_x, sh_y), 11, 2)
             pygame.draw.circle(self.screen, constants.COLOR_CYAN, (sh_x, sh_y), 4)
-        elif base_state != "ATTACK":
-            # Hold sword at right-hand side angled slightly forward
-            hx = cx + int(perp_x * (w * 0.38)) - int(fx * 4)
-            hy = cy + int(perp_y * (h * 0.38)) - int(fy * 4)
-            tx = hx + int(fx * 22) + int(perp_x * 3)
-            ty = hy + int(fy * 22) + int(perp_y * 3)
-            self._draw_tapered_blade((hx, hy), (tx, ty), 3.5, edge_col)
+            layers_drawn.append("shield")
 
-        # 6. Frozen Peaks frost exposure rim tint OR 3-stage cracked Ice Block encasement overlay
+        self._last_player_rig_draw_order = list(layers_drawn)
+        if record_layers is not None:
+            record_layers.extend(layers_drawn)
+        return True
+
+    def draw_procedural_player(self, actor, draw_rect, packet, state_color, debug_text_enabled=False):
+        """Draw the local player using the hybrid 8-direction steep-overhead Scholar rig."""
+        cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
+        facing = packet.get("facing", (1.0, 0.0))
+        base_state = packet.get("base", "IDLE")
+        wpn = packet.get("weapon")
+        if wpn is None and hasattr(actor, "get_active_weapon") and getattr(actor, "weapons", None):
+            wpn = actor.get_active_weapon()
+        anim_t = packet.get("anim_timer")
+        if anim_t is None or (base_state == "IDLE" and anim_t == 0.0):
+            anim_t = time.time()
+
+        self.draw_player_rig(
+            draw_rect=draw_rect,
+            facing=facing,
+            base_state=base_state,
+            weapon_data=wpn,
+            anim_time=anim_t,
+            attack_progress=packet.get("progress", 0.0) if base_state == "ATTACK" else None,
+            debug_text_enabled=debug_text_enabled,
+            draw_weapon_during_attack=False,
+        )
+
+        # Frozen Peaks frost exposure rim tint OR 3-stage cracked Ice Block encasement overlay
         frozen_hits = int(getattr(actor, "frozen_hits_remaining", 0) or 0)
         if frozen_hits > 0 and isinstance(self.screen, pygame.Surface):
             stage = max(0, min(2, int(constants.FROZEN_ICE_BLOCK_HITS) - frozen_hits))
@@ -4823,7 +5179,7 @@ class Renderer:
         return True
 
     def draw_player_weapon_attack(self, player, ox, oy):
-        """Draw an animated sword slash arc and tapered blade during player attacks."""
+        """Draw an animated sword slash arc and rotated equipped weapon during player attacks."""
         px, py = player.get_center()
         cx, cy = px - ox, py - oy
         fx, fy = player.facing
@@ -4876,12 +5232,20 @@ class Renderer:
 
         self.screen.blit(arc_surf, (int(cx - scx), int(cy - scy)))
 
-        # 2. Active tapered sword along current swing angle
+        # 2. Active equipped weapon sprite along current swing angle (with tapered blade fallback)
         hx = cx + math.cos(curr_angle) * 10.0
         hy = cy + math.sin(curr_angle) * 10.0
         tx = cx + math.cos(curr_angle) * (reach + 6.0)
         ty = cy + math.sin(curr_angle) * (reach + 6.0)
-        self._draw_tapered_blade((hx, hy), (tx, ty), 5.0, edge_col)
+        self._draw_equipped_weapon_layer(
+            (hx, hy),
+            curr_angle,
+            weapon_data=wpn,
+            scale=constants.PLAYER_RIG_WEAPON_ATTACK_SCALE,
+            reach_offset=constants.PLAYER_RIG_WEAPON_ATTACK_OFFSET_PX,
+            fallback_tip=(tx, ty),
+            fallback_width=5.0,
+        )
 
         # 3. Leading crescent tip flare
         pygame.draw.circle(self.screen, constants.COLOR_WHITE, (int(tx), int(ty)), 3)

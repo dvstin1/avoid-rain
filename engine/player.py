@@ -9,7 +9,7 @@ from constants import (
     PLAYER_WIDTH, PLAYER_HEIGHT, SWORD_DURATION,
     GRID_WIDTH, GRID_HEIGHT, TILE_SIZE,
     PLAYER_MAX_HP, FLASK_MAX_CHARGES, FLASK_HEAL_AMOUNT,
-    STAGGER_DURATION, SWORD_DAMAGE
+    STAGGER_DURATION, SWORD_DAMAGE, facing_to_direction_8,
 )
 from engine.physics import resolve_wall_collision
 
@@ -38,6 +38,7 @@ class Player:
         self.facing = (1, 0) # Direction vector
         self.attack_timer = 0.0
         self.stagger_timer = 0.0
+        self.walk_anim_timer = 0.0
         self.current_interactable = None
         self.stats = {
             "attack_modifier": 0,
@@ -353,6 +354,7 @@ class Player:
             current_speed = eff_speed * speed_multiplier
             self.vx = (dx / magnitude) * current_speed
             self.vy = (dy / magnitude) * current_speed
+            self.walk_anim_timer += dt
             if not block_pressed:
                 self.state = PlayerStateEnum.MOVING
         else:
@@ -400,6 +402,10 @@ class Player:
             base += all_mods["max_hp_boost"]
         return base
 
+    def get_facing_direction_8(self) -> str:
+        """Return the quantized 8-way compass direction string for the player's current facing vector."""
+        return facing_to_direction_8(self.facing)
+
     def get_visual_packet(self):
         """Returns a composable packet of visual intents for the renderer."""
         # 1. Base Layer
@@ -420,14 +426,21 @@ class Player:
         if self.is_exposed: overlays.append("EXPOSED")
         if self.parry_timer > 0: overlays.append("PARRY_WINDOW")
         if getattr(self, 'negation_timer', 0.0) > 0.0: overlays.append("NEGATION")
-        
+
+        attack_progress = 0.0
+        if self.state == PlayerStateEnum.ATTACKING and SWORD_DURATION > 0.0:
+            attack_progress = 1.0 - max(0.0, min(1.0, float(self.attack_timer) / float(SWORD_DURATION)))
+
         return {
             "base": base,
             "posture": posture,
             "overlays": overlays,
             "facing": self.facing,
+            "facing_dir": self.get_facing_direction_8(),
+            "anim_timer": float(getattr(self, "walk_anim_timer", 0.0)),
+            "weapon": self.get_active_weapon() if self.weapons else None,
             "timer": self.attack_timer if self.state == PlayerStateEnum.ATTACKING else 0.0,
-            "progress": 0.0 
+            "progress": attack_progress,
         }
 
     def use_flask(self, audio_manager=None):

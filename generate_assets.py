@@ -3801,6 +3801,322 @@ def generate_weapon_pickup_sprite(
     return surf
 
 
+def generate_player_hood_sprite(
+    direction: str = "s",
+    pose: str = "idle",
+    width: int = TILE_WIDTH,
+    height: int = TILE_HEIGHT,
+    rng: random.Random | None = None,
+) -> pygame.Surface:
+    """Generate a 40x40 25-35 deg steep-overhead Scholar hood-and-shoulder pixmap.
+
+    5 unique canonical directions ('n', 'ne', 'e', 'se', 's') across 4 poses
+    ('idle', 'walk_0', 'walk_1', 'attack'). Passing 'nw', 'w', or 'sw' mirrors
+    the corresponding eastern sprite horizontally.
+    """
+    d_raw = str(direction or "s").lower()
+    mirror_lookup = {"nw": "ne", "w": "e", "sw": "se"}
+    flip_x = d_raw in mirror_lookup
+    d_key = mirror_lookup.get(d_raw, d_raw)
+    if d_key not in ("n", "ne", "e", "se", "s"):
+        d_key = "s"
+
+    p_key = str(pose or "idle").lower()
+    if p_key not in ("idle", "walk_0", "walk_1", "attack"):
+        p_key = "idle"
+
+    gen = rng if rng is not None else _asset_rng(DEFAULT_ASSET_SEED, f"player_hood_{d_key}_{p_key}")
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+
+    cx = width // 2
+    outline = (14, 18, 28, 255)
+    cloak_dark = (22, 38, 76, 255)
+    mantle_base = (52, 86, 148, 255)
+    mantle_hi = (82, 122, 188, 255)
+    hood_base = (42, 72, 130, 255)
+    hood_shadow = (26, 44, 86, 255)
+    hood_hi = (98, 138, 208, 255)
+    cowl_void = (14, 18, 30, 255)
+    gold_trim = (215, 185, 110, 255)
+    gold_hi = (246, 224, 154, 255)
+    eye_glow = (180, 245, 255, 255)
+    eye_core = (236, 252, 255, 255)
+
+    # Pose kinematics: stride counter-rotation, bob, and forward attack lunge
+    bob_y = 0
+    l_sh = 0
+    r_sh = 0
+    lunge = 0
+    tail_sway = 0
+    if p_key == "walk_0":
+        bob_y = -1
+        l_sh = -2
+        r_sh = 2
+        tail_sway = -2
+    elif p_key == "walk_1":
+        bob_y = -1
+        l_sh = 2
+        r_sh = -2
+        tail_sway = 2
+    elif p_key == "attack":
+        bob_y = 1
+        l_sh = -2
+        r_sh = 3
+        lunge = 3
+        tail_sway = -3
+
+    if d_key == "s":
+        # Facing South (front steep-overhead): broad symmetric mantle, gold stole, glowing twin eyes
+        ly = bob_y + (2 if lunge else 0)
+        mantle_poly = [
+            (cx - 13, 18 + l_sh // 2 + ly),
+            (cx - 9, 13 + ly),
+            (cx + 9, 13 + ly),
+            (cx + 13, 18 + r_sh // 2 + ly),
+            (cx + 11, 29 + r_sh // 2 + ly),
+            (cx, 31 + ly),
+            (cx - 11, 29 + l_sh // 2 + ly),
+        ]
+        pygame.draw.polygon(surf, cloak_dark, mantle_poly)
+        inner_mantle = [
+            (cx - 11, 18 + l_sh // 2 + ly),
+            (cx - 8, 14 + ly),
+            (cx + 8, 14 + ly),
+            (cx + 11, 18 + r_sh // 2 + ly),
+            (cx + 9, 26 + r_sh // 2 + ly),
+            (cx, 28 + ly),
+            (cx - 9, 26 + l_sh // 2 + ly),
+        ]
+        pygame.draw.polygon(surf, mantle_base, inner_mantle)
+        pygame.draw.polygon(surf, outline, mantle_poly, 1)
+        # Shoulder highlight arcs & gold archival stole + brass throat clasp
+        pygame.draw.line(surf, mantle_hi, (cx - 10, 17 + l_sh // 2 + ly), (cx - 5, 15 + ly), 2)
+        pygame.draw.line(surf, mantle_hi, (cx + 5, 15 + ly), (cx + 10, 17 + r_sh // 2 + ly), 2)
+        pygame.draw.line(surf, gold_trim, (cx - 4, 18 + ly), (cx - 4, 29 + ly), 2)
+        pygame.draw.line(surf, gold_trim, (cx + 3, 18 + ly), (cx + 3, 29 + ly), 2)
+        pygame.draw.line(surf, gold_trim, (cx - 9, 25 + ly), (cx + 9, 25 + ly), 1)
+        pygame.draw.rect(surf, gold_hi, (cx - 2, 18 + ly, 4, 3))
+
+        # Steep-overhead hood crown, subtle top peak, shadowed cowl & twin glowing cyan eyes
+        hy = 12 + ly
+        peak = [(cx - 3 + tail_sway // 2, hy - 8), (cx + 3 + tail_sway // 2, hy - 8), (cx + tail_sway // 2, hy - 10)]
+        pygame.draw.polygon(surf, hood_shadow, peak)
+        pygame.draw.ellipse(surf, hood_base, (cx - 9, hy - 8, 18, 16))
+        pygame.draw.ellipse(surf, outline, (cx - 9, hy - 8, 18, 16), 1)
+        pygame.draw.arc(surf, hood_hi, (cx - 7, hy - 7, 14, 10), 0.35, 2.8, 2)
+        pygame.draw.ellipse(surf, cowl_void, (cx - 6, hy - 1, 12, 8))
+        pygame.draw.line(surf, gold_trim, (cx - 6, hy + 5), (cx + 6, hy + 5), 1)
+        # Glowing cyan eyes under cowl shadow
+        pygame.draw.circle(surf, eye_glow, (cx - 3, hy + 3), 2)
+        pygame.draw.circle(surf, eye_glow, (cx + 3, hy + 3), 2)
+        surf.set_at((cx - 3, hy + 3), eye_core)
+        surf.set_at((cx + 3, hy + 3), eye_core)
+
+    elif d_key == "se":
+        # Facing Southeast (3/4 front-right steep-overhead)
+        ox = 1 + (2 if lunge else 0)
+        oy = bob_y + (2 if lunge else 0)
+        mantle_poly = [
+            (cx - 12 + ox // 2, 17 + l_sh // 2 + oy),
+            (cx - 5 + ox // 2, 13 + oy),
+            (cx + 9 + ox, 14 + oy),
+            (cx + 12 + ox, 20 + r_sh // 2 + oy),
+            (cx + 8 + ox, 30 + oy),
+            (cx - 4 + ox // 2, 30 + oy),
+            (cx - 11 + ox // 2, 26 + l_sh // 2 + oy),
+        ]
+        pygame.draw.polygon(surf, cloak_dark, mantle_poly)
+        inner_mantle = [
+            (cx - 10 + ox // 2, 18 + l_sh // 2 + oy),
+            (cx - 4 + ox // 2, 14 + oy),
+            (cx + 8 + ox, 15 + oy),
+            (cx + 10 + ox, 20 + r_sh // 2 + oy),
+            (cx + 6 + ox, 27 + oy),
+            (cx - 3 + ox // 2, 27 + oy),
+            (cx - 9 + ox // 2, 24 + l_sh // 2 + oy),
+        ]
+        pygame.draw.polygon(surf, mantle_base, inner_mantle)
+        pygame.draw.polygon(surf, outline, mantle_poly, 1)
+        pygame.draw.line(surf, mantle_hi, (cx - 8 + ox // 2, 16 + oy), (cx + 4 + ox, 15 + oy), 2)
+        # Off-center 3/4 gold stole & shoulder clasp
+        pygame.draw.line(surf, gold_trim, (cx + 1 + ox, 18 + oy), (cx + 3 + ox, 29 + oy), 2)
+        pygame.draw.line(surf, gold_trim, (cx - 6 + ox // 2, 23 + oy), (cx + 8 + ox, 26 + oy), 1)
+        pygame.draw.rect(surf, gold_hi, (cx + 2 + ox, 18 + oy, 3, 3))
+
+        # Angled hood with NW trailing peak and lower-right cowl + 3/4 twin eyes
+        hx, hy = cx + ox, 12 + oy
+        hood_tail = [
+            (hx - 11 + tail_sway // 2, hy - 5),
+            (hx - 4, hy - 8),
+            (hx - 6, hy + 1),
+        ]
+        pygame.draw.polygon(surf, hood_shadow, hood_tail)
+        pygame.draw.polygon(surf, outline, hood_tail, 1)
+        pygame.draw.ellipse(surf, hood_base, (hx - 9, hy - 8, 17, 15))
+        pygame.draw.ellipse(surf, outline, (hx - 9, hy - 8, 17, 15), 1)
+        pygame.draw.arc(surf, hood_hi, (hx - 8, hy - 7, 13, 10), 0.5, 2.9, 2)
+        pygame.draw.ellipse(surf, cowl_void, (hx - 2, hy - 1, 9, 8))
+        pygame.draw.circle(surf, eye_glow, (hx + 1, hy + 3), 2)
+        pygame.draw.circle(surf, eye_glow, (hx + 5, hy + 3), 1)
+        surf.set_at((hx + 1, hy + 3), eye_core)
+        surf.set_at((hx + 5, hy + 3), eye_core)
+
+    elif d_key == "e":
+        # Facing East (right profile steep-overhead): sweeping left hood peak & single side eye
+        ox = 1 + lunge
+        oy = bob_y
+        # Trailing back-mantle cape fold to the left
+        back_fold = [
+            (cx - 12 + tail_sway // 2, 17 + oy),
+            (cx - 3 + ox // 2, 14 + oy),
+            (cx - 2 + ox // 2, 28 + oy),
+            (cx - 11 + tail_sway // 2, 27 + oy),
+        ]
+        pygame.draw.polygon(surf, cloak_dark, back_fold)
+        pygame.draw.polygon(surf, outline, back_fold, 1)
+        # Compact side-profile shoulder mantle
+        mantle_poly = [
+            (cx - 8 + ox // 2, 15 + l_sh // 2 + oy),
+            (cx + 5 + ox, 14 + oy),
+            (cx + 10 + ox, 20 + r_sh // 2 + oy),
+            (cx + 7 + ox, 29 + oy),
+            (cx - 5 + ox // 2, 29 + oy),
+            (cx - 9 + ox // 2, 23 + l_sh // 2 + oy),
+        ]
+        pygame.draw.polygon(surf, mantle_base, mantle_poly)
+        pygame.draw.polygon(surf, outline, mantle_poly, 1)
+        pygame.draw.line(surf, mantle_hi, (cx - 5 + ox // 2, 16 + oy), (cx + 5 + ox, 16 + oy), 2)
+        pygame.draw.line(surf, gold_trim, (cx + 5 + ox, 17 + oy), (cx + 6 + ox, 28 + oy), 2)
+        pygame.draw.line(surf, gold_trim, (cx - 6 + ox // 2, 25 + oy), (cx + 6 + ox, 25 + oy), 1)
+        pygame.draw.rect(surf, gold_hi, (cx + 4 + ox, 17 + oy, 3, 3))
+
+        # Sculpted profile hood with long rear point sweeping West
+        hx, hy = cx + ox, 11 + oy
+        hood_peak = [
+            (hx - 13 + tail_sway // 2, hy - 1),
+            (hx - 4, hy - 7),
+            (hx - 3, hy + 4),
+        ]
+        pygame.draw.polygon(surf, hood_shadow, hood_peak)
+        pygame.draw.polygon(surf, outline, hood_peak, 1)
+        pygame.draw.ellipse(surf, hood_base, (hx - 8, hy - 7, 16, 14))
+        pygame.draw.ellipse(surf, outline, (hx - 8, hy - 7, 16, 14), 1)
+        pygame.draw.arc(surf, hood_hi, (hx - 7, hy - 6, 12, 9), 0.7, 2.9, 2)
+        # Right-side cowl cavity & single bright profile eye
+        pygame.draw.ellipse(surf, cowl_void, (hx + 1, hy - 3, 7, 9))
+        pygame.draw.circle(surf, eye_glow, (hx + 5, hy + 1), 2)
+        surf.set_at((hx + 5, hy + 1), eye_core)
+
+    elif d_key == "ne":
+        # Facing Northeast (3/4 back-right steep-overhead): draped hood tail down-left, no forward eyes
+        ox = 1 + (2 if lunge else 0)
+        oy = bob_y - (2 if lunge else 0)
+        mantle_poly = [
+            (cx - 12 + ox // 2, 18 + l_sh // 2 + oy),
+            (cx - 6 + ox // 2, 13 + oy),
+            (cx + 8 + ox, 13 + oy),
+            (cx + 12 + ox, 19 + r_sh // 2 + oy),
+            (cx + 9 + ox, 29 + oy),
+            (cx - 4 + ox // 2, 30 + oy),
+            (cx - 11 + ox // 2, 27 + l_sh // 2 + oy),
+        ]
+        pygame.draw.polygon(surf, cloak_dark, mantle_poly)
+        inner_mantle = [
+            (cx - 10 + ox // 2, 19 + l_sh // 2 + oy),
+            (cx - 5 + ox // 2, 14 + oy),
+            (cx + 7 + ox, 14 + oy),
+            (cx + 10 + ox, 19 + r_sh // 2 + oy),
+            (cx + 7 + ox, 26 + oy),
+            (cx - 3 + ox // 2, 27 + oy),
+            (cx - 9 + ox // 2, 24 + l_sh // 2 + oy),
+        ]
+        pygame.draw.polygon(surf, mantle_base, inner_mantle)
+        pygame.draw.polygon(surf, outline, mantle_poly, 1)
+        # Diagonal rear gold yoke & shoulder ridge
+        pygame.draw.line(surf, gold_trim, (cx - 8 + ox // 2, 24 + oy), (cx + 8 + ox, 22 + oy), 1)
+        pygame.draw.line(surf, gold_trim, (cx - 1 + ox // 2, 17 + oy), (cx - 3 + ox // 2, 29 + oy), 2)
+        pygame.draw.line(surf, mantle_hi, (cx - 4 + ox // 2, 15 + oy), (cx + 7 + ox, 15 + oy), 2)
+
+        # Back-turned 3/4 hood crown with small cowl rim sliver on far upper-right & draped SW hood tail
+        hx, hy = cx + ox, 11 + oy
+        pygame.draw.ellipse(surf, hood_base, (hx - 9, hy - 7, 17, 15))
+        pygame.draw.ellipse(surf, outline, (hx - 9, hy - 7, 17, 15), 1)
+        pygame.draw.arc(surf, hood_hi, (hx - 7, hy - 6, 13, 9), 0.3, 2.7, 2)
+        # Faint far-side cowl shadow sliver at upper-right temple (no eyes)
+        pygame.draw.line(surf, cowl_void, (hx + 6, hy - 3), (hx + 7, hy + 2), 2)
+        # Pointed hood tail draping down-left across the upper back
+        drape_tail = [
+            (hx - 6, hy + 1),
+            (hx + 2, hy + 3),
+            (hx - 7 + tail_sway // 2, hy + 11),
+        ]
+        pygame.draw.polygon(surf, hood_shadow, drape_tail)
+        pygame.draw.polygon(surf, outline, drape_tail, 1)
+        pygame.draw.line(surf, gold_trim, (hx - 5, hy + 6), (hx - 6 + tail_sway // 2, hy + 10), 1)
+
+    else:
+        # Facing North (full back steep-overhead): symmetric back-mantle, gold spine seam, centered hood tail
+        ly = bob_y - (2 if lunge else 0)
+        mantle_poly = [
+            (cx - 13, 18 + l_sh // 2 + ly),
+            (cx - 9, 13 + ly),
+            (cx + 9, 13 + ly),
+            (cx + 13, 18 + r_sh // 2 + ly),
+            (cx + 11, 29 + r_sh // 2 + ly),
+            (cx, 31 + ly),
+            (cx - 11, 29 + l_sh // 2 + ly),
+        ]
+        pygame.draw.polygon(surf, cloak_dark, mantle_poly)
+        inner_mantle = [
+            (cx - 11, 18 + l_sh // 2 + ly),
+            (cx - 8, 14 + ly),
+            (cx + 8, 14 + ly),
+            (cx + 11, 18 + r_sh // 2 + ly),
+            (cx + 9, 26 + r_sh // 2 + ly),
+            (cx, 28 + ly),
+            (cx - 9, 26 + l_sh // 2 + ly),
+        ]
+        pygame.draw.polygon(surf, mantle_base, inner_mantle)
+        pygame.draw.polygon(surf, outline, mantle_poly, 1)
+        # Back-mantle shoulder rim highlights & central gold spine seam
+        pygame.draw.line(surf, mantle_hi, (cx - 9, 16 + l_sh // 2 + ly), (cx - 4, 14 + ly), 2)
+        pygame.draw.line(surf, mantle_hi, (cx + 4, 14 + ly), (cx + 9, 16 + r_sh // 2 + ly), 2)
+        pygame.draw.line(surf, gold_trim, (cx, 19 + ly), (cx + tail_sway // 2, 30 + ly), 2)
+        pygame.draw.line(surf, gold_trim, (cx - 9, 25 + ly), (cx + 9, 25 + ly), 1)
+
+        # Back of hood crown + prominent hanging pointed hood tail down center-back (no face/eyes)
+        hy = 11 + ly
+        pygame.draw.ellipse(surf, hood_base, (cx - 9, hy - 7, 18, 15))
+        pygame.draw.ellipse(surf, outline, (cx - 9, hy - 7, 18, 15), 1)
+        pygame.draw.arc(surf, hood_hi, (cx - 7, hy - 6, 14, 9), 0.35, 2.8, 2)
+        hood_tail = [
+            (cx - 5, hy + 2),
+            (cx + 5, hy + 2),
+            (cx + tail_sway, hy + 13),
+        ]
+        pygame.draw.polygon(surf, hood_shadow, hood_tail)
+        pygame.draw.polygon(surf, outline, hood_tail, 1)
+        pygame.draw.line(surf, hood_base, (cx - 2, hy + 4), (cx + tail_sway // 2, hy + 10), 2)
+        surf.set_at((cx + tail_sway, hy + 12), gold_hi)
+
+    # Subtle fabric-weave micro-grit on indigo hood/mantle pixels (preserving eyes, gold trim, and dark outline)
+    for _ in range(18):
+        gx = gen.randint(6, width - 7)
+        gy = gen.randint(5, height - 9)
+        col = surf.get_at((gx, gy))
+        if col.a > 220 and col.b > col.r + 18 and col.r < 140:
+            jit = gen.randint(-8, 8)
+            surf.set_at(
+                (gx, gy),
+                (_clamp(col.r + jit), _clamp(col.g + jit), _clamp(col.b + jit), col.a),
+            )
+
+    if flip_x:
+        surf = pygame.transform.flip(surf, True, False)
+    return surf
+
+
 def _clamp_rgb_delta(base: Tuple[int, int, int], dr: int, dg: int, db: int, limit: int = 12) -> Tuple[int, int, int]:
     """Offset a base RGB color while strictly bounding each channel delta to <= +-limit."""
     return (
@@ -6661,6 +6977,20 @@ def generate_all_assets(
                 out_path = os.path.join("assets", "graphics", f"{v_key}.png")
                 surf = b_fn(bw, bh, rng=_rng(v_key), direction=b_dir, frame=b_frame)
                 _emit(v_key, out_path, surf)
+
+    # Pipeline 17: 5-Direction Steep-Overhead Player Hood-and-Shoulder Pixmaps (N/NE/E/SE/S x 4 poses)
+    for p_dir in ("n", "ne", "e", "se", "s"):
+        for p_pose in ("idle", "walk_0", "walk_1", "attack"):
+            p_key = f"player_hood_{p_dir}_{p_pose}"
+            out_path = os.path.join("assets", "graphics", f"{p_key}.png")
+            surf = generate_player_hood_sprite(
+                direction=p_dir,
+                pose=p_pose,
+                width=TILE_WIDTH,
+                height=TILE_HEIGHT,
+                rng=_rng(p_key),
+            )
+            _emit(p_key, out_path, surf)
 
     if stats_out is not None:
         stats_out["updated"] = updated_count

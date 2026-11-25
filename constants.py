@@ -1674,3 +1674,92 @@ BOSS_HUD_DISPLAY_NAMES = {
 VITREOUS_FIRE_CHALICE_SIZE = 80
 VITREOUS_HEAT_SHIMMER_BANDS = 4
 VITREOUS_EMBER_COUNT = 26
+
+# 8-Direction Steep-Overhead Player Rig & Visible Equipped Weapons (Item #17)
+PLAYER_RIG_SPRITE_WIDTH = 40
+PLAYER_RIG_SPRITE_HEIGHT = 40
+PLAYER_RIG_UNIQUE_DIRECTIONS = ("n", "ne", "e", "se", "s")
+PLAYER_RIG_ALL_DIRECTIONS = ("n", "ne", "e", "se", "s", "sw", "w", "nw")
+PLAYER_RIG_OCTANT_ORDER = ("e", "se", "s", "sw", "w", "nw", "n", "ne")
+PLAYER_RIG_POSES = ("idle", "walk_0", "walk_1", "attack")
+PLAYER_RIG_MIRROR_MAP = {
+    "n": ("n", False),
+    "ne": ("ne", False),
+    "e": ("e", False),
+    "se": ("se", False),
+    "s": ("s", False),
+    "sw": ("se", True),
+    "w": ("e", True),
+    "nw": ("ne", True),
+}
+PLAYER_RIG_NORTH_DIRECTIONS = frozenset(("n", "ne", "nw"))
+PLAYER_RIG_WALK_FRAME_RATE = 8.0
+PLAYER_RIG_IDLE_BOB_SPEED = 5.5
+PLAYER_RIG_ATTACK_LUNGE_PX = 3.0
+PLAYER_RIG_SHADOW_ALPHA = 120
+PLAYER_RIG_SHADOW_W_RATIO = 0.68
+PLAYER_RIG_SHADOW_H_PX = 9
+PLAYER_RIG_HAND_COLOR = (212, 188, 152)
+PLAYER_RIG_CUFF_COLOR = (68, 96, 152)
+PLAYER_RIG_CLOAK_SHADOW = (18, 30, 62)
+PLAYER_RIG_WEAPON_SCALE = 0.80
+PLAYER_RIG_WEAPON_ATTACK_SCALE = 0.96
+PLAYER_RIG_WEAPON_CARRY_CANT_RAD = 0.28
+PLAYER_RIG_WEAPON_ROT_STEP_DEG = 3.0
+PLAYER_RIG_WEAPON_CARRY_REACH_PX = 10.0
+PLAYER_RIG_WEAPON_ATTACK_OFFSET_PX = 26.0
+
+# Hand anchor offsets (dx, dy) relative to draw_rect center for a 40x40 steep-overhead rig
+PLAYER_RIG_HAND_ANCHORS = {
+    "n": (10.0, -5.0),
+    "ne": (10.0, -2.0),
+    "e": (9.0, 5.0),
+    "se": (5.0, 9.0),
+    "s": (-9.0, 7.0),
+    "sw": (-5.0, 9.0),
+    "w": (-9.0, 5.0),
+    "nw": (-10.0, -2.0),
+}
+
+# Native striking-tip angle in pygame CCW-from-+X degrees for each floor-pickup weapon sprite
+PLAYER_WEAPON_NATIVE_TIP_DEGREES = {
+    "WeaponQuillStandard": -135.0,
+    "WeaponQuillRefined": -135.0,
+    "WeaponScriberBlade": 45.0,
+    "WeaponAnomalousBleed": -135.0,
+    "WeaponAnomalousRegen": -135.0,
+    "WeaponAnomalousNegation": 45.0,
+    "WeaponAnomalousStout": 45.0,
+    "WeaponAnomalousDefault": -135.0,
+}
+
+
+def facing_to_direction_8(facing) -> str:
+    """Map a 2D facing vector (fx, fy) in screen coordinates to one of 8 compass directions."""
+    if not facing or len(facing) < 2:
+        return "s"
+    fx = float(facing[0])
+    fy = float(facing[1])
+    if math.hypot(fx, fy) < 1e-6:
+        return "s"
+    angle = math.atan2(fy, fx)
+    octant = int(math.floor((angle + (math.pi / 8.0)) / (math.pi / 4.0))) % 8
+    return PLAYER_RIG_OCTANT_ORDER[octant]
+
+
+def resolve_player_rig_sprite_spec(direction_8: str) -> tuple:
+    """Return (canonical_dir, flip_x) for any of the 8 compass directions."""
+    key = str(direction_8 or "s").lower()
+    return PLAYER_RIG_MIRROR_MAP.get(key, ("s", False))
+
+
+def get_player_weapon_layer(direction_8: str) -> str:
+    """Return 'behind' when facing north (N/NE/NW) and 'front' otherwise (S/SE/SW/E/W)."""
+    key = str(direction_8 or "s").lower()
+    return "behind" if key in PLAYER_RIG_NORTH_DIRECTIONS else "front"
+
+
+def compute_player_weapon_rotation_deg(aim_rad: float, weapon_key: str) -> float:
+    """Compute pygame.transform.rotate angle (CCW degrees) aligning weapon_key's tip with aim_rad."""
+    native_tip = float(PLAYER_WEAPON_NATIVE_TIP_DEGREES.get(weapon_key, -135.0))
+    return -math.degrees(float(aim_rad)) - native_tip
