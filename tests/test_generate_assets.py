@@ -2,7 +2,6 @@
 # pylint: disable=no-member
 import os
 import random
-import tempfile
 import pygame
 import generate_assets
 
@@ -136,41 +135,42 @@ def test_generate_rock_cluster_properties():
     assert highlights_found
 
 
-def test_generate_all_assets_creates_files_and_directories():
+def test_generate_all_assets_creates_files_and_directories(tmp_path, monkeypatch):
     """Verify generate_all_assets creates missing directories and valid PNG files."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        floor_dest = os.path.join(tmpdir, "nested", "sub", "test_floor.png")
-        wall_dest = os.path.join(tmpdir, "nested", "sub", "test_wall.png")
-        grass_dest = os.path.join(tmpdir, "nested", "sub", "test_grass.png")
-        rock_dest = os.path.join(tmpdir, "nested", "sub", "test_rock.png")
-        rubble_dest = os.path.join(tmpdir, "nested", "sub", "test_rubble.png")
-        flora_dest = os.path.join(tmpdir, "nested", "sub", "test_flora.png")
-        crypt_dest = os.path.join(tmpdir, "nested", "sub", "test_crypt.png")
+    monkeypatch.chdir(tmp_path)
+    tmpdir = str(tmp_path)
+    floor_dest = os.path.join(tmpdir, "nested", "sub", "test_floor.png")
+    wall_dest = os.path.join(tmpdir, "nested", "sub", "test_wall.png")
+    grass_dest = os.path.join(tmpdir, "nested", "sub", "test_grass.png")
+    rock_dest = os.path.join(tmpdir, "nested", "sub", "test_rock.png")
+    rubble_dest = os.path.join(tmpdir, "nested", "sub", "test_rubble.png")
+    flora_dest = os.path.join(tmpdir, "nested", "sub", "test_flora.png")
+    crypt_dest = os.path.join(tmpdir, "nested", "sub", "test_crypt.png")
 
-        results = generate_assets.generate_all_assets(
-            floor_path=floor_dest,
-            wall_path=wall_dest,
-            grass_path=grass_dest,
-            rock_path=rock_dest,
-            ruins_rubble_path=rubble_dest,
-            swamp_flora_path=flora_dest,
-            crypt_clutter_path=crypt_dest,
-            seed=123,
-        )
+    results = generate_assets.generate_all_assets(
+        floor_path=floor_dest,
+        wall_path=wall_dest,
+        grass_path=grass_dest,
+        rock_path=rock_dest,
+        ruins_rubble_path=rubble_dest,
+        swamp_flora_path=flora_dest,
+        crypt_clutter_path=crypt_dest,
+        seed=123,
+    )
 
-        assert results["floor_tile"] == floor_dest
-        assert results["wall_tile"] == wall_dest
-        assert results["grass_natural"] == grass_dest
-        assert results["rock_cluster"] == rock_dest
-        assert results["ruins_rubble"] == rubble_dest
-        assert results["swamp_flora"] == flora_dest
-        assert results["crypt_clutter"] == crypt_dest
+    assert results["floor_tile"] == floor_dest
+    assert results["wall_tile"] == wall_dest
+    assert results["grass_natural"] == grass_dest
+    assert results["rock_cluster"] == rock_dest
+    assert results["ruins_rubble"] == rubble_dest
+    assert results["swamp_flora"] == flora_dest
+    assert results["crypt_clutter"] == crypt_dest
 
-        for path in [floor_dest, wall_dest, grass_dest, rock_dest, rubble_dest, flora_dest, crypt_dest]:
-            assert os.path.exists(path)
-            assert os.path.getsize(path) > 200
-            loaded = pygame.image.load(path)
-            assert loaded.get_size() == (40, 40)
+    for path in [floor_dest, wall_dest, grass_dest, rock_dest, rubble_dest, flora_dest, crypt_dest]:
+        assert os.path.exists(path)
+        assert os.path.getsize(path) > 200
+        loaded = pygame.image.load(path)
+        assert loaded.get_size() == (40, 40)
 
 
 def test_procedural_generation_seed_reproducibility():
@@ -372,66 +372,68 @@ def test_generate_cliff_stairs_and_pit_rim():
     assert pit_abyss < 45
 
 
-def test_generate_all_assets_includes_verticality():
+def test_generate_all_assets_includes_verticality(tmp_path, monkeypatch):
     """Verify generate_all_assets creates all 8 new 2.5D verticality PNG files."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        paths = generate_assets.generate_all_assets(
-            floor_path=os.path.join(tmpdir, "floor.png"),
-            wall_path=os.path.join(tmpdir, "wall.png"),
-            grass_path=os.path.join(tmpdir, "grass.png"),
-            rock_path=os.path.join(tmpdir, "rock.png"),
-            wall_cracked_path=os.path.join(tmpdir, "wall_cracked.png"),
-            wall_mossy_path=os.path.join(tmpdir, "wall_mossy.png"),
-            wall_webbed_path=os.path.join(tmpdir, "wall_webbed.png"),
-            swamp_water_path=os.path.join(tmpdir, "swamp_water.png"),
-            mud_turf_path=os.path.join(tmpdir, "mud_turf.png"),
-            peat_bank_path=os.path.join(tmpdir, "peat_bank.png"),
-            swamp_wall_path=os.path.join(tmpdir, "swamp_wall.png"),
-            swamp_fungus_path=os.path.join(tmpdir, "swamp_fungus.png"),
-            swamp_vent_path=os.path.join(tmpdir, "swamp_vent.png"),
-            swamp_thorns_path=os.path.join(tmpdir, "swamp_thorns.png"),
-            ruins_rubble_path=os.path.join(tmpdir, "ruins_rubble.png"),
-            swamp_flora_path=os.path.join(tmpdir, "swamp_flora.png"),
-            crypt_clutter_path=os.path.join(tmpdir, "crypt_clutter.png"),
-            wall_top_cap_path=os.path.join(tmpdir, "wall_top_cap.png"),
-            wall_front_face_path=os.path.join(tmpdir, "wall_front_face.png"),
-            shadow_south_path=os.path.join(tmpdir, "shadow_south.png"),
-            shadow_east_path=os.path.join(tmpdir, "shadow_east.png"),
-            shadow_corner_path=os.path.join(tmpdir, "shadow_corner.png"),
-            cliff_edge_path=os.path.join(tmpdir, "cliff_edge.png"),
-            staircase_path=os.path.join(tmpdir, "staircase_tile.png"),
-            pit_rim_path=os.path.join(tmpdir, "pit_rim.png"),
-            boss_dais_path=os.path.join(tmpdir, "boss_dais_tile.png"),
-            boss_pillar_path=os.path.join(tmpdir, "boss_pillar_tile.png"),
-            boss_abyss_rim_path=os.path.join(tmpdir, "boss_abyss_rim.png"),
-            wellspring_path=os.path.join(tmpdir, "wellspring.png"),
-            lotus_frame_path=os.path.join(tmpdir, "lotus_frame.png"),
-            bench_path=os.path.join(tmpdir, "bench.png"),
-            heavy_bookcase_path=os.path.join(tmpdir, "heavy_bookcase.png"),
-            ink_urn_path=os.path.join(tmpdir, "ink_urn.png"),
-            inkwell_puddle_path=os.path.join(tmpdir, "inkwell_puddle.png"),
-            candelabra_path=os.path.join(tmpdir, "candelabra.png"),
-            tree_structure_path=os.path.join(tmpdir, "tree_structure.png"),
-            bat_path=os.path.join(tmpdir, "bat.png"),
-            flutter_path=os.path.join(tmpdir, "flutter.png"),
-            bindling_path=os.path.join(tmpdir, "bindling.png"),
-            smear_path=os.path.join(tmpdir, "smear.png"),
-            miniboss_path=os.path.join(tmpdir, "miniboss.png"),
-            night_boss_path=os.path.join(tmpdir, "night_boss.png"),
-            final_author_path=os.path.join(tmpdir, "final_author.png"),
-            seed=42,
-        )
-        for key in (
-            "wall_top_cap", "wall_front_face", "shadow_south", "shadow_east",
-            "shadow_corner", "cliff_edge", "staircase_tile", "pit_rim",
-        ):
-            assert key in paths
-            assert os.path.exists(paths[key])
-            assert os.path.getsize(paths[key]) > 100
+    monkeypatch.chdir(tmp_path)
+    tmpdir = str(tmp_path)
+    paths = generate_assets.generate_all_assets(
+        floor_path=os.path.join(tmpdir, "floor.png"),
+        wall_path=os.path.join(tmpdir, "wall.png"),
+        grass_path=os.path.join(tmpdir, "grass.png"),
+        rock_path=os.path.join(tmpdir, "rock.png"),
+        wall_cracked_path=os.path.join(tmpdir, "wall_cracked.png"),
+        wall_mossy_path=os.path.join(tmpdir, "wall_mossy.png"),
+        wall_webbed_path=os.path.join(tmpdir, "wall_webbed.png"),
+        swamp_water_path=os.path.join(tmpdir, "swamp_water.png"),
+        mud_turf_path=os.path.join(tmpdir, "mud_turf.png"),
+        peat_bank_path=os.path.join(tmpdir, "peat_bank.png"),
+        swamp_wall_path=os.path.join(tmpdir, "swamp_wall.png"),
+        swamp_fungus_path=os.path.join(tmpdir, "swamp_fungus.png"),
+        swamp_vent_path=os.path.join(tmpdir, "swamp_vent.png"),
+        swamp_thorns_path=os.path.join(tmpdir, "swamp_thorns.png"),
+        ruins_rubble_path=os.path.join(tmpdir, "ruins_rubble.png"),
+        swamp_flora_path=os.path.join(tmpdir, "swamp_flora.png"),
+        crypt_clutter_path=os.path.join(tmpdir, "crypt_clutter.png"),
+        wall_top_cap_path=os.path.join(tmpdir, "wall_top_cap.png"),
+        wall_front_face_path=os.path.join(tmpdir, "wall_front_face.png"),
+        shadow_south_path=os.path.join(tmpdir, "shadow_south.png"),
+        shadow_east_path=os.path.join(tmpdir, "shadow_east.png"),
+        shadow_corner_path=os.path.join(tmpdir, "shadow_corner.png"),
+        cliff_edge_path=os.path.join(tmpdir, "cliff_edge.png"),
+        staircase_path=os.path.join(tmpdir, "staircase_tile.png"),
+        pit_rim_path=os.path.join(tmpdir, "pit_rim.png"),
+        boss_dais_path=os.path.join(tmpdir, "boss_dais_tile.png"),
+        boss_pillar_path=os.path.join(tmpdir, "boss_pillar_tile.png"),
+        boss_abyss_rim_path=os.path.join(tmpdir, "boss_abyss_rim.png"),
+        wellspring_path=os.path.join(tmpdir, "wellspring.png"),
+        lotus_frame_path=os.path.join(tmpdir, "lotus_frame.png"),
+        bench_path=os.path.join(tmpdir, "bench.png"),
+        heavy_bookcase_path=os.path.join(tmpdir, "heavy_bookcase.png"),
+        ink_urn_path=os.path.join(tmpdir, "ink_urn.png"),
+        inkwell_puddle_path=os.path.join(tmpdir, "inkwell_puddle.png"),
+        candelabra_path=os.path.join(tmpdir, "candelabra.png"),
+        tree_structure_path=os.path.join(tmpdir, "tree_structure.png"),
+        bat_path=os.path.join(tmpdir, "bat.png"),
+        flutter_path=os.path.join(tmpdir, "flutter.png"),
+        bindling_path=os.path.join(tmpdir, "bindling.png"),
+        smear_path=os.path.join(tmpdir, "smear.png"),
+        miniboss_path=os.path.join(tmpdir, "miniboss.png"),
+        night_boss_path=os.path.join(tmpdir, "night_boss.png"),
+        final_author_path=os.path.join(tmpdir, "final_author.png"),
+        seed=42,
+    )
+    for key in (
+        "wall_top_cap", "wall_front_face", "shadow_south", "shadow_east",
+        "shadow_corner", "cliff_edge", "staircase_tile", "pit_rim",
+    ):
+        assert key in paths
+        assert os.path.exists(paths[key])
+        assert os.path.getsize(paths[key]) > 100
 
 
-def test_respite_and_chronicler_sprites():
+def test_respite_and_chronicler_sprites(tmp_path, monkeypatch):
     """Verify Respite (normal & corrupted) and Chronicler sprites are 40x40 with non-empty alpha."""
+    monkeypatch.chdir(tmp_path)
     respite = generate_assets.generate_respite(40, 40, corrupted=False)
     respite_corr = generate_assets.generate_respite(40, 40, corrupted=True)
     chronicler = generate_assets.generate_chronicler(40, 40)
@@ -445,61 +447,61 @@ def test_respite_and_chronicler_sprites():
     # Normal and corrupted Respite must differ visually (cyan runes vs dark ink)
     assert pygame.image.tobytes(respite, "RGBA") != pygame.image.tobytes(respite_corr, "RGBA")
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        paths = generate_assets.generate_all_assets(
-            floor_path=os.path.join(tmpdir, "floor.png"),
-            wall_path=os.path.join(tmpdir, "wall.png"),
-            grass_path=os.path.join(tmpdir, "grass.png"),
-            rock_path=os.path.join(tmpdir, "rock.png"),
-            chronicle_path=os.path.join(tmpdir, "chronicle.png"),
-            respite_path=os.path.join(tmpdir, "respite.png"),
-            respite_corrupted_path=os.path.join(tmpdir, "respite_corrupted.png"),
-            chronicler_path=os.path.join(tmpdir, "chronicler.png"),
-            wall_cracked_path=os.path.join(tmpdir, "wall_cracked.png"),
-            wall_mossy_path=os.path.join(tmpdir, "wall_mossy.png"),
-            wall_webbed_path=os.path.join(tmpdir, "wall_webbed.png"),
-            swamp_water_path=os.path.join(tmpdir, "swamp_water.png"),
-            mud_turf_path=os.path.join(tmpdir, "mud_turf.png"),
-            peat_bank_path=os.path.join(tmpdir, "peat_bank.png"),
-            swamp_wall_path=os.path.join(tmpdir, "swamp_wall.png"),
-            swamp_fungus_path=os.path.join(tmpdir, "swamp_fungus.png"),
-            swamp_vent_path=os.path.join(tmpdir, "swamp_vent.png"),
-            swamp_thorns_path=os.path.join(tmpdir, "swamp_thorns.png"),
-            ruins_rubble_path=os.path.join(tmpdir, "ruins_rubble.png"),
-            swamp_flora_path=os.path.join(tmpdir, "swamp_flora.png"),
-            crypt_clutter_path=os.path.join(tmpdir, "crypt_clutter.png"),
-            wall_top_cap_path=os.path.join(tmpdir, "wall_top_cap.png"),
-            wall_front_face_path=os.path.join(tmpdir, "wall_front_face.png"),
-            shadow_south_path=os.path.join(tmpdir, "shadow_south.png"),
-            shadow_east_path=os.path.join(tmpdir, "shadow_east.png"),
-            shadow_corner_path=os.path.join(tmpdir, "shadow_corner.png"),
-            cliff_edge_path=os.path.join(tmpdir, "cliff_edge.png"),
-            staircase_path=os.path.join(tmpdir, "staircase_tile.png"),
-            pit_rim_path=os.path.join(tmpdir, "pit_rim.png"),
-            boss_dais_path=os.path.join(tmpdir, "boss_dais_tile.png"),
-            boss_pillar_path=os.path.join(tmpdir, "boss_pillar_tile.png"),
-            boss_abyss_rim_path=os.path.join(tmpdir, "boss_abyss_rim.png"),
-            wellspring_path=os.path.join(tmpdir, "wellspring.png"),
-            lotus_frame_path=os.path.join(tmpdir, "lotus_frame.png"),
-            bench_path=os.path.join(tmpdir, "bench.png"),
-            heavy_bookcase_path=os.path.join(tmpdir, "heavy_bookcase.png"),
-            ink_urn_path=os.path.join(tmpdir, "ink_urn.png"),
-            inkwell_puddle_path=os.path.join(tmpdir, "inkwell_puddle.png"),
-            candelabra_path=os.path.join(tmpdir, "candelabra.png"),
-            tree_structure_path=os.path.join(tmpdir, "tree_structure.png"),
-            bat_path=os.path.join(tmpdir, "bat.png"),
-            flutter_path=os.path.join(tmpdir, "flutter.png"),
-            bindling_path=os.path.join(tmpdir, "bindling.png"),
-            smear_path=os.path.join(tmpdir, "smear.png"),
-            miniboss_path=os.path.join(tmpdir, "miniboss.png"),
-            night_boss_path=os.path.join(tmpdir, "night_boss.png"),
-            final_author_path=os.path.join(tmpdir, "final_author.png"),
-            seed=42,
-        )
-        for key in ("respite", "respite_corrupted", "chronicler"):
-            assert key in paths
-            assert os.path.exists(paths[key])
-            assert os.path.getsize(paths[key]) > 100
+    tmpdir = str(tmp_path)
+    paths = generate_assets.generate_all_assets(
+        floor_path=os.path.join(tmpdir, "floor.png"),
+        wall_path=os.path.join(tmpdir, "wall.png"),
+        grass_path=os.path.join(tmpdir, "grass.png"),
+        rock_path=os.path.join(tmpdir, "rock.png"),
+        chronicle_path=os.path.join(tmpdir, "chronicle.png"),
+        respite_path=os.path.join(tmpdir, "respite.png"),
+        respite_corrupted_path=os.path.join(tmpdir, "respite_corrupted.png"),
+        chronicler_path=os.path.join(tmpdir, "chronicler.png"),
+        wall_cracked_path=os.path.join(tmpdir, "wall_cracked.png"),
+        wall_mossy_path=os.path.join(tmpdir, "wall_mossy.png"),
+        wall_webbed_path=os.path.join(tmpdir, "wall_webbed.png"),
+        swamp_water_path=os.path.join(tmpdir, "swamp_water.png"),
+        mud_turf_path=os.path.join(tmpdir, "mud_turf.png"),
+        peat_bank_path=os.path.join(tmpdir, "peat_bank.png"),
+        swamp_wall_path=os.path.join(tmpdir, "swamp_wall.png"),
+        swamp_fungus_path=os.path.join(tmpdir, "swamp_fungus.png"),
+        swamp_vent_path=os.path.join(tmpdir, "swamp_vent.png"),
+        swamp_thorns_path=os.path.join(tmpdir, "swamp_thorns.png"),
+        ruins_rubble_path=os.path.join(tmpdir, "ruins_rubble.png"),
+        swamp_flora_path=os.path.join(tmpdir, "swamp_flora.png"),
+        crypt_clutter_path=os.path.join(tmpdir, "crypt_clutter.png"),
+        wall_top_cap_path=os.path.join(tmpdir, "wall_top_cap.png"),
+        wall_front_face_path=os.path.join(tmpdir, "wall_front_face.png"),
+        shadow_south_path=os.path.join(tmpdir, "shadow_south.png"),
+        shadow_east_path=os.path.join(tmpdir, "shadow_east.png"),
+        shadow_corner_path=os.path.join(tmpdir, "shadow_corner.png"),
+        cliff_edge_path=os.path.join(tmpdir, "cliff_edge.png"),
+        staircase_path=os.path.join(tmpdir, "staircase_tile.png"),
+        pit_rim_path=os.path.join(tmpdir, "pit_rim.png"),
+        boss_dais_path=os.path.join(tmpdir, "boss_dais_tile.png"),
+        boss_pillar_path=os.path.join(tmpdir, "boss_pillar_tile.png"),
+        boss_abyss_rim_path=os.path.join(tmpdir, "boss_abyss_rim.png"),
+        wellspring_path=os.path.join(tmpdir, "wellspring.png"),
+        lotus_frame_path=os.path.join(tmpdir, "lotus_frame.png"),
+        bench_path=os.path.join(tmpdir, "bench.png"),
+        heavy_bookcase_path=os.path.join(tmpdir, "heavy_bookcase.png"),
+        ink_urn_path=os.path.join(tmpdir, "ink_urn.png"),
+        inkwell_puddle_path=os.path.join(tmpdir, "inkwell_puddle.png"),
+        candelabra_path=os.path.join(tmpdir, "candelabra.png"),
+        tree_structure_path=os.path.join(tmpdir, "tree_structure.png"),
+        bat_path=os.path.join(tmpdir, "bat.png"),
+        flutter_path=os.path.join(tmpdir, "flutter.png"),
+        bindling_path=os.path.join(tmpdir, "bindling.png"),
+        smear_path=os.path.join(tmpdir, "smear.png"),
+        miniboss_path=os.path.join(tmpdir, "miniboss.png"),
+        night_boss_path=os.path.join(tmpdir, "night_boss.png"),
+        final_author_path=os.path.join(tmpdir, "final_author.png"),
+        seed=42,
+    )
+    for key in ("respite", "respite_corrupted", "chronicler"):
+        assert key in paths
+        assert os.path.exists(paths[key])
+        assert os.path.getsize(paths[key]) > 100
 
 
 def test_write_surface_if_changed_skips_identical_and_writes_modified(tmp_path):
@@ -522,8 +524,9 @@ def test_write_surface_if_changed_skips_identical_and_writes_modified(tmp_path):
     assert reloaded.get_at((0, 0))[:3] == (255, 0, 0)
 
 
-def test_generate_all_assets_is_idempotent_on_second_run(tmp_path):
+def test_generate_all_assets_is_idempotent_on_second_run(tmp_path, monkeypatch):
     """Verify running generate_all_assets twice leaves all PNG mtimes untouched on the second run."""
+    monkeypatch.chdir(tmp_path)
     kwargs = {
         "floor_path": str(tmp_path / "floor.png"),
         "wall_path": str(tmp_path / "wall.png"),
