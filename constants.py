@@ -859,6 +859,78 @@ BIOME_PALETTES = {
     }
 }
 
+# Flat Walkable Floor-Zone Transition Seam Constants
+# Keeps flat floor-to-floor boundaries softer than wall/cliff edges across all biomes.
+FLOOR_SEAM_OUTER_BLEND = 0.50         # Weight of surrounding canvas stratum on outer 1px seam rim
+FLOOR_SEAM_INNER_BLEND = 0.25         # Weight of surrounding canvas stratum on inner 1px feather lip
+FLOOR_SEAM_SHADE_FACTOR = 0.90        # Subtle darkening on shaded seam side (vs dark wall_mortar)
+FLOOR_SEAM_RECESS_LO_FACTOR = 0.92    # Subtle softening on recessed stratum south/east edge
+FLOOR_SEAM_HIGHLIGHT_FACTOR = 1.05    # Subtle lift on lit terrace seam side (vs stark wall_hi)
+FLOOR_SEAM_RIM_PX = 1                 # 1px primary floor seam rim (vs 2-4px wall/cliff borders)
+FLOOR_SEAM_FEATHER_PX = 1             # 1px inner feather blend (vs 3px cliff lip)
+FLOOR_SEAM_CORNER_RADIUS = 8          # Organic 45-degree outer corner bevel radius for flat zones
+FLOOR_SEAM_TECH_CORNER_RADIUS = 6     # Clean 45-degree chamfer radius for tech_tower decks
+FLOOR_SEAM_TECH_CHAMFER_BLEND = 0.22  # Subtle muted accent blend for tech_tower deck chamfers
+
+
+def blend_rgb(col_a, col_b, weight_b: float) -> tuple:
+    """Linearly interpolate between two RGB tuples by weight_b clamped to [0.0, 1.0]."""
+    t = max(0.0, min(1.0, float(weight_b)))
+    return (
+        max(0, min(255, int(round(col_a[0] * (1.0 - t) + col_b[0] * t)))),
+        max(0, min(255, int(round(col_a[1] * (1.0 - t) + col_b[1] * t)))),
+        max(0, min(255, int(round(col_a[2] * (1.0 - t) + col_b[2] * t)))),
+    )
+
+
+def scale_rgb(col, factor: float) -> tuple:
+    """Scale an RGB tuple by factor and clamp each channel to [0, 255]."""
+    return (
+        max(0, min(255, int(round(col[0] * factor)))),
+        max(0, min(255, int(round(col[1] * factor)))),
+        max(0, min(255, int(round(col[2] * factor)))),
+    )
+
+
+def compute_floor_seam_colors(biome: str, pal: dict, s_idx: int) -> dict:
+    """Compute low-contrast flat floor-to-floor seam colors for a biome stratum (0 or 2).
+
+    Blends the stratum base color with the surrounding canvas stratum (1) so walkable zone
+    transitions read as flat ground rather than cliff edges or elevation drop-offs.
+    """
+    strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
+    s_base = strata_defs[s_idx][0]
+    outer_canvas = strata_defs[1][0]
+    mid = blend_rgb(s_base, outer_canvas, FLOOR_SEAM_OUTER_BLEND)
+    inner_lip = blend_rgb(s_base, outer_canvas, FLOOR_SEAM_INNER_BLEND)
+
+    if s_idx == 0:
+        rim_hi = scale_rgb(mid, FLOOR_SEAM_SHADE_FACTOR)
+        rim_lo = scale_rgb(mid, FLOOR_SEAM_RECESS_LO_FACTOR)
+    else:
+        rim_hi = scale_rgb(mid, FLOOR_SEAM_HIGHLIGHT_FACTOR)
+        rim_lo = scale_rgb(mid, FLOOR_SEAM_SHADE_FACTOR)
+
+    result = {
+        "outer_canvas": outer_canvas,
+        "rim_hi": rim_hi,
+        "rim_lo": rim_lo,
+        "inner_lip": inner_lip,
+    }
+
+    if biome == "swamp_mire":
+        if s_idx == 0:
+            result["inner_lip"] = blend_rgb(inner_lip, (64, 84, 38), 0.45)
+            result["dab_col"] = blend_rgb(mid, (88, 114, 42), 0.45)
+        else:
+            result["inner_lip"] = blend_rgb(inner_lip, (88, 52, 92), 0.40)
+            result["dab_col"] = blend_rgb(s_base, (108, 74, 114), 0.45)
+    elif biome == "tech_tower":
+        chamfer_target = (62, 96, 118) if s_idx == 0 else (76, 100, 128)
+        result["chamfer_hi"] = blend_rgb(inner_lip, chamfer_target, FLOOR_SEAM_TECH_CHAMFER_BLEND)
+
+    return result
+
 # Structural Schema enforced for all conversation manifests
 CHRONICLER_MUMBLE_SFX = {
     "neutral": "chronicler_mumble_neutral.ogg",

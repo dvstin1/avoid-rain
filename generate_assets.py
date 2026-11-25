@@ -142,9 +142,9 @@ FLOOR_SCUFF_DARKEN_DELTA = (14, 24)     # Amount subtracted from base color for 
 FLOOR_HIGHLIGHT_COUNT_RANGE = (12, 20)  # Sporadic tiny bright quartz/sand specks
 FLOOR_HIGHLIGHT_BOOST_RANGE = (16, 28)  # Brightness boost for tiny highlights
 FLOOR_VIGNETTE_LAYERS = [               # Distance from edge -> darkening percentage
-    (0, 0.18),  # Outermost perimeter pixel (18% darker)
-    (1, 0.10),  # 1px inward (10% darker)
-    (2, 0.04),  # 2px inward (4% darker)
+    (0, 0.12),  # Outermost perimeter pixel (12% darker for soft flat tiling)
+    (1, 0.06),  # 1px inward (6% darker)
+    (2, 0.03),  # 2px inward (3% darker)
 ]
 
 # --- 2. Wall Tile Segment Parameters ---
@@ -1630,7 +1630,7 @@ def generate_vitreous_salt_floor_tile(
     surface = pygame.Surface((width, height))
     base_rgb = (204, 154, 92)
     crest_rgb = (242, 202, 134)
-    seam_rgb = (134, 78, 46)
+    seam_rgb = (158, 106, 66)
 
     for y in range(height):
         for x in range(width):
@@ -1702,7 +1702,7 @@ def generate_vitreous_glass_flat_tile(
     for path in fractures:
         for i in range(len(path) - 1):
             p1, p2 = path[i], path[i + 1]
-            pygame.draw.line(surface, (68, 36, 22), p1, p2, 1)
+            pygame.draw.line(surface, (116, 68, 42), p1, p2, 1)
             pygame.draw.line(surface, (236, 176, 98), (p1[0] + 1, p1[1]), (p2[0] + 1, p2[1]), 1)
 
     return surface
@@ -1829,7 +1829,7 @@ def generate_aqueduct_terracotta_floor_tile(
         rng = random.Random()
 
     surface = pygame.Surface((width, height))
-    mortar_rgb = (92, 54, 38)
+    mortar_rgb = (134, 84, 58)
     surface.fill(mortar_rgb)
 
     slabs = [
@@ -1847,8 +1847,8 @@ def generate_aqueduct_terracotta_floor_tile(
                     (px, py),
                     (_clamp(tone[0] + jit), _clamp(tone[1] + jit), _clamp(tone[2] + jit)),
                 )
-        pygame.draw.line(surface, (226, 178, 132), (sx, sy), (sx + sw - 1, sy), 1)
-        pygame.draw.line(surface, (124, 72, 48), (sx, sy + sh - 1), (sx + sw - 1, sy + sh - 1), 1)
+        pygame.draw.line(surface, (208, 154, 110), (sx, sy), (sx + sw - 1, sy), 1)
+        pygame.draw.line(surface, (144, 92, 64), (sx, sy + sh - 1), (sx + sw - 1, sy + sh - 1), 1)
 
     # Sun-baked mineral chips & creeping seam moss tufts
     for mx, my in ((19, 19), (20, 18), (14, 21), (13, 35)):

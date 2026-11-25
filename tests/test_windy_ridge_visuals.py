@@ -91,7 +91,7 @@ def test_windy_ridge_organic_floor_patterns_avoid_neon_polka_dots():
 
 
 def test_windy_ridge_soft_stratum_borders_without_neon_contours(monkeypatch):
-    """Verify windy_ridge stratum transitions draw soft 20%-darker seams with zero neon-mint or sky-blue contours."""
+    """Verify windy_ridge stratum transitions draw soft blended seams with zero neon-mint or sky-blue contours."""
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
     pal = constants.BIOME_PALETTES["windy_ridge"]
@@ -103,7 +103,7 @@ def test_windy_ridge_soft_stratum_borders_without_neon_contours(monkeypatch):
     state.world.name = "windy_ridge"
     state.world.load_from_prototype([".....", ".....", ".....", ".....", "....."])
 
-    banned_contour = {pal["floor_accent"], pal["wall_hi"]}
+    banned_contour = {pal["floor_accent"], pal["wall_hi"], pal["wall_mortar"]}
 
     for center_stratum in (0, 2):
         # Place a 1-tile island of center_stratum at (2, 2) surrounded by stratum 1 meadow
@@ -120,11 +120,11 @@ def test_windy_ridge_soft_stratum_borders_without_neon_contours(monkeypatch):
             surf, state, (2, 2, 5, 5), (0, 0, ts, ts), ("windy_ridge", pal, center_stratum, strata_defs)
         )
 
-        expected_shade = tuple(max(0, int(c * 0.80)) for c in s_base)
+        seam = constants.compute_floor_seam_colors("windy_ridge", pal, center_stratum)
         all_colors = {surf.get_at((px, py))[:3] for py in range(ts) for px in range(ts)}
-        assert expected_shade in all_colors, (
-            f"Expected soft 20%-darker seam {expected_shade} for stratum {center_stratum}"
+        assert seam["rim_hi"] in all_colors and seam["rim_lo"] in all_colors, (
+            f"Expected soft blended seam {seam['rim_hi']}/{seam['rim_lo']} for stratum {center_stratum}"
         )
         assert not (all_colors & banned_contour), (
-            f"Found neon contour spike {all_colors & banned_contour} on stratum {center_stratum} seam"
+            f"Found harsh contour spike {all_colors & banned_contour} on stratum {center_stratum} seam"
         )

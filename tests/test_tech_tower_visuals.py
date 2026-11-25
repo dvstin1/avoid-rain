@@ -88,7 +88,7 @@ def test_tech_tower_floor_patterns_mute_conduits_and_ban_bright_ovals():
 
 
 def test_tech_tower_chamfered_stratum_borders_no_neon_outline(monkeypatch):
-    """Verify tech_tower stratum seams draw 25%-darker steel bevels with zero #00E6FF perimeter lines."""
+    """Verify tech_tower stratum seams draw soft blended steel bevels with zero #00E6FF or cliff-mortar outlines."""
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
     pal = constants.BIOME_PALETTES["tech_tower"]
@@ -100,8 +100,7 @@ def test_tech_tower_chamfered_stratum_borders_no_neon_outline(monkeypatch):
     state.world.name = "tech_tower"
     state.world.load_from_prototype([".....", ".....", ".....", ".....", "....."])
 
-    expected_shadow = tuple(max(0, int(c * 0.75)) for c in strata_defs[1][0])
-    banned_neon = {pal["floor_accent"], pal["wall_glow"]}
+    banned_neon = {pal["floor_accent"], pal["wall_glow"], pal["wall_mortar"], pal["wall_hi"]}
 
     for center_stratum in (0, 2):
         monkeypatch.setattr(
@@ -116,12 +115,13 @@ def test_tech_tower_chamfered_stratum_borders_no_neon_outline(monkeypatch):
             surf, state, (2, 2, 5, 5), (0, 0, ts, ts), ("tech_tower", pal, center_stratum, strata_defs)
         )
 
+        seam = constants.compute_floor_seam_colors("tech_tower", pal, center_stratum)
         all_colors = {surf.get_at((px, py))[:3] for py in range(ts) for px in range(ts)}
-        assert expected_shadow in all_colors, (
-            f"Expected 25%-darker steel bevel {expected_shadow} on stratum {center_stratum}"
+        assert seam["rim_hi"] in all_colors and seam["rim_lo"] in all_colors, (
+            f"Expected soft blended steel bevel {seam['rim_hi']}/{seam['rim_lo']} on stratum {center_stratum}"
         )
         assert not (all_colors & banned_neon), (
-            f"Found neon cyan contour spike {all_colors & banned_neon} on stratum {center_stratum}"
+            f"Found harsh contour spike {all_colors & banned_neon} on stratum {center_stratum}"
         )
 
 

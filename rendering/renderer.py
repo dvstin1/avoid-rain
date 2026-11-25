@@ -1984,8 +1984,9 @@ class Renderer:
             if not getattr(self, "sanctuary_flagstone_variants", None):
                 bx, by = x % 2, y % 2
                 if bx == 0 and by == 0:
-                    target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 1))
-                    target_surf.fill(pal["wall_mortar"], (sx, sy, 1, ts))
+                    soft_joint = self._shift_rgb_clamped(pal["floor_base"], -10, -8, -6)
+                    target_surf.fill(soft_joint, (sx, sy, ts, 1))
+                    target_surf.fill(soft_joint, (sx, sy, 1, ts))
             target_surf.set_clip(prev_clip)
             return
 
@@ -2055,9 +2056,10 @@ class Renderer:
         elif biome == "frozen_peaks":
             if s_idx == 0:
                 # Continuous Mirror-Ice Basin with branching multi-tile fracture networks
+                ice_crack = self._shift_rgb_clamped(pal["strata"][0][0], -8, -16, -24)
                 if pat == 0:
-                    pygame.draw.line(target_surf, pal["wall_mortar"], (ax + 6, ay + 12), (ax + 74, ay + 68), 2)
-                    pygame.draw.line(target_surf, pal["wall_mortar"], (ax + 40, ay + 40), (ax + 68, ay + 16), 2)
+                    pygame.draw.line(target_surf, ice_crack, (ax + 6, ay + 12), (ax + 74, ay + 68), 2)
+                    pygame.draw.line(target_surf, ice_crack, (ax + 40, ay + 40), (ax + 68, ay + 16), 2)
                     pygame.draw.line(target_surf, pal["floor_speck"], (ax + 8, ay + 10), (ax + 74, ay + 66), 1)
                 elif pat == 1:
                     pts = [(ax + 40, ay + 10), (ax + 68, ay + 40), (ax + 40, ay + 70), (ax + 12, ay + 40)]
@@ -2083,7 +2085,8 @@ class Renderer:
         elif biome == "vitreous_basin":
             if s_idx == 0:
                 # Reflective fractured glass flat: crystalline refraction seams & mirror highlights
-                pygame.draw.line(target_surf, pal["wall_mortar"], (ax + 8, ay + 12), (ax + 72, ay + 66), 2)
+                glass_seam = self._shift_rgb_clamped(pal["strata"][0][0], -24, -18, -12)
+                pygame.draw.line(target_surf, glass_seam, (ax + 8, ay + 12), (ax + 72, ay + 66), 2)
                 pygame.draw.line(target_surf, pal["wall_glow"], (ax + 12, ay + 10), (ax + 70, ay + 62), 1)
                 if pat in (0, 2):
                     pygame.draw.line(target_surf, pal["floor_speck"], (ax + 14, ay + 58), (ax + 54, ay + 18), 2)
@@ -2093,7 +2096,8 @@ class Renderer:
                 pygame.draw.ellipse(target_surf, pal["floor_speck"], (ax + 18, ay + 20, 40, 24), 1)
             else:
                 # Sun-bleached salt crust polygon plates
-                pygame.draw.line(target_surf, pal["wall_mortar"], (ax + 6, ay + 38), (ax + 74, ay + 42), 1)
+                salt_seam = self._shift_rgb_clamped(pal["strata"][1][0], -26, -20, -14)
+                pygame.draw.line(target_surf, salt_seam, (ax + 6, ay + 38), (ax + 74, ay + 42), 1)
                 pygame.draw.line(target_surf, pal["floor_speck"], (ax + 8, ay + 36), (ax + 74, ay + 40), 1)
                 if pat == 1:
                     pygame.draw.polygon(
@@ -2115,8 +2119,9 @@ class Renderer:
                 pygame.draw.circle(target_surf, (164, 244, 146), (ax + 50, ay + 46), 5)
             else:
                 # Sun-baked terracotta flagstone seams with moss tufts
-                pygame.draw.rect(target_surf, pal["wall_mortar"], (ax + 8, ay + 8, 64, 30), 1, border_radius=3)
-                pygame.draw.rect(target_surf, pal["wall_mortar"], (ax + 12, ay + 42, 56, 30), 1, border_radius=3)
+                terracotta_seam = self._shift_rgb_clamped(pal["strata"][1][0], -28, -20, -14)
+                pygame.draw.rect(target_surf, terracotta_seam, (ax + 8, ay + 8, 64, 30), 1, border_radius=3)
+                pygame.draw.rect(target_surf, terracotta_seam, (ax + 12, ay + 42, 56, 30), 1, border_radius=3)
                 if pat in (0, 2):
                     pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 40, ay + 40), 5)
         elif biome == "windy_ridge":
@@ -2311,26 +2316,25 @@ class Renderer:
                     target_surf.set_at((px + 4, py + 2), spore_lilac)
 
     def _draw_swamp_mire_stratum_borders(self, target_surf, geom, stratum_info, neighbors):
-        """Draw 45-degree organic shoreline bevels: feathered algae edge (S0) and bruised-lilac chitin lip (S2)."""
+        """Draw soft 45-degree organic shoreline bevels for swamp_mire without harsh cliff outlines."""
         x, y, sx, sy, ts = geom
         s_idx, strata_defs = stratum_info
         same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se = neighbors
 
-        outer_canvas_col = strata_defs[1][0]
-        if s_idx == 0:
-            # Feathered muted algae-scum shoreline (replaces harsh 3px neon (142, 172, 44) band)
-            edge_hi = (18, 9, 26)
-            edge_lo = (14, 7, 20)
-            feather_lip = (58, 78, 34)
-            dab_col = (88, 114, 42)
-        else:
-            # Softer bruised-lilac chitin lip (replaces stark 2-3px pale-white (216, 202, 226) outline)
-            edge_hi = (114, 80, 122)
-            edge_lo = (26, 12, 32)
-            feather_lip = (82, 48, 88)
-            dab_col = (132, 96, 140)
+        seam = constants.compute_floor_seam_colors(
+            "swamp_mire",
+            {"strata": strata_defs, "floor_base": strata_defs[1][0], "floor_alt": strata_defs[1][1]},
+            s_idx,
+        )
+        outer_canvas_col = seam["outer_canvas"]
+        edge_hi = seam["rim_hi"]
+        edge_lo = seam["rim_lo"]
+        feather_lip = seam["inner_lip"]
+        dab_col = seam["dab_col"]
 
-        c_rad = 8
+        c_rad = constants.FLOOR_SEAM_CORNER_RADIUS
+        rim_px = constants.FLOOR_SEAM_RIM_PX
+        fth_px = constants.FLOOR_SEAM_FEATHER_PX
         rnd_nw = (not same_n) and (not same_w)
         rnd_ne = (not same_n) and (not same_e)
         rnd_sw = (not same_s) and (not same_w)
@@ -2339,32 +2343,38 @@ class Renderer:
         # 1. Soft 45-degree organic beveled outer corners
         if rnd_nw:
             pygame.draw.polygon(target_surf, outer_canvas_col, [(sx, sy), (sx + c_rad, sy), (sx, sy + c_rad)])
-            pygame.draw.line(target_surf, edge_hi, (sx + 1, sy + c_rad), (sx + c_rad, sy + 1), 2)
-            pygame.draw.line(target_surf, feather_lip, (sx + 2, sy + c_rad + 1), (sx + c_rad + 1, sy + 2), 1)
+            pygame.draw.line(target_surf, edge_hi, (sx + 1, sy + c_rad), (sx + c_rad, sy + 1), rim_px)
+            pygame.draw.line(target_surf, feather_lip, (sx + 2, sy + c_rad + 1), (sx + c_rad + 1, sy + 2), fth_px)
         if rnd_ne:
             pygame.draw.polygon(
                 target_surf, outer_canvas_col, [(sx + ts, sy), (sx + ts - c_rad, sy), (sx + ts, sy + c_rad)]
             )
-            pygame.draw.line(target_surf, edge_hi, (sx + ts - c_rad, sy + 1), (sx + ts - 1, sy + c_rad), 2)
-            pygame.draw.line(target_surf, feather_lip, (sx + ts - c_rad - 1, sy + 2), (sx + ts - 2, sy + c_rad + 1), 1)
+            pygame.draw.line(target_surf, edge_hi, (sx + ts - c_rad, sy + 1), (sx + ts - 1, sy + c_rad), rim_px)
+            pygame.draw.line(
+                target_surf, feather_lip, (sx + ts - c_rad - 1, sy + 2), (sx + ts - 2, sy + c_rad + 1), fth_px
+            )
         if rnd_sw:
             pygame.draw.polygon(
                 target_surf, outer_canvas_col, [(sx, sy + ts), (sx + c_rad, sy + ts), (sx, sy + ts - c_rad)]
             )
-            pygame.draw.line(target_surf, edge_lo, (sx + 1, sy + ts - c_rad), (sx + c_rad, sy + ts - 1), 2)
-            pygame.draw.line(target_surf, feather_lip, (sx + 2, sy + ts - c_rad - 1), (sx + c_rad + 1, sy + ts - 2), 1)
+            pygame.draw.line(target_surf, edge_lo, (sx + 1, sy + ts - c_rad), (sx + c_rad, sy + ts - 1), rim_px)
+            pygame.draw.line(
+                target_surf, feather_lip, (sx + 2, sy + ts - c_rad - 1), (sx + c_rad + 1, sy + ts - 2), fth_px
+            )
         if rnd_se:
             pygame.draw.polygon(
                 target_surf,
                 outer_canvas_col,
                 [(sx + ts, sy + ts), (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad)],
             )
-            pygame.draw.line(target_surf, edge_lo, (sx + ts - c_rad, sy + ts - 1), (sx + ts - 1, sy + ts - c_rad), 2)
             pygame.draw.line(
-                target_surf, feather_lip, (sx + ts - c_rad - 1, sy + ts - 2), (sx + ts - 2, sy + ts - c_rad - 1), 1
+                target_surf, edge_lo, (sx + ts - c_rad, sy + ts - 1), (sx + ts - 1, sy + ts - c_rad), rim_px
+            )
+            pygame.draw.line(
+                target_surf, feather_lip, (sx + ts - c_rad - 1, sy + ts - 2), (sx + ts - 2, sy + ts - c_rad - 1), fth_px
             )
 
-        # 2. Feathered 1-2px cardinal shoreline/chitin lips with sparse organic dabs
+        # 2. Feathered 1px cardinal shoreline/chitin lips with sparse organic dabs
         seam_hash = ((x * 2654435761) ^ (y * 2246822519)) & 0x7FFFFFFF
         dab1 = 9 + (seam_hash % 11)
         dab2 = 22 + ((seam_hash >> 4) % 9)
@@ -2372,55 +2382,67 @@ class Renderer:
             x0 = sx + (c_rad if rnd_nw else 0)
             x1 = sx + ts - (c_rad if rnd_ne else 0)
             if x1 > x0:
-                target_surf.fill(edge_hi, (x0, sy, x1 - x0, 2))
-                target_surf.fill(feather_lip, (x0, sy + 2, x1 - x0, 1))
+                target_surf.fill(edge_hi, (x0, sy, x1 - x0, rim_px))
+                target_surf.fill(feather_lip, (x0, sy + rim_px, x1 - x0, fth_px))
                 if (seam_hash & 3) == 0:
-                    target_surf.fill(dab_col, (sx + dab1, sy + 2, 4, 2))
+                    target_surf.fill(dab_col, (sx + dab1, sy + rim_px, 4, 2))
         if not same_s:
             x0 = sx + (c_rad if rnd_sw else 0)
             x1 = sx + ts - (c_rad if rnd_se else 0)
             if x1 > x0:
-                target_surf.fill(edge_lo, (x0, sy + ts - 2, x1 - x0, 2))
-                target_surf.fill(feather_lip, (x0, sy + ts - 3, x1 - x0, 1))
+                target_surf.fill(edge_lo, (x0, sy + ts - rim_px, x1 - x0, rim_px))
+                target_surf.fill(feather_lip, (x0, sy + ts - rim_px - fth_px, x1 - x0, fth_px))
                 if (seam_hash & 3) == 1:
-                    target_surf.fill(dab_col, (sx + dab2, sy + ts - 4, 4, 2))
+                    target_surf.fill(dab_col, (sx + dab2, sy + ts - rim_px - 2, 4, 2))
         if not same_w:
             y0 = sy + (c_rad if rnd_nw else 0)
             y1 = sy + ts - (c_rad if rnd_sw else 0)
             if y1 > y0:
-                target_surf.fill(edge_hi, (sx, y0, 2, y1 - y0))
-                target_surf.fill(feather_lip, (sx + 2, y0, 1, y1 - y0))
+                target_surf.fill(edge_hi, (sx, y0, rim_px, y1 - y0))
+                target_surf.fill(feather_lip, (sx + rim_px, y0, fth_px, y1 - y0))
                 if (seam_hash & 3) == 2:
-                    target_surf.fill(dab_col, (sx + 2, sy + dab1, 2, 4))
+                    target_surf.fill(dab_col, (sx + rim_px, sy + dab1, 2, 4))
         if not same_e:
             y0 = sy + (c_rad if rnd_ne else 0)
             y1 = sy + ts - (c_rad if rnd_se else 0)
             if y1 > y0:
-                target_surf.fill(edge_lo, (sx + ts - 2, y0, 2, y1 - y0))
-                target_surf.fill(feather_lip, (sx + ts - 3, y0, 1, y1 - y0))
+                target_surf.fill(edge_lo, (sx + ts - rim_px, y0, rim_px, y1 - y0))
+                target_surf.fill(feather_lip, (sx + ts - rim_px - fth_px, y0, fth_px, y1 - y0))
                 if (seam_hash & 3) == 3:
-                    target_surf.fill(dab_col, (sx + ts - 4, sy + dab2, 2, 4))
+                    target_surf.fill(dab_col, (sx + ts - rim_px - 2, sy + dab2, 2, 4))
 
         # 3. Soft concave inner corner caps
         if same_n and same_w and not same_nw:
-            target_surf.fill(edge_hi, (sx, sy, 2, 2))
+            target_surf.fill(feather_lip, (sx, sy, 2, 2))
+            target_surf.fill(edge_hi, (sx, sy, rim_px, rim_px))
         if same_n and same_e and not same_ne:
-            target_surf.fill(edge_hi, (sx + ts - 2, sy, 2, 2))
+            target_surf.fill(feather_lip, (sx + ts - 2, sy, 2, 2))
+            target_surf.fill(edge_hi, (sx + ts - rim_px, sy, rim_px, rim_px))
         if same_s and same_w and not same_sw:
-            target_surf.fill(edge_lo, (sx, sy + ts - 2, 2, 2))
+            target_surf.fill(feather_lip, (sx, sy + ts - 2, 2, 2))
+            target_surf.fill(edge_lo, (sx, sy + ts - rim_px, rim_px, rim_px))
         if same_s and same_e and not same_se:
-            target_surf.fill(edge_lo, (sx + ts - 2, sy + ts - 2, 2, 2))
+            target_surf.fill(feather_lip, (sx + ts - 2, sy + ts - 2, 2, 2))
+            target_surf.fill(edge_lo, (sx + ts - rim_px, sy + ts - rim_px, rim_px, rim_px))
 
     def _draw_tech_tower_stratum_borders(self, target_surf, dr, s_idx, strata_defs, neighbors):
-        """Draw recessed dark-steel shadow edges (25% darker) and 1px muted slate-cyan chamfer highlights."""
+        """Draw subtle low-contrast deck transition seams and muted 1px metallic chamfers for tech_tower."""
         sx, sy, ts = int(dr[0]), int(dr[1]), int(dr[2])
         same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se = neighbors
 
-        outer_canvas_col = strata_defs[1][0]
-        edge_shadow = tuple(max(0, int(c * 0.75)) for c in outer_canvas_col)
-        chamfer_hi = (74, 118, 144) if s_idx == 0 else (96, 128, 158)
+        seam = constants.compute_floor_seam_colors(
+            "tech_tower",
+            {"strata": strata_defs, "floor_base": strata_defs[1][0], "floor_alt": strata_defs[1][1]},
+            s_idx,
+        )
+        outer_canvas_col = seam["outer_canvas"]
+        edge_hi = seam["rim_hi"]
+        edge_lo = seam["rim_lo"]
+        chamfer_hi = seam["chamfer_hi"]
 
-        c_rad = 6
+        c_rad = constants.FLOOR_SEAM_TECH_CORNER_RADIUS
+        rim_px = constants.FLOOR_SEAM_RIM_PX
+        fth_px = constants.FLOOR_SEAM_FEATHER_PX
         rnd_nw = (not same_n) and (not same_w)
         rnd_ne = (not same_n) and (not same_e)
         rnd_sw = (not same_s) and (not same_w)
@@ -2429,70 +2451,74 @@ class Renderer:
         # 1. Clean 45-degree chamfered metallic outer corners
         if rnd_nw:
             pygame.draw.polygon(target_surf, outer_canvas_col, [(sx, sy), (sx + c_rad, sy), (sx, sy + c_rad)])
-            pygame.draw.line(target_surf, edge_shadow, (sx, sy + c_rad), (sx + c_rad, sy), 2)
-            pygame.draw.line(target_surf, chamfer_hi, (sx + 2, sy + c_rad + 1), (sx + c_rad + 1, sy + 2), 1)
+            pygame.draw.line(target_surf, edge_hi, (sx, sy + c_rad), (sx + c_rad, sy), rim_px)
+            pygame.draw.line(target_surf, chamfer_hi, (sx + 1, sy + c_rad + 1), (sx + c_rad + 1, sy + 1), fth_px)
         if rnd_ne:
             pygame.draw.polygon(
                 target_surf, outer_canvas_col, [(sx + ts, sy), (sx + ts - c_rad, sy), (sx + ts, sy + c_rad)]
             )
-            pygame.draw.line(target_surf, edge_shadow, (sx + ts - c_rad, sy), (sx + ts, sy + c_rad), 2)
-            pygame.draw.line(target_surf, chamfer_hi, (sx + ts - c_rad - 1, sy + 2), (sx + ts - 2, sy + c_rad + 1), 1)
+            pygame.draw.line(target_surf, edge_hi, (sx + ts - c_rad, sy), (sx + ts, sy + c_rad), rim_px)
+            pygame.draw.line(
+                target_surf, chamfer_hi, (sx + ts - c_rad - 1, sy + 1), (sx + ts - 1, sy + c_rad + 1), fth_px
+            )
         if rnd_sw:
             pygame.draw.polygon(
                 target_surf, outer_canvas_col, [(sx, sy + ts), (sx + c_rad, sy + ts), (sx, sy + ts - c_rad)]
             )
-            pygame.draw.line(target_surf, edge_shadow, (sx, sy + ts - c_rad), (sx + c_rad, sy + ts), 2)
-            pygame.draw.line(target_surf, chamfer_hi, (sx + 2, sy + ts - c_rad - 1), (sx + c_rad + 1, sy + ts - 2), 1)
+            pygame.draw.line(target_surf, edge_lo, (sx, sy + ts - c_rad), (sx + c_rad, sy + ts), rim_px)
+            pygame.draw.line(
+                target_surf, chamfer_hi, (sx + 1, sy + ts - c_rad - 1), (sx + c_rad + 1, sy + ts - 1), fth_px
+            )
         if rnd_se:
             pygame.draw.polygon(
                 target_surf,
                 outer_canvas_col,
                 [(sx + ts, sy + ts), (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad)],
             )
-            pygame.draw.line(target_surf, edge_shadow, (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad), 2)
+            pygame.draw.line(target_surf, edge_lo, (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad), rim_px)
             pygame.draw.line(
-                target_surf, chamfer_hi, (sx + ts - c_rad - 1, sy + ts - 2), (sx + ts - 2, sy + ts - c_rad - 1), 1
+                target_surf, chamfer_hi, (sx + ts - c_rad - 1, sy + ts - 1), (sx + ts - 1, sy + ts - c_rad - 1), fth_px
             )
 
-        # 2. Recessed 2px dark steel shadow edge + 1px muted slate-cyan chamfer highlight
+        # 2. Soft 1px blended deck seam + 1px muted chamfer highlight
         if not same_n:
             x0 = sx + (c_rad if rnd_nw else 0)
             x1 = sx + ts - (c_rad if rnd_ne else 0)
             if x1 > x0:
-                target_surf.fill(edge_shadow, (x0, sy, x1 - x0, 2))
-                target_surf.fill(chamfer_hi, (x0, sy + 2, x1 - x0, 1))
+                target_surf.fill(edge_hi, (x0, sy, x1 - x0, rim_px))
+                target_surf.fill(chamfer_hi, (x0, sy + rim_px, x1 - x0, fth_px))
         if not same_s:
             x0 = sx + (c_rad if rnd_sw else 0)
             x1 = sx + ts - (c_rad if rnd_se else 0)
             if x1 > x0:
-                target_surf.fill(edge_shadow, (x0, sy + ts - 2, x1 - x0, 2))
-                target_surf.fill(chamfer_hi, (x0, sy + ts - 3, x1 - x0, 1))
+                target_surf.fill(edge_lo, (x0, sy + ts - rim_px, x1 - x0, rim_px))
+                target_surf.fill(chamfer_hi, (x0, sy + ts - rim_px - fth_px, x1 - x0, fth_px))
         if not same_w:
             y0 = sy + (c_rad if rnd_nw else 0)
             y1 = sy + ts - (c_rad if rnd_sw else 0)
             if y1 > y0:
-                target_surf.fill(edge_shadow, (sx, y0, 2, y1 - y0))
-                target_surf.fill(chamfer_hi, (sx + 2, y0, 1, y1 - y0))
+                target_surf.fill(edge_hi, (sx, y0, rim_px, y1 - y0))
+                target_surf.fill(chamfer_hi, (sx + rim_px, y0, fth_px, y1 - y0))
         if not same_e:
             y0 = sy + (c_rad if rnd_ne else 0)
             y1 = sy + ts - (c_rad if rnd_se else 0)
             if y1 > y0:
-                target_surf.fill(edge_shadow, (sx + ts - 2, y0, 2, y1 - y0))
-                target_surf.fill(chamfer_hi, (sx + ts - 3, y0, 1, y1 - y0))
+                target_surf.fill(edge_lo, (sx + ts - rim_px, y0, rim_px, y1 - y0))
+                target_surf.fill(chamfer_hi, (sx + ts - rim_px - fth_px, y0, fth_px, y1 - y0))
 
-        # 3. Concave inner corner bevels
+        # 3. Soft concave inner corner bevels
         if same_n and same_w and not same_nw:
-            target_surf.fill(edge_shadow, (sx, sy, 2, 2))
-            target_surf.set_at((sx + 2, sy + 2), chamfer_hi)
+            target_surf.fill(chamfer_hi, (sx, sy, 2, 2))
+            target_surf.fill(edge_hi, (sx, sy, rim_px, rim_px))
         if same_n and same_e and not same_ne:
-            target_surf.fill(edge_shadow, (sx + ts - 2, sy, 2, 2))
-            target_surf.set_at((sx + ts - 3, sy + 2), chamfer_hi)
+            target_surf.fill(chamfer_hi, (sx + ts - 2, sy, 2, 2))
+            target_surf.fill(edge_hi, (sx + ts - rim_px, sy, rim_px, rim_px))
         if same_s and same_w and not same_sw:
-            target_surf.fill(edge_shadow, (sx, sy + ts - 2, 2, 2))
-            target_surf.set_at((sx + 2, sy + ts - 3), chamfer_hi)
+            target_surf.fill(chamfer_hi, (sx, sy + ts - 2, 2, 2))
+            target_surf.fill(edge_lo, (sx, sy + ts - rim_px, rim_px, rim_px))
         if same_s and same_e and not same_se:
-            target_surf.fill(edge_shadow, (sx + ts - 2, sy + ts - 2, 2, 2))
-            target_surf.set_at((sx + ts - 3, sy + ts - 3), chamfer_hi)
+            target_surf.fill(chamfer_hi, (sx + ts - 2, sy + ts - 2, 2, 2))
+            target_surf.fill(edge_lo, (sx + ts - rim_px, sy + ts - rim_px, rim_px, rim_px))
 
     def _draw_windy_ridge_floor_patterns(self, target_surf, pal, s_idx, tile_geom):
         """Render organic low-contrast highland clover basins, combed meadow grass, and weathered limestone cobbles."""
@@ -2559,19 +2585,26 @@ class Renderer:
                 pygame.draw.circle(target_surf, stone_hi, (rcx - 1, rcy - 1), 6, 1)
 
     def _draw_windy_ridge_stratum_borders(self, target_surf, coords, dr, s_idx, strata_defs, neighbors):
-        """Draw soft earth/moss elevation seams with overhanging grass tufts & pebbles for windy_ridge."""
+        """Draw soft earth/moss floor transition seams with overhanging grass tufts & pebbles for windy_ridge."""
         x, y = coords
         sx, sy, ts = int(dr[0]), int(dr[1]), int(dr[2])
         same_n, same_s, same_w, same_e, same_nw, same_ne, same_sw, same_se = neighbors
 
-        outer_canvas_col = strata_defs[1][0]
-        s_base = strata_defs[s_idx][0]
-        edge_shade = tuple(max(0, int(c * 0.80)) for c in s_base)
-        soft_lip = tuple(int(s_base[i] * 0.55 + outer_canvas_col[i] * 0.45) for i in range(3))
+        seam = constants.compute_floor_seam_colors(
+            "windy_ridge",
+            {"strata": strata_defs, "floor_base": strata_defs[1][0], "floor_alt": strata_defs[1][1]},
+            s_idx,
+        )
+        outer_canvas_col = seam["outer_canvas"]
+        rim_hi = seam["rim_hi"]
+        rim_lo = seam["rim_lo"]
+        soft_lip = seam["inner_lip"]
         tuft_col = self._shift_rgb_clamped(outer_canvas_col, 10, 18, 8)
         pebble_col = self._shift_rgb_clamped(strata_defs[2][0], -10, -10, -8)
 
-        c_rad = 8
+        c_rad = constants.FLOOR_SEAM_CORNER_RADIUS
+        rim_px = constants.FLOOR_SEAM_RIM_PX
+        fth_px = constants.FLOOR_SEAM_FEATHER_PX
         rnd_nw = (not same_n) and (not same_w)
         rnd_ne = (not same_n) and (not same_e)
         rnd_sw = (not same_s) and (not same_w)
@@ -2580,26 +2613,38 @@ class Renderer:
         # 1. Soft rounded outer corners masked cleanly into surrounding meadow
         if rnd_nw:
             pygame.draw.polygon(target_surf, outer_canvas_col, [(sx, sy), (sx + c_rad, sy), (sx, sy + c_rad)])
-            pygame.draw.line(target_surf, edge_shade, (sx + 1, sy + c_rad), (sx + c_rad, sy + 1), 2)
+            pygame.draw.line(target_surf, rim_hi, (sx + 1, sy + c_rad), (sx + c_rad, sy + 1), rim_px)
+            pygame.draw.line(target_surf, soft_lip, (sx + 2, sy + c_rad + 1), (sx + c_rad + 1, sy + 2), fth_px)
         if rnd_ne:
             pygame.draw.polygon(
                 target_surf, outer_canvas_col, [(sx + ts, sy), (sx + ts - c_rad, sy), (sx + ts, sy + c_rad)]
             )
-            pygame.draw.line(target_surf, edge_shade, (sx + ts - c_rad, sy + 1), (sx + ts - 1, sy + c_rad), 2)
+            pygame.draw.line(target_surf, rim_hi, (sx + ts - c_rad, sy + 1), (sx + ts - 1, sy + c_rad), rim_px)
+            pygame.draw.line(
+                target_surf, soft_lip, (sx + ts - c_rad - 1, sy + 2), (sx + ts - 2, sy + c_rad + 1), fth_px
+            )
         if rnd_sw:
             pygame.draw.polygon(
                 target_surf, outer_canvas_col, [(sx, sy + ts), (sx + c_rad, sy + ts), (sx, sy + ts - c_rad)]
             )
-            pygame.draw.line(target_surf, edge_shade, (sx + 1, sy + ts - c_rad), (sx + c_rad, sy + ts - 1), 2)
+            pygame.draw.line(target_surf, rim_lo, (sx + 1, sy + ts - c_rad), (sx + c_rad, sy + ts - 1), rim_px)
+            pygame.draw.line(
+                target_surf, soft_lip, (sx + 2, sy + ts - c_rad - 1), (sx + c_rad + 1, sy + ts - 2), fth_px
+            )
         if rnd_se:
             pygame.draw.polygon(
                 target_surf,
                 outer_canvas_col,
                 [(sx + ts, sy + ts), (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad)],
             )
-            pygame.draw.line(target_surf, edge_shade, (sx + ts - c_rad, sy + ts - 1), (sx + ts - 1, sy + ts - c_rad), 2)
+            pygame.draw.line(
+                target_surf, rim_lo, (sx + ts - c_rad, sy + ts - 1), (sx + ts - 1, sy + ts - c_rad), rim_px
+            )
+            pygame.draw.line(
+                target_surf, soft_lip, (sx + ts - c_rad - 1, sy + ts - 2), (sx + ts - 2, sy + ts - c_rad - 1), fth_px
+            )
 
-        # 2. Subtle 1-2px shaded earth/moss cardinal seams + overhanging tufts & pebbles
+        # 2. Subtle 1px blended earth/moss cardinal seams + overhanging tufts & pebbles
         seam_hash = ((x * 2654435761) ^ (y * 2246822519)) & 0x7FFFFFFF
         t_off1 = 9 + (seam_hash % 10)
         t_off2 = 22 + ((seam_hash >> 4) % 9)
@@ -2607,8 +2652,8 @@ class Renderer:
             x0 = sx + (c_rad if rnd_nw else 0)
             x1 = sx + ts - (c_rad if rnd_ne else 0)
             if x1 > x0:
-                target_surf.fill(edge_shade, (x0, sy, x1 - x0, 2))
-                target_surf.fill(soft_lip, (x0, sy + 2, x1 - x0, 1))
+                target_surf.fill(rim_hi, (x0, sy, x1 - x0, rim_px))
+                target_surf.fill(soft_lip, (x0, sy + rim_px, x1 - x0, fth_px))
                 pygame.draw.line(target_surf, tuft_col, (sx + t_off1, sy + 3), (sx + t_off1 + 2, sy), 1)
                 if s_idx == 2:
                     pygame.draw.circle(target_surf, pebble_col, (sx + t_off2, sy + 2), 2)
@@ -2616,8 +2661,8 @@ class Renderer:
             x0 = sx + (c_rad if rnd_sw else 0)
             x1 = sx + ts - (c_rad if rnd_se else 0)
             if x1 > x0:
-                target_surf.fill(edge_shade, (x0, sy + ts - 2, x1 - x0, 2))
-                target_surf.fill(soft_lip, (x0, sy + ts - 3, x1 - x0, 1))
+                target_surf.fill(rim_lo, (x0, sy + ts - rim_px, x1 - x0, rim_px))
+                target_surf.fill(soft_lip, (x0, sy + ts - rim_px - fth_px, x1 - x0, fth_px))
                 pygame.draw.line(target_surf, tuft_col, (sx + t_off2, sy + ts - 1), (sx + t_off2 + 2, sy + ts - 4), 1)
                 if s_idx == 2:
                     pygame.draw.circle(target_surf, pebble_col, (sx + t_off1, sy + ts - 2), 2)
@@ -2625,33 +2670,37 @@ class Renderer:
             y0 = sy + (c_rad if rnd_nw else 0)
             y1 = sy + ts - (c_rad if rnd_sw else 0)
             if y1 > y0:
-                target_surf.fill(edge_shade, (sx, y0, 2, y1 - y0))
-                target_surf.fill(soft_lip, (sx + 2, y0, 1, y1 - y0))
+                target_surf.fill(rim_hi, (sx, y0, rim_px, y1 - y0))
+                target_surf.fill(soft_lip, (sx + rim_px, y0, fth_px, y1 - y0))
                 pygame.draw.line(target_surf, tuft_col, (sx + 1, sy + t_off1), (sx + 4, sy + t_off1 - 2), 1)
         if not same_e:
             y0 = sy + (c_rad if rnd_ne else 0)
             y1 = sy + ts - (c_rad if rnd_se else 0)
             if y1 > y0:
-                target_surf.fill(edge_shade, (sx + ts - 2, y0, 2, y1 - y0))
-                target_surf.fill(soft_lip, (sx + ts - 3, y0, 1, y1 - y0))
+                target_surf.fill(rim_lo, (sx + ts - rim_px, y0, rim_px, y1 - y0))
+                target_surf.fill(soft_lip, (sx + ts - rim_px - fth_px, y0, fth_px, y1 - y0))
                 pygame.draw.line(target_surf, tuft_col, (sx + ts - 2, sy + t_off2), (sx + ts - 4, sy + t_off2 - 2), 1)
 
         # 3. Soft concave inner corner caps
         if same_n and same_w and not same_nw:
-            target_surf.fill(edge_shade, (sx, sy, 2, 2))
+            target_surf.fill(soft_lip, (sx, sy, 2, 2))
+            target_surf.fill(rim_hi, (sx, sy, rim_px, rim_px))
         if same_n and same_e and not same_ne:
-            target_surf.fill(edge_shade, (sx + ts - 2, sy, 2, 2))
+            target_surf.fill(soft_lip, (sx + ts - 2, sy, 2, 2))
+            target_surf.fill(rim_hi, (sx + ts - rim_px, sy, rim_px, rim_px))
         if same_s and same_w and not same_sw:
-            target_surf.fill(edge_shade, (sx, sy + ts - 2, 2, 2))
+            target_surf.fill(soft_lip, (sx, sy + ts - 2, 2, 2))
+            target_surf.fill(rim_lo, (sx, sy + ts - rim_px, rim_px, rim_px))
         if same_s and same_e and not same_se:
-            target_surf.fill(edge_shade, (sx + ts - 2, sy + ts - 2, 2, 2))
+            target_surf.fill(soft_lip, (sx + ts - 2, sy + ts - 2, 2, 2))
+            target_surf.fill(rim_lo, (sx + ts - rim_px, sy + ts - rim_px, rim_px, rim_px))
 
     def _draw_stratum_perimeter_borders(self, target_surf, state, coords, dr, biome_info):
-        """Draw transition outlines and rounded corner contours ONLY along edges bordering different surfaces."""
+        """Draw soft flat floor-to-floor seams and rounded corners ONLY along edges bordering different strata."""
         if not isinstance(target_surf, pygame.Surface):
             return
         biome, pal, s_idx, strata_defs = biome_info
-        # Mid-ground stratum (1) acts as the universal canvas; raised (2) and recessed (0) draw their own outer rims
+        # Mid-ground stratum (1) acts as the universal canvas; secondary strata (0, 2) draw soft outer seams
         if s_idx == 1:
             return
 
@@ -2692,25 +2741,19 @@ class Renderer:
             self._draw_swamp_mire_stratum_borders(target_surf, (x, y, sx, sy, ts), (s_idx, strata_defs), neighbors)
             return
 
-        outer_canvas_col = strata_defs[1][0]
-        if biome == "pastoral_valley" and s_idx == 0:
-            rim_hi = (16, 8, 24)
-            rim_lo = (16, 8, 24)
-            inner_lip = (58, 26, 82)
-        elif biome == "pastoral_valley" and s_idx == 2:
-            rim_hi = (224, 192, 134)
-            rim_lo = (156, 118, 68)
-            inner_lip = (178, 140, 86)
-        elif s_idx == 0:
-            rim_hi = pal["wall_mortar"]
-            rim_lo = pal["wall_mortar"]
-            inner_lip = pal["floor_accent"]
-        else:
-            rim_hi = pal["wall_hi"]
-            rim_lo = pal["wall_mortar"]
-            inner_lip = pal["wall_top"]
+        seam = constants.compute_floor_seam_colors(
+            biome,
+            {**pal, "strata": strata_defs},
+            s_idx,
+        )
+        outer_canvas_col = seam["outer_canvas"]
+        rim_hi = seam["rim_hi"]
+        rim_lo = seam["rim_lo"]
+        inner_lip = seam["inner_lip"]
 
-        c_rad = 10
+        c_rad = constants.FLOOR_SEAM_CORNER_RADIUS
+        rim_px = constants.FLOOR_SEAM_RIM_PX
+        fth_px = constants.FLOOR_SEAM_FEATHER_PX
         rnd_nw = (not same_n) and (not same_w)
         rnd_ne = (not same_n) and (not same_e)
         rnd_sw = (not same_s) and (not same_w)
@@ -2719,70 +2762,76 @@ class Renderer:
         # 1. Outer Rounded Corners (masking the 90-degree tile corner with the surrounding surface color)
         if rnd_nw:
             pygame.draw.polygon(target_surf, outer_canvas_col, [(sx, sy), (sx + c_rad, sy), (sx, sy + c_rad)])
-            pygame.draw.line(target_surf, rim_hi, (sx + 1, sy + c_rad), (sx + c_rad, sy + 1), 3)
-            pygame.draw.line(target_surf, inner_lip, (sx + 3, sy + c_rad + 2), (sx + c_rad + 2, sy + 3), 2)
+            pygame.draw.line(target_surf, rim_hi, (sx + 1, sy + c_rad), (sx + c_rad, sy + 1), rim_px)
+            pygame.draw.line(target_surf, inner_lip, (sx + 2, sy + c_rad + 1), (sx + c_rad + 1, sy + 2), fth_px)
         if rnd_ne:
             pygame.draw.polygon(
                 target_surf, outer_canvas_col, [(sx + ts, sy), (sx + ts - c_rad, sy), (sx + ts, sy + c_rad)]
             )
-            pygame.draw.line(target_surf, rim_hi, (sx + ts - c_rad, sy + 1), (sx + ts - 1, sy + c_rad), 3)
-            pygame.draw.line(target_surf, inner_lip, (sx + ts - c_rad - 2, sy + 3), (sx + ts - 3, sy + c_rad + 2), 2)
+            pygame.draw.line(target_surf, rim_hi, (sx + ts - c_rad, sy + 1), (sx + ts - 1, sy + c_rad), rim_px)
+            pygame.draw.line(
+                target_surf, inner_lip, (sx + ts - c_rad - 1, sy + 2), (sx + ts - 2, sy + c_rad + 1), fth_px
+            )
         if rnd_sw:
             pygame.draw.polygon(
                 target_surf, outer_canvas_col, [(sx, sy + ts), (sx + c_rad, sy + ts), (sx, sy + ts - c_rad)]
             )
-            pygame.draw.line(target_surf, rim_lo, (sx + 1, sy + ts - c_rad), (sx + c_rad, sy + ts - 1), 3)
-            pygame.draw.line(target_surf, inner_lip, (sx + 3, sy + ts - c_rad - 2), (sx + c_rad + 2, sy + ts - 3), 2)
+            pygame.draw.line(target_surf, rim_lo, (sx + 1, sy + ts - c_rad), (sx + c_rad, sy + ts - 1), rim_px)
+            pygame.draw.line(
+                target_surf, inner_lip, (sx + 2, sy + ts - c_rad - 1), (sx + c_rad + 1, sy + ts - 2), fth_px
+            )
         if rnd_se:
             pygame.draw.polygon(
                 target_surf,
                 outer_canvas_col,
                 [(sx + ts, sy + ts), (sx + ts - c_rad, sy + ts), (sx + ts, sy + ts - c_rad)],
             )
-            pygame.draw.line(target_surf, rim_lo, (sx + ts - c_rad, sy + ts - 1), (sx + ts - 1, sy + ts - c_rad), 3)
             pygame.draw.line(
-                target_surf, inner_lip, (sx + ts - c_rad - 2, sy + ts - 3), (sx + ts - 3, sy + ts - c_rad - 2), 2
+                target_surf, rim_lo, (sx + ts - c_rad, sy + ts - 1), (sx + ts - 1, sy + ts - c_rad), rim_px
+            )
+            pygame.draw.line(
+                target_surf, inner_lip, (sx + ts - c_rad - 1, sy + ts - 2), (sx + ts - 2, sy + ts - c_rad - 1), fth_px
             )
 
-        # 2. Cardinal Perimeter Edge Outlines (drawn ONLY where adjacent tile is a different floor surface)
+        # 2. Soft 1px Cardinal Floor Seams + 1px Inner Feather (drawn ONLY where adjacent floor stratum differs)
         if not same_n:
             x0 = sx + (c_rad if rnd_nw else 0)
             x1 = sx + ts - (c_rad if rnd_ne else 0)
             if x1 > x0:
-                target_surf.fill(inner_lip, (x0, sy + 2, x1 - x0, 3))
-                target_surf.fill(rim_hi, (x0, sy, x1 - x0, 2))
+                target_surf.fill(inner_lip, (x0, sy + rim_px, x1 - x0, fth_px))
+                target_surf.fill(rim_hi, (x0, sy, x1 - x0, rim_px))
         if not same_s:
             x0 = sx + (c_rad if rnd_sw else 0)
             x1 = sx + ts - (c_rad if rnd_se else 0)
             if x1 > x0:
-                target_surf.fill(inner_lip, (x0, sy + ts - 5, x1 - x0, 3))
-                target_surf.fill(rim_lo, (x0, sy + ts - 2, x1 - x0, 2))
+                target_surf.fill(inner_lip, (x0, sy + ts - rim_px - fth_px, x1 - x0, fth_px))
+                target_surf.fill(rim_lo, (x0, sy + ts - rim_px, x1 - x0, rim_px))
         if not same_w:
             y0 = sy + (c_rad if rnd_nw else 0)
             y1 = sy + ts - (c_rad if rnd_sw else 0)
             if y1 > y0:
-                target_surf.fill(inner_lip, (sx + 2, y0, 3, y1 - y0))
-                target_surf.fill(rim_hi, (sx, y0, 2, y1 - y0))
+                target_surf.fill(inner_lip, (sx + rim_px, y0, fth_px, y1 - y0))
+                target_surf.fill(rim_hi, (sx, y0, rim_px, y1 - y0))
         if not same_e:
             y0 = sy + (c_rad if rnd_ne else 0)
             y1 = sy + ts - (c_rad if rnd_se else 0)
             if y1 > y0:
-                target_surf.fill(inner_lip, (sx + ts - 5, y0, 3, y1 - y0))
-                target_surf.fill(rim_lo, (sx + ts - 2, y0, 2, y1 - y0))
+                target_surf.fill(inner_lip, (sx + ts - rim_px - fth_px, y0, fth_px, y1 - y0))
+                target_surf.fill(rim_lo, (sx + ts - rim_px, y0, rim_px, y1 - y0))
 
-        # 3. Concave Inner Corner Caps (where both adjacent cardinals match s_idx, but diagonal differs)
+        # 3. Soft Concave Inner Corner Caps (where both adjacent cardinals match s_idx, but diagonal differs)
         if same_n and same_w and not same_nw:
-            target_surf.fill(inner_lip, (sx, sy, 4, 4))
-            target_surf.fill(rim_hi, (sx, sy, 2, 2))
+            target_surf.fill(inner_lip, (sx, sy, 2, 2))
+            target_surf.fill(rim_hi, (sx, sy, rim_px, rim_px))
         if same_n and same_e and not same_ne:
-            target_surf.fill(inner_lip, (sx + ts - 4, sy, 4, 4))
-            target_surf.fill(rim_hi, (sx + ts - 2, sy, 2, 2))
+            target_surf.fill(inner_lip, (sx + ts - 2, sy, 2, 2))
+            target_surf.fill(rim_hi, (sx + ts - rim_px, sy, rim_px, rim_px))
         if same_s and same_w and not same_sw:
-            target_surf.fill(inner_lip, (sx, sy + ts - 4, 4, 4))
-            target_surf.fill(rim_lo, (sx, sy + ts - 2, 2, 2))
+            target_surf.fill(inner_lip, (sx, sy + ts - 2, 2, 2))
+            target_surf.fill(rim_lo, (sx, sy + ts - rim_px, rim_px, rim_px))
         if same_s and same_e and not same_se:
-            target_surf.fill(inner_lip, (sx + ts - 4, sy + ts - 4, 4, 4))
-            target_surf.fill(rim_lo, (sx + ts - 2, sy + ts - 2, 2, 2))
+            target_surf.fill(inner_lip, (sx + ts - 2, sy + ts - 2, 2, 2))
+            target_surf.fill(rim_lo, (sx + ts - rim_px, sy + ts - rim_px, rim_px, rim_px))
 
     @staticmethod
     def _sanctuary_floor_variant_index(x, y, count):
@@ -2818,6 +2867,7 @@ class Renderer:
                 if hasattr(state.world, "get_sanctuary_zone_type")
                 else None
             )
+            sanctuary_floors = None
             if zone_type == "pond_water":
                 if isinstance(target_surf, pygame.Surface):
                     target_surf.fill((30, 66, 84), (sx, sy, ts, ts))
@@ -2863,7 +2913,10 @@ class Renderer:
                 strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
                 s_base, s_alt = strata_defs[s_idx]
                 self._draw_connected_floor_patterns(target_surf, (biome, pal, s_idx, s_alt), coords, dr)
-                self._draw_stratum_perimeter_borders(target_surf, state, coords, dr, (biome, pal, s_idx, strata_defs))
+                if zone_type != "pond_water" and not sanctuary_floors:
+                    self._draw_stratum_perimeter_borders(
+                        target_surf, state, coords, dr, (biome, pal, s_idx, strata_defs)
+                    )
                 if y > 0 and state.world.grid[y - 1][x] == constants.TILE_WALL:
                     target_surf.blit(b_pack["shadow_n"], (sx, sy))
                 if x > 0 and state.world.grid[y][x - 1] == constants.TILE_WALL:
