@@ -60,7 +60,7 @@ class GameObject:
 
 class WarpPortal(GameObject):
     """An interactable object that warps the player to another map."""
-    def __init__(self, target_name, spawn_x, spawn_y, rect, name="Warp"):
+    def __init__(self, target_name, spawn_x, spawn_y, rect, name="Warp", full_heal_on_warp=False):
         super().__init__((rect[0], rect[1]), (rect[2], rect[3]))
         self.target_name = target_name
         self.spawn_x = spawn_x
@@ -68,6 +68,7 @@ class WarpPortal(GameObject):
         self.name = name
         self.is_interactive = True
         self.is_solid = False # Usually can stand on warp tiles
+        self.full_heal_on_warp = bool(full_heal_on_warp)
 
     def apply_transfer(self, game_state):
         """Perform the physical map transition and player/camera repositioning."""
@@ -196,6 +197,12 @@ class WarpPortal(GameObject):
 
             # Link new world actors to patrol routes
             LevelLoader.link_actors_to_routes(game_state)
+
+            if self.full_heal_on_warp:
+                if hasattr(game_state, "restore_post_night_boss_hp"):
+                    game_state.restore_post_night_boss_hp()
+                elif getattr(game_state, "player", None) is not None and game_state.player.hp > 0:
+                    game_state.player.hp = float(game_state.player.max_hp)
 
             # [Milestone] Flush state immediately upon returning to sanctuary
             is_to_sanctuary = self.target_name == "sanctuary"

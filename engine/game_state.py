@@ -749,10 +749,11 @@ class GameState:
                             remote_warp,
                             callback=lambda gs, a=target_act: gs.transition_to_act(a),
                             confirmed=True,
+                            full_heal=True,
                         )
             elif remote_warp == "night_boss_arena" and getattr(self.world, 'name', '') != "night_boss_arena":
                 if not (hasattr(self, 'warp_controller') and self.warp_controller.is_active()):
-                    self.start_warp("night_boss_arena", confirmed=True)
+                    self.start_warp("night_boss_arena", confirmed=True, full_heal=True)
 
 
     def _sync_enemies_from_host(self, enemy_data_list):
@@ -832,7 +833,14 @@ class GameState:
                 oname = o_data.get("name", "")
                 if oname == "Appendix Warp":
                     from engine.world import WarpPortal
-                    new_obj = WarpPortal("final_boss", 25, 25, (o_data["x"], o_data["y"], 40, 40), name="Appendix Warp")
+                    new_obj = WarpPortal(
+                        "final_boss",
+                        25,
+                        25,
+                        (o_data["x"], o_data["y"], 40, 40),
+                        name="Appendix Warp",
+                        full_heal_on_warp=True,
+                    )
                     new_obj.id = oid
                     self.world.interactables.append(new_obj)
                 elif oname == "Suspicious Leaf Pile":
@@ -1517,11 +1525,12 @@ class GameState:
                         target_key,
                         callback=lambda gs, a=next_act: gs.transition_to_act(a),
                         confirmed=True,
+                        full_heal=True,
                     )
             elif self.current_act >= 2:
                 if self.act_warp_target != "night_boss_arena" and not warp_active:
                     self.act_warp_target = "night_boss_arena"
-                    self.start_warp("night_boss_arena", confirmed=True)
+                    self.start_warp("night_boss_arena", confirmed=True, full_heal=True)
             elif not any(e.name == "Appendix Warp" for e in self.world.interactables):
                 idx = self.weather_manager.current_boss_idx
                 boss_list = getattr(self.world, 'boss_coords_list', []) or []
@@ -1530,7 +1539,9 @@ class GameState:
                     from engine.world import WarpPortal
                     from constants import TILE_SIZE
                     portal_rect = (coords['x'] * TILE_SIZE - 20, coords['y'] * TILE_SIZE - 20, 40, 40)
-                    portal = WarpPortal("final_boss", 25, 25, portal_rect, name="Appendix Warp")
+                    portal = WarpPortal(
+                        "final_boss", 25, 25, portal_rect, name="Appendix Warp", full_heal_on_warp=True
+                    )
                     self.world.interactables.append(portal)
                     self.trigger_bloom("THE APPENDIX REVEALED", priority=2)
 
@@ -2886,7 +2897,25 @@ class GameState:
         if getattr(self, "player", None) is not None:
             self.player.has_rested_this_session = False
 
-    def start_warp(self, target, callback=None, confirmed=False):
+    def restore_post_night_boss_hp(self) -> None:
+        """Restore player HP (and active co-op runners on Host) to max_hp on post-Night-Boss warps."""
+        if getattr(self, "player", None) is not None and self.player.hp > 0:
+            self.player.hp = float(self.player.max_hp)
+            self.player.is_exposed = False
+        if (
+            hasattr(self, "network_manager")
+            and self.network_manager
+            and self.network_manager.network_mode == "HOST"
+        ):
+            for peer_key, p_data in self.network_manager.remote_players.items():
+                if p_data.get("in_sanctuary", False):
+                    continue
+                if float(p_data.get("hp", 0.0)) > 0.0:
+                    p_identity = p_data.get("identity", peer_key)
+                    cached = self._get_cached_client_state(peer_key, p_identity)
+                    p_data["hp"] = float(cached.get("max_hp", 100.0))
+
+    def start_warp(self, target, callback=None, confirmed=False, full_heal=False):
         """Initiate the three-stage Ink & Fog transit sequence."""
         self.close_respite_menu()
         self.active_boss_summons = []
@@ -2904,8 +2933,11 @@ class GameState:
                 and self.warp_controller
                 and self.warp_controller.is_active()
             )
+        should_full_heal = bool(full_heal or getattr(target, "full_heal_on_warp", False))
         if hasattr(self, 'warp_controller') and self.warp_controller and self.player:
-            return self.warp_controller.start_warp(self.player, target, callback=callback)
+            return self.warp_controller.start_warp(
+                self.player, target, callback=callback, full_heal=should_full_heal
+            )
         return False
 
     def on_enter_sanctuary(self):

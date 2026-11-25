@@ -87,6 +87,7 @@ class InkWarpController:
         self.callback: Optional[Callable[[Any], None]] = None
         self.veil_alpha: int = 0
         self.transfer_executed: bool = False
+        self.full_heal_on_transfer: bool = False
 
     def is_active(self) -> bool:
         """Check if a warp sequence is currently executing."""
@@ -105,6 +106,7 @@ class InkWarpController:
         player: Any,
         target: Any,
         callback: Optional[Callable[[Any], None]] = None,
+        full_heal: bool = False,
     ) -> bool:
         """Initiate the three-stage transit sequence centered around player."""
         if self.is_active():
@@ -115,6 +117,7 @@ class InkWarpController:
         self.target = target
         self.callback = callback
         self.transfer_executed = False
+        self.full_heal_on_transfer = bool(full_heal)
         self.veil_alpha = 0
 
         px, py = player.get_center()
@@ -162,6 +165,13 @@ class InkWarpController:
                 portal.apply_transfer(game_state)
             else:
                 portal.execute_interaction(game_state)
+
+        if self.full_heal_on_transfer:
+            if hasattr(game_state, "restore_post_night_boss_hp"):
+                game_state.restore_post_night_boss_hp()
+            elif getattr(game_state, "player", None) is not None and game_state.player.hp > 0:
+                game_state.player.hp = float(game_state.player.max_hp)
+            self.full_heal_on_transfer = False
 
         # Snap camera to new player location immediately under the veil
         if hasattr(game_state, 'camera') and game_state.player:
@@ -280,3 +290,4 @@ class InkWarpController:
             self.veil_alpha = 0
             self.target = None
             self.callback = None
+            self.full_heal_on_transfer = False
