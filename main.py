@@ -457,11 +457,23 @@ def get_movement_actions(state):
         move_dir[1] /= mag
     return move_dir
 
-def main():
-    """Main application loop."""
+def parse_args(argv=None) -> argparse.Namespace:
+    """Parse CLI flags for Avoid Rain."""
     parser = argparse.ArgumentParser(description="Avoid Rain")
     parser.add_argument("--fullscreen", action="store_true", help="Run in fullscreen mode")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Skip opening all LAN/co-op network sockets (avoids Windows Firewall prompts)",
+    )
+    return parser.parse_args(argv)
+
+
+def main():
+    """Main application loop."""
+    args = parse_args()
+    if args.offline:
+        print("[NETWORK] Offline mode forced via --offline: LAN/co-op sockets disabled.")
 
     pygame.init()
     pygame.joystick.init()
@@ -485,10 +497,10 @@ def main():
 
     provisional_state = None
     try:
-        state = GameState(stats=None, stats_path=None, auto_load=True)
+        state = GameState(stats=None, stats_path=None, auto_load=True, offline_only=args.offline)
     except Exception:
         from engine.stats import StatisticsTracker
-        state = GameState(stats=StatisticsTracker(), auto_load=False)
+        state = GameState(stats=StatisticsTracker(), auto_load=False, offline_only=args.offline)
 
     def shutdown_handler():
         try:
@@ -529,6 +541,7 @@ def main():
     title_menu = TitleMenu(
         has_save=StatisticsTracker.has_compatible_save(),
         online_mode=getattr(state, "online_mode", True),
+        offline_locked=bool(args.offline),
     )
     controls_menu = ControlsConfigMenu()
     title_transition = TitleTransition()
@@ -565,14 +578,16 @@ def main():
                             state.hydrate_from_disk()
                             state.set_debug_text_enabled(False, save=True)
                             renderer.invalidate_static_world()
-                            state.start_seamless_lan(background=True)
+                            if not getattr(state, "offline_only", False):
+                                state.start_seamless_lan(background=True)
                         elif mode == "new_draft":
                             state.reset_to_new_game()
                             state.set_debug_text_enabled(False, save=False)
                             state.save_stats(wait=True)
                             renderer.invalidate_static_world()
                             title_menu.state = TitleMenuState.MAIN
-                            state.start_seamless_lan(background=True)
+                            if not getattr(state, "offline_only", False):
+                                state.start_seamless_lan(background=True)
                         pause_menu.set_debug_text_enabled(False)
                         pause_menu.set_screen_shake_enabled(getattr(state, "screen_shake_enabled", True))
                         pause_menu.set_forced_marginalia_event_id(
@@ -594,6 +609,8 @@ def main():
                     audio.play_sfx("menu_confirm.ogg")
                     
                     if selected.startswith('Mode:'):
+                        if getattr(state, "offline_only", False):
+                            continue
                         new_mode = title_menu.toggle_online_mode()
                         state.set_online_mode(new_mode, save=True)
                         continue

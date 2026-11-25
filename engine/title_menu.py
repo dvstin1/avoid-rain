@@ -31,9 +31,15 @@ class TitleMenu(MenuBase):
     "Continue" selected by default.
     """
 
-    def __init__(self, has_save: bool = False, online_mode: bool = True) -> None:
+    def __init__(
+        self,
+        has_save: bool = False,
+        online_mode: bool = True,
+        offline_locked: bool = False,
+    ) -> None:
         self._has_save = bool(has_save)
-        self.online_mode = bool(online_mode)
+        self.offline_locked = bool(offline_locked)
+        self.online_mode = False if self.offline_locked else bool(online_mode)
         super().__init__(self._build_options())
         # Set default selection: when a save exists, default to Continue
         if self._has_save:
@@ -44,7 +50,10 @@ class TitleMenu(MenuBase):
 
     def _build_options(self) -> list[str]:
         """Return title menu options reflecting save presence and Online/Offline mode."""
-        mode_label = f"Mode: {'Online' if self.online_mode else 'Offline'}"
+        if self.offline_locked:
+            mode_label = "Mode: Offline (--offline)"
+        else:
+            mode_label = f"Mode: {'Online' if self.online_mode else 'Offline'}"
         if not self._has_save:
             return ["New Draft", mode_label, "Controls", "Quit"]
         return ["New Draft", "Continue", mode_label, "Controls", "Quit"]
@@ -63,11 +72,14 @@ class TitleMenu(MenuBase):
 
     def set_online_mode(self, online_mode: bool) -> None:
         """Synchronize the Online/Offline mode state and update its option label."""
-        self.online_mode = bool(online_mode)
+        self.online_mode = False if self.offline_locked else bool(online_mode)
         self._options = self._build_options()
 
     def toggle_online_mode(self) -> bool:
         """Toggle between Online and Offline modes and return the new boolean value."""
+        if self.offline_locked:
+            self.set_online_mode(False)
+            return False
         self.set_online_mode(not self.online_mode)
         return self.online_mode
 

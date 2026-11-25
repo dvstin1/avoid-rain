@@ -28,7 +28,8 @@ class GameState:
         self,
         stats: Optional[StatisticsTracker] = None,
         stats_path: Optional[str] = None,
-        auto_load: bool = True
+        auto_load: bool = True,
+        offline_only: bool = False,
     ):
         from engine.maps import create_world
         from engine.world import LevelLoader
@@ -178,7 +179,8 @@ class GameState:
         if self.stats:
             p_name = self.stats.data.get("player_name", DEFAULT_PLAYER_NAME)
             
-        self.network_manager = NetworkManager(identity=p_name)
+        self.offline_only = bool(offline_only)
+        self.network_manager = NetworkManager(identity=p_name, offline_only=self.offline_only)
         self.network_manager.local_state_provider = self.get_local_state
         self.network_manager.remote_state_handler = self.apply_remote_state
         self.network_manager.on_disconnect_callback = self.on_network_disconnect
@@ -202,7 +204,11 @@ class GameState:
         self.pending_remote_respite_actions = [] # Thread-safe queue for TCP respite events
 
         # Seamless LAN Co-op state
-        self.online_mode = bool(self.stats.data.get("online_mode", True)) if self.stats else True
+        self.online_mode = (
+            False
+            if self.offline_only
+            else (bool(self.stats.data.get("online_mode", True)) if self.stats else True)
+        )
         self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
         self.host_in_run = not self.in_sanctuary
         self.waiting_scholars = 0
@@ -299,7 +305,12 @@ class GameState:
             self._seen_host_in_sanctuary = True
 
     def set_online_mode(self, enabled: bool, save: bool = True) -> None:
-        """Toggle Online/Offline LAN mode and persist preference."""
+        """Toggle Online/Offline LAN mode and persist preference (no-op when CLI --offline is active)."""
+        if getattr(self, "offline_only", False):
+            self.online_mode = False
+            if hasattr(self, "network_manager"):
+                self.network_manager.stop_network()
+            return
         self.online_mode = bool(enabled)
         if self.stats is not None:
             self.stats.data["online_mode"] = self.online_mode
@@ -310,7 +321,7 @@ class GameState:
 
     def start_seamless_lan(self, probe_duration: float = 1.6, background: bool = False):
         """Probe LAN_PORT in Online mode: auto-join existing Host in Sanctuary or auto-promote to Host."""
-        if not getattr(self, "online_mode", True):
+        if getattr(self, "offline_only", False) or not getattr(self, "online_mode", True):
             self.network_manager.stop_network()
             return "OFFLINE"
 
@@ -3072,7 +3083,10 @@ class GameState:
             self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
             self.keybindings = normalize_keybindings(self.stats.data.get("keybindings"))
             self.stats.data["keybindings"] = dict(self.keybindings)
-            self.online_mode = bool(self.stats.data.get("online_mode", getattr(self, "online_mode", True)))
+            if getattr(self, "offline_only", False):
+                self.online_mode = False
+            else:
+                self.online_mode = bool(self.stats.data.get("online_mode", getattr(self, "online_mode", True)))
             if hasattr(self, 'network_manager'):
                 self.network_manager.identity = self.stats.data.get("player_name", self.network_manager.identity)
 
@@ -3405,7 +3419,8 @@ class GameState:
             if cur_id:
                 self.stats.data["player_name"] = cur_id
         from constants import normalize_keybindings
-        self.stats.data["online_mode"] = bool(getattr(self, "online_mode", True))
+        if not getattr(self, "offline_only", False):
+            self.stats.data["online_mode"] = bool(getattr(self, "online_mode", True))
         self.stats.data["debug_text_enabled"] = bool(getattr(self, "debug_text_enabled", False))
         self.stats.data["screen_shake_enabled"] = bool(getattr(self, "screen_shake_enabled", True))
         self.stats.data["keybindings"] = dict(normalize_keybindings(getattr(self, "keybindings", None)))

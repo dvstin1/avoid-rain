@@ -64,6 +64,10 @@ python main.py
 
 ### Command-Line Arguments
 - `--fullscreen`: Launches the game in scaled fullscreen mode (1280x720 internal canvas).
+- `--offline`: Disables all LAN/co-op networking and skips opening or binding any network sockets (useful for solo play and for avoiding Windows Firewall prompts).
+  ```bash
+  python main.py --offline
+  ```
 
 ---
 

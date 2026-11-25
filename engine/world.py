@@ -151,7 +151,11 @@ class WarpPortal(GameObject):
                 if hasattr(game_state, "network_manager") and game_state.network_manager.network_mode != "CLIENT":
                     game_state.host_in_run = True
                 # Auto-Host Rule: Start hosting when entering the macro-world in Online mode
-                if hasattr(game_state, 'network_manager') and getattr(game_state, 'online_mode', True):
+                if (
+                    hasattr(game_state, 'network_manager')
+                    and getattr(game_state, 'online_mode', True)
+                    and not getattr(game_state, 'offline_only', False)
+                ):
                     if game_state.network_manager.network_mode == "OFFLINE":
                         game_state.network_manager.start_hosting()
                 

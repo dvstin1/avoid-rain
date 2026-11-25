@@ -66,6 +66,7 @@ class NetworkManager:
         host_tcp_port: Optional[int] = None,
         host_udp_port: Optional[int] = None,
         peer_id: Optional[str] = None,
+        offline_only: bool = False,
     ) -> None:
         resolved_port = LAN_PORT if port is None else int(port)
         self.port = resolved_port
@@ -75,6 +76,7 @@ class NetworkManager:
 
         self.identity = identity
         self.peer_id: str = peer_id or uuid.uuid4().hex[:12]
+        self.offline_only: bool = bool(offline_only)
 
         self.is_hosting = False
         self.is_searching = False
@@ -205,8 +207,16 @@ class NetworkManager:
             self._dispatch_inbound_event(event_type, payload)
         return len(events)
 
+    def set_offline_only(self, enabled: bool) -> None:
+        """Enable or disable strict offline-only mode (forbids opening any network sockets)."""
+        if enabled:
+            self.stop_network()
+        self.offline_only = bool(enabled)
+
     def start_hosting(self) -> None:
         """Start the UDP discovery broadcast, TCP handshake server, and 20Hz UDP sync."""
+        if self.offline_only:
+            return
         if self.is_hosting:
             return
         self.stop_network()
@@ -310,6 +320,20 @@ class NetworkManager:
 
     def _send_disconnect_signal(self) -> None:
         """Send a final DISCONNECT UDP packet to connected peers or host."""
+        if self.offline_only or self.network_mode == "OFFLINE":
+            return
+        peers: List[Dict[str, Any]] = []
+        if self.network_mode == "HOST":
+            with self._lock:
+                peers = list(self.connected_peers.values())
+            if not peers:
+                return
+        elif self.network_mode == "CLIENT":
+            if not self.server_address:
+                return
+        else:
+            return
+
         sock = None
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -317,8 +341,6 @@ class NetworkManager:
                 {"type": "DISCONNECT", "peer_id": self.peer_id, "identity": self.identity}
             ).encode("utf-8")
             if self.network_mode == "HOST":
-                with self._lock:
-                    peers = list(self.connected_peers.values())
                 for peer_info in peers:
                     target_addr = peer_info.get("addr")
                     target_port = peer_info.get("udp_port") or self.host_udp_port
@@ -334,6 +356,8 @@ class NetworkManager:
 
     def start_searching(self) -> None:
         """Start the UDP scanner to find active LAN hosts."""
+        if self.offline_only:
+            return
         if self.is_searching:
             return
         self.stop_network()
@@ -352,6 +376,8 @@ class NetworkManager:
 
     def _ensure_outbox_worker(self) -> None:
         """Ensure the background TCP outbox worker thread is running for client events."""
+        if self.offline_only:
+            return
         if self._outbox_thread is not None and self._outbox_thread.is_alive():
             return
         if self.stop_event.is_set():
@@ -365,7 +391,7 @@ class NetworkManager:
 
     def _enqueue_reliable_tcp(self, payload: Dict[str, Any]) -> None:
         """Enqueue a reliable TCP message for non-blocking background delivery to the Host."""
-        if not self.server_address:
+        if self.offline_only or not self.server_address:
             return
         if self.is_connected:
             self._ensure_outbox_worker()
@@ -406,6 +432,8 @@ class NetworkManager:
 
     def connect_to_host(self, address: str) -> bool:
         """Attempt to connect to a host via framed TCP handshake."""
+        if self.offline_only:
+            return False
         self.stop_searching()
         sock = None
         try:
@@ -472,7 +500,7 @@ class NetworkManager:
 
     def request_map(self) -> Optional[Dict[str, Any]]:
         """Phase 3: Client requests the full map JSON from the Host via framed TCP."""
-        if not self.is_connected or not self.server_address:
+        if self.offline_only or not self.is_connected or not self.server_address:
             return None
 
         sock = None
@@ -563,6 +591,8 @@ class NetworkManager:
 
     def _yield_host_to(self, target_ip: str, other_peer_id: str) -> None:
         """Step down from HOST mode and connect as CLIENT to a lower-peer_id Host."""
+        if self.offline_only:
+            return
         with self._lock:
             if self._yielding_host or self.network_mode != "HOST":
                 return
