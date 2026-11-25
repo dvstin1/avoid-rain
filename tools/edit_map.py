@@ -77,6 +77,14 @@ MASTER_TOOL_REGISTRY = [
         "desc": "Solid iron light source candleholder prop."
     },
     {
+        "id": "tile_fire_chalice",
+        "char": "V",
+        "name": "Fire Chalice",
+        "type": "tile",
+        "size": "80x80 px (2x2 tiles)",
+        "desc": "Solid blazing bronze fire chalice monument. Spans 2x2 tiles."
+    },
+    {
         "id": "tile_ink_puddle",
         "char": "v",
         "name": "Ink Puddle",
@@ -572,6 +580,8 @@ class MapEditor:
                     color = COLOR_PURPLE
                 elif char == 'P':
                     color = COLOR_BLUE
+                elif char == 'V':
+                    color = (230, 120, 32)
                 elif char in enemy_chars:
                     color = COLOR_RED
                 elif char in patrol_chars:

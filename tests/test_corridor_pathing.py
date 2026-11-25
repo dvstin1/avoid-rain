@@ -146,7 +146,7 @@ def test_generated_tech_tower_maps_and_segments_have_unobstructed_paths():
 def test_on_disk_tech_tower_and_all_biome_segments_unobstructed():
     """All on-disk tech_tower (and all 7 biome) segment JSONs have unobstructed doorway paths and intact quotas."""
     assert "tech_tower" in BIOME_SEGMENT_POOLS
-    assert set(SOLID_PROP_SYMBOLS) == {"h", "S", "B", "T", "d", "l"}
+    assert set(SOLID_PROP_SYMBOLS) == {"h", "S", "B", "T", "d", "l", "V"}
 
     for biome, pools in BIOME_SEGMENT_POOLS.items():
         room_minibosses = []

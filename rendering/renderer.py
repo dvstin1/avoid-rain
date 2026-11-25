@@ -1192,9 +1192,31 @@ class Renderer:
 
         if "VitreousSaltSpire" not in self.prop_cache:
             spire = pygame.Surface((ts, ts), pygame.SRCALPHA)
-            pygame.draw.polygon(spire, (134, 194, 218), [(12, 34), (20, 6), (28, 34)])
-            pygame.draw.polygon(spire, (242, 254, 255), [(12, 34), (20, 6), (21, 32)])
+            pygame.draw.polygon(spire, (212, 144, 72), [(12, 34), (20, 6), (28, 34)])
+            pygame.draw.polygon(spire, (252, 218, 144), [(12, 34), (20, 6), (21, 32)])
             self.prop_cache["VitreousSaltSpire"] = spire.convert_alpha() if display_init else spire
+
+        # 80x80 Blazing Fire Chalice (native 2x2 tile monument for The Vitreous Basin)
+        chalice_path = os.path.join(base_path, "vitreous_fire_chalice.png")
+        chalice_dim = (ts * 2, ts * 2)
+        if os.path.exists(chalice_path):
+            try:
+                ch_img = pygame.image.load(chalice_path)
+                if display_init:
+                    ch_img = ch_img.convert_alpha()
+                if ch_img.get_size() != chalice_dim:
+                    ch_img = pygame.transform.scale(ch_img, chalice_dim)
+                self.prop_cache["VitreousFireChalice"] = ch_img
+                self.image_cache["vitreous_fire_chalice.png"] = ch_img
+            except Exception as e:
+                print(f"[RENDER] Error loading vitreous_fire_chalice.png: {e}")
+        if "VitreousFireChalice" not in self.prop_cache:
+            ch_fb = pygame.Surface(chalice_dim, pygame.SRCALPHA)
+            pygame.draw.rect(ch_fb, (148, 84, 46), (18, 56, 44, 18), border_radius=3)
+            pygame.draw.polygon(ch_fb, (166, 98, 52), [(12, 32), (68, 32), (58, 52), (22, 52)])
+            pygame.draw.polygon(ch_fb, (255, 138, 32), [(20, 32), (40, 6), (60, 32)])
+            pygame.draw.polygon(ch_fb, (255, 224, 96), [(28, 32), (40, 14), (52, 32)])
+            self.prop_cache["VitreousFireChalice"] = ch_fb.convert_alpha() if display_init else ch_fb
 
         if "AqueductPillar" not in self.prop_cache:
             pillar = pygame.Surface((ts, ts), pygame.SRCALPHA)
@@ -3487,6 +3509,8 @@ class Renderer:
                     pygame.draw.rect(
                         self.screen, constants.COLOR_CANDLE_AMBER, (sx_o + obj.width // 2 - 2, sy_o + 4, 4, 6)
                     )
+            elif obj.name == "Fire Chalice":
+                self._draw_vitreous_fire_chalice(obj, sx_o, sy_o, now, prop_cache, is_real_surface)
             elif obj.name == "Bench":
                 bench_surf = prop_cache.get("Bench")
                 if bench_surf is not None:
@@ -3653,6 +3677,7 @@ class Renderer:
         self.draw_swamp_mire_atmosphere(state, ox, oy, now=now)
         self.draw_pastoral_valley_atmosphere(state, ox, oy, now=now)
         self.draw_frozen_peaks_atmosphere(state, ox, oy, now=now)
+        self.draw_vitreous_basin_atmosphere(state, ox, oy, now=now)
         if getattr(getattr(state, "world", None), "name", "") != "sanctuary":
             self._draw_player_water_ripples(state, ox, oy, t_now=now, vis=1.0)
         self.draw_sanctuary_roofs_and_blackout(state, ox, oy)
@@ -7139,6 +7164,154 @@ class Renderer:
                 cache[f_key] = f_surf
             half = f_surf.get_width() // 2
             self.screen.blit(f_surf, (mx - half, my - half))
+
+    def _draw_vitreous_fire_chalice(self, obj, sx_o, sy_o, now, prop_cache, is_real_surface):
+        """Render an 80x80 blazing Fire Chalice with animated amber glow halo and rising flame sparks."""
+        if is_real_surface:
+            pulse = (math.sin(now * 6.5 + obj.x * 0.05 + obj.y * 0.03) + 1.0) * 0.5
+            glow_r = 46 + int(pulse * 8)
+            glow_a = 44 + int(pulse * 22)
+            g_key = ("fire_chalice_glow", (glow_r // 2) * 2, (glow_a // 6) * 6)
+            glow_surf = self._fx_surface_cache.get(g_key)
+            if glow_surf is None:
+                dim = g_key[1] * 2 + 4
+                mid = dim // 2
+                glow_surf = pygame.Surface((dim, dim), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (255, 118, 28, g_key[2] // 2), (mid, mid), g_key[1])
+                pygame.draw.circle(glow_surf, (255, 186, 62, g_key[2]), (mid, mid), int(g_key[1] * 0.62))
+                pygame.draw.circle(glow_surf, (255, 232, 132, min(255, g_key[2] + 18)), (mid, mid), int(g_key[1] * 0.3))
+                self._fx_surface_cache[g_key] = glow_surf
+            gx = int(sx_o + obj.width * 0.5 - glow_surf.get_width() * 0.5)
+            gy = int(sy_o + 22 - glow_surf.get_height() * 0.5)
+            self.screen.blit(glow_surf, (gx, gy))
+
+        ch_surf = prop_cache.get("VitreousFireChalice")
+        if ch_surf is not None:
+            self.screen.blit(ch_surf, (int(sx_o), int(sy_o)))
+        else:
+            pygame.draw.rect(self.screen, (166, 98, 52), (int(sx_o) + 14, int(sy_o) + 32, 52, 42))
+            pygame.draw.polygon(
+                self.screen,
+                (255, 148, 36),
+                [(int(sx_o) + 20, int(sy_o) + 32), (int(sx_o) + 40, int(sy_o) + 6), (int(sx_o) + 60, int(sy_o) + 32)],
+            )
+
+        if is_real_surface:
+            for s_idx in range(3):
+                phase = (now * (1.6 + s_idx * 0.35) + obj.x * 0.02 + s_idx * 0.37) % 1.0
+                ex = int(sx_o + 28 + ((s_idx * 13 + int(math.sin(now * 4.0 + s_idx) * 6)) % 24))
+                ey = int(sy_o + 22 - phase * 24.0)
+                col = (255, 224, 112) if phase < 0.5 else (255, 126, 36)
+                pygame.draw.circle(self.screen, col, (ex, ey), 2 if phase < 0.6 else 1)
+
+    def draw_vitreous_basin_atmosphere(self, state, ox, oy, now=None):
+        """Render subtle desert heat-shimmer bands and rising amber embers on vitreous_basin."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        player = getattr(state, "player", None)
+        world = getattr(state, "world", None)
+        if player is None or world is None:
+            return
+        ts = constants.TILE_SIZE
+        px_c, py_c = player.get_center()
+        if self._resolve_tile_biome(state, int(px_c // ts), int(py_c // ts)) != "vitreous_basin":
+            return
+
+        weather_mgr = getattr(state, "weather_manager", None)
+        bleed_state = getattr(state, "bleed_state", None)
+        if bleed_state is None and weather_mgr is not None:
+            bleed_state = getattr(weather_mgr, "bleed_state", "CLEAR")
+        if bleed_state == "DILUTION":
+            return
+
+        boss_coords = getattr(state, "current_boss_coords", None)
+        if boss_coords is None and weather_mgr is not None and hasattr(weather_mgr, "get_current_boss_coords"):
+            boss_coords = weather_mgr.get_current_boss_coords()
+        weather_paused = bool(getattr(weather_mgr, "paused", False)) if weather_mgr is not None else False
+        storm_rain_active = (
+            bleed_state not in ("GRACE_PERIOD", "APPENDIX", "DILUTION")
+            and boss_coords is not None
+            and not weather_paused
+        )
+
+        t_now = time.time() if now is None else float(now)
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        cache = self._fx_surface_cache
+
+        # 1. Subtle horizontal heat-shimmer mirage ribbons undulating upward
+        shimmer_w = min(sw, 340)
+        shimmer_h = 18
+        for b_idx in range(constants.VITREOUS_HEAT_SHIMMER_BANDS):
+            wave_y = int(((b_idx * (sh / float(constants.VITREOUS_HEAT_SHIMMER_BANDS)) - t_now * 22.0) % (sh + 40)) - 20)
+            wave_x = int(((b_idx * 271.0 + math.sin(t_now * 1.9 + b_idx * 1.4) * 58.0 - ox * 0.25) % (sw + shimmer_w)) - shimmer_w)
+            pulse = (math.sin(t_now * 2.4 + b_idx * 1.7) + 1.0) * 0.5
+            q_alpha = 12 + int(pulse * 3) * 4
+            s_key = ("vitreous_heat_shimmer", shimmer_w, shimmer_h, q_alpha)
+            s_surf = cache.get(s_key)
+            if s_surf is None:
+                s_surf = pygame.Surface((shimmer_w, shimmer_h), pygame.SRCALPHA)
+                pygame.draw.ellipse(s_surf, (255, 204, 114, q_alpha), (0, 2, shimmer_w, shimmer_h - 4))
+                pygame.draw.ellipse(
+                    s_surf,
+                    (255, 228, 152, min(255, q_alpha + 6)),
+                    (shimmer_w // 6, 5, (shimmer_w * 2) // 3, shimmer_h - 10),
+                )
+                cache[s_key] = s_surf
+            self.screen.blit(s_surf, (wave_x, wave_y))
+
+        # 2. Rising incandescent amber/terracotta embers across dry desert air
+        span_w = sw + 80
+        span_h = sh + 80
+        safe_rad = float(getattr(state, "active_safe_radius", 1000000.0))
+        safe_rad_sq = safe_rad * safe_rad
+        wb_x = (boss_coords["x"] * ts) if boss_coords else 0.0
+        wb_y = (boss_coords["y"] * ts) if boss_coords else 0.0
+
+        for idx in range(constants.VITREOUS_EMBER_COUNT):
+            rise_speed = 26.0 + (idx % 5) * 9.0
+            drift_speed = 12.0 + (idx % 3) * 6.0
+            ex = int(
+                ((idx * 149.0 + t_now * drift_speed + math.sin(t_now * 2.2 + idx * 0.8) * 16.0 - ox * 0.92) % span_w)
+                - 40
+            )
+            ey = int(((idx * 97.0 - t_now * rise_speed - oy * 0.92) % span_h) - 40)
+            if ex < -8 or ex > sw + 8 or ey < -8 or ey > sh + 8:
+                continue
+
+            if storm_rain_active:
+                world_x = ex + ox
+                world_y = ey + oy
+                if (
+                    weather_mgr is not None
+                    and hasattr(weather_mgr, "is_pos_safe")
+                    and getattr(weather_mgr, "boss_coords_list", None)
+                ):
+                    if not weather_mgr.is_pos_safe(world_x, world_y):
+                        continue
+                else:
+                    if (world_x - wb_x) ** 2 + (world_y - wb_y) ** 2 > safe_rad_sq:
+                        continue
+
+            size_bucket = 1 + (idx % 3)
+            pulse = (math.sin(t_now * 4.2 + idx * 1.1) + 1.0) * 0.5
+            q_alpha = 152 + int(pulse * 5) * 18
+            e_key = ("vitreous_ember", size_bucket, q_alpha)
+            e_surf = cache.get(e_key)
+            if e_surf is None:
+                dim = size_bucket * 2 + 4
+                mid = dim // 2
+                e_surf = pygame.Surface((dim, dim), pygame.SRCALPHA)
+                if size_bucket >= 3:
+                    pygame.draw.circle(e_surf, (255, 118, 28, q_alpha // 2), (mid, mid), 3)
+                    pygame.draw.circle(e_surf, (255, 224, 108, q_alpha), (mid, mid), 1)
+                elif size_bucket == 2:
+                    pygame.draw.circle(e_surf, (255, 146, 38, q_alpha // 2), (mid, mid), 2)
+                    pygame.draw.circle(e_surf, (255, 234, 142, q_alpha), (mid, mid), 1)
+                else:
+                    pygame.draw.circle(e_surf, (255, 182, 68, q_alpha), (mid, mid), 1)
+                cache[e_key] = e_surf
+            half = e_surf.get_width() // 2
+            self.screen.blit(e_surf, (ex - half, ey - half))
 
     def _draw_sanctuary_tree_canopy(self, obj, ox, oy, prop_cache):
         """Draw a SanctuaryTreeCanopy (80x100) anchored onto its 40x40 solid trunk footprint."""

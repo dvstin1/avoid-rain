@@ -298,7 +298,7 @@ def test_non_pulsing_lost_passage_and_removed_ui_footers(monkeypatch):
     state = GameState(auto_load=False)
     state.network_manager.stop_network()
     try:
-        state.world = World("vitreous_basin")
+        state.world = World("sunlit_aqueducts")
         state.world.load_from_prototype(["." * 10 for _ in range(10)])
         state.player.x, state.player.y = 80.0, 80.0
         state.camera.instant_center((120.0, 120.0))

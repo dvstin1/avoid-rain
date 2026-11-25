@@ -826,20 +826,20 @@ BIOME_PALETTES = {
         "wall_glow": (255, 195, 70)
     },
     "vitreous_basin": {
-        "floor_base": (152, 195, 212),
-        "floor_alt": (176, 218, 232),
-        "floor_accent": (228, 248, 255),
-        "floor_speck": (255, 255, 255),
+        "floor_base": (196, 146, 86),
+        "floor_alt": (214, 166, 102),
+        "floor_accent": (236, 194, 124),
+        "floor_speck": (255, 224, 148),
         "strata": [
-            ((86, 134, 162), (112, 164, 192)),
-            ((152, 195, 212), (176, 218, 232)),
-            ((212, 238, 246), (238, 250, 255))
+            ((154, 88, 52), (182, 108, 62)),
+            ((196, 146, 86), (214, 166, 102)),
+            ((224, 178, 114), (240, 198, 134))
         ],
-        "wall_top": (168, 215, 232),
-        "wall_hi": (240, 252, 255),
-        "wall_face": (96, 142, 168),
-        "wall_mortar": (42, 68, 88),
-        "wall_glow": (180, 250, 255)
+        "wall_top": (182, 112, 66),
+        "wall_hi": (244, 196, 128),
+        "wall_face": (132, 74, 44),
+        "wall_mortar": (64, 34, 22),
+        "wall_glow": (255, 148, 42)
     },
     "sunlit_aqueducts": {
         "floor_base": (168, 108, 72),
@@ -1597,3 +1597,8 @@ BOSS_HUD_DISPLAY_NAMES = {
     "NightBoss": "Night Boss",
     "FinalAuthor": "The Final Author",
 }
+
+# Glass Salt Flats (The Vitreous Basin) Fire Chalice & Heat Atmosphere Constants
+VITREOUS_FIRE_CHALICE_SIZE = 80
+VITREOUS_HEAT_SHIMMER_BANDS = 4
+VITREOUS_EMBER_COUNT = 26

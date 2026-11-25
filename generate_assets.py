@@ -67,6 +67,7 @@ DEFAULT_CRYPT_CLUTTER_PATH = os.path.join("assets", "graphics", "crypt_clutter.p
 DEFAULT_VITREOUS_SALT_FLOOR_PATH = os.path.join("assets", "graphics", "vitreous_salt_floor.png")
 DEFAULT_VITREOUS_GLASS_FLAT_PATH = os.path.join("assets", "graphics", "vitreous_glass_flat.png")
 DEFAULT_VITREOUS_SALT_SPIRE_PATH = os.path.join("assets", "graphics", "vitreous_salt_spire.png")
+DEFAULT_VITREOUS_FIRE_CHALICE_PATH = os.path.join("assets", "graphics", "vitreous_fire_chalice.png")
 DEFAULT_AQUEDUCT_TERRACOTTA_FLOOR_PATH = os.path.join("assets", "graphics", "aqueduct_terracotta_floor.png")
 DEFAULT_AQUEDUCT_MOSS_WALL_PATH = os.path.join("assets", "graphics", "aqueduct_moss_wall.png")
 DEFAULT_AQUEDUCT_PILLAR_PATH = os.path.join("assets", "graphics", "aqueduct_pillar.png")
@@ -1622,14 +1623,14 @@ def generate_vitreous_salt_floor_tile(
     height: int = TILE_HEIGHT,
     rng: random.Random = None,
 ) -> pygame.Surface:
-    """Generate a 40x40 crystalline salt-crust floor tile for The Vitreous Basin."""
+    """Generate a 40x40 sun-baked ochre/amber salt-crust floor tile for The Vitreous Basin."""
     if rng is None:
         rng = random.Random()
 
     surface = pygame.Surface((width, height))
-    base_rgb = (164, 206, 222)
-    crest_rgb = (224, 244, 252)
-    seam_rgb = (92, 138, 164)
+    base_rgb = (204, 154, 92)
+    crest_rgb = (242, 202, 134)
+    seam_rgb = (134, 78, 46)
 
     for y in range(height):
         for x in range(width):
@@ -1638,10 +1639,14 @@ def generate_vitreous_salt_floor_tile(
             shade = -8 if edge_dist == 0 else (-4 if edge_dist == 1 else 0)
             surface.set_at(
                 (x, y),
-                (_clamp(base_rgb[0] + jit + shade), _clamp(base_rgb[1] + jit + shade), _clamp(base_rgb[2] + jit)),
+                (
+                    _clamp(base_rgb[0] + jit + shade),
+                    _clamp(base_rgb[1] + jit + shade),
+                    _clamp(base_rgb[2] + jit // 2 + shade // 2),
+                ),
             )
 
-    # Polygonal salt-flat crust seams & raised crystalline salt ridges
+    # Polygonal sun-baked salt-flat crust seams & warm amber-ochre raised ridges
     crust_lines = [
         ((0, 14), (16, 10), (30, 18), (width - 1, 13)),
         ((12, 0), (16, 10), (14, 28), (19, height - 1)),
@@ -1653,10 +1658,10 @@ def generate_vitreous_salt_floor_tile(
             pygame.draw.line(surface, seam_rgb, p1, p2, 1)
             pygame.draw.line(surface, crest_rgb, (p1[0], max(0, p1[1] - 1)), (p2[0], max(0, p2[1] - 1)), 1)
 
-    for _ in range(24):
+    for _ in range(26):
         sx = rng.randint(2, width - 3)
         sy = rng.randint(2, height - 3)
-        surface.set_at((sx, sy), (244, 253, 255) if rng.random() < 0.65 else (118, 166, 192))
+        surface.set_at((sx, sy), (250, 218, 142) if rng.random() < 0.6 else (158, 96, 54))
 
     return surface
 
@@ -1666,29 +1671,29 @@ def generate_vitreous_glass_flat_tile(
     height: int = TILE_HEIGHT,
     rng: random.Random = None,
 ) -> pygame.Surface:
-    """Generate a 40x40 fractured reflective glass flat tile for The Vitreous Basin."""
+    """Generate a 40x40 kiln-fused amber/terracotta glass flat tile for The Vitreous Basin."""
     if rng is None:
         rng = random.Random()
 
     surface = pygame.Surface((width, height))
-    base_rgb = (96, 146, 174)
+    base_rgb = (158, 92, 54)
     for y in range(height):
         diag_band = int(12 * math.sin((x_band := y) * 0.14))
         for x in range(width):
-            sheen = 14 if 8 <= (x + x_band) % 24 <= 12 else 0
+            sheen = 18 if 8 <= (x + x_band) % 24 <= 12 else 0
             jit = rng.randint(-4, 4)
             surface.set_at(
                 (x, y),
                 (
-                    _clamp(base_rgb[0] + sheen + jit),
+                    _clamp(base_rgb[0] + sheen + jit + 6),
                     _clamp(base_rgb[1] + sheen + jit + diag_band // 3),
-                    _clamp(base_rgb[2] + sheen + jit + 6),
+                    _clamp(base_rgb[2] + sheen // 2 + jit),
                 ),
             )
 
-    # Diagonal specular reflection streaks & sharp crystal fracture web
-    pygame.draw.line(surface, (206, 244, 255), (4, 32), (24, 12), 2)
-    pygame.draw.line(surface, (236, 252, 255), (18, 35), (36, 17), 1)
+    # Diagonal golden heat-glint streaks & dark terracotta glass fracture web
+    pygame.draw.line(surface, (248, 194, 108), (4, 32), (24, 12), 2)
+    pygame.draw.line(surface, (255, 226, 152), (18, 35), (36, 17), 1)
     fractures = [
         ((0, 22), (18, 18), (39, 8)),
         ((18, 18), (22, 34), (35, 39)),
@@ -1697,8 +1702,8 @@ def generate_vitreous_glass_flat_tile(
     for path in fractures:
         for i in range(len(path) - 1):
             p1, p2 = path[i], path[i + 1]
-            pygame.draw.line(surface, (42, 70, 92), p1, p2, 1)
-            pygame.draw.line(surface, (182, 232, 248), (p1[0] + 1, p1[1]), (p2[0] + 1, p2[1]), 1)
+            pygame.draw.line(surface, (68, 36, 22), p1, p2, 1)
+            pygame.draw.line(surface, (236, 176, 98), (p1[0] + 1, p1[1]), (p2[0] + 1, p2[1]), 1)
 
     return surface
 
@@ -1708,30 +1713,108 @@ def generate_vitreous_salt_spire(
     height: int = TILE_HEIGHT,
     rng: random.Random = None,
 ) -> pygame.Surface:
-    """Generate a 40x40 transparent jagged salt-spire & glass-shard cluster obstacle."""
+    """Generate a 40x40 transparent jagged amber-quartz salt-spire & vitrified glass cluster."""
     if rng is None:
         rng = random.Random()
 
     surface = pygame.Surface((width, height), pygame.SRCALPHA)
-    pygame.draw.ellipse(surface, (28, 52, 72, 125), (4, height - 12, width - 8, 9))
+    pygame.draw.ellipse(surface, (66, 34, 18, 130), (4, height - 12, width - 8, 9))
 
     shards = [
-        ([(8, 32), (12, 14), (18, 31)], (104, 162, 192, 255), (196, 240, 252, 255)),
-        ([(24, 33), (29, 12), (34, 32)], (92, 148, 180, 255), (184, 234, 248, 255)),
-        ([(14, 34), (20, 4), (27, 34)], (134, 194, 218, 255), (242, 254, 255, 255)),
+        ([(8, 32), (12, 14), (18, 31)], (184, 112, 58, 255), (242, 192, 116, 255)),
+        ([(24, 33), (29, 12), (34, 32)], (166, 96, 48, 255), (234, 178, 102, 255)),
+        ([(14, 34), (20, 4), (27, 34)], (212, 144, 72, 255), (252, 218, 144, 255)),
     ]
     for poly, body_col, hi_col in shards:
         pygame.draw.polygon(surface, body_col, poly)
         apex = poly[1]
         left_pt = poly[0]
         pygame.draw.polygon(surface, hi_col, [left_pt, apex, (apex[0] + 1, poly[2][1] - 2)])
-        pygame.draw.polygon(surface, (46, 78, 102, 255), poly, 1)
+        pygame.draw.polygon(surface, (78, 40, 22, 255), poly, 1)
 
     for _ in range(10):
         gx = rng.randint(10, 30)
         gy = rng.randint(14, 34)
         if surface.get_at((gx, gy)).a > 120:
-            surface.set_at((gx, gy), (255, 255, 255, 255))
+            surface.set_at((gx, gy), (255, 232, 168, 255))
+
+    return surface
+
+
+def generate_vitreous_fire_chalice(
+    width: int = 80,
+    height: int = 80,
+    rng: random.Random = None,
+) -> pygame.Surface:
+    """Generate an 80x80 SRCALPHA blazing bronze-and-terracotta fire chalice for The Vitreous Basin."""
+    if rng is None:
+        rng = random.Random()
+
+    surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    cx = width // 2
+
+    # 1. Warm scorched ground shadow ellipse
+    pygame.draw.ellipse(surface, (52, 24, 12, 140), (10, height - 16, width - 20, 14))
+
+    # 2. Stepped kiln-terracotta & hammered-bronze pedestal base
+    pygame.draw.rect(surface, (86, 44, 24, 255), (16, 64, 48, 10), border_radius=3)
+    pygame.draw.rect(surface, (148, 84, 46, 255), (18, 65, 44, 6), border_radius=2)
+    pygame.draw.rect(surface, (186, 118, 66, 255), (20, 65, 40, 2))
+    pygame.draw.rect(surface, (96, 52, 28, 255), (24, 57, 32, 8), border_radius=2)
+    pygame.draw.rect(surface, (168, 102, 54, 255), (26, 58, 28, 4))
+
+    # 3. Fluted bronze stem with gilded collar band
+    pygame.draw.rect(surface, (82, 46, 26, 255), (cx - 10, 46, 20, 13))
+    pygame.draw.rect(surface, (142, 84, 46, 255), (cx - 7, 46, 14, 13))
+    pygame.draw.rect(surface, (204, 142, 74, 255), (cx - 4, 46, 5, 13))
+    pygame.draw.rect(surface, (236, 186, 92, 255), (cx - 11, 51, 22, 3), border_radius=1)
+
+    # 4. Wide hammered-bronze brazier bowl with dark obsidian ribs & gilded rivets
+    bowl_outer = [(12, 32), (68, 32), (60, 47), (20, 47)]
+    bowl_inner = [(16, 33), (64, 33), (57, 45), (23, 45)]
+    pygame.draw.polygon(surface, (68, 36, 20, 255), bowl_outer)
+    pygame.draw.polygon(surface, (152, 88, 44, 255), bowl_inner)
+    pygame.draw.polygon(surface, (206, 136, 68, 255), [(18, 34), (42, 34), (38, 44), (24, 44)])
+    pygame.draw.polygon(surface, (58, 28, 16, 255), bowl_outer, 2)
+    # Ornate rim lip & side handles
+    pygame.draw.rect(surface, (218, 158, 76, 255), (10, 29, 60, 5), border_radius=2)
+    pygame.draw.rect(surface, (82, 42, 22, 255), (10, 29, 60, 5), 1, border_radius=2)
+    pygame.draw.arc(surface, (192, 128, 62, 255), (6, 33, 12, 13), math.pi * 0.5, math.pi * 1.5, 3)
+    pygame.draw.arc(surface, (192, 128, 62, 255), (62, 33, 12, 13), -math.pi * 0.5, math.pi * 0.5, 3)
+    for rx in (22, 31, 40, 49, 58):
+        pygame.draw.circle(surface, (250, 212, 122, 255), (rx, 39), 2)
+
+    # 5. Glowing ember coal bed inside the rim
+    pygame.draw.ellipse(surface, (196, 48, 18, 255), (15, 25, 50, 9))
+    pygame.draw.ellipse(surface, (255, 134, 30, 255), (20, 26, 40, 7))
+    pygame.draw.ellipse(surface, (255, 216, 86, 255), (26, 27, 28, 5))
+
+    # 6. Multi-layered roaring flame plume
+    outer_flame = [
+        (18, 29), (16, 20), (24, 22), (26, 11), (34, 18),
+        (cx, 4), (47, 17), (54, 10), (57, 21), (64, 19), (62, 29),
+    ]
+    mid_flame = [
+        (22, 29), (22, 21), (29, 23), (31, 14), (37, 20),
+        (cx, 9), (44, 19), (50, 14), (53, 22), (58, 29),
+    ]
+    core_flame = [
+        (28, 29), (30, 21), (36, 22), (cx, 14), (44, 22), (50, 21), (52, 29),
+    ]
+    heart_flame = [(33, 29), (36, 23), (cx, 19), (44, 23), (47, 29)]
+
+    pygame.draw.polygon(surface, (232, 66, 22, 245), outer_flame)
+    pygame.draw.polygon(surface, (255, 146, 34, 250), mid_flame)
+    pygame.draw.polygon(surface, (255, 222, 88, 255), core_flame)
+    pygame.draw.polygon(surface, (255, 248, 196, 255), heart_flame)
+
+    # 7. Rising ember sparks floating above the flame crown
+    for _ in range(12):
+        ex = rng.randint(16, width - 17)
+        ey = rng.randint(2, 20)
+        rad = 1 if rng.random() < 0.7 else 2
+        col = (255, 214, 96, 240) if rng.random() < 0.6 else (255, 116, 36, 230)
+        pygame.draw.circle(surface, col, (ex, ey), rad)
 
     return surface
 
@@ -6141,6 +6224,7 @@ def generate_all_assets(
     vitreous_salt_floor_path: str = DEFAULT_VITREOUS_SALT_FLOOR_PATH,
     vitreous_glass_flat_path: str = DEFAULT_VITREOUS_GLASS_FLAT_PATH,
     vitreous_salt_spire_path: str = DEFAULT_VITREOUS_SALT_SPIRE_PATH,
+    vitreous_fire_chalice_path: str = DEFAULT_VITREOUS_FIRE_CHALICE_PATH,
     aqueduct_terracotta_floor_path: str = DEFAULT_AQUEDUCT_TERRACOTTA_FLOOR_PATH,
     aqueduct_moss_wall_path: str = DEFAULT_AQUEDUCT_MOSS_WALL_PATH,
     aqueduct_pillar_path: str = DEFAULT_AQUEDUCT_PILLAR_PATH,
@@ -6263,6 +6347,11 @@ def generate_all_assets(
             "vitreous_salt_spire",
             vitreous_salt_spire_path,
             generate_vitreous_salt_spire(TILE_WIDTH, TILE_HEIGHT, rng=_rng("vitreous_salt_spire")),
+        ),
+        (
+            "vitreous_fire_chalice",
+            vitreous_fire_chalice_path,
+            generate_vitreous_fire_chalice(80, 80, rng=_rng("vitreous_fire_chalice")),
         ),
         (
             "aqueduct_terracotta_floor",

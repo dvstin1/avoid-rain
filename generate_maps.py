@@ -54,6 +54,7 @@ SYMBOL_BOOKCASE = 'h'
 SYMBOL_INK_URN = 'd'
 SYMBOL_INK_PUDDLE = 'v'
 SYMBOL_CANDELABRA = 'l'
+SYMBOL_FIRE_CHALICE = 'V'
 SYMBOL_LOTUS_FRAME = 'M'
 SYMBOL_LORE = 'L'
 SYMBOL_WELLSPRING = 'F'
@@ -89,6 +90,7 @@ MAP_LEGEND: Dict[str, str] = {
     SYMBOL_INK_URN: "Ink Urn",
     SYMBOL_INK_PUDDLE: "Ink Puddle",
     SYMBOL_CANDELABRA: "Candelabra",
+    SYMBOL_FIRE_CHALICE: "Fire Chalice",
     SYMBOL_LOTUS_FRAME: "Lotus Frame",
     SYMBOL_LORE: "Lore",
     SYMBOL_WELLSPRING: "Wellspring",
@@ -129,6 +131,7 @@ COLOR_PREVIEW_BENCH = (140, 105, 75)
 COLOR_PREVIEW_STRUCTURE = (95, 75, 60)
 COLOR_PREVIEW_BOOKCASE = (90, 55, 38)
 COLOR_PREVIEW_CANDELABRA = (255, 220, 90)
+COLOR_PREVIEW_FIRE_CHALICE = (255, 132, 36)
 COLOR_PREVIEW_URN = (45, 55, 75)
 COLOR_PREVIEW_LORE = (235, 230, 210)
 COLOR_PREVIEW_ENEMY = (220, 48, 64)
@@ -152,6 +155,7 @@ SYMBOL_COLOR_MAP: Dict[str, Tuple[int, int, int]] = {
     SYMBOL_STRUCTURE: COLOR_PREVIEW_STRUCTURE,
     SYMBOL_BOOKCASE: COLOR_PREVIEW_BOOKCASE,
     SYMBOL_CANDELABRA: COLOR_PREVIEW_CANDELABRA,
+    SYMBOL_FIRE_CHALICE: COLOR_PREVIEW_FIRE_CHALICE,
     SYMBOL_INK_URN: COLOR_PREVIEW_URN,
     SYMBOL_LORE: COLOR_PREVIEW_LORE,
     SYMBOL_CHRONICLER: COLOR_PREVIEW_CHRONICLER,
@@ -212,8 +216,10 @@ SOLID_PROP_SYMBOLS: Tuple[str, ...] = (
     SYMBOL_STRUCTURE,
     SYMBOL_INK_URN,
     SYMBOL_CANDELABRA,
+    SYMBOL_FIRE_CHALICE,
 )
 WIDE_SOLID_PROP_SYMBOLS: Tuple[str, ...] = (SYMBOL_BOOKCASE, SYMBOL_BENCH)
+LARGE_SOLID_PROP_SYMBOLS: Tuple[str, ...] = (SYMBOL_FIRE_CHALICE,)
 HALLWAY_MIN_CLEAR_SPAN = 3
 BOOKCASE_MIN_HORIZ_SPAN = 4
 PROP_LOCAL_WINDOW_RADIUS = 2
@@ -234,6 +240,7 @@ SHADOW_CASTER_SYMBOLS: Set[str] = {
     SYMBOL_BENCH,
     SYMBOL_INK_URN,
     SYMBOL_CANDELABRA,
+    SYMBOL_FIRE_CHALICE,
 }
 
 
@@ -443,6 +450,13 @@ def _get_solid_prop_footprint(
                     impassable.add((x + 1, y))
                     if grid[y][x + 1] not in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
                         prop_owners[(x + 1, y)] = (x, y)
+                elif cell in LARGE_SOLID_PROP_SYMBOLS:
+                    for ox_p, oy_p in ((1, 0), (0, 1), (1, 1)):
+                        nx_p, ny_p = x + ox_p, y + oy_p
+                        if nx_p < w and ny_p < h:
+                            impassable.add((nx_p, ny_p))
+                            if grid[ny_p][nx_p] not in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
+                                prop_owners[(nx_p, ny_p)] = (x, y)
     return impassable, prop_owners
 
 
@@ -563,19 +577,36 @@ def validate_wide_prop_clearances(
     cleared = 0
     for y in range(h):
         for x in range(w):
-            if grid[y][x] not in WIDE_SOLID_PROP_SYMBOLS:
-                continue
-            right_oob_or_border = x + 1 >= w - 1
-            right_blocked = right_oob_or_border or grid[y][x + 1] != SYMBOL_FLOOR
-            left_wide = x > 0 and grid[y][x - 1] in WIDE_SOLID_PROP_SYMBOLS
-            crowds_respite = any(
-                max(abs(px - rx), abs(py - ry)) <= respite_clearance
-                for px, py in ((x, y), (x + 1, y))
-                for rx, ry in respite_coords
-            )
-            if right_blocked or left_wide or crowds_respite:
-                grid[y][x] = SYMBOL_FLOOR
-                cleared += 1
+            ch = grid[y][x]
+            if ch in WIDE_SOLID_PROP_SYMBOLS:
+                right_oob_or_border = x + 1 >= w - 1
+                right_blocked = right_oob_or_border or grid[y][x + 1] != SYMBOL_FLOOR
+                left_wide = x > 0 and grid[y][x - 1] in WIDE_SOLID_PROP_SYMBOLS
+                crowds_respite = any(
+                    max(abs(px - rx), abs(py - ry)) <= respite_clearance
+                    for px, py in ((x, y), (x + 1, y))
+                    for rx, ry in respite_coords
+                )
+                if right_blocked or left_wide or crowds_respite:
+                    grid[y][x] = SYMBOL_FLOOR
+                    cleared += 1
+            elif ch in LARGE_SOLID_PROP_SYMBOLS:
+                oob_or_border = x + 1 >= w - 1 or y + 1 >= h - 1
+                extra_cells = ((x + 1, y), (x, y + 1), (x + 1, y + 1))
+                blocked = oob_or_border or any(grid[py][px] != SYMBOL_FLOOR for px, py in extra_cells)
+                overlaps_neighbor = (
+                    (x > 0 and grid[y][x - 1] in LARGE_SOLID_PROP_SYMBOLS)
+                    or (y > 0 and grid[y - 1][x] in LARGE_SOLID_PROP_SYMBOLS)
+                    or (x > 0 and y > 0 and grid[y - 1][x - 1] in LARGE_SOLID_PROP_SYMBOLS)
+                )
+                crowds_respite = any(
+                    max(abs(px - rx), abs(py - ry)) <= respite_clearance
+                    for px, py in ((x, y),) + extra_cells
+                    for rx, ry in respite_coords
+                )
+                if blocked or overlaps_neighbor or crowds_respite:
+                    grid[y][x] = SYMBOL_FLOOR
+                    cleared += 1
     return cleared
 
 
@@ -897,11 +928,11 @@ def generate_organic_biome(
             if grid[y][x] in (SYMBOL_FLOOR, SYMBOL_GRASS):
                 dist = dist_map[y][x]
                 if is_vitreous:
-                    # Salt spires & glass-shard cover clusters along basin rims and mid-flats
+                    # Sun-baked amber salt spires & ground clutter along basin rims and mid-flats
                     if dist == 1 and rng.random() < 0.09:
                         grid[y][x] = SYMBOL_CLUTTER
-                    elif dist >= 3 and rng.random() < 0.025:
-                        grid[y][x] = SYMBOL_CLUTTER
+                    elif dist >= 3 and rng.random() < 0.022:
+                        grid[y][x] = SYMBOL_STRUCTURE if rng.random() < 0.45 else SYMBOL_CLUTTER
                 else:
                     # High clutter near walls (dist 1-2), keep open clearing centers clear (dist >= 3)
                     if dist == 1 and rng.random() < 0.12:
@@ -961,6 +992,35 @@ def generate_organic_biome(
             if open_floors:
                 ex, ey = open_floors.pop()
                 grid[ey][ex] = rng.choice(enemy_types)
+
+        # Place 80x80 (2x2) blazing Fire Chalices across open Vitreous Basin clearings
+        if is_vitreous:
+            chalice_target = max(2, min(6, (width * height) // 1800))
+            chalice_candidates = [
+                (cx_c, cy_c)
+                for cy_c in range(3, height - 4)
+                for cx_c in range(3, width - 4)
+                if dist_map[cy_c][cx_c] >= 3
+                and all(
+                    grid[cy_c + dy_c][cx_c + dx_c] == SYMBOL_FLOOR
+                    for dx_c in (0, 1)
+                    for dy_c in (0, 1)
+                )
+            ]
+            rng.shuffle(chalice_candidates)
+            placed_chalices: List[Tuple[int, int]] = []
+            for cx_c, cy_c in chalice_candidates:
+                if len(placed_chalices) >= chalice_target:
+                    break
+                footprint = [(cx_c, cy_c), (cx_c + 1, cy_c), (cx_c, cy_c + 1), (cx_c + 1, cy_c + 1)]
+                if any(grid[py_c][px_c] != SYMBOL_FLOOR for px_c, py_c in footprint):
+                    continue
+                if any(abs(cx_c - px_0) + abs(cy_c - py_0) < 8 for px_0, py_0 in placed_chalices):
+                    continue
+                if not _has_respite_clearance(grid, footprint):
+                    continue
+                grid[cy_c][cx_c] = SYMBOL_FIRE_CHALICE
+                placed_chalices.append((cx_c, cy_c))
 
     _place_patrol_routes(grid, entities, rng, active_biome)
 

@@ -997,8 +997,12 @@ class LevelLoader:
             for y_b in range(gh):
                 grid[y_b][0] = "#"
                 grid[y_b][gw - 1] = "#"
-                if gw >= 2 and grid[y_b][gw - 2] in ("h", "S"):
+                if gw >= 2 and grid[y_b][gw - 2] in ("h", "S", "V"):
                     grid[y_b][gw - 2] = "."
+            if gh >= 2:
+                for x_b in range(gw):
+                    if grid[gh - 2][x_b] == "V":
+                        grid[gh - 2][x_b] = "."
 
         # 2. Conversion Pass: Symbols -> Entity Objects
         entity_data = {}
@@ -1267,6 +1271,14 @@ class LevelLoader:
                     candelabra.is_solid = True
                     candelabra.name = "Candelabra"
                     interactables.append(candelabra)
+
+                elif char == 'V':
+                    # Blazing Fire Chalice - 2x2 (80x80) Vitreous Basin heat & light monument
+                    chalice_dim = (TILE_SIZE * 2, TILE_SIZE * 2)
+                    chalice = GameObject(pos, chalice_dim)
+                    chalice.is_solid = True
+                    chalice.name = "Fire Chalice"
+                    interactables.append(chalice)
 
                 elif char == 'S':
                     # Seat / Bench - Horizontal 2x1 (80x40 matching bench.png)
