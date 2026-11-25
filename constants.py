@@ -1577,3 +1577,23 @@ BOSS_SUMMON_PALETTES = {
         (124, 120, 116),
     ),
 }
+
+# Bottom-Center Boss Name & Health Bar HUD
+BOSS_HUD_BAR_WIDTH = 520
+BOSS_HUD_BAR_HEIGHT = 16
+BOSS_HUD_BOTTOM_MARGIN = 26
+BOSS_HUD_NAME_GAP = 8
+BOSS_HUD_PROXIMITY_RADIUS = 20 * TILE_SIZE
+BOSS_HUD_NAME_COLOR = (248, 242, 226)
+BOSS_HUD_OUTLINE_COLOR = (10, 8, 14)
+BOSS_HUD_BG_COLOR = (24, 16, 22, 235)
+BOSS_HUD_FILL_COLOR = (198, 34, 48)
+BOSS_HUD_HIGHLIGHT_COLOR = (238, 88, 98)
+BOSS_HUD_BORDER_COLOR = (206, 184, 132)
+BOSS_HUD_DISPLAY_NAMES = {
+    "SlugBoss": "The Crowned Slug",
+    "MeadowCensorBoss": "The Meadow Censor",
+    "RimecrestArbiterBoss": "The Rimecrest Arbiter",
+    "NightBoss": "Night Boss",
+    "FinalAuthor": "The Final Author",
+}

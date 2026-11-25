@@ -418,6 +418,17 @@ class Boss(Enemy):
         self._flank_dir = random.choice((-1.0, 1.0))
         self.ink_bolts = []
 
+    def get_display_name(self) -> str:
+        """Return the player-facing HUD display name for this boss."""
+        explicit = getattr(self, "display_name", None)
+        if explicit:
+            return str(explicit)
+        from constants import BOSS_HUD_DISPLAY_NAMES
+        cls_name = self.__class__.__name__
+        if cls_name in BOSS_HUD_DISPLAY_NAMES:
+            return BOSS_HUD_DISPLAY_NAMES[cls_name]
+        return str(getattr(self, "name", "Boss") or "Boss")
+
     def update(self, dt, state):
         """Advance boss ranged cooldown and active ink-bolt projectiles alongside base AI."""
         if self.is_summoning_or_dormant():
@@ -1140,6 +1151,7 @@ class SlugBoss(NightBoss):
         self.width = SLUG_BOSS_SIZE
         self.height = SLUG_BOSS_SIZE
         self.name = "Night Boss"
+        self.display_name = "The Crowned Slug"
         self.is_slug_boss = True
         self.speed = SLUG_BOSS_SPEED
         self.attack_type = "LUNGE"
@@ -1462,6 +1474,7 @@ class MeadowCensorBoss(NightBoss):
         self.width = MEADOW_CENSOR_SIZE
         self.height = MEADOW_CENSOR_SIZE
         self.name = "Night Boss"
+        self.display_name = "The Meadow Censor"
         self.is_meadow_censor = True
         self.speed = MEADOW_CENSOR_SPEED
         self.loot_tier = 2
@@ -1801,6 +1814,7 @@ class RimecrestArbiterBoss(NightBoss):
         self.width = RIMECREST_ARBITER_SIZE
         self.height = RIMECREST_ARBITER_SIZE
         self.name = "Night Boss"
+        self.display_name = "The Rimecrest Arbiter"
         self.is_rimecrest_arbiter = True
         self.speed = RIMECREST_ARBITER_SPEED
         self.damage = 28.0

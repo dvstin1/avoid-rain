@@ -1444,6 +1444,77 @@ class GameState:
             if emerge_t > 0.0 and enemy not in active_ritual_bosses:
                 enemy.summoning_emerge_timer = max(0.0, emerge_t - dt)
 
+    def get_active_boss_hud_info(self) -> Optional[dict]:
+        """Return display info for the highest-priority active, emerged boss (or None if hidden)."""
+        if getattr(self, "in_sanctuary", False) or getattr(self, "player", None) is None:
+            return None
+        if float(getattr(self, "death_timer", 0.0) or 0.0) > 0.0:
+            return None
+
+        from constants import BOSS_HUD_DISPLAY_NAMES, BOSS_HUD_PROXIMITY_RADIUS
+
+        summoning_bosses = {r.get("boss") for r in getattr(self, "active_boss_summons", None) or ()}
+        px, py = self.player.get_center()
+        prox_sq = float(BOSS_HUD_PROXIMITY_RADIUS) ** 2
+
+        best_key = None
+        best_boss = None
+        for enemy in getattr(self, "enemies", None) or ():
+            if not getattr(enemy, "is_miniboss", False):
+                continue
+            cur_hp = float(getattr(enemy, "hp", 0.0) or 0.0)
+            if cur_hp <= 0.0 or (hasattr(enemy, "is_dead") and enemy.is_dead()):
+                continue
+            if (
+                enemy in summoning_bosses
+                or getattr(enemy, "dormant_boss_summon", False)
+                or float(getattr(enemy, "summoning_emerge_timer", 0.0) or 0.0) > 0.0
+                or (hasattr(enemy, "is_summoning_or_dormant") and enemy.is_summoning_or_dormant())
+            ):
+                continue
+
+            ename = str(getattr(enemy, "name", "") or "")
+            is_final = ename == "The Final Author" or enemy.__class__.__name__ == "FinalAuthor"
+            is_night = (
+                ename == "Night Boss"
+                or getattr(enemy, "is_slug_boss", False)
+                or getattr(enemy, "is_meadow_censor", False)
+                or getattr(enemy, "is_rimecrest_arbiter", False)
+            )
+            ex, ey = enemy.get_center()
+            dist_sq = (ex - px) ** 2 + (ey - py) ** 2
+            if not is_final and not is_night and dist_sq > prox_sq:
+                continue
+
+            priority = 3 if is_final else (2 if is_night else 1)
+            candidate_key = (priority, -dist_sq)
+            if best_key is None or candidate_key > best_key:
+                best_key = candidate_key
+                best_boss = enemy
+
+        if best_boss is None:
+            return None
+
+        if hasattr(best_boss, "get_display_name"):
+            display_name = str(best_boss.get_display_name())
+        else:
+            display_name = str(
+                getattr(best_boss, "display_name", None)
+                or BOSS_HUD_DISPLAY_NAMES.get(best_boss.__class__.__name__)
+                or getattr(best_boss, "name", "Boss")
+            )
+        max_hp = max(1.0, float(getattr(best_boss, "max_hp", 1.0) or 1.0))
+        cur_hp = max(0.0, min(max_hp, float(getattr(best_boss, "hp", 0.0) or 0.0)))
+        return {
+            "boss": best_boss,
+            "name": display_name,
+            "hp": cur_hp,
+            "max_hp": max_hp,
+            "hp_ratio": max(0.0, min(1.0, cur_hp / max_hp)),
+            "is_empowered": bool(getattr(best_boss, "is_empowered", False)),
+            "phase": int(getattr(best_boss, "phase", 1) or 1),
+        }
+
     def _update_world_events(self, dt):
         """Host-only logic for boss spawns and environmental transitions."""
         from constants import TILE_SIZE, TILE_STRUCTURE, TILE_RESPITE

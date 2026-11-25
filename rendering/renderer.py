@@ -33,6 +33,7 @@ class Renderer:
             "manuscript_serif", 4, "Times New Roman", 72, bold=True, italic=True
         )
         self.title_font = load_font_or_sysfont("manuscript_serif", 3, "Georgia", 54, bold=True)
+        self.boss_hud_font = load_font_or_sysfont("manuscript_serif", 2, "Georgia", 24, bold=True)
         
         # Image Cache
         self.image_cache = {}
@@ -3831,6 +3832,73 @@ class Renderer:
         cnt_surf = self.small_font.render(counter_str, True, constants.COLOR_WHITE)
         self.screen.blit(cnt_surf, (panel_rect.right - cnt_surf.get_width() - 12, panel_y + 22))
 
+    def draw_boss_hud(self, state):
+        """Render the bottom-center boss name (with dark outline/drop-shadow) and health bar once emerged."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        if not hasattr(state, "get_active_boss_hud_info"):
+            return
+        info = state.get_active_boss_hud_info()
+        if not info:
+            return
+
+        sw, sh = self.screen.get_size()
+        max_safe_w = max(200, sw - 2 * (constants.HUD_PANEL_W + 24))
+        bar_w = min(int(constants.BOSS_HUD_BAR_WIDTH), max_safe_w, max(160, sw - 80))
+        bar_h = int(constants.BOSS_HUD_BAR_HEIGHT)
+        bar_x = (sw - bar_w) // 2
+        bar_y = sh - int(constants.BOSS_HUD_BOTTOM_MARGIN) - bar_h
+
+        # Boss Name in medium-sized font with crisp dark outline + drop-shadow for cross-biome legibility
+        boss_font = getattr(self, "boss_hud_font", None) or self.font
+        boss_name = str(info.get("name", "Boss"))
+        outline_surf = boss_font.render(boss_name, True, constants.BOSS_HUD_OUTLINE_COLOR)
+        name_surf = boss_font.render(boss_name, True, constants.BOSS_HUD_NAME_COLOR)
+        name_x = (sw - name_surf.get_width()) // 2
+        name_y = bar_y - name_surf.get_height() - int(constants.BOSS_HUD_NAME_GAP)
+
+        # Crisp drop-shadow + 8-directional outline ring
+        self.screen.blit(outline_surf, (name_x + 2, name_y + 3))
+        for ox, oy in ((-2, 0), (2, 0), (0, -2), (0, 2), (-1, -1), (1, -1), (-1, 1), (1, 1)):
+            self.screen.blit(outline_surf, (name_x + ox, name_y + oy))
+        self.screen.blit(name_surf, (name_x, name_y))
+
+        # Boss Health Bar with dark shadow frame, crimson fill, quarter ticks, and parchment-gold border
+        bar_surf = pygame.Surface((bar_w + 6, bar_h + 6), pygame.SRCALPHA)
+        pygame.draw.rect(bar_surf, (6, 4, 10, 200), (3, 4, bar_w, bar_h), border_radius=4)
+        pygame.draw.rect(bar_surf, constants.BOSS_HUD_BG_COLOR, (2, 2, bar_w, bar_h), border_radius=4)
+
+        hp_ratio = max(0.0, min(1.0, float(info.get("hp_ratio", 0.0))))
+        inner_w = max(0, bar_w - 4)
+        fill_w = int(round(inner_w * hp_ratio))
+        if fill_w > 0:
+            pygame.draw.rect(
+                bar_surf,
+                (*constants.BOSS_HUD_FILL_COLOR, 250),
+                (4, 4, fill_w, max(1, bar_h - 4)),
+                border_radius=2,
+            )
+            pygame.draw.line(
+                bar_surf,
+                (*constants.BOSS_HUD_HIGHLIGHT_COLOR, 225),
+                (5, 5),
+                (3 + fill_w, 5),
+                1,
+            )
+
+        for seg_idx in range(1, 4):
+            seg_x = 2 + (bar_w * seg_idx) // 4
+            pygame.draw.line(bar_surf, (14, 10, 16, 175), (seg_x, 3), (seg_x, bar_h), 1)
+
+        pygame.draw.rect(
+            bar_surf,
+            (*constants.BOSS_HUD_BORDER_COLOR, 240),
+            (2, 2, bar_w, bar_h),
+            2,
+            border_radius=4,
+        )
+        self.screen.blit(bar_surf, (bar_x - 2, bar_y - 2))
+
     def _draw_boss_summon_circle(self, cx, cy, cur_r, black_r, tick_angle, offset_x, offset_y, sw, sh):
         """Render a grey vellum boss summoning circle on the ground (with optional expanding black ink core)."""
         if cur_r < 1.5:
@@ -5559,6 +5627,7 @@ class Renderer:
                 self.screen.blit(banner_surf, banner_rect)
 
         self.draw_marginalia_banner(state)
+        self.draw_boss_hud(state)
 
         # --- EXPANDED INSPECT VIEW ---
         if getattr(state, 'inspect_active', False):
