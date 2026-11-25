@@ -986,7 +986,7 @@ class LevelLoader:
             for y_b in range(gh):
                 grid[y_b][0] = "#"
                 grid[y_b][gw - 1] = "#"
-                if gw >= 2 and grid[y_b][gw - 2] == "h":
+                if gw >= 2 and grid[y_b][gw - 2] in ("h", "S"):
                     grid[y_b][gw - 2] = "."
 
         # 2. Conversion Pass: Symbols -> Entity Objects
