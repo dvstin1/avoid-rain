@@ -142,6 +142,7 @@ COLOR_BLUE = (50, 50, 200)
 COLOR_GREEN = (50, 200, 50)
 COLOR_GREY = (100, 100, 100)
 COLOR_CYAN = (0, 255, 255)
+COLOR_MAGENTA = (255, 0, 255)
 COLOR_PURPLE = (150, 50, 250)
 COLOR_DARK_GREY = (40, 40, 40)
 
@@ -1763,3 +1764,73 @@ def compute_player_weapon_rotation_deg(aim_rad: float, weapon_key: str) -> float
     """Compute pygame.transform.rotate angle (CCW degrees) aligning weapon_key's tip with aim_rad."""
     native_tip = float(PLAYER_WEAPON_NATIVE_TIP_DEGREES.get(weapon_key, -135.0))
     return -math.degrees(float(aim_rad)) - native_tip
+
+
+# Smooth 60 FPS Remote Player Interpolation & Model Rendering (Item #19)
+NET_SNAPSHOT_INTERP_DELAY = 0.065               # ~65 ms snapshot interpolation delay (20 Hz UDP -> 60 FPS)
+NET_SNAPSHOT_BUFFER_SIZE = 12                   # Max timestamped snapshots retained per remote peer
+NET_DEAD_RECKONING_MAX_EXTRAPOLATION = 0.12     # Max dead-reckoning extrapolation (seconds) on dropped UDP packets
+NET_DEAD_RECKONING_MAX_SEGMENT_DT = 0.50        # Max gap between consecutive snapshots eligible for velocity calc
+NET_DEAD_RECKONING_MAX_SPEED = PLAYER_SPEED * DASH_SPEED_MULTIPLIER  # Cap extrapolated speed to max dash speed
+NET_TELEPORT_SNAP_DISTANCE = 240.0              # Snap immediately instead of lerping across large warps/teleports
+NET_REMOTE_WALK_SPEED_THRESHOLD = 18.0          # Interpolated speed (px/s) threshold for walk animation
+NET_REMOTE_ATTACK_VISUAL_DURATION = SWORD_DURATION
+NET_REMOTE_HOST_TRIM_COLOR = COLOR_CYAN
+NET_REMOTE_GUEST_TRIM_COLOR = COLOR_MAGENTA
+NET_REMOTE_NAMEPLATE_OFFSET_Y = 16
+DEFAULT_PLAYER_WEAPON_KEY = "WeaponQuillStandard"
+DEFAULT_REMOTE_FACING = (0.0, 1.0)
+
+_REMOTE_STATE_ALIASES = {
+    "IDLE": "IDLE",
+    "MOVING": "RUN",
+    "RUN": "RUN",
+    "ATTACKING": "ATTACK",
+    "ATTACK": "ATTACK",
+    "DASHING": "DASH",
+    "DASH": "DASH",
+    "BLOCKING": "BLOCK",
+    "BLOCK": "BLOCK",
+    "STAGGERED": "STAGGERED",
+}
+
+
+def normalize_remote_player_state(raw_state) -> str:
+    """Normalize a PlayerStateEnum or string action state into a canonical rig state key."""
+    if raw_state is None:
+        return "IDLE"
+    val = getattr(raw_state, "value", raw_state)
+    token = str(val).strip().upper()
+    return _REMOTE_STATE_ALIASES.get(token, "IDLE")
+
+
+def select_weapon_sprite_key(weapon_data) -> str:
+    """Deterministically pick a weapon sprite key from weapon modifiers and name."""
+    data = weapon_data if isinstance(weapon_data, dict) else {}
+    mods = data.get("modifiers") or {}
+    name = str(data.get("name", "")).lower()
+
+    if mods or "anomalous" in name:
+        if "bleed" in mods or "ink_bleed" in mods or "bleed" in name:
+            return "WeaponAnomalousBleed"
+        if "slow_hp_regen" in mods or "vampirism" in mods or "regen" in mods or "life" in name:
+            return "WeaponAnomalousRegen"
+        if (
+            "damage_negation_on_hit" in mods
+            or "parry_window" in mods
+            or "negation" in mods
+            or "iron" in name
+        ):
+            return "WeaponAnomalousNegation"
+        if "max_hp_boost" in mods or "void_strike" in mods or "stout" in mods or "void" in name:
+            return "WeaponAnomalousStout"
+        return "WeaponAnomalousDefault"
+
+    if "refined" in name:
+        return "WeaponQuillRefined"
+    if any(tok in name for tok in ("blade", "dagger", "knife", "sword", "scriber")):
+        return "WeaponScriberBlade"
+    if "standard" in name or not name:
+        return DEFAULT_PLAYER_WEAPON_KEY
+    standard_keys = ("WeaponQuillStandard", "WeaponQuillRefined", "WeaponScriberBlade")
+    return standard_keys[sum(ord(ch) for ch in name) % len(standard_keys)]

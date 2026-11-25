@@ -3815,8 +3815,9 @@ class Renderer:
         self.draw_boss_summon_rituals(state, ox, oy, layer="squares")
         self.draw_boss_projectiles(state, ox, oy)
 
-        # Local Player Rendering
+        # World-Actor Pass: Marginalia Overlays, Remote Scholars, & Local Player
         self.draw_marginalia_world_overlays(state, ox, oy)
+        self.draw_remote_players(state, ox, oy)
         self.draw_actor_ghost(state.player, ox, oy, state)
 
         if state.player.state == PlayerStateEnum.ATTACKING:
@@ -3901,9 +3902,6 @@ class Renderer:
         self.draw_weather(state)
         self.draw_bloom_overlay(state)
 
-        # Phase 4: Network Ghost Rendering
-        self.draw_remote_players(state, ox, oy)
-        
         # Parry Sparks
         self.draw_parry_effects(state, ox, oy)
 
@@ -5412,35 +5410,94 @@ class Renderer:
             self._draw_tapered_blade((hx, hy), (px, py), 7.0)
 
     def draw_remote_players(self, state, ox, oy):
-        """Phase 4: Render ghosts for other players on the network."""
-        remote_data = getattr(state.network_manager, 'remote_players', {})
-        for addr, data in remote_data.items():
-            if "x" not in data or "y" not in data: continue
-            
-            # Identity (Identity from Heartbeat or Handshake)
-            name = data.get("identity", "Stranger")
-            
-            # Rendering Coordinates
-            rx, ry = float(data["x"]) - ox, float(data["y"]) - oy
-            
-            # Draw Ghost Circle (Cyan for Host, Magenta for Clients)
-            # Logic: If I am HOST, then others are CLIENTS (Magenta). 
-            # If I am CLIENT, then the one at server_address is HOST (Cyan).
-            color = (255, 0, 255)  # Default Magenta (Client)
-            is_host_ghost = bool(
+        """Render networked peers in world space using the full directional Scholar rig and equipped weapon."""
+        net = getattr(state, "network_manager", None)
+        remote_data = getattr(net, "remote_players", None) or {}
+        if not remote_data:
+            return 0
+
+        if hasattr(state, "in_sanctuary"):
+            local_in_sanctuary = bool(state.in_sanctuary)
+        else:
+            local_in_sanctuary = getattr(getattr(state, "world", None), "name", "") == "sanctuary"
+
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        pw, ph = constants.PLAYER_WIDTH, constants.PLAYER_HEIGHT
+        net_mode = getattr(net, "network_mode", "OFFLINE") if net is not None else "OFFLINE"
+        server_addr = getattr(net, "server_address", None) if net is not None else None
+
+        visible_peers = []
+        for peer_key, data in remote_data.items():
+            if not isinstance(data, dict) or "x" not in data or "y" not in data:
+                continue
+            if "in_sanctuary" in data and bool(data["in_sanctuary"]) != local_in_sanctuary:
+                continue
+            world_x = float(data.get("render_x", data["x"]))
+            world_y = float(data.get("render_y", data["y"]))
+            visible_peers.append((world_y, world_x, peer_key, data))
+
+        visible_peers.sort(key=lambda item: item[0])
+        rendered = 0
+        now_t = time.time()
+
+        for world_y, world_x, peer_key, data in visible_peers:
+            rx = world_x - ox
+            ry = world_y - oy
+            draw_rect = pygame.Rect(int(round(rx)), int(round(ry)), pw, ph)
+            if draw_rect.right < -64 or draw_rect.left > sw + 64 or draw_rect.bottom < -64 or draw_rect.top > sh + 64:
+                continue
+
+            is_host_peer = bool(
                 data.get("is_host")
-                or data.get("addr") == state.network_manager.server_address
-                or addr == state.network_manager.server_address
+                or (server_addr is not None and (data.get("addr") == server_addr or peer_key == server_addr))
             )
-            if state.network_manager.network_mode == "CLIENT" and is_host_ghost:
-                color = constants.COLOR_CYAN  # Host
-            
-            pygame.draw.circle(self.screen, color, (int(rx + 16), int(ry + 16)), 12)
-            pygame.draw.circle(self.screen, constants.COLOR_WHITE, (int(rx + 16), int(ry + 16)), 12, 1)
-            
-            # Identity Tag
+            trim_color = (
+                constants.NET_REMOTE_HOST_TRIM_COLOR
+                if (net_mode != "HOST" and is_host_peer)
+                else constants.NET_REMOTE_GUEST_TRIM_COLOR
+            )
+
+            facing = data.get("render_facing") or data.get("facing") or constants.DEFAULT_REMOTE_FACING
+            norm_state = constants.normalize_remote_player_state(data.get("render_state") or data.get("state"))
+            rig_state = "IDLE" if norm_state == "STAGGERED" else norm_state
+            weapon_key = data.get("weapon_key") or constants.DEFAULT_PLAYER_WEAPON_KEY
+
+            anim_t = data.get("render_anim_time")
+            if anim_t is None or (rig_state == "IDLE" and float(anim_t) == 0.0):
+                anim_t = now_t
+            attack_progress = data.get("render_attack_progress") if rig_state == "ATTACK" else None
+            if rig_state == "ATTACK" and attack_progress is None:
+                attack_progress = 0.5
+
+            self.draw_player_rig(
+                draw_rect=draw_rect,
+                facing=facing,
+                base_state=rig_state,
+                weapon_key=weapon_key,
+                anim_time=float(anim_t),
+                attack_progress=attack_progress,
+                trim_color=trim_color,
+                draw_weapon_during_attack=True,
+            )
+
+            name = str(data.get("identity") or "Stranger")
             id_surf = self.small_font.render(name, True, constants.COLOR_WHITE)
-            self.screen.blit(id_surf, (rx + 16 - id_surf.get_width() // 2, ry - 15))
+            shadow_surf = self.small_font.render(name, True, constants.COLOR_BLACK)
+            name_x = int(draw_rect.centerx - id_surf.get_width() // 2)
+            name_y = int(draw_rect.y - constants.NET_REMOTE_NAMEPLATE_OFFSET_Y)
+            self.screen.blit(shadow_surf, (name_x + 1, name_y + 1))
+            self.screen.blit(id_surf, (name_x, name_y))
+            underline_y = name_y + id_surf.get_height()
+            pygame.draw.line(
+                self.screen,
+                trim_color,
+                (name_x, underline_y),
+                (name_x + id_surf.get_width(), underline_y),
+                1,
+            )
+            rendered += 1
+
+        return rendered
 
     @staticmethod
     def _format_debug_osd_status(state):
@@ -8014,34 +8071,7 @@ class Renderer:
     @staticmethod
     def _select_weapon_pickup_sprite_key(weapon_data):
         """Deterministically pick a prop_cache weapon sprite key from weapon modifiers and name."""
-        data = weapon_data if isinstance(weapon_data, dict) else {}
-        mods = data.get("modifiers") or {}
-        name = str(data.get("name", "")).lower()
-
-        if mods or "anomalous" in name:
-            if "bleed" in mods or "ink_bleed" in mods or "bleed" in name:
-                return "WeaponAnomalousBleed"
-            if "slow_hp_regen" in mods or "vampirism" in mods or "regen" in mods or "life" in name:
-                return "WeaponAnomalousRegen"
-            if (
-                "damage_negation_on_hit" in mods
-                or "parry_window" in mods
-                or "negation" in mods
-                or "iron" in name
-            ):
-                return "WeaponAnomalousNegation"
-            if "max_hp_boost" in mods or "void_strike" in mods or "stout" in mods or "void" in name:
-                return "WeaponAnomalousStout"
-            return "WeaponAnomalousDefault"
-
-        if "refined" in name:
-            return "WeaponQuillRefined"
-        if any(tok in name for tok in ("blade", "dagger", "knife", "sword", "scriber")):
-            return "WeaponScriberBlade"
-        if "standard" in name:
-            return "WeaponQuillStandard"
-        standard_keys = ("WeaponQuillStandard", "WeaponQuillRefined", "WeaponScriberBlade")
-        return standard_keys[sum(ord(ch) for ch in name) % len(standard_keys)]
+        return constants.select_weapon_sprite_key(weapon_data)
 
     def draw_loot(self, item, offset_x, offset_y):
         """Draw loot items with illuminated Torn Page sprite and pulsing golden-amber glow aura."""
@@ -8201,19 +8231,32 @@ class Renderer:
 
         # 6. Radar Entity Rules
         # Remote Players: Cyan/Magenta Dot (Phase 4)
-        remote_data = getattr(state.network_manager, 'remote_players', {})
+        net_mm = getattr(state, "network_manager", None)
+        remote_data = getattr(net_mm, "remote_players", {}) or {}
+        local_sanc_mm = (
+            bool(state.in_sanctuary)
+            if hasattr(state, "in_sanctuary")
+            else getattr(getattr(state, "world", None), "name", "") == "sanctuary"
+        )
+        mm_server_addr = getattr(net_mm, "server_address", None) if net_mm is not None else None
+        mm_net_mode = getattr(net_mm, "network_mode", "OFFLINE") if net_mm is not None else "OFFLINE"
         for addr, data in remote_data.items():
-            if "x" not in data or "y" not in data: continue
-            rx, ry = float(data["x"]) + 16, float(data["y"]) + 16
+            if not isinstance(data, dict) or "x" not in data or "y" not in data:
+                continue
+            if "in_sanctuary" in data and bool(data["in_sanctuary"]) != local_sanc_mm:
+                continue
+            rx = float(data.get("render_x", data["x"])) + constants.PLAYER_WIDTH * 0.5
+            ry = float(data.get("render_y", data["y"])) + constants.PLAYER_HEIGHT * 0.5
             if vpx <= rx <= vpx + vpw and vpy <= ry <= vpy + vph:
-                dot_color = (255, 0, 255)  # Magenta for Client
                 is_host_dot = bool(
                     data.get("is_host")
-                    or data.get("addr") == state.network_manager.server_address
-                    or addr == state.network_manager.server_address
+                    or (mm_server_addr is not None and (data.get("addr") == mm_server_addr or addr == mm_server_addr))
                 )
-                if state.network_manager.network_mode == "CLIENT" and is_host_dot:
-                    dot_color = constants.COLOR_CYAN  # Host
+                dot_color = (
+                    constants.NET_REMOTE_HOST_TRIM_COLOR
+                    if (mm_net_mode != "HOST" and is_host_dot)
+                    else constants.NET_REMOTE_GUEST_TRIM_COLOR
+                )
                 pygame.draw.circle(minimap_surface, dot_color, (int((rx - vpx) * sx), int((ry - vpy) * sy)), 3)
 
         # Enemies: Muted slate-grey normally; high-contrast red in debug mode

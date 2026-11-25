@@ -5,6 +5,7 @@ Manages the global game state and coordinates engine components.
 # pylint: disable=too-many-public-methods,broad-exception-caught,multiple-statements,import-outside-toplevel
 # pylint: disable=missing-function-docstring,unused-argument,redefined-outer-name,reimported,line-too-long
 # pylint: disable=trailing-whitespace,C0302
+from collections import deque
 from typing import Optional
 import math
 import queue
@@ -12,15 +13,229 @@ import threading
 import time
 
 from constants import (
-    PLAYER_MAX_HP, FLASK_MAX_CHARGES,
+    PLAYER_MAX_HP, PLAYER_SPEED, FLASK_MAX_CHARGES,
     SCREEN_WIDTH, SCREEN_HEIGHT,
     TILE_SIZE, CAMERA_LERP_SPEED,
-    INPUT_MODE_KEYBOARD, BOSS_COMBAT_TRACKS
+    INPUT_MODE_KEYBOARD, BOSS_COMBAT_TRACKS,
+    NET_SNAPSHOT_INTERP_DELAY, NET_SNAPSHOT_BUFFER_SIZE,
+    NET_DEAD_RECKONING_MAX_EXTRAPOLATION, NET_DEAD_RECKONING_MAX_SEGMENT_DT,
+    NET_DEAD_RECKONING_MAX_SPEED, NET_TELEPORT_SNAP_DISTANCE,
+    NET_REMOTE_WALK_SPEED_THRESHOLD, NET_REMOTE_ATTACK_VISUAL_DURATION,
+    DEFAULT_PLAYER_WEAPON_KEY, DEFAULT_REMOTE_FACING,
+    normalize_remote_player_state, select_weapon_sprite_key,
 )
 from engine.player import Player, PlayerStateEnum
 from engine.physics import check_aabb_collision
 from engine.camera import Camera
 from engine.stats import StatisticsTracker
+
+
+def _parse_facing_vector(raw_facing):
+    """Return a normalized (fx, fy) tuple when raw_facing is a valid 2D vector, else None."""
+    if not isinstance(raw_facing, (list, tuple)) or len(raw_facing) < 2:
+        return None
+    try:
+        fx = float(raw_facing[0])
+        fy = float(raw_facing[1])
+    except (TypeError, ValueError):
+        return None
+    mag = math.hypot(fx, fy)
+    if mag <= 1e-6:
+        return None
+    return (fx / mag, fy / mag)
+
+
+class RemotePlayerInterpolator:
+    """~65 ms snapshot interpolation buffer with bounded dead-reckoning fallback per peer."""
+
+    def __init__(self, max_snapshots: int = NET_SNAPSHOT_BUFFER_SIZE):
+        self.snapshots = deque(maxlen=max(2, int(max_snapshots)))
+        self.walk_anim_time = 0.0
+        self.attack_anim_timer = 0.0
+        self.last_facing = DEFAULT_REMOTE_FACING
+        self.last_state = "IDLE"
+        self.last_weapon_key = DEFAULT_PLAYER_WEAPON_KEY
+        self.last_in_sanctuary = None
+
+    def _resolve_facing(self, raw_facing, x: float, y: float):
+        parsed = _parse_facing_vector(raw_facing)
+        if parsed is not None:
+            return parsed
+        if self.snapshots:
+            prev = self.snapshots[-1]
+            dx = float(x) - prev["x"]
+            dy = float(y) - prev["y"]
+            dist = math.hypot(dx, dy)
+            if dist > 1.0:
+                return (dx / dist, dy / dist)
+        return self.last_facing
+
+    def push_snapshot(
+        self,
+        timestamp: float,
+        x: float,
+        y: float,
+        facing=None,
+        state=None,
+        weapon_key=None,
+        in_sanctuary=None,
+        attack_triggered: bool = False,
+    ) -> None:
+        t_val = float(timestamp)
+        fx, fy = self._resolve_facing(facing, x, y)
+        has_explicit_state = state is not None and str(state).strip() != ""
+        norm_state = normalize_remote_player_state(state) if has_explicit_state else self.last_state
+        w_key = str(weapon_key).strip() if weapon_key else self.last_weapon_key
+
+        if attack_triggered:
+            self.attack_anim_timer = float(NET_REMOTE_ATTACK_VISUAL_DURATION)
+
+        if self.snapshots:
+            prev = self.snapshots[-1]
+            dist = math.hypot(float(x) - prev["x"], float(y) - prev["y"])
+            sanctuary_changed = (
+                in_sanctuary is not None
+                and self.last_in_sanctuary is not None
+                and bool(in_sanctuary) != bool(self.last_in_sanctuary)
+            )
+            if dist > float(NET_TELEPORT_SNAP_DISTANCE) or sanctuary_changed:
+                self.snapshots.clear()
+
+        snap = {
+            "t": t_val,
+            "x": float(x),
+            "y": float(y),
+            "facing": (fx, fy),
+            "state": norm_state,
+            "has_explicit_state": has_explicit_state,
+            "weapon_key": w_key,
+        }
+        if self.snapshots and t_val <= self.snapshots[-1]["t"] + 1e-4:
+            snap["t"] = max(t_val, self.snapshots[-1]["t"])
+            self.snapshots[-1] = snap
+        else:
+            self.snapshots.append(snap)
+
+        self.last_facing = (fx, fy)
+        self.last_state = norm_state
+        self.last_weapon_key = w_key
+        if in_sanctuary is not None:
+            self.last_in_sanctuary = bool(in_sanctuary)
+
+    def sample(self, now: float, dt: float = 0.0) -> dict:
+        if not self.snapshots:
+            return {
+                "render_x": 0.0,
+                "render_y": 0.0,
+                "render_vx": 0.0,
+                "render_vy": 0.0,
+                "facing": self.last_facing,
+                "state": self.last_state,
+                "weapon_key": self.last_weapon_key,
+                "render_anim_time": self.walk_anim_time,
+                "render_attack_progress": None,
+            }
+
+        step_dt = max(0.0, float(dt))
+        if self.attack_anim_timer > 0.0 and step_dt > 0.0:
+            self.attack_anim_timer = max(0.0, self.attack_anim_timer - step_dt)
+
+        t_sample = float(now) - float(NET_SNAPSHOT_INTERP_DELAY)
+        snaps = self.snapshots
+        stalled = False
+
+        if len(snaps) == 1 or t_sample <= snaps[0]["t"]:
+            s0 = snaps[0]
+            rx, ry = s0["x"], s0["y"]
+            vx, vy = 0.0, 0.0
+            facing = s0["facing"]
+            snap_state = s0["state"]
+            weapon_key = s0["weapon_key"]
+        elif t_sample < snaps[-1]["t"]:
+            s0 = snaps[0]
+            s1 = snaps[-1]
+            for idx in range(len(snaps) - 1):
+                if snaps[idx]["t"] <= t_sample <= snaps[idx + 1]["t"]:
+                    s0 = snaps[idx]
+                    s1 = snaps[idx + 1]
+                    break
+            seg_dt = max(1e-6, s1["t"] - s0["t"])
+            alpha = max(0.0, min(1.0, (t_sample - s0["t"]) / seg_dt))
+            rx = s0["x"] + (s1["x"] - s0["x"]) * alpha
+            ry = s0["y"] + (s1["y"] - s0["y"]) * alpha
+            vx = (s1["x"] - s0["x"]) / seg_dt
+            vy = (s1["y"] - s0["y"]) / seg_dt
+            facing = s1["facing"]
+            snap_state = s1["state"]
+            weapon_key = s1["weapon_key"]
+        else:
+            s_prev = snaps[-2]
+            s_last = snaps[-1]
+            seg_dt = s_last["t"] - s_prev["t"]
+            explicit_stop = (
+                s_last.get("has_explicit_state", False)
+                and s_last["state"] in ("IDLE", "BLOCK", "STAGGERED")
+            )
+            if not explicit_stop and 1e-4 < seg_dt <= float(NET_DEAD_RECKONING_MAX_SEGMENT_DT):
+                vx = (s_last["x"] - s_prev["x"]) / seg_dt
+                vy = (s_last["y"] - s_prev["y"]) / seg_dt
+                spd = math.hypot(vx, vy)
+                max_spd = float(NET_DEAD_RECKONING_MAX_SPEED)
+                if spd > max_spd and spd > 1e-6:
+                    scale = max_spd / spd
+                    vx *= scale
+                    vy *= scale
+            else:
+                vx, vy = 0.0, 0.0
+
+            raw_extrap = t_sample - s_last["t"]
+            max_extrap = float(NET_DEAD_RECKONING_MAX_EXTRAPOLATION)
+            clamped_extrap = max(0.0, min(raw_extrap, max_extrap))
+            rx = s_last["x"] + vx * clamped_extrap
+            ry = s_last["y"] + vy * clamped_extrap
+            if raw_extrap >= max_extrap:
+                stalled = True
+                vx, vy = 0.0, 0.0
+            facing = s_last["facing"]
+            snap_state = s_last["state"]
+            weapon_key = s_last["weapon_key"]
+
+        speed = math.hypot(vx, vy)
+        attack_progress = None
+        if self.attack_anim_timer > 0.0:
+            render_state = "ATTACK"
+            dur = max(1e-4, float(NET_REMOTE_ATTACK_VISUAL_DURATION))
+            attack_progress = max(0.0, min(1.0, 1.0 - (self.attack_anim_timer / dur)))
+        elif snap_state == "ATTACK" and not stalled:
+            render_state = "ATTACK"
+            attack_progress = 0.5
+        elif snap_state in ("DASH", "BLOCK") and not stalled:
+            render_state = snap_state
+            if snap_state == "DASH" and step_dt > 0.0:
+                self.walk_anim_time += step_dt
+        elif speed >= float(NET_REMOTE_WALK_SPEED_THRESHOLD):
+            render_state = "RUN"
+            if step_dt > 0.0:
+                rate_scale = max(0.5, min(2.0, speed / max(1.0, float(PLAYER_SPEED))))
+                self.walk_anim_time += step_dt * rate_scale
+        elif snap_state == "RUN" and not stalled:
+            render_state = "RUN"
+            if step_dt > 0.0:
+                self.walk_anim_time += step_dt
+        else:
+            render_state = "IDLE"
+
+        return {
+            "render_x": rx,
+            "render_y": ry,
+            "render_vx": vx,
+            "render_vy": vy,
+            "facing": facing,
+            "state": render_state,
+            "weapon_key": weapon_key,
+            "render_anim_time": self.walk_anim_time,
+            "render_attack_progress": attack_progress,
+        }
 
 class GameState:
     """Master state object for the game engine."""
@@ -147,6 +362,7 @@ class GameState:
         self._water_step_timer = 0.0
         self.pending_remote_sfx = []
         self._remote_combat_seqs = {}
+        self._remote_interp_buffers = {}
         self._last_attack_center = None
         self._last_attack_facing = None
 
@@ -422,10 +638,22 @@ class GameState:
         if not self.player: return {"x": 0, "y": 0, "hp": 0}
         
         self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
+        local_facing_vec = _parse_facing_vector(getattr(self.player, "facing", None)) or DEFAULT_REMOTE_FACING
+        local_facing = [round(local_facing_vec[0], 3), round(local_facing_vec[1], 3)]
+        local_action_state = normalize_remote_player_state(getattr(self.player, "state", None))
+        active_weapon = (
+            self.player.get_active_weapon()
+            if hasattr(self.player, "get_active_weapon") and getattr(self.player, "weapons", None)
+            else None
+        )
+        local_weapon_key = select_weapon_sprite_key(active_weapon)
         state = {
             "x": round(self.player.x, 1),
             "y": round(self.player.y, 1),
             "hp": round(self.player.hp, 1),
+            "facing": local_facing,
+            "state": local_action_state,
+            "weapon_key": local_weapon_key,
             "swing_seq": self.local_swing_seq,
             "hit_seq": self.local_hit_seq,
             "dash_seq": self.local_dash_seq,
@@ -487,6 +715,9 @@ class GameState:
                     "hp": self.player.hp,
                     "x": self.player.x,
                     "y": self.player.y,
+                    "facing": local_facing,
+                    "state": local_action_state,
+                    "weapon_key": local_weapon_key,
                     "swing_seq": self.local_swing_seq,
                     "hit_seq": self.local_hit_seq,
                     "dash_seq": self.local_dash_seq,
@@ -494,6 +725,7 @@ class GameState:
                 }
             ]
             for peer_key, p in self.network_manager.remote_players.items():
+                p_facing = _parse_facing_vector(p.get("facing")) or DEFAULT_REMOTE_FACING
                 state["session_players"].append(
                     {
                         "peer_id": p.get("peer_id", peer_key),
@@ -503,6 +735,9 @@ class GameState:
                         "hp": p["hp"],
                         "x": p["x"],
                         "y": p["y"],
+                        "facing": [round(p_facing[0], 3), round(p_facing[1], 3)],
+                        "state": normalize_remote_player_state(p.get("state", "IDLE")),
+                        "weapon_key": p.get("weapon_key") or DEFAULT_PLAYER_WEAPON_KEY,
                         "swing_seq": p.get("swing_seq", 0),
                         "hit_seq": p.get("hit_seq", 0),
                         "dash_seq": p.get("dash_seq", 0),
@@ -511,6 +746,98 @@ class GameState:
                 )
             
         return state
+
+    def _record_remote_snapshot(
+        self,
+        peer_key: str,
+        x: float,
+        y: float,
+        facing=None,
+        state=None,
+        weapon_key=None,
+        in_sanctuary=None,
+        timestamp: Optional[float] = None,
+        attack_triggered: bool = False,
+    ) -> dict:
+        """Push a timestamped network snapshot into peer_key's interpolation buffer and return its current sample."""
+        t_now = time.monotonic() if timestamp is None else float(timestamp)
+        buf = self._remote_interp_buffers.get(peer_key)
+        if buf is None:
+            buf = RemotePlayerInterpolator()
+            self._remote_interp_buffers[peer_key] = buf
+        buf.push_snapshot(
+            timestamp=t_now,
+            x=x,
+            y=y,
+            facing=facing,
+            state=state,
+            weapon_key=weapon_key,
+            in_sanctuary=in_sanctuary,
+            attack_triggered=attack_triggered,
+        )
+        sample = buf.sample(t_now, dt=0.0)
+        entry = self.network_manager.remote_players.get(peer_key)
+        if isinstance(entry, dict):
+            entry["render_x"] = sample["render_x"]
+            entry["render_y"] = sample["render_y"]
+            entry["render_vx"] = sample["render_vx"]
+            entry["render_vy"] = sample["render_vy"]
+            entry["render_facing"] = sample["facing"]
+            entry["render_state"] = sample["state"]
+            entry["render_anim_time"] = sample["render_anim_time"]
+            entry["render_attack_progress"] = sample["render_attack_progress"]
+            entry["facing"] = list(buf.last_facing)
+            entry["state"] = buf.last_state
+            entry["weapon_key"] = buf.last_weapon_key
+        return sample
+
+    def update_remote_player_interpolation(self, dt: float, now: Optional[float] = None) -> None:
+        """Advance 60 FPS snapshot interpolation, dead-reckoning, and animation state for all remote peers."""
+        remote_players = getattr(self.network_manager, "remote_players", None)
+        if not isinstance(remote_players, dict):
+            return
+        for stale_key in list(self._remote_interp_buffers.keys()):
+            if stale_key not in remote_players:
+                self._remote_interp_buffers.pop(stale_key, None)
+        if not remote_players:
+            return
+        t_now = time.monotonic() if now is None else float(now)
+        for peer_key, entry in remote_players.items():
+            if not isinstance(entry, dict) or "x" not in entry or "y" not in entry:
+                continue
+            buf = self._remote_interp_buffers.get(peer_key)
+            if buf is None:
+                # Lazily seed synthetic/direct remote_players entries so render_* fields are always populated
+                buf = RemotePlayerInterpolator()
+                self._remote_interp_buffers[peer_key] = buf
+                buf.push_snapshot(
+                    timestamp=t_now,
+                    x=float(entry["x"]),
+                    y=float(entry["y"]),
+                    facing=entry.get("facing"),
+                    state=entry.get("state"),
+                    weapon_key=entry.get("weapon_key"),
+                    in_sanctuary=entry.get("in_sanctuary"),
+                )
+            sample = buf.sample(t_now, dt=dt)
+            entry["render_x"] = sample["render_x"]
+            entry["render_y"] = sample["render_y"]
+            entry["render_vx"] = sample["render_vx"]
+            entry["render_vy"] = sample["render_vy"]
+            entry["render_facing"] = sample["facing"]
+            entry["render_state"] = sample["state"]
+            entry["render_anim_time"] = sample["render_anim_time"]
+            entry["render_attack_progress"] = sample["render_attack_progress"]
+            if "weapon_key" not in entry or not entry["weapon_key"]:
+                entry["weapon_key"] = sample["weapon_key"]
+
+    def get_interpolated_remote_player(self, peer_key: str, now: Optional[float] = None) -> Optional[dict]:
+        """Sample a single remote peer's interpolated render snapshot at monotonic time `now`."""
+        buf = self._remote_interp_buffers.get(peer_key)
+        if buf is None:
+            return None
+        t_now = time.monotonic() if now is None else float(now)
+        return buf.sample(t_now, dt=0.0)
 
     def _resolve_remote_player_key(self, peer_or_id, identity=None):
         """Resolves a peer_id or legacy identity key inside remote_players."""
@@ -538,8 +865,9 @@ class GameState:
                 return val
         return {}
 
-    def apply_remote_state(self, addr, data):
+    def apply_remote_state(self, addr, data, now: Optional[float] = None):
         """Phase 2 & 4: Handles incoming remote player state data."""
+        recv_now = time.monotonic() if now is None else float(now)
         addr_ip = addr[0] if isinstance(addr, tuple) else str(addr)
         identity = data.get("identity", "Unknown")
         peer_id = data.get("peer_id")
@@ -549,7 +877,12 @@ class GameState:
             if peer_id
             else (identity == self.network_manager.identity)
         )
-        if not is_self:
+        session_players = data.get("session_players", []) if self.network_manager.network_mode == "CLIENT" else []
+        handled_by_session = any(
+            (p_info.get("peer_id") or p_info.get("identity")) == peer_key
+            for p_info in session_players
+        )
+        if not is_self and not handled_by_session:
             if (
                 peer_id
                 and peer_key not in self.network_manager.remote_players
@@ -560,30 +893,41 @@ class GameState:
                     self.network_manager.remote_players[peer_key] = (
                         self.network_manager.remote_players.pop(identity)
                     )
+                    if identity in self._remote_interp_buffers and peer_key not in self._remote_interp_buffers:
+                        self._remote_interp_buffers[peer_key] = self._remote_interp_buffers.pop(identity)
 
             is_host_peer = bool(
                 data.get("is_host", addr_ip == self.network_manager.server_address)
             )
+            rx = float(data.get("x", 0))
+            ry = float(data.get("y", 0))
+            raw_facing = data.get("facing")
+            raw_state = data.get("state")
+            raw_weapon_key = data.get("weapon_key")
+            peer_in_sanctuary = bool(data.get("in_sanctuary", False))
+
             # Rule: Host is authoritative for HP.
             # If we are the Host, we only update remote player coordinates, not their HP.
             if self.network_manager.network_mode == "HOST":
                 current = self.network_manager.remote_players.get(
                     peer_key, {"hp": float(data.get("hp", 0))}
                 )
-                rx = float(data.get("x", 0))
-                ry = float(data.get("y", 0))
                 swing_seq = int(data.get("swing_seq", 0))
                 hit_seq = int(data.get("hit_seq", 0))
                 dash_seq = int(data.get("dash_seq", 0))
                 prev_swing = int(current.get("swing_seq", 0))
                 prev_hit = int(current.get("hit_seq", 0))
                 prev_dash = int(current.get("dash_seq", 0))
-                if swing_seq > prev_swing:
+                attack_triggered = swing_seq > prev_swing
+                if attack_triggered:
                     self.pending_remote_sfx.append(("sword_swing.ogg", rx, ry))
                 if hit_seq > prev_hit:
                     self.pending_remote_sfx.append(("sword_hit.ogg", rx, ry))
                 if dash_seq > prev_dash:
                     self.pending_remote_sfx.append(("player_dash.ogg", rx, ry))
+                prev_facing = current.get("facing")
+                prev_state = current.get("state", "IDLE")
+                prev_weapon_key = current.get("weapon_key", DEFAULT_PLAYER_WEAPON_KEY)
                 self.network_manager.remote_players[peer_key] = {
                     "peer_id": peer_key,
                     "identity": identity,
@@ -592,12 +936,26 @@ class GameState:
                     "x": rx,
                     "y": ry,
                     "hp": current["hp"],  # Authoritative Host-side HP
+                    "facing": list(_parse_facing_vector(raw_facing) or prev_facing or DEFAULT_REMOTE_FACING),
+                    "state": normalize_remote_player_state(raw_state) if raw_state is not None else prev_state,
+                    "weapon_key": str(raw_weapon_key) if raw_weapon_key else prev_weapon_key,
                     "swing_seq": swing_seq,
                     "hit_seq": hit_seq,
                     "dash_seq": dash_seq,
-                    "in_sanctuary": bool(data.get("in_sanctuary", False)),
+                    "in_sanctuary": peer_in_sanctuary,
                     "time": time.time(),
                 }
+                self._record_remote_snapshot(
+                    peer_key,
+                    rx,
+                    ry,
+                    facing=raw_facing,
+                    state=raw_state,
+                    weapon_key=raw_weapon_key,
+                    in_sanctuary=peer_in_sanctuary,
+                    timestamp=recv_now,
+                    attack_triggered=attack_triggered,
+                )
                 self.in_sanctuary = getattr(self.world, "name", "") == "sanctuary"
                 self.host_in_run = not self.in_sanctuary
                 if self.host_in_run:
@@ -607,17 +965,50 @@ class GameState:
                 else:
                     self.waiting_scholars = 0
             else:
+                current = self.network_manager.remote_players.get(peer_key, {})
+                swing_seq = int(data.get("swing_seq", current.get("swing_seq", 0)))
+                hit_seq = int(data.get("hit_seq", current.get("hit_seq", 0)))
+                dash_seq = int(data.get("dash_seq", current.get("dash_seq", 0)))
+                prev_seqs = self._remote_combat_seqs.get(peer_key, (0, 0, 0))
+                attack_triggered = swing_seq > prev_seqs[0]
+                if attack_triggered:
+                    self.pending_remote_sfx.append(("sword_swing.ogg", rx, ry))
+                if hit_seq > prev_seqs[1]:
+                    self.pending_remote_sfx.append(("sword_hit.ogg", rx, ry))
+                if dash_seq > (prev_seqs[2] if len(prev_seqs) > 2 else 0):
+                    self.pending_remote_sfx.append(("player_dash.ogg", rx, ry))
+                self._remote_combat_seqs[peer_key] = (swing_seq, hit_seq, dash_seq)
+                prev_facing = current.get("facing")
+                prev_state = current.get("state", "IDLE")
+                prev_weapon_key = current.get("weapon_key", DEFAULT_PLAYER_WEAPON_KEY)
                 self.network_manager.remote_players[peer_key] = {
                     "peer_id": peer_key,
                     "identity": identity,
                     "addr": addr_ip,
                     "is_host": is_host_peer,
-                    "x": float(data.get("x", 0)),
-                    "y": float(data.get("y", 0)),
+                    "x": rx,
+                    "y": ry,
                     "hp": float(data.get("hp", 0)),
-                    "in_sanctuary": bool(data.get("in_sanctuary", False)),
+                    "facing": list(_parse_facing_vector(raw_facing) or prev_facing or DEFAULT_REMOTE_FACING),
+                    "state": normalize_remote_player_state(raw_state) if raw_state is not None else prev_state,
+                    "weapon_key": str(raw_weapon_key) if raw_weapon_key else prev_weapon_key,
+                    "swing_seq": swing_seq,
+                    "hit_seq": hit_seq,
+                    "dash_seq": dash_seq,
+                    "in_sanctuary": peer_in_sanctuary,
                     "time": time.time(),
                 }
+                self._record_remote_snapshot(
+                    peer_key,
+                    rx,
+                    ry,
+                    facing=raw_facing,
+                    state=raw_state,
+                    weapon_key=raw_weapon_key,
+                    in_sanctuary=peer_in_sanctuary,
+                    timestamp=recv_now,
+                    attack_triggered=attack_triggered,
+                )
 
         # Phase 4: Host-Authoritative Overrides (Client only)
         if self.network_manager.network_mode == "CLIENT":
@@ -659,7 +1050,6 @@ class GameState:
                     self.player.is_exposed = False
 
             # 2. Session Players (Authoritative HP from Host)
-            session_players = data.get("session_players", [])
             for p_info in session_players:
                 p_identity = p_info.get("identity")
                 p_peer_id = p_info.get("peer_id")
@@ -674,7 +1064,7 @@ class GameState:
                     if self.player.hp > 0 and self.death_timer <= 0:
                         self.player.hp = float(p_info.get("hp", self.player.hp))
                 else:
-                    # Update other scholars for ghost rendering and combat audio cues
+                    # Update other scholars for rig rendering, interpolation, and combat audio cues
                     rx = float(p_info.get("x", 0))
                     ry = float(p_info.get("y", 0))
                     swing_seq = int(p_info.get("swing_seq", 0))
@@ -683,7 +1073,8 @@ class GameState:
                     prev_seqs = self._remote_combat_seqs.get(p_key, (0, 0, 0))
                     prev_swing, prev_hit = prev_seqs[0], prev_seqs[1]
                     prev_dash = prev_seqs[2] if len(prev_seqs) > 2 else 0
-                    if swing_seq > prev_swing:
+                    attack_triggered = swing_seq > prev_swing
+                    if attack_triggered:
                         self.pending_remote_sfx.append(("sword_swing.ogg", rx, ry))
                     if hit_seq > prev_hit:
                         self.pending_remote_sfx.append(("sword_hit.ogg", rx, ry))
@@ -695,6 +1086,11 @@ class GameState:
                         "addr",
                         self.network_manager.server_address if is_p_host else "",
                     )
+                    current_p = self.network_manager.remote_players.get(p_key, {})
+                    raw_p_facing = p_info.get("facing")
+                    raw_p_state = p_info.get("state")
+                    raw_p_weapon = p_info.get("weapon_key")
+                    p_in_sanctuary = bool(p_info.get("in_sanctuary", False))
                     self.network_manager.remote_players[p_key] = {
                         "peer_id": p_key,
                         "identity": p_identity,
@@ -703,9 +1099,38 @@ class GameState:
                         "x": rx,
                         "y": ry,
                         "hp": float(p_info.get("hp", 0)),
-                        "in_sanctuary": bool(p_info.get("in_sanctuary", False)),
+                        "facing": list(
+                            _parse_facing_vector(raw_p_facing)
+                            or current_p.get("facing")
+                            or DEFAULT_REMOTE_FACING
+                        ),
+                        "state": (
+                            normalize_remote_player_state(raw_p_state)
+                            if raw_p_state is not None
+                            else current_p.get("state", "IDLE")
+                        ),
+                        "weapon_key": (
+                            str(raw_p_weapon)
+                            if raw_p_weapon
+                            else current_p.get("weapon_key", DEFAULT_PLAYER_WEAPON_KEY)
+                        ),
+                        "swing_seq": swing_seq,
+                        "hit_seq": hit_seq,
+                        "dash_seq": dash_seq,
+                        "in_sanctuary": p_in_sanctuary,
                         "time": time.time(),
                     }
+                    self._record_remote_snapshot(
+                        p_key,
+                        rx,
+                        ry,
+                        facing=raw_p_facing,
+                        state=raw_p_state,
+                        weapon_key=raw_p_weapon,
+                        in_sanctuary=p_in_sanctuary,
+                        timestamp=recv_now,
+                        attack_triggered=attack_triggered,
+                    )
 
             if self.in_sanctuary and self.waiting_for_host_run:
                 return
@@ -1087,6 +1512,7 @@ class GameState:
         
         self.audio_manager = audio_manager
         self.drain_network_events()
+        self.update_remote_player_interpolation(dt)
 
         # 0. Advance Cinematic Warp Controller (if present)
         if hasattr(self, 'warp_controller') and self.warp_controller:
@@ -3133,6 +3559,7 @@ class GameState:
         self.host_in_run = False
         self.waiting_for_host_run = False
         self.waiting_scholars = 0
+        self._remote_interp_buffers.clear()
         # Phase 4: Sync camera bounds
         if hasattr(self, 'camera'):
             self.camera.world_w = len(self.world.grid[0]) * TILE_SIZE
@@ -3379,6 +3806,7 @@ class GameState:
         self.active_boss_summons = []
         self.pending_remote_sfx = []
         self._remote_combat_seqs = {}
+        self._remote_interp_buffers = {}
         self.local_swing_seq = 0
         self.local_hit_seq = 0
         self.local_dash_seq = 0
