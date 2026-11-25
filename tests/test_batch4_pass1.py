@@ -179,6 +179,10 @@ def test_steeper_later_act_difficulty_curve_end_to_end(tmp_path, monkeypatch):
     state.enemies.clear()
     state.weather_manager.bleed_state = "CLAMPED"
     state._update_world_events(0.016)
+    if state.active_boss_summons:
+        state.player.x = state.active_boss_summons[0]["cx"]
+        state.player.y = state.active_boss_summons[0]["cy"]
+    state._update_world_events(0.016)
     state._update_world_events(constants.BOSS_SUMMON_DURATION)
     nb = next(e for e in state.enemies if isinstance(e, NightBoss))
     base_nb = nb.__class__(0, 0)

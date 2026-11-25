@@ -118,6 +118,8 @@ def test_frozen_peaks_spawns_rimecrest_arbiter_and_exemptions():
         state.weather_manager.bleed_state = "CLAMPED"
         state.weather_manager.boss_spawn_ready = True
         state.enemies = []
+        state.player.x = 8 * constants.TILE_SIZE
+        state.player.y = 8 * constants.TILE_SIZE
 
         state._update_world_events(0.016)
         state._update_world_events(constants.BOSS_SUMMON_DURATION)

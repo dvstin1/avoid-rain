@@ -3831,10 +3831,52 @@ class Renderer:
         cnt_surf = self.small_font.render(counter_str, True, constants.COLOR_WHITE)
         self.screen.blit(cnt_surf, (panel_rect.right - cnt_surf.get_width() - 12, panel_y + 22))
 
+    def _draw_boss_summon_circle(self, cx, cy, cur_r, black_r, tick_angle, offset_x, offset_y, sw, sh):
+        """Render a grey vellum boss summoning circle on the ground (with optional expanding black ink core)."""
+        if cur_r < 1.5:
+            return
+        sx = int(round(float(cx) - offset_x))
+        sy = int(round(float(cy) - offset_y))
+        pad = int(cur_r) + 10
+        if sx + pad < 0 or sx - pad > sw or sy + pad < 0 or sy - pad > sh:
+            return
+        dim = pad * 2
+        surf = pygame.Surface((dim, dim), pygame.SRCALPHA)
+        center = (pad, pad)
+        ir = max(1, int(round(cur_r)))
+        # Grey vellum outer disc and crisp parchment border ring
+        pygame.draw.circle(surf, (148, 144, 152, 185), center, ir)
+        pygame.draw.circle(surf, (206, 202, 210, 235), center, ir, 2)
+        inner_ring = max(1, int(ir * 0.78))
+        pygame.draw.circle(surf, (176, 172, 182, 170), center, inner_ring, 1)
+
+        # Marginalia colophon tick marks around the ring perimeter (static while idle, spinning during eruption)
+        for tick_idx in range(12):
+            ang = tick_angle + tick_idx * (2.0 * math.pi / 12.0)
+            r0 = cur_r * 0.82
+            r1 = cur_r * 1.04
+            p0 = (int(pad + math.cos(ang) * r0), int(pad + math.sin(ang) * r0))
+            p1 = (int(pad + math.cos(ang) * r1), int(pad + math.sin(ang) * r1))
+            pygame.draw.line(surf, (220, 216, 224, 225), p0, p1, 2)
+
+        # Expanding pitch-black ink disc filling outward from the center during active eruption
+        ir_black = int(round(float(black_r)))
+        if ir_black >= 1:
+            pygame.draw.circle(surf, (8, 6, 12, 245), center, min(ir, ir_black))
+
+        self.screen.blit(surf, (sx - pad, sy - pad))
+
     def draw_boss_summon_rituals(self, state, offset_x, offset_y, layer="all"):
         """Render Batch 15 Ink-Unsealing boss summoning circles (ground) and rising glyph squares (above actors)."""
-        rituals = getattr(state, "active_boss_summons", None)
-        if not rituals or not isinstance(self.screen, pygame.Surface):
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        rituals = getattr(state, "active_boss_summons", None) or ()
+        dormant_bosses = [
+            enemy
+            for enemy in (getattr(state, "enemies", None) or ())
+            if getattr(enemy, "dormant_boss_summon", False) and getattr(enemy, "hp", 1) > 0
+        ]
+        if not rituals and not dormant_bosses:
             return
 
         sw, sh = self.screen.get_size()
@@ -3842,45 +3884,46 @@ class Renderer:
             self._summon_glyph_cache = {}
 
         if layer in ("all", "ground"):
+            ritual_bosses = set()
             for ritual in rituals:
+                if ritual.get("boss") is not None:
+                    ritual_bosses.add(ritual.get("boss"))
+                is_erupting = bool(ritual.get("erupting", True))
                 cur_r = float(ritual.get("circle_radius", 0.0))
-                if cur_r < 1.5:
+                black_r = float(ritual.get("black_radius", 0.0)) if is_erupting else 0.0
+                tick_ang = float(ritual.get("elapsed", 0.0)) * 1.45 if is_erupting else 0.0
+                self._draw_boss_summon_circle(
+                    ritual.get("cx", 0.0),
+                    ritual.get("cy", 0.0),
+                    cur_r,
+                    black_r,
+                    tick_ang,
+                    offset_x,
+                    offset_y,
+                    sw,
+                    sh,
+                )
+            for enemy in dormant_bosses:
+                if enemy in ritual_bosses:
                     continue
-                sx = int(round(float(ritual.get("cx", 0.0)) - offset_x))
-                sy = int(round(float(ritual.get("cy", 0.0)) - offset_y))
-                pad = int(cur_r) + 10
-                if sx + pad < 0 or sx - pad > sw or sy + pad < 0 or sy - pad > sh:
-                    continue
-                dim = pad * 2
-                surf = pygame.Surface((dim, dim), pygame.SRCALPHA)
-                center = (pad, pad)
-                ir = max(1, int(round(cur_r)))
-                # Grey vellum outer disc and crisp parchment border ring
-                pygame.draw.circle(surf, (148, 144, 152, 185), center, ir)
-                pygame.draw.circle(surf, (206, 202, 210, 235), center, ir, 2)
-                inner_ring = max(1, int(ir * 0.78))
-                pygame.draw.circle(surf, (176, 172, 182, 170), center, inner_ring, 1)
-
-                # Rotating marginalia colophon tick marks around the ring perimeter
-                elapsed = float(ritual.get("elapsed", 0.0))
-                for tick_idx in range(12):
-                    ang = elapsed * 1.45 + tick_idx * (2.0 * math.pi / 12.0)
-                    r0 = cur_r * 0.82
-                    r1 = cur_r * 1.04
-                    p0 = (int(pad + math.cos(ang) * r0), int(pad + math.sin(ang) * r0))
-                    p1 = (int(pad + math.cos(ang) * r1), int(pad + math.sin(ang) * r1))
-                    pygame.draw.line(surf, (220, 216, 224, 225), p0, p1, 2)
-
-                # Expanding pitch-black ink disc filling outward from the center
-                black_r = int(round(float(ritual.get("black_radius", 0.0))))
-                if black_r >= 1:
-                    pygame.draw.circle(surf, (8, 6, 12, 245), center, min(ir, black_r))
-
-                self.screen.blit(surf, (sx - pad, sy - pad))
+                ecx, ecy = enemy.get_center()
+                self._draw_boss_summon_circle(
+                    ecx,
+                    ecy,
+                    float(constants.BOSS_SUMMON_CIRCLE_RADIUS),
+                    0.0,
+                    0.0,
+                    offset_x,
+                    offset_y,
+                    sw,
+                    sh,
+                )
 
         if layer in ("all", "squares"):
             glyph_font = getattr(self, "glyph_font", None)
             for ritual in rituals:
+                if not ritual.get("erupting", True):
+                    continue
                 for sq in ritual.get("squares", ()):
                     if not sq.get("active", False):
                         continue

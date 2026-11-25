@@ -88,6 +88,8 @@ def test_meadow_censor_spawns_as_pastoral_valley_night_boss():
         state.current_act = 1
         state.run_biomes["act1"] = "pastoral_valley"
         state.enemies = []
+        state.player.x = 8 * constants.TILE_SIZE
+        state.player.y = 8 * constants.TILE_SIZE
         state.weather_manager.bleed_state = "CLAMPED"
         state.weather_manager.current_boss_idx = 0
         state._update_world_events(0.016)
@@ -108,6 +110,8 @@ def test_meadow_censor_spawns_as_pastoral_valley_night_boss():
         state.world.boss_coords_list = [{"x": 8, "y": 8}]
         state.run_biomes["act1"] = "windy_ridge"
         state.enemies = []
+        state.player.x = 8 * constants.TILE_SIZE
+        state.player.y = 8 * constants.TILE_SIZE
         state.weather_manager.bleed_state = "CLAMPED"
         state.weather_manager.current_boss_idx = 0
         state._update_world_events(0.016)

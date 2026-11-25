@@ -130,6 +130,8 @@ def test_find_nearest_walkable_spawn_snaps_wall_overlapping_enemies(tmp_path):
     state.weather_manager.set_boss_coords_list(state.world.boss_coords_list)
     state.weather_manager.bleed_state = "CLAMPED"
     state.weather_manager.active_safe_radius = constants.WEATHER_MIN_RADIUS
+    state.player.x = 2 * constants.TILE_SIZE
+    state.player.y = 2 * constants.TILE_SIZE
     state._update_world_events(0.016)
     state._update_world_events(constants.BOSS_SUMMON_DURATION)
     night_boss = next((e for e in state.enemies if isinstance(e, NightBoss)), None)

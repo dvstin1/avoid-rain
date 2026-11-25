@@ -117,9 +117,31 @@ def test_boss_summon_ritual_black_circle_shrinking_glyph_squares_and_palettes():
     assert ritual["circle_radius"] == pytest.approx(0.0)
     assert slug_boss.summoning_emerge_timer == pytest.approx(0.0)
 
+    # Idle proximity-armed ritual holds ground circle indefinitely until trigger_eruption()
+    armed = BossSummonManager.create_ritual(std_boss, seed=7, awaiting_proximity=True)
+    assert armed["erupting"] is False
+    assert armed["stage"] == 0
+    assert armed["circle_radius"] == pytest.approx(constants.BOSS_SUMMON_CIRCLE_RADIUS)
+    assert armed["black_radius"] == pytest.approx(0.0)
+    assert BossSummonManager.update_ritual(armed, 3.0) is True
+    assert armed["erupting"] is False
+    assert armed["stage"] == 0
+    assert armed["elapsed"] == pytest.approx(0.0)
+    assert armed["black_radius"] == pytest.approx(0.0)
+    assert armed["materialized"] is False
+    assert not any(sq["active"] for sq in armed["squares"])
+
+    assert BossSummonManager.trigger_eruption(armed) is True
+    assert BossSummonManager.trigger_eruption(armed) is False  # Idempotent once erupting
+    assert armed["erupting"] is True
+    assert armed["stage"] == 1
+    assert BossSummonManager.update_ritual(armed, 0.80) is True
+    assert armed["black_radius"] > 0.0
+    assert any(sq["active"] for sq in armed["squares"])
+
 
 def test_night_boss_summon_sfx_weather_lock_delayed_materialization_and_music_drop(tmp_path):
-    """Verify boss_summon.ogg playback, BOSS_PHASE weather lock, invulnerability during emerge, and delayed music."""
+    """Verify Night Boss circle idles until close proximity, then plays SFX, erupts, emerges, and drops music."""
     state = _make_state(tmp_path)
     played_sfx = []
     state.audio_manager = SimpleNamespace(
@@ -134,17 +156,50 @@ def test_night_boss_summon_sfx_weather_lock_delayed_materialization_and_music_dr
     state.in_sanctuary = False
     state.current_act = 1
     state.run_biomes["act1"] = "swamp_mire"
-    state.player.x = 8 * constants.TILE_SIZE - 40.0
-    state.player.y = 8 * constants.TILE_SIZE
+    # Start outside BOSS_SUMMON_ERUPTION_RADIUS (> 140px) so the idle grey vellum ground circle holds
+    state.player.x = 1 * constants.TILE_SIZE
+    state.player.y = 1 * constants.TILE_SIZE
     state.enemies = []
     state.weather_manager.set_boss_coords_list(state.world.boss_coords_list)
     state.weather_manager.bleed_state = "CLAMPED"
 
-    # Tick 1 (0.05s): ritual begins, boss_summon.ogg plays, BOSS_PHASE locks, boss not yet in enemies, no boss music
+    # Tick 0 (far away): Night Boss circle arms on ground, weather locks in BOSS_PHASE, NO SFX/squares/boss/music yet
+    state._update_world_events(1.20)
+    state._update_audio_track(1.20)
+    assert len(state.active_boss_summons) == 1
+    armed_ritual = state.active_boss_summons[0]
+    assert armed_ritual["erupting"] is False
+    assert armed_ritual["stage"] == 0
+    assert armed_ritual["black_radius"] == pytest.approx(0.0)
+    assert armed_ritual["circle_radius"] == pytest.approx(constants.BOSS_SUMMON_CIRCLE_RADIUS)
+    assert not any(sq["active"] for sq in armed_ritual["squares"])
+    assert constants.BOSS_SUMMON_SFX not in played_sfx
+    assert state.weather_manager.bleed_state == "BOSS_PHASE"
+    assert state.night_boss_spawned is True
+    assert state.enemies == []
+    assert state.player.active_track_name == "world_exploration.ogg"
+
+    # Idle grey vellum circle renders on ground layer, while squares layer stays completely empty
+    screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+    renderer = Renderer(screen)
+    state.camera.instant_center((armed_ritual["cx"], armed_ritual["cy"]))
+    ox, oy = state.camera.get_offset()
+    screen.fill((30, 30, 30))
+    renderer.draw_boss_summon_rituals(state, ox, oy, layer="ground")
+    idle_px = screen.get_at((int(armed_ritual["cx"] - ox), int(armed_ritual["cy"] - oy)))[:3]
+    assert idle_px[0] > 90 and idle_px[1] > 90 and idle_px[2] > 90, "Idle ground circle should be grey vellum"
+    screen.fill((30, 30, 30))
+    renderer.draw_boss_summon_rituals(state, ox, oy, layer="squares")
+    assert screen.get_at((int(armed_ritual["cx"] - ox), int(armed_ritual["cy"] - oy)))[:3] == (30, 30, 30)
+
+    # Walk close (within BOSS_SUMMON_ERUPTION_RADIUS) -> eruption begins & boss_summon.ogg plays
+    state.player.x = armed_ritual["cx"] - 60.0
+    state.player.y = armed_ritual["cy"]
     state._update_world_events(0.05)
     state._update_audio_track(0.05)
-    assert constants.BOSS_SUMMON_SFX in played_sfx
+    assert played_sfx.count(constants.BOSS_SUMMON_SFX) == 1
     assert len(state.active_boss_summons) == 1
+    assert state.active_boss_summons[0]["erupting"] is True
     assert state.weather_manager.bleed_state == "BOSS_PHASE"
     assert state.night_boss_spawned is True
     assert state.enemies == []
@@ -192,7 +247,7 @@ def test_night_boss_summon_sfx_weather_lock_delayed_materialization_and_music_dr
 
 
 def test_dormant_miniboss_and_final_author_proximity_trigger_and_renderer_smoke(tmp_path):
-    """Verify map-placed Miniboss/FinalAuthor stay dormant until 360px proximity, then summon & render cleanly."""
+    """Verify map-placed Miniboss/FinalAuthor show idle grey circle ahead of time and erupt only at close proximity."""
     state = _make_state(tmp_path)
     played_sfx = []
     state.audio_manager = SimpleNamespace(
@@ -224,34 +279,52 @@ def test_dormant_miniboss_and_final_author_proximity_trigger_and_renderer_smoke(
     assert miniboss.dormant_boss_summon is True
     assert author.dormant_boss_summon is True
 
-    # Place player near Respite at (1, 1) — far (> 360px) from dormant bosses
+    # Place player near Respite at (1, 1) — far outside BOSS_SUMMON_ERUPTION_RADIUS
     respite = next(obj for obj in state.world.interactables if isinstance(obj, Respite))
     state.player.x = 60.0
     state.player.y = 60.0
     assert Respite._has_blocking_hostiles(state) is False
     assert state.is_interactable_blocked_by_hostiles(respite) is False
 
-    # Dormant bosses are hidden by draw_actor_ghost
+    # Dormant bosses are hidden by draw_actor_ghost, yet their idle grey vellum circle IS visible on the ground
     screen = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
     renderer = Renderer(screen)
     screen.fill((30, 30, 30))
     renderer.draw_actor_ghost(miniboss, 0.0, 0.0, state)
     assert screen.get_at((int(miniboss.x + 16), int(miniboss.y + 16)))[:3] == (30, 30, 30)
 
-    # Walk within BOSS_SUMMON_TRIGGER_RADIUS (360px) of Miniboss -> triggers Ink-Unsealing ritual
-    state.player.x = miniboss.x - 160.0
-    state.player.y = miniboss.y
-    state._update_world_events(0.45)
-    assert len(state.active_boss_summons) >= 1
-    assert constants.BOSS_SUMMON_SFX in played_sfx
-
-    # Smoke-render Stage 1 (ground circle + rising glyph squares) and Stage 2 (emergence veil)
     state.camera.instant_center(miniboss.get_center())
     ox, oy = state.camera.get_offset()
     screen.fill((30, 30, 30))
-    renderer.draw_boss_summon_rituals(state, ox, oy)
-    center_px = screen.get_at((int(miniboss.get_center()[0] - ox), int(miniboss.get_center()[1] - oy)))[:3]
-    assert center_px != (30, 30, 30), "Ground summoning circle should draw dark ink at center"
+    renderer.draw_boss_summon_rituals(state, ox, oy, layer="ground")
+    idle_center_px = screen.get_at((int(miniboss.get_center()[0] - ox), int(miniboss.get_center()[1] - oy)))[:3]
+    assert idle_center_px[0] > 90 and idle_center_px[1] > 90 and idle_center_px[2] > 90
+
+    # At mid-range (outside BOSS_SUMMON_ERUPTION_RADIUS), eruption/SFX/music remain held
+    mcx, mcy = miniboss.get_center()
+    state.player.x = mcx - (constants.BOSS_SUMMON_ERUPTION_RADIUS + 60.0)
+    state.player.y = mcy - state.player.height * 0.5
+    state._update_world_events(0.50)
+    state._update_audio_track(0.50)
+    assert not state.active_boss_summons
+    assert miniboss.dormant_boss_summon is True
+    assert constants.BOSS_SUMMON_SFX not in played_sfx
+    assert state.player.active_track_name == "world_exploration.ogg"
+
+    # Walk very close (within BOSS_SUMMON_ERUPTION_RADIUS) of Miniboss -> triggers Ink-Unsealing eruption
+    state.player.x = mcx - (constants.BOSS_SUMMON_ERUPTION_RADIUS * 0.5)
+    state.player.y = mcy - state.player.height * 0.5
+    state._update_world_events(0.45)
+    assert len(state.active_boss_summons) >= 1
+    assert state.active_boss_summons[0]["erupting"] is True
+    assert constants.BOSS_SUMMON_SFX in played_sfx
+
+    # Smoke-render Stage 1 (expanding dark ink center on ground + rising glyph squares) and Stage 2 (emergence veil)
+    screen.fill((30, 30, 30))
+    renderer.draw_boss_summon_rituals(state, ox, oy, layer="ground")
+    center_px = screen.get_at((int(mcx - ox), int(mcy - oy)))[:3]
+    assert center_px[0] < 40 and center_px[1] < 40 and center_px[2] < 40, "Erupting ground circle draws dark ink center"
+    renderer.draw_boss_summon_rituals(state, ox, oy, layer="squares")
 
     state._update_world_events(1.30)  # Into Stage 2 (1.75s)
     renderer.draw_boss_summon_rituals(state, ox, oy)

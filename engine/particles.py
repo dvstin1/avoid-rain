@@ -130,8 +130,8 @@ class BossSummonManager:
     """Manages Ink-Unsealing boss summoning circles and 220+ rising typographic ash-squares."""
 
     @staticmethod
-    def create_ritual(boss, seed: Optional[int] = None) -> dict:
-        """Create a new 2.35s Ink-Unsealing ritual state dictionary for the target boss."""
+    def create_ritual(boss, seed: Optional[int] = None, awaiting_proximity: bool = False) -> dict:
+        """Create a 2.35s Ink-Unsealing ritual state dict (idle ground circle if awaiting_proximity)."""
         import math
         from constants import (
             BOSS_SUMMON_CIRCLE_RADIUS,
@@ -202,26 +202,47 @@ class BossSummonManager:
             "cx": float(cx),
             "cy": float(cy),
             "elapsed": 0.0,
+            "idle_time": 0.0,
             "duration": float(BOSS_SUMMON_DURATION),
             "emerge_time": float(BOSS_SUMMON_EMERGE_TIME),
             "base_radius": radius,
             "circle_radius": radius,
             "black_fill_ratio": 0.0,
             "black_radius": 0.0,
-            "stage": 1,
+            "erupting": not bool(awaiting_proximity),
+            "stage": 0 if awaiting_proximity else 1,
             "materialized": False,
             "palette": palette,
             "squares": squares,
         }
 
     @staticmethod
+    def trigger_eruption(ritual: dict) -> bool:
+        """Transition an idle ground-circle ritual into active eruption & boss emergence."""
+        if not ritual or ritual.get("erupting", True):
+            return False
+        ritual["erupting"] = True
+        ritual["stage"] = 1
+        ritual["elapsed"] = 0.0
+        return True
+
+    @staticmethod
     def update_ritual(ritual: dict, dt: float, game_state=None) -> bool:
         """Advance a summoning ritual by dt seconds. Returns True while active, False when complete."""
+        base_r = float(ritual.get("base_radius", 52.0))
+        if not ritual.get("erupting", True):
+            ritual["idle_time"] = float(ritual.get("idle_time", 0.0)) + float(dt)
+            ritual["elapsed"] = 0.0
+            ritual["stage"] = 0
+            ritual["circle_radius"] = base_r
+            ritual["black_fill_ratio"] = 0.0
+            ritual["black_radius"] = 0.0
+            return True
+
         elapsed = float(ritual.get("elapsed", 0.0)) + float(dt)
         ritual["elapsed"] = elapsed
         duration = float(ritual.get("duration", 2.35))
         emerge_time = float(ritual.get("emerge_time", 1.55))
-        base_r = float(ritual.get("base_radius", 52.0))
         boss = ritual.get("boss")
 
         if elapsed < emerge_time:

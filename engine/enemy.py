@@ -1238,6 +1238,8 @@ class SlugBoss(NightBoss):
     def update(self, dt, state):
         """Advance SlugBoss AI and trigger Phase 2 + 10-Slug minion summon at <= 50% HP."""
         super().update(dt, state)
+        if self.is_summoning_or_dormant():
+            return
         from constants import SLUG_BOSS_PHASE2_HP_RATIO
         if (
             not self.minions_summoned
@@ -1649,6 +1651,8 @@ class MeadowCensorBoss(NightBoss):
     def update(self, dt, state):
         """Advance MeadowCensorBoss AI and trigger Phase 2 culling whistle + 4-wolf pack summon at <= 50% HP."""
         super().update(dt, state)
+        if self.is_summoning_or_dormant():
+            return
         from constants import MEADOW_CENSOR_PHASE2_HP_RATIO, MEADOW_CENSOR_WHISTLE_SFX
         if (
             not self.minions_summoned
@@ -1941,6 +1945,8 @@ class RimecrestArbiterBoss(NightBoss):
     def update(self, dt, state):
         """Advance RimecrestArbiterBoss AI and trigger Phase 2 gale + 3-minion glacial vanguard at <= 50% HP."""
         super().update(dt, state)
+        if self.is_summoning_or_dormant():
+            return
         from constants import FROST_BREATH_SFX, RIMECREST_ARBITER_PHASE2_HP_RATIO
         if (
             not self.minions_summoned

@@ -1363,23 +1363,9 @@ class GameState:
             alive_pools.append(pool)
         self.slime_pools = alive_pools
 
-    def start_boss_summon(self, boss, audio_manager=None):
-        """Initiate the 2.35s Ink-Unsealing summoning ritual for a Night Boss, Miniboss, or FinalAuthor."""
-        if boss is None:
-            return None
+    def _play_boss_summon_sfx(self, audio_manager=None):
+        """Play the Ink-Unsealing boss summoning SFX when eruption begins."""
         from constants import BOSS_SUMMON_SFX
-        from engine.particles import BossSummonManager
-
-        for existing in self.active_boss_summons:
-            if existing.get("boss") is boss:
-                return existing
-
-        boss.dormant_boss_summon = False
-        if hasattr(self, "enemies") and boss in self.enemies:
-            self.enemies.remove(boss)
-
-        ritual = BossSummonManager.create_ritual(boss)
-        self.active_boss_summons.append(ritual)
 
         sfx_mgr = audio_manager if audio_manager is not None else getattr(self, "audio_manager", None)
         if sfx_mgr is not None and hasattr(sfx_mgr, "play_sfx"):
@@ -1387,26 +1373,67 @@ class GameState:
                 sfx_mgr.play_sfx(BOSS_SUMMON_SFX)
             except Exception:
                 pass
+
+    def trigger_boss_summon_eruption(self, ritual, audio_manager=None) -> bool:
+        """Transition an armed idle ground-circle ritual into active eruption and boss emergence."""
+        if not ritual or ritual.get("erupting", True):
+            return False
+        from engine.particles import BossSummonManager
+
+        if not BossSummonManager.trigger_eruption(ritual):
+            return False
+        boss = ritual.get("boss")
+        if boss is not None:
+            boss.dormant_boss_summon = False
+        self._play_boss_summon_sfx(audio_manager=audio_manager)
+        return True
+
+    def start_boss_summon(self, boss, audio_manager=None, awaiting_proximity=False):
+        """Initiate (or arm) the 2.35s Ink-Unsealing summoning ritual for a Night Boss, Miniboss, or FinalAuthor."""
+        if boss is None:
+            return None
+        from engine.particles import BossSummonManager
+
+        for existing in self.active_boss_summons:
+            if existing.get("boss") is boss:
+                if not awaiting_proximity and not existing.get("erupting", True):
+                    self.trigger_boss_summon_eruption(existing, audio_manager=audio_manager)
+                return existing
+
+        boss.dormant_boss_summon = bool(awaiting_proximity)
+        if hasattr(self, "enemies") and boss in self.enemies:
+            self.enemies.remove(boss)
+
+        ritual = BossSummonManager.create_ritual(boss, awaiting_proximity=awaiting_proximity)
+        self.active_boss_summons.append(ritual)
+
+        if not awaiting_proximity:
+            self._play_boss_summon_sfx(audio_manager=audio_manager)
         return ritual
 
     def _update_boss_summons(self, dt, audio_manager=None):
-        """Check dormant boss proximity triggers and advance active Ink-Unsealing rituals."""
-        from constants import BOSS_SUMMON_TRIGGER_RADIUS
+        """Check close-proximity eruption triggers and advance active Ink-Unsealing rituals."""
+        from constants import BOSS_SUMMON_ERUPTION_RADIUS
         from engine.actor import Actor
         from engine.particles import BossSummonManager
 
         runners = Actor.get_active_runner_positions(self)
-        trig_sq = float(BOSS_SUMMON_TRIGGER_RADIUS) ** 2
+        trig_sq = float(BOSS_SUMMON_ERUPTION_RADIUS) ** 2
         for enemy in list(getattr(self, "enemies", None) or ()):
             if not getattr(enemy, "dormant_boss_summon", False) or getattr(enemy, "hp", 1) <= 0:
                 continue
             ex, ey = enemy.get_center()
             if any((ex - rx) ** 2 + (ey - ry) ** 2 <= trig_sq for rx, ry in runners):
-                self.start_boss_summon(enemy, audio_manager=audio_manager)
+                self.start_boss_summon(enemy, audio_manager=audio_manager, awaiting_proximity=False)
 
         if self.active_boss_summons:
             kept_rituals = []
             for ritual in list(self.active_boss_summons):
+                if not ritual.get("erupting", True):
+                    rcx = float(ritual.get("cx", 0.0))
+                    rcy = float(ritual.get("cy", 0.0))
+                    if any((rcx - rx) ** 2 + (rcy - ry) ** 2 <= trig_sq for rx, ry in runners):
+                        self.trigger_boss_summon_eruption(ritual, audio_manager=audio_manager)
                 if BossSummonManager.update_ritual(ritual, dt, game_state=self):
                     kept_rituals.append(ritual)
             self.active_boss_summons = kept_rituals
@@ -1496,11 +1523,11 @@ class GameState:
                             speed_multiplier=spd_m,
                             cooldown_multiplier=cd_m,
                         )
-                    self.start_boss_summon(new_boss)
+                    self.start_boss_summon(new_boss, awaiting_proximity=True)
                     self.night_boss_spawned = True
                     if getattr(self, "active_respite", None):
                         self.close_respite_menu()
-                    print(f"[THE BLEED] Night Boss summoning ritual started at ({bx}, {by}).")
+                    print(f"[THE BLEED] Night Boss summoning circle armed at ({bx}, {by}).")
                     boss_alive = True
             self.weather_manager.lock_circle_for_boss(boss_alive)
         self._update_boss_summons(dt)
