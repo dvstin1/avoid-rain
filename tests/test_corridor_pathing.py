@@ -24,11 +24,11 @@ from generate_maps import (
 )
 
 
-def _solid_prop_components(grid):
-    """Return connected walkable components treating walls and solid props ('h' incl. right half) as impassable."""
+def _solid_prop_components(grid, entities=None):
+    """Return connected walkable components treating walls and solid props (incl. directional benches) as impassable."""
     h = len(grid)
     w = len(grid[0]) if h > 0 else 0
-    impassable, _ = _get_solid_prop_footprint(grid)
+    impassable, _ = _get_solid_prop_footprint(grid, entities=entities)
     walkable = {(x, y) for y in range(h) for x in range(w) if (x, y) not in impassable}
     visited = set()
     components = []
@@ -120,7 +120,7 @@ def test_generated_tech_tower_maps_and_segments_have_unobstructed_paths():
     """Freshly generated tech_tower maps and segments remain 100% walkable with solid props treated as impassable."""
     for seed in (101, 202, 303, 404):
         gmap = generate_architectural_biome(width=40, height=40, biome="tech_tower", seed=seed)
-        comps, _ = _solid_prop_components(gmap.grid)
+        comps, _ = _solid_prop_components(gmap.grid, entities=gmap.entities)
         assert len(comps) == 1, f"Disconnected walkable pockets in tech_tower seed={seed}: {len(comps)} components"
 
         p_pos = find_spawn_point(gmap.grid, "P")
@@ -136,7 +136,7 @@ def test_generated_tech_tower_maps_and_segments_have_unobstructed_paths():
 
     for dim in (40, 120):
         seg = generate_biome_segment(biome="tech_tower", width=dim, height=dim, variant_index=1, seed=707)
-        comps, _ = _solid_prop_components(seg.grid)
+        comps, _ = _solid_prop_components(seg.grid, entities=seg.entities)
         assert len(comps) == 1, f"Disconnected walkable pockets in tech_tower {dim}x{dim} segment"
         mid = dim // 2
         for conn in ((mid, 0), (mid, dim - 1), (0, mid), (dim - 1, mid)):
@@ -157,7 +157,7 @@ def test_on_disk_tech_tower_and_all_biome_segments_unobstructed():
                     data = json.load(handle)
                 grid = [list(row) for row in data["grid"]]
                 h, w = len(grid), len(grid[0])
-                comps, impassable = _solid_prop_components(grid)
+                comps, impassable = _solid_prop_components(grid, entities=data.get("entities"))
                 assert len(comps) == 1, f"Disconnected walkable pockets in {path}: {len(comps)} components"
 
                 mid_x, mid_y = w // 2, h // 2

@@ -20,31 +20,42 @@ from generate_maps import (
 )
 
 
-def _assert_grid_wide_props_clean(grid, label):
-    """Assert every 2x1 wide prop ('S', 'h') has open floor at (x+1, y) and clears all Respites ('R')."""
+def _assert_grid_wide_props_clean(grid, label, entities=None):
+    """Assert every multi-tile prop ('S' N/S 2x1 or E/W 1x2, 'h' 2x1) has clean open footprint and clears 'R'."""
     respites = [
         (rx, ry)
         for ry, row in enumerate(grid)
         for rx, ch in enumerate(row)
         if ch == SYMBOL_RESPITE
     ]
+    h_grid = len(grid)
+    claimed = set()
     for y, row in enumerate(grid):
         row_w = len(row)
         for x, ch in enumerate(row):
             if ch not in WIDE_SOLID_PROP_SYMBOLS:
                 continue
-            assert x + 1 < row_w - 1, f"{label}: {ch}@({x},{y}) touches or exceeds right border (w={row_w})"
-            assert row[x + 1] == SYMBOL_FLOOR, (
-                f"{label}: {ch}@({x},{y}) right tile ({x + 1},{y}) is {row[x + 1]!r}, expected '.'"
-            )
-            assert x == 0 or row[x - 1] not in WIDE_SOLID_PROP_SYMBOLS, (
-                f"{label}: {ch}@({x},{y}) overlapped on left by {row[x - 1]!r}"
-            )
+            if ch == SYMBOL_BENCH:
+                meta = (entities or {}).get(f"{x},{y}")
+                b_facing = constants.normalize_bench_facing(meta.get("facing") if isinstance(meta, dict) else None)
+                cells = constants.get_bench_footprint_tiles(x, y, b_facing)
+            else:
+                cells = ((x, y), (x + 1, y))
+            for px, py in cells:
+                assert 0 < px < row_w - 1 and 0 < py < h_grid - 1, (
+                    f"{label}: {ch}@({x},{y}) cell ({px},{py}) touches or exceeds border ({row_w}x{h_grid})"
+                )
+                assert (px, py) not in claimed, f"{label}: {ch}@({x},{y}) overlaps another wide prop at ({px},{py})"
+            for px, py in cells[1:]:
+                assert grid[py][px] == SYMBOL_FLOOR, (
+                    f"{label}: {ch}@({x},{y}) secondary tile ({px},{py}) is {grid[py][px]!r}, expected '.'"
+                )
             for rx, ry in respites:
-                for px, py in ((x, y), (x + 1, y)):
+                for px, py in cells:
                     assert max(abs(px - rx), abs(py - ry)) > RESPITE_WIDE_PROP_CLEARANCE, (
                         f"{label}: {ch}@({x},{y}) clips or crowds Bookmark/Respite 'R'@({rx},{ry})"
                     )
+            claimed.update(cells)
 
 
 def _rects_overlap(rect_a, rect_b):
@@ -55,14 +66,18 @@ def _rects_overlap(rect_a, rect_b):
 
 
 def _assert_loaded_map_wide_props_non_overlapping(path):
-    """Assert instantiated 80x40 Bench and Heavy Bookcase AABBs never overlap walls or other interactables."""
+    """Assert instantiated directional Bench and Heavy Bookcase AABBs never overlap walls or other interactables."""
     grid, interactables, *_rest = LevelLoader.load_json_map(path)
     ts = constants.TILE_SIZE
     for w_obj in interactables:
         if getattr(w_obj, "name", "") not in ("Bench", "Heavy Bookcase"):
             continue
         wx, wy, ww, wh = w_obj.rect
-        assert (ww, wh) == (float(ts * 2), float(ts)), f"{path}: unexpected wide prop size {(ww, wh)}"
+        if w_obj.name == "Bench":
+            exp_w, exp_h = constants.get_bench_dimensions(getattr(w_obj, "facing", "south"))
+            assert (ww, wh) == (float(exp_w), float(exp_h)), f"{path}: unexpected bench size {(ww, wh)}"
+        else:
+            assert (ww, wh) == (float(ts * 2), float(ts)), f"{path}: unexpected wide prop size {(ww, wh)}"
         x0, y0 = int(wx // ts), int(wy // ts)
         for ty in range(y0, int((wy + wh - 1) // ts) + 1):
             for tx in range(x0, int((wx + ww - 1) // ts) + 1):
@@ -77,7 +92,7 @@ def _assert_loaded_map_wide_props_non_overlapping(path):
 
 
 def test_static_maps_and_segments_have_zero_bench_or_bookcase_clipping():
-    """Every static map and generated biome segment must be free of 80x40 Bench/Bookcase overlaps."""
+    """Every static map and generated biome segment must be free of Bench/Bookcase overlaps."""
     static_paths = sorted(p for p in glob.glob("maps/*.json") if not p.endswith("world_map1.json"))
     segment_paths = sorted(glob.glob("maps/segments/**/*.json", recursive=True))
     assert static_paths, "Expected static maps in maps/"
@@ -86,7 +101,7 @@ def test_static_maps_and_segments_have_zero_bench_or_bookcase_clipping():
     for path in static_paths + segment_paths:
         with open(path, "r", encoding="utf-8") as handle:
             data = json.load(handle)
-        _assert_grid_wide_props_clean(data["grid"], path)
+        _assert_grid_wide_props_clean(data["grid"], path, entities=data.get("entities"))
 
     aabb_paths = [
         "maps/the_colophon.json",
@@ -135,19 +150,24 @@ def test_generated_sanctuary_colophon_and_segments_preserve_bench_clearances():
     """Freshly generated Sanctuary, Colophon, and architectural segments never clip 80x40 benches."""
     for seed in (101, 105, 108, 124):
         sanctuary = generate_sanctuary(seed=seed)
-        _assert_grid_wide_props_clean(sanctuary.grid, f"generate_sanctuary(seed={seed})")
-        # Courtyard bench at (15, 32) must always retain open right-half floor at (16, 32)
+        _assert_grid_wide_props_clean(
+            sanctuary.grid, f"generate_sanctuary(seed={seed})", entities=sanctuary.entities
+        )
+        # Courtyard bench at (15, 32) faces north toward the lake and retains open right-half floor at (16, 32)
         assert sanctuary.grid[32][15] == SYMBOL_BENCH
         assert sanctuary.grid[32][16] == SYMBOL_FLOOR
+        assert sanctuary.entities["15,32"]["facing"] == "north"
 
     for seed in (404, 405, 410, 420):
         colophon = generate_colophon_sanctum(seed=seed)
-        _assert_grid_wide_props_clean(colophon.grid, f"generate_colophon_sanctum(seed={seed})")
+        _assert_grid_wide_props_clean(
+            colophon.grid, f"generate_colophon_sanctum(seed={seed})", entities=colophon.entities
+        )
 
     for biome in ("tech_tower", "ruins", "sunlit_aqueducts"):
         for seed in (11, 22, 33):
             seg = generate_biome_segment(biome=biome, width=40, height=40, variant_index=1, seed=seed)
-            _assert_grid_wide_props_clean(seg.grid, f"segment({biome}, seed={seed})")
+            _assert_grid_wide_props_clean(seg.grid, f"segment({biome}, seed={seed})", entities=seg.entities)
 
 
 def test_perimeter_sealing_clears_bench_at_right_border(tmp_path):

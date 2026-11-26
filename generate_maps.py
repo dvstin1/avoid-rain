@@ -26,7 +26,12 @@ from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
 import pygame
 
-from constants import SEGMENT_MINIBOSS_MIN_DIM
+from constants import (
+    BENCH_VERTICAL_FACINGS,
+    SEGMENT_MINIBOSS_MIN_DIM,
+    get_bench_footprint_tiles,
+    normalize_bench_facing,
+)
 
 # ==============================================================================
 # CONFIGURABLE CONSTANTS & SCHEMA REGISTRY
@@ -428,10 +433,35 @@ def validate_and_carve_connectivity(
     return True
 
 
+def _get_bench_facing(entities: Optional[Dict[str, dict]], x: int, y: int) -> str:
+    """Return normalized bench facing for grid cell (x, y) from optional entities metadata."""
+    if not entities:
+        return "south"
+    meta = entities.get(f"{x},{y}")
+    return normalize_bench_facing(meta.get("facing") if isinstance(meta, dict) else None)
+
+
+def _get_wide_prop_cells(
+    ch: str,
+    x: int,
+    y: int,
+    entities: Optional[Dict[str, dict]] = None,
+) -> Tuple[Tuple[int, int], ...]:
+    """Return all occupied grid cells for a prop symbol anchored at (x, y)."""
+    if ch == SYMBOL_BENCH:
+        return get_bench_footprint_tiles(x, y, _get_bench_facing(entities, x, y))
+    if ch in WIDE_SOLID_PROP_SYMBOLS:
+        return ((x, y), (x + 1, y))
+    if ch in LARGE_SOLID_PROP_SYMBOLS:
+        return ((x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1))
+    return ((x, y),)
+
+
 def _get_solid_prop_footprint(
     grid: List[List[str]],
+    entities: Optional[Dict[str, dict]] = None,
 ) -> Tuple[Set[Tuple[int, int]], Dict[Tuple[int, int], Tuple[int, int]]]:
-    """Compute impassable wall + solid-prop tiles (including bookcase right-half) and prop owners."""
+    """Compute impassable wall + solid-prop tiles (incl. 2x1, 1x2 vertical benches, and 2x2) and owners."""
     h = len(grid)
     w = len(grid[0]) if h > 0 else 0
     impassable: Set[Tuple[int, int]] = set()
@@ -444,19 +474,11 @@ def _get_solid_prop_footprint(
             if cell in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
                 impassable.add((x, y))
             elif cell in solid_props:
-                impassable.add((x, y))
-                prop_owners[(x, y)] = (x, y)
-                if cell in WIDE_SOLID_PROP_SYMBOLS and x + 1 < w:
-                    impassable.add((x + 1, y))
-                    if grid[y][x + 1] not in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
-                        prop_owners[(x + 1, y)] = (x, y)
-                elif cell in LARGE_SOLID_PROP_SYMBOLS:
-                    for ox_p, oy_p in ((1, 0), (0, 1), (1, 1)):
-                        nx_p, ny_p = x + ox_p, y + oy_p
-                        if nx_p < w and ny_p < h:
-                            impassable.add((nx_p, ny_p))
-                            if grid[ny_p][nx_p] not in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
-                                prop_owners[(nx_p, ny_p)] = (x, y)
+                for nx_p, ny_p in _get_wide_prop_cells(cell, x, y, entities):
+                    if 0 <= nx_p < w and 0 <= ny_p < h:
+                        impassable.add((nx_p, ny_p))
+                        if (nx_p, ny_p) == (x, y) or grid[ny_p][nx_p] not in (SYMBOL_WALL, SYMBOL_WALL_BORDER):
+                            prop_owners[(nx_p, ny_p)] = (x, y)
     return impassable, prop_owners
 
 
@@ -469,7 +491,10 @@ def _can_place_architectural_prop(
     h = len(grid)
     w = len(grid[0]) if h > 0 else 0
     cand_set = set(candidate_cells)
-    min_horiz = BOOKCASE_MIN_HORIZ_SPAN if len(candidate_cells) > 1 else HALLWAY_MIN_CLEAR_SPAN
+    is_horiz_multi = len(candidate_cells) > 1 and any(c[0] != candidate_cells[0][0] for c in candidate_cells)
+    is_vert_multi = len(candidate_cells) > 1 and any(c[1] != candidate_cells[0][1] for c in candidate_cells)
+    min_horiz = BOOKCASE_MIN_HORIZ_SPAN if is_horiz_multi else HALLWAY_MIN_CLEAR_SPAN
+    min_vert = BOOKCASE_MIN_HORIZ_SPAN if is_vert_multi else HALLWAY_MIN_CLEAR_SPAN
 
     def is_open(tx: int, ty: int) -> bool:
         if not (1 <= tx < w - 1 and 1 <= ty < h - 1):
@@ -500,7 +525,7 @@ def _can_place_architectural_prop(
             down += 1
         vert_span = 1 + up + down
 
-        if horiz_span < min_horiz or vert_span < HALLWAY_MIN_CLEAR_SPAN:
+        if horiz_span < min_horiz or vert_span < min_vert:
             return False
 
     # 2. Local articulation check: all 4-adjacent walkable neighbors must stay connected in a 5x5 window
@@ -561,8 +586,9 @@ def _has_respite_clearance(
 def validate_wide_prop_clearances(
     grid: List[List[str]],
     respite_clearance: int = RESPITE_WIDE_PROP_CLEARANCE,
+    entities: Optional[Dict[str, dict]] = None,
 ) -> int:
-    """Clear any 2x1 wide prop ('h', 'S') whose footprint overlaps walls, props, borders, or Respites ('R')."""
+    """Clear any multi-tile prop ('h', 'S' 2x1/1x2, 'V' 2x2) overlapping walls, props, borders, or Respites ('R')."""
     h = len(grid)
     w = len(grid[0]) if h > 0 else 0
     if w == 0 or h == 0:
@@ -574,49 +600,41 @@ def validate_wide_prop_clearances(
         for rx in range(w)
         if grid[ry][rx] == SYMBOL_RESPITE
     ]
+    claimed_cells: Set[Tuple[int, int]] = set()
     cleared = 0
     for y in range(h):
         for x in range(w):
             ch = grid[y][x]
-            if ch in WIDE_SOLID_PROP_SYMBOLS:
-                right_oob_or_border = x + 1 >= w - 1
-                right_blocked = right_oob_or_border or grid[y][x + 1] != SYMBOL_FLOOR
-                left_wide = x > 0 and grid[y][x - 1] in WIDE_SOLID_PROP_SYMBOLS
-                crowds_respite = any(
-                    max(abs(px - rx), abs(py - ry)) <= respite_clearance
-                    for px, py in ((x, y), (x + 1, y))
-                    for rx, ry in respite_coords
-                )
-                if right_blocked or left_wide or crowds_respite:
-                    grid[y][x] = SYMBOL_FLOOR
-                    cleared += 1
-            elif ch in LARGE_SOLID_PROP_SYMBOLS:
-                oob_or_border = x + 1 >= w - 1 or y + 1 >= h - 1
-                extra_cells = ((x + 1, y), (x, y + 1), (x + 1, y + 1))
-                blocked = oob_or_border or any(grid[py][px] != SYMBOL_FLOOR for px, py in extra_cells)
-                overlaps_neighbor = (
-                    (x > 0 and grid[y][x - 1] in LARGE_SOLID_PROP_SYMBOLS)
-                    or (y > 0 and grid[y - 1][x] in LARGE_SOLID_PROP_SYMBOLS)
-                    or (x > 0 and y > 0 and grid[y - 1][x - 1] in LARGE_SOLID_PROP_SYMBOLS)
-                )
-                crowds_respite = any(
-                    max(abs(px - rx), abs(py - ry)) <= respite_clearance
-                    for px, py in ((x, y),) + extra_cells
-                    for rx, ry in respite_coords
-                )
-                if blocked or overlaps_neighbor or crowds_respite:
-                    grid[y][x] = SYMBOL_FLOOR
-                    cleared += 1
+            if ch not in WIDE_SOLID_PROP_SYMBOLS and ch not in LARGE_SOLID_PROP_SYMBOLS:
+                continue
+            cells = _get_wide_prop_cells(ch, x, y, entities)
+            extra_cells = cells[1:]
+            oob_or_border = any(px <= 0 or px >= w - 1 or py <= 0 or py >= h - 1 for px, py in cells)
+            blocked = oob_or_border or any(grid[py][px] != SYMBOL_FLOOR for px, py in extra_cells)
+            overlaps_claimed = any(pt in claimed_cells for pt in cells)
+            crowds_respite = any(
+                max(abs(px - rx), abs(py - ry)) <= respite_clearance
+                for px, py in cells
+                for rx, ry in respite_coords
+            )
+            if blocked or overlaps_claimed or crowds_respite:
+                grid[y][x] = SYMBOL_FLOOR
+                if entities is not None and ch == SYMBOL_BENCH:
+                    entities.pop(f"{x},{y}", None)
+                cleared += 1
+            else:
+                claimed_cells.update(cells)
     return cleared
 
 
 def validate_prop_walkable_connectivity(
     grid: List[List[str]],
     mandatory_coords: Optional[List[Tuple[int, int]]] = None,
+    entities: Optional[Dict[str, dict]] = None,
 ) -> int:
-    """Post-dressing pass treating walls + solid props ('h' incl. right half, 'S','B','T','d','l') as impassable.
+    """Post-dressing pass treating walls + solid props ('h', 'S' N/S/E/W, 'V','B','T','d','l') as impassable.
 
-    Clears clipping 2x1 wide props first, then clears the minimum set of blocking props via 0-1 BFS
+    Clears clipping multi-tile props first, then clears the minimum set of blocking props via 0-1 BFS
     whenever a hallway, doorway, or walkable pocket becomes pinched or disconnected.
     Returns the total number of blocking/clipping props cleared.
     """
@@ -626,21 +644,23 @@ def validate_prop_walkable_connectivity(
         return 0
 
     mandatory = [pt for pt in (mandatory_coords or []) if 0 <= pt[0] < w and 0 <= pt[1] < h]
-    cleared = validate_wide_prop_clearances(grid)
+    cleared = validate_wide_prop_clearances(grid, entities=entities)
 
-    # Ensure mandatory coordinates themselves are never covered by a solid prop or bookcase right-half
-    _, init_owners = _get_solid_prop_footprint(grid)
+    # Ensure mandatory coordinates themselves are never covered by a solid prop or secondary cell
+    _, init_owners = _get_solid_prop_footprint(grid, entities=entities)
     for mx, my in mandatory:
         owner = init_owners.get((mx, my))
         if owner is not None:
             ox, oy = owner
             if grid[oy][ox] in SOLID_PROP_SYMBOLS:
+                if entities is not None and grid[oy][ox] == SYMBOL_BENCH:
+                    entities.pop(f"{ox},{oy}", None)
                 grid[oy][ox] = SYMBOL_FLOOR
                 cleared += 1
 
     max_passes = 256
     for _ in range(max_passes):
-        impassable, prop_owners = _get_solid_prop_footprint(grid)
+        impassable, prop_owners = _get_solid_prop_footprint(grid, entities=entities)
         walkable = {(x, y) for y in range(h) for x in range(w) if (x, y) not in impassable}
         if not walkable:
             break
@@ -722,6 +742,8 @@ def validate_prop_walkable_connectivity(
 
         for ox, oy in props_to_clear:
             if grid[oy][ox] in SOLID_PROP_SYMBOLS:
+                if entities is not None and grid[oy][ox] == SYMBOL_BENCH:
+                    entities.pop(f"{ox},{oy}", None)
                 grid[oy][ox] = SYMBOL_FLOOR
                 cleared += 1
 
@@ -1168,19 +1190,21 @@ def generate_architectural_biome(
     # 7. BFS Connectivity & Tunnel Validation
     validate_and_carve_connectivity(grid, rng, mandatory_coords=[(cx, cy)])
 
-    # 8. Smart Architectural Dressing: Bookcases, Benches, Barrels, Rubble / Aqueduct Moss & Channels
+    # 8. Smart Architectural Dressing: Bookcases, Directional Benches, Barrels, Rubble / Aqueduct Moss
     dist_map = _compute_wall_distances(grid)
     is_aqueduct = active_biome == "sunlit_aqueducts"
     bookcase_reserved: Set[Tuple[int, int]] = set()
-    occupied_solid, _ = _get_solid_prop_footprint(grid)
+    occupied_solid, _ = _get_solid_prop_footprint(grid, entities=entities)
     for y in range(1, height - 1):
         for x in range(1, width - 1):
             if grid[y][x] == SYMBOL_FLOOR and (x, y) != (cx, cy) and (x, y) not in bookcase_reserved:
                 dist = dist_map[y][x]
                 if dist == 1:
-                    # Flush against wall
+                    # Flush against wall: orient benches inward away from their backing wall
                     n_wall = grid[y - 1][x] == SYMBOL_WALL
                     s_wall = grid[y + 1][x] == SYMBOL_WALL
+                    w_wall = grid[y][x - 1] == SYMBOL_WALL
+                    e_wall = grid[y][x + 1] == SYMBOL_WALL
                     if is_aqueduct:
                         if rng.random() < 0.24:
                             grid[y][x] = SYMBOL_GRASS
@@ -1190,36 +1214,68 @@ def generate_architectural_biome(
                             grid[y][x] = SYMBOL_BARREL
                             occupied_solid.add((x, y))
                     else:
-                        if (n_wall or s_wall) and rng.random() < 0.08:
+                        placed_bench_or_case = False
+                        if (n_wall or s_wall) and not (n_wall and s_wall) and rng.random() < 0.08:
                             can_place_wide = (
                                 x + 1 < width - 1
                                 and grid[y][x + 1] == SYMBOL_FLOOR
                                 and (x + 1, y) != (cx, cy)
                                 and (x + 1, y) not in bookcase_reserved
+                                and (
+                                    (n_wall and grid[y - 1][x + 1] == SYMBOL_WALL)
+                                    or (s_wall and grid[y + 1][x + 1] == SYMBOL_WALL)
+                                )
                                 and _has_respite_clearance(grid, [(x, y), (x + 1, y)])
                                 and _can_place_architectural_prop(grid, [(x, y), (x + 1, y)], occupied_solid)
                             )
                             if can_place_wide:
-                                grid[y][x] = SYMBOL_BOOKCASE if rng.random() < 0.5 else SYMBOL_BENCH
+                                if rng.random() < 0.5:
+                                    grid[y][x] = SYMBOL_BOOKCASE
+                                else:
+                                    grid[y][x] = SYMBOL_BENCH
+                                    entities[f"{x},{y}"] = {"facing": "south" if n_wall else "north"}
                                 bookcase_reserved.add((x + 1, y))
                                 occupied_solid.add((x, y))
                                 occupied_solid.add((x + 1, y))
-                        elif rng.random() < 0.07 and _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
-                            grid[y][x] = SYMBOL_BARREL
-                            occupied_solid.add((x, y))
-                        elif rng.random() < 0.05:
-                            grid[y][x] = SYMBOL_CLUTTER  # Crumbled masonry / rubble
+                                placed_bench_or_case = True
+                        elif (w_wall or e_wall) and not (w_wall and e_wall) and not (n_wall or s_wall):
+                            if rng.random() < 0.06:
+                                can_place_tall = (
+                                    y + 1 < height - 1
+                                    and grid[y + 1][x] == SYMBOL_FLOOR
+                                    and (x, y + 1) != (cx, cy)
+                                    and (x, y + 1) not in bookcase_reserved
+                                    and (
+                                        (w_wall and grid[y + 1][x - 1] == SYMBOL_WALL)
+                                        or (e_wall and grid[y + 1][x + 1] == SYMBOL_WALL)
+                                    )
+                                    and _has_respite_clearance(grid, [(x, y), (x, y + 1)])
+                                    and _can_place_architectural_prop(grid, [(x, y), (x, y + 1)], occupied_solid)
+                                )
+                                if can_place_tall:
+                                    grid[y][x] = SYMBOL_BENCH
+                                    entities[f"{x},{y}"] = {"facing": "east" if w_wall else "west"}
+                                    bookcase_reserved.add((x, y + 1))
+                                    occupied_solid.add((x, y))
+                                    occupied_solid.add((x, y + 1))
+                                    placed_bench_or_case = True
+                        if not placed_bench_or_case:
+                            if rng.random() < 0.07 and _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
+                                grid[y][x] = SYMBOL_BARREL
+                                occupied_solid.add((x, y))
+                            elif rng.random() < 0.05:
+                                grid[y][x] = SYMBOL_CLUTTER  # Crumbled masonry / rubble
                 elif is_aqueduct and dist == 2 and rng.random() < 0.06:
                     grid[y][x] = SYMBOL_INK_PUDDLE  # Shallow sunlit aqueduct runnel
 
     # 8b. Post-dressing walkable connectivity check treating walls + solid props as impassable
-    validate_prop_walkable_connectivity(grid, mandatory_coords=[(cx, cy)])
-    bookcase_reserved = {
-        (x + 1, y)
-        for y in range(height)
-        for x in range(width - 1)
-        if grid[y][x] in WIDE_SOLID_PROP_SYMBOLS
-    }
+    validate_prop_walkable_connectivity(grid, mandatory_coords=[(cx, cy)], entities=entities)
+    bookcase_reserved = set()
+    for y in range(height):
+        for x in range(width):
+            if grid[y][x] in WIDE_SOLID_PROP_SYMBOLS or grid[y][x] in LARGE_SOLID_PROP_SYMBOLS:
+                for pt in _get_wide_prop_cells(grid[y][x], x, y, entities)[1:]:
+                    bookcase_reserved.add(pt)
 
     # 9. Spawners & Key Entrances
     open_floors = [
@@ -1277,7 +1333,7 @@ def generate_architectural_biome(
     for y in range(height):
         grid[y][0] = SYMBOL_WALL
         grid[y][width - 1] = SYMBOL_WALL
-    validate_wide_prop_clearances(grid)
+    validate_wide_prop_clearances(grid, entities=entities)
 
     elevation_grid, stairs = build_elevation_grid(
         grid, terrace_rect=(sx, sy, sw, sh)
@@ -1629,6 +1685,7 @@ generate_procedural_map = generate_map
 def carve_segment_connectors(
     grid: List[List[str]],
     half_width: int = CONNECTOR_HALF_WIDTH,
+    entities: Optional[Dict[str, dict]] = None,
 ) -> List[Tuple[int, int]]:
     """Opens aligned cardinal doorway connectors on N/S/E/W edges for seamless module stitching."""
     h = len(grid)
@@ -1637,27 +1694,49 @@ def carve_segment_connectors(
     mid_y = h // 2
     depth = min(4, max(2, min(w, h) // 10))
 
+    def _clear_cell(cx: int, cy: int) -> None:
+        if entities is not None and grid[cy][cx] == SYMBOL_BENCH:
+            entities.pop(f"{cx},{cy}", None)
+        grid[cy][cx] = SYMBOL_FLOOR
+
     # North & South centered connectors
     for y in range(depth):
         for x in range(max(1, mid_x - half_width), min(w - 1, mid_x + half_width)):
-            grid[y][x] = SYMBOL_FLOOR
-            grid[h - 1 - y][x] = SYMBOL_FLOOR
+            _clear_cell(x, y)
+            _clear_cell(x, h - 1 - y)
         left_edge = max(1, mid_x - half_width) - 1
         if left_edge >= 0:
             if grid[y][left_edge] in WIDE_SOLID_PROP_SYMBOLS:
-                grid[y][left_edge] = SYMBOL_FLOOR
+                _clear_cell(left_edge, y)
             if grid[h - 1 - y][left_edge] in WIDE_SOLID_PROP_SYMBOLS:
-                grid[h - 1 - y][left_edge] = SYMBOL_FLOOR
+                _clear_cell(left_edge, h - 1 - y)
+    south_top = h - depth - 1
+    if south_top >= 0:
+        for x in range(max(1, mid_x - half_width), min(w - 1, mid_x + half_width)):
+            if (
+                grid[south_top][x] == SYMBOL_BENCH
+                and _get_bench_facing(entities, x, south_top) in BENCH_VERTICAL_FACINGS
+            ):
+                _clear_cell(x, south_top)
 
     # West & East centered connectors
     for x in range(depth):
         for y in range(max(1, mid_y - half_width), min(h - 1, mid_y + half_width)):
-            grid[y][x] = SYMBOL_FLOOR
-            grid[y][w - 1 - x] = SYMBOL_FLOOR
+            _clear_cell(x, y)
+            _clear_cell(w - 1 - x, y)
+        top_edge = max(1, mid_y - half_width) - 1
+        if top_edge >= 0:
+            if grid[top_edge][x] == SYMBOL_BENCH and _get_bench_facing(entities, x, top_edge) in BENCH_VERTICAL_FACINGS:
+                _clear_cell(x, top_edge)
+            if (
+                grid[top_edge][w - 1 - x] == SYMBOL_BENCH
+                and _get_bench_facing(entities, w - 1 - x, top_edge) in BENCH_VERTICAL_FACINGS
+            ):
+                _clear_cell(w - 1 - x, top_edge)
     for y in range(max(1, mid_y - half_width), min(h - 1, mid_y + half_width)):
         east_left = w - depth - 1
         if east_left >= 0 and grid[y][east_left] in WIDE_SOLID_PROP_SYMBOLS:
-            grid[y][east_left] = SYMBOL_FLOOR
+            _clear_cell(east_left, y)
 
     return [
         (mid_x, 1),
@@ -1700,17 +1779,18 @@ def generate_biome_segment(
         mx, my = existing_minibosses.pop()
         grid[my][mx] = SYMBOL_FLOOR
     if len(existing_minibosses) < target_minibosses:
+        _, occupied_owners = _get_solid_prop_footprint(grid, entities=gen_map.entities)
         candidate_floors = [
             (x, y)
             for y in range(4, height - 4)
             for x in range(4, width - 4)
-            if grid[y][x] == SYMBOL_FLOOR and not (x > 0 and grid[y][x - 1] in WIDE_SOLID_PROP_SYMBOLS)
+            if grid[y][x] == SYMBOL_FLOOR and (x, y) not in occupied_owners
         ]
         if candidate_floors:
             mx, my = rng.choice(candidate_floors)
             grid[my][mx] = SYMBOL_MINIBOSS_M1
 
-    connectors = carve_segment_connectors(grid)
+    connectors = carve_segment_connectors(grid, entities=gen_map.entities)
     validate_and_carve_connectivity(grid, rng, mandatory_coords=connectors)
     mid_x, mid_y = width // 2, height // 2
     doorway_edges = [
@@ -1719,7 +1799,7 @@ def generate_biome_segment(
         (0, mid_y),
         (width - 1, mid_y),
     ]
-    validate_prop_walkable_connectivity(grid, mandatory_coords=connectors + doorway_edges)
+    validate_prop_walkable_connectivity(grid, mandatory_coords=connectors + doorway_edges, entities=gen_map.entities)
 
     # Recompute elevation & verticality layers cleanly after carving connectors
     if gen_map.biome in ARCHITECTURAL_BIOMES or "tech" in gen_map.biome:
@@ -1850,12 +1930,14 @@ def generate_sanctuary(
     for lx, ly in ((32, 9), (38, 9), (44, 9), (30, 16), (47, 16), (35, 19)):
         grid[ly][lx] = SYMBOL_CANDELABRA
 
-    # Flanking Ink Urns & reading benches inside the Scriptorium (2x1 benches reserve right-half floor)
+    # Flanking Ink Urns & reading benches inside the Scriptorium (facing north toward the Chronicle interior)
     for ux, uy in ((29, 10), (48, 10), (29, 19), (48, 19)):
         grid[uy][ux] = SYMBOL_INK_URN
-    for sx, sy in ((31, 19), (45, 19)):
-        if sx + 1 < width - 1 and grid[sy][sx] == SYMBOL_FLOOR and grid[sy][sx + 1] == SYMBOL_FLOOR:
+    for sx, sy, b_facing in ((31, 19, "north"), (45, 19, "north")):
+        cells = get_bench_footprint_tiles(sx, sy, b_facing)
+        if all(1 <= px < width - 1 and 1 <= py < height - 1 and grid[py][px] == SYMBOL_FLOOR for px, py in cells):
             grid[sy][sx] = SYMBOL_BENCH
+            entities[f"{sx},{sy}"] = {"facing": b_facing}
 
     # Core Sanctuary NPCs, Stations, Lore, and Player Start:
     # - Player start 'P' at (38, 14) with unobstructed open floor immediately west (37, 14)
@@ -1951,16 +2033,24 @@ def generate_sanctuary(
                 if (x, y) not in pond_set:
                     dirt_set.add((x, y))
 
-    # Courtyard benches (80x40, reserving both (x, y) and (x+1, y)) & barrels outside the Scriptorium
-    for sx, sy in ((23, 21), (15, 32), (43, 24)):
-        if (
-            sx + 1 < width - 1
-            and grid[sy][sx] == SYMBOL_FLOOR
-            and grid[sy][sx + 1] == SYMBOL_FLOOR
-            and (sx, sy) not in pond_set
-            and (sx + 1, sy) not in pond_set
+    # Courtyard benches oriented toward focal features (3 benches framing the Sanctuary lake + south garden bench)
+    courtyard_benches = (
+        (23, 21, "west"),   # East of pond/path -> faces west toward the Sanctuary lake (40x80 vertical)
+        (15, 32, "north"),  # South of pond -> faces north directly toward the Sanctuary lake (80x40 horizontal)
+        (4, 23, "east"),    # West shore of pond -> faces east toward the Sanctuary lake (40x80 vertical)
+        (43, 24, "south"),  # South of Scriptorium facade -> back to hall wall, faces south garden (80x40)
+    )
+    for sx, sy, b_facing in courtyard_benches:
+        cells = get_bench_footprint_tiles(sx, sy, b_facing)
+        if all(
+            1 <= px < width - 1
+            and 1 <= py < height - 1
+            and grid[py][px] == SYMBOL_FLOOR
+            and (px, py) not in pond_set
+            for px, py in cells
         ):
             grid[sy][sx] = SYMBOL_BENCH
+            entities[f"{sx},{sy}"] = {"facing": b_facing}
     for bx, by in ((26, 10), (26, 11), (51, 12), (51, 13), (3, 12)):
         if grid[by][bx] == SYMBOL_FLOOR:
             grid[by][bx] = SYMBOL_BARREL
@@ -1969,10 +2059,10 @@ def generate_sanctuary(
     wide_prop_reserved: Set[Tuple[int, int]] = set()
     for y in range(height):
         for x in range(width):
-            if grid[y][x] in WIDE_SOLID_PROP_SYMBOLS:
-                wide_prop_reserved.add((x, y))
-                if x + 1 < width:
-                    wide_prop_reserved.add((x + 1, y))
+            if grid[y][x] in WIDE_SOLID_PROP_SYMBOLS or grid[y][x] in LARGE_SOLID_PROP_SYMBOLS:
+                for px, py in _get_wide_prop_cells(grid[y][x], x, y, entities):
+                    if 0 <= px < width and 0 <= py < height:
+                        wide_prop_reserved.add((px, py))
     reserved_clear: Set[Tuple[int, int]] = set(dirt_set) | pond_set | wide_prop_reserved
     for y in range(hall_y - 1, hall_y + hall_h + 2):
         for x in range(hall_x - 1, hall_x + hall_w + 2):
@@ -2040,7 +2130,7 @@ def generate_sanctuary(
         (grave_x, grave_y + 1),
         (15, 31),
     ]
-    validate_prop_walkable_connectivity(grid, mandatory_coords=mandatory)
+    validate_prop_walkable_connectivity(grid, mandatory_coords=mandatory, entities=entities)
 
     zones = {
         "wood_floor": [
@@ -2162,9 +2252,10 @@ def generate_colophon_sanctum(
         if 1 <= ux < width - 1 and 1 <= uy < height - 1 and grid[uy][ux] == SYMBOL_FLOOR:
             grid[uy][ux] = SYMBOL_INK_URN
 
-    # 5. Smart Scriptorium wall-perimeter dressing (bookcases, benches, barrels, clutter)
+    # 5. Smart Scriptorium wall-perimeter dressing (bookcases, inward-facing directional benches, barrels, clutter)
+    entities: Dict[str, dict] = {}
     dist_map = _compute_wall_distances(grid)
-    occupied_solid, _ = _get_solid_prop_footprint(grid)
+    occupied_solid, _ = _get_solid_prop_footprint(grid, entities=entities)
     bookcase_reserved: Set[Tuple[int, int]] = set()
     corridor_band_x = range(mid_x - corridor_half - 1, mid_x + corridor_half + 1)
     corridor_band_y = range(mid_y - corridor_half - 1, mid_y + corridor_half + 1)
@@ -2183,25 +2274,58 @@ def generate_colophon_sanctum(
                 continue
             n_wall = grid[y - 1][x] == SYMBOL_WALL
             s_wall = grid[y + 1][x] == SYMBOL_WALL
-            if (n_wall or s_wall) and rng.random() < 0.22:
+            w_wall = grid[y][x - 1] == SYMBOL_WALL
+            e_wall = grid[y][x + 1] == SYMBOL_WALL
+            placed_wide = False
+            if (n_wall or s_wall) and not (n_wall and s_wall) and rng.random() < 0.22:
                 can_wide = (
                     x + 1 < hx1
                     and grid[y][x + 1] == SYMBOL_FLOOR
                     and (x + 1, y) not in safe_plaza
                     and (x + 1, y) not in bookcase_reserved
                     and (x + 1) not in corridor_band_x
+                    and (
+                        (n_wall and grid[y - 1][x + 1] == SYMBOL_WALL)
+                        or (s_wall and grid[y + 1][x + 1] == SYMBOL_WALL)
+                    )
                     and _can_place_architectural_prop(grid, [(x, y), (x + 1, y)], occupied_solid)
                 )
                 if can_wide:
-                    grid[y][x] = SYMBOL_BOOKCASE if rng.random() < 0.55 else SYMBOL_BENCH
+                    if rng.random() < 0.55:
+                        grid[y][x] = SYMBOL_BOOKCASE
+                    else:
+                        grid[y][x] = SYMBOL_BENCH
+                        entities[f"{x},{y}"] = {"facing": "south" if n_wall else "north"}
                     bookcase_reserved.add((x + 1, y))
                     occupied_solid.add((x, y))
                     occupied_solid.add((x + 1, y))
-            elif rng.random() < 0.14 and _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
-                grid[y][x] = SYMBOL_BARREL
-                occupied_solid.add((x, y))
-            elif rng.random() < 0.12:
-                grid[y][x] = SYMBOL_CLUTTER
+                    placed_wide = True
+            elif (w_wall or e_wall) and not (w_wall and e_wall) and not (n_wall or s_wall) and rng.random() < 0.16:
+                can_tall = (
+                    y + 1 < hy1
+                    and grid[y + 1][x] == SYMBOL_FLOOR
+                    and (x, y + 1) not in safe_plaza
+                    and (x, y + 1) not in bookcase_reserved
+                    and (y + 1) not in corridor_band_y
+                    and (
+                        (w_wall and grid[y + 1][x - 1] == SYMBOL_WALL)
+                        or (e_wall and grid[y + 1][x + 1] == SYMBOL_WALL)
+                    )
+                    and _can_place_architectural_prop(grid, [(x, y), (x, y + 1)], occupied_solid)
+                )
+                if can_tall:
+                    grid[y][x] = SYMBOL_BENCH
+                    entities[f"{x},{y}"] = {"facing": "east" if w_wall else "west"}
+                    bookcase_reserved.add((x, y + 1))
+                    occupied_solid.add((x, y))
+                    occupied_solid.add((x, y + 1))
+                    placed_wide = True
+            if not placed_wide:
+                if rng.random() < 0.14 and _can_place_architectural_prop(grid, [(x, y)], occupied_solid):
+                    grid[y][x] = SYMBOL_BARREL
+                    occupied_solid.add((x, y))
+                elif rng.random() < 0.12:
+                    grid[y][x] = SYMBOL_CLUTTER
 
     # Guarantee at least one of each signature Scriptorium prop if RNG skipped any
     placed_syms = {cell for row in grid for cell in row}
@@ -2221,8 +2345,11 @@ def generate_colophon_sanctum(
                 ):
                     continue
                 if req_sym in WIDE_SOLID_PROP_SYMBOLS:
+                    n_wall = grid[y - 1][x] == SYMBOL_WALL
+                    s_wall = grid[y + 1][x] == SYMBOL_WALL
                     if (
-                        x + 1 < hx1
+                        (n_wall or s_wall)
+                        and x + 1 < hx1
                         and grid[y][x + 1] == SYMBOL_FLOOR
                         and (x + 1, y) not in safe_plaza
                         and (x + 1, y) not in bookcase_reserved
@@ -2230,6 +2357,8 @@ def generate_colophon_sanctum(
                         and _can_place_architectural_prop(grid, [(x, y), (x + 1, y)], occupied_solid)
                     ):
                         grid[y][x] = req_sym
+                        if req_sym == SYMBOL_BENCH:
+                            entities[f"{x},{y}"] = {"facing": "south" if n_wall else "north"}
                         bookcase_reserved.add((x + 1, y))
                         occupied_solid.add((x, y))
                         occupied_solid.add((x + 1, y))
@@ -2249,10 +2378,12 @@ def generate_colophon_sanctum(
 
     # 6. Place Player Start 'P' at sanctum center, carve cardinal connectors, and validate prop connectivity
     grid[mid_y][mid_x] = SYMBOL_PLAYER
-    connectors = carve_segment_connectors(grid)
+    connectors = carve_segment_connectors(grid, entities=entities)
     doorway_edges = [(mid_x, 0), (mid_x, height - 1), (0, mid_y), (width - 1, mid_y)]
     validate_and_carve_connectivity(grid, rng, mandatory_coords=connectors + [(mid_x, mid_y)])
-    validate_prop_walkable_connectivity(grid, mandatory_coords=connectors + doorway_edges + [(mid_x, mid_y)])
+    validate_prop_walkable_connectivity(
+        grid, mandatory_coords=connectors + doorway_edges + [(mid_x, mid_y)], entities=entities
+    )
 
     # 7. Compute 2.5D elevation & verticality layers with flat doorway thresholds
     elevation_grid, stairs = build_elevation_grid(
@@ -2272,7 +2403,7 @@ def generate_colophon_sanctum(
         width=width,
         height=height,
         grid=grid,
-        entities={},
+        entities=entities,
         seed=seed,
         elevation_grid=elevation_grid,
         verticality_layers=verticality_layers,

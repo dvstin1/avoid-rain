@@ -989,6 +989,7 @@ class LevelLoader:
 
         # 1b. Seal 1-tile outer perimeter border of stitched macro-worlds so no edge exposes raw void
         if (module_sockets or data.get("seal_outer_perimeter")) and grid and grid[0]:
+            from constants import BENCH_HORIZONTAL_FACINGS, BENCH_VERTICAL_FACINGS, normalize_bench_facing
             gh = len(grid)
             gw = len(grid[0])
             for x_b in range(gw):
@@ -997,12 +998,27 @@ class LevelLoader:
             for y_b in range(gh):
                 grid[y_b][0] = "#"
                 grid[y_b][gw - 1] = "#"
-                if gw >= 2 and grid[y_b][gw - 2] in ("h", "S", "V"):
-                    grid[y_b][gw - 2] = "."
+                if gw >= 2:
+                    edge_ch = grid[y_b][gw - 2]
+                    if edge_ch in ("h", "V"):
+                        grid[y_b][gw - 2] = "."
+                    elif edge_ch == "S":
+                        e_meta = raw_entities.get(f"{gw - 2},{y_b}", {})
+                        b_facing = normalize_bench_facing(e_meta.get("facing") if isinstance(e_meta, dict) else None)
+                        if b_facing in BENCH_HORIZONTAL_FACINGS:
+                            grid[y_b][gw - 2] = "."
+                            raw_entities.pop(f"{gw - 2},{y_b}", None)
             if gh >= 2:
                 for x_b in range(gw):
-                    if grid[gh - 2][x_b] == "V":
+                    edge_ch = grid[gh - 2][x_b]
+                    if edge_ch == "V":
                         grid[gh - 2][x_b] = "."
+                    elif edge_ch == "S":
+                        e_meta = raw_entities.get(f"{x_b},{gh - 2}", {})
+                        b_facing = normalize_bench_facing(e_meta.get("facing") if isinstance(e_meta, dict) else None)
+                        if b_facing in BENCH_VERTICAL_FACINGS:
+                            grid[gh - 2][x_b] = "."
+                            raw_entities.pop(f"{x_b},{gh - 2}", None)
 
         # 2. Conversion Pass: Symbols -> Entity Objects
         entity_data = {}
@@ -1281,11 +1297,15 @@ class LevelLoader:
                     interactables.append(chalice)
 
                 elif char == 'S':
-                    # Seat / Bench - Horizontal 2x1 (80x40 matching bench.png)
-                    bench_dim = (TILE_SIZE * 2, TILE_SIZE)
+                    # Multi-directional Seat / Bench: 80x40 (2x1) for S/N, 40x80 (1x2) for E/W
+                    from constants import get_bench_dimensions, normalize_bench_facing
+                    edata = entity_data.get((x, y), {})
+                    b_facing = normalize_bench_facing(edata.get("facing") if isinstance(edata, dict) else None)
+                    bench_dim = get_bench_dimensions(b_facing)
                     bench = GameObject(pos, bench_dim)
                     bench.is_solid = True
                     bench.name = "Bench"
+                    bench.facing = b_facing
                     interactables.append(bench)
 
                 elif char == 'K':

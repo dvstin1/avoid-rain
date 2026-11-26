@@ -33,6 +33,8 @@ from pathlib import Path
 from typing import Dict, List, Set, Tuple
 import pygame
 
+import constants
+
 DEFAULT_ASSET_SEED = 42
 
 # ==============================================================================
@@ -91,6 +93,9 @@ DEFAULT_BOSS_ABYSS_RIM_PATH = os.path.join("assets", "graphics", "boss_abyss_rim
 DEFAULT_WELLSPRING_PATH = os.path.join("assets", "graphics", "wellspring.png")
 DEFAULT_LOTUS_FRAME_PATH = os.path.join("assets", "graphics", "lotus_frame.png")
 DEFAULT_BENCH_PATH = os.path.join("assets", "graphics", "bench.png")
+DEFAULT_BENCH_NORTH_PATH = os.path.join("assets", "graphics", "bench_north.png")
+DEFAULT_BENCH_EAST_PATH = os.path.join("assets", "graphics", "bench_east.png")
+DEFAULT_BENCH_WEST_PATH = os.path.join("assets", "graphics", "bench_west.png")
 DEFAULT_HEAVY_BOOKCASE_PATH = os.path.join("assets", "graphics", "heavy_bookcase.png")
 DEFAULT_INK_URN_PATH = os.path.join("assets", "graphics", "ink_urn.png")
 DEFAULT_INKWELL_PUDDLE_PATH = os.path.join("assets", "graphics", "inkwell_puddle.png")
@@ -2645,42 +2650,130 @@ def generate_lotus_frame(
 
 
 def generate_bench(
-    width: int = TILE_WIDTH * 2,
-    height: int = TILE_HEIGHT,
+    width: int | None = None,
+    height: int | None = None,
     rng: random.Random | None = None,
+    facing: str = "south",
 ) -> pygame.Surface:
-    """Generate an 80x40 weathered dark-oak reading bench with iron brackets."""
+    """Generate a directional weathered dark-oak reading bench (80x40 N/S, 40x80 E/W) with iron brackets."""
+    norm_facing = constants.normalize_bench_facing(facing)
+    if width is None or height is None:
+        default_w, default_h = constants.get_bench_dimensions(norm_facing)
+        width = default_w if width is None else width
+        height = default_h if height is None else height
     if rng is None:
-        rng = _asset_rng(DEFAULT_ASSET_SEED, "bench")
+        seed_key = "bench" if norm_facing == "south" else f"bench_{norm_facing}"
+        rng = _asset_rng(DEFAULT_ASSET_SEED, seed_key)
     surface = pygame.Surface((width, height), pygame.SRCALPHA)
     surface.fill((0, 0, 0, 0))
-    # Soft floor shadow
-    pygame.draw.ellipse(surface, (12, 10, 14, 130), (3, height - 11, width - 6, 8))
-    # Iron legs & side/center brackets
-    leg_xs = [5, width - 10]
-    if width >= TILE_WIDTH * 2:
-        leg_xs.append(width // 2 - 2)
-    for lx in leg_xs:
-        pygame.draw.rect(surface, (36, 38, 46, 255), (lx, 12, 5, height - 16))
-        pygame.draw.rect(surface, (78, 82, 94, 255), (lx + 1, 13, 2, height - 18))
-    # Backrest & seat planks in weathered dark oak
-    pygame.draw.rect(surface, (62, 38, 22, 255), (4, 8, width - 8, 9), border_radius=2)
-    pygame.draw.rect(surface, (108, 70, 40, 255), (4, 9, width - 8, 3))
-    pygame.draw.rect(surface, (78, 48, 26, 255), (3, 19, width - 6, 11), border_radius=2)
-    pygame.draw.rect(surface, (124, 84, 48, 255), (4, 19, width - 8, 3))
-    pygame.draw.line(surface, (42, 24, 14, 255), (4, 24), (width - 5, 24), 1)
-    # Iron rivets & wood grain flecks
-    rivet_xs = [7, width - 8]
-    if width >= TILE_WIDTH * 2:
-        rivet_xs.append(width // 2)
-    for rx in rivet_xs:
-        surface.set_at((rx, 12), (160, 165, 178, 255))
-        surface.set_at((rx, 21), (160, 165, 178, 255))
-    grain_count = 24 if width >= TILE_WIDTH * 2 else 12
+
+    if norm_facing == "south":
+        # Soft floor shadow
+        pygame.draw.ellipse(surface, (12, 10, 14, 130), (3, height - 11, width - 6, 8))
+        # Iron legs & side/center brackets
+        leg_xs = [5, width - 10]
+        if width >= TILE_WIDTH * 2:
+            leg_xs.append(width // 2 - 2)
+        for lx in leg_xs:
+            pygame.draw.rect(surface, (36, 38, 46, 255), (lx, 12, 5, height - 16))
+            pygame.draw.rect(surface, (78, 82, 94, 255), (lx + 1, 13, 2, height - 18))
+        # Backrest (top) & seat planks (bottom) in weathered dark oak
+        pygame.draw.rect(surface, (62, 38, 22, 255), (4, 8, width - 8, 9), border_radius=2)
+        pygame.draw.rect(surface, (108, 70, 40, 255), (4, 9, width - 8, 3))
+        pygame.draw.rect(surface, (78, 48, 26, 255), (3, 19, width - 6, 11), border_radius=2)
+        pygame.draw.rect(surface, (124, 84, 48, 255), (4, 19, width - 8, 3))
+        pygame.draw.line(surface, (42, 24, 14, 255), (4, 24), (width - 5, 24), 1)
+        rivet_xs = [7, width - 8]
+        if width >= TILE_WIDTH * 2:
+            rivet_xs.append(width // 2)
+        for rx in rivet_xs:
+            surface.set_at((rx, 12), (160, 165, 178, 255))
+            surface.set_at((rx, 21), (160, 165, 178, 255))
+        grain_count = 24 if width >= TILE_WIDTH * 2 else 12
+        for _ in range(grain_count):
+            gx = rng.randint(5, width - 6)
+            gy = rng.choice([11, 13, 21, 26])
+            surface.set_at((gx, gy), (52, 30, 18, 220))
+        return surface
+
+    if norm_facing == "north":
+        # Facing north: viewer looks at the rear of the sturdy backrest with seat peeking above
+        pygame.draw.ellipse(surface, (12, 10, 14, 135), (3, height - 10, width - 6, 8))
+        # Recessed northern seat edge visible above the backrest
+        pygame.draw.rect(surface, (74, 46, 25, 255), (4, 8, width - 8, 8), border_radius=2)
+        pygame.draw.rect(surface, (112, 74, 42, 255), (5, 9, width - 10, 2))
+        pygame.draw.line(surface, (42, 24, 14, 255), (5, 14), (width - 6, 14), 1)
+        # Rear lower iron legs peeking under the backrest
+        leg_xs = [6, width - 11]
+        if width >= TILE_WIDTH * 2:
+            leg_xs.append(width // 2 - 2)
+        for lx in leg_xs:
+            pygame.draw.rect(surface, (34, 36, 44, 255), (lx, 26, 5, height - 30))
+            pygame.draw.rect(surface, (74, 78, 90, 255), (lx + 1, 27, 2, height - 32))
+        # Foreground tall weathered oak backrest (seen from behind)
+        pygame.draw.rect(surface, (56, 34, 20, 255), (3, 14, width - 6, 15), border_radius=2)
+        pygame.draw.rect(surface, (116, 78, 44, 255), (4, 14, width - 8, 3))
+        pygame.draw.rect(surface, (44, 26, 15, 255), (4, 26, width - 8, 3))
+        pygame.draw.line(surface, (38, 22, 12, 255), (4, 21), (width - 5, 21), 1)
+        # Vertical iron rear support straps + rivets across the back panel
+        for lx in leg_xs:
+            pygame.draw.rect(surface, (44, 46, 56, 255), (lx, 15, 5, 14))
+            pygame.draw.rect(surface, (86, 90, 104, 255), (lx + 1, 16, 2, 12))
+            surface.set_at((lx + 2, 17), (168, 174, 188, 255))
+            surface.set_at((lx + 2, 24), (168, 174, 188, 255))
+        grain_count = 24 if width >= TILE_WIDTH * 2 else 12
+        for _ in range(grain_count):
+            gx = rng.randint(5, width - 6)
+            gy = rng.choice([17, 19, 23, 25])
+            if not any(lx <= gx <= lx + 4 for lx in leg_xs):
+                surface.set_at((gx, gy), (44, 24, 14, 220))
+        return surface
+
+    # Vertical 40x80 bench (east or west)
+    pygame.draw.ellipse(surface, (12, 10, 14, 130), (5, height - 11, width - 10, 9))
+    pygame.draw.rect(surface, (12, 10, 14, 90), (6, 8, width - 12, height - 15), border_radius=4)
+    brace_ys = [8, height - 13]
+    if height >= TILE_HEIGHT * 2:
+        brace_ys.append(height // 2 - 2)
+    for by in brace_ys:
+        pygame.draw.rect(surface, (36, 38, 46, 255), (6, by, width - 12, 5))
+        pygame.draw.rect(surface, (78, 82, 94, 255), (7, by + 1, width - 14, 2))
+
+    if norm_facing == "east":
+        # Backrest along west (left) edge, seat plank facing east (right)
+        back_x, back_w = 7, 9
+        seat_x, seat_w = 17, 15
+        back_hi_x = back_x + 1
+        seat_hi_x = seat_x + seat_w - 4
+        seat_seam_x = seat_x + 7
+        rivet_xs = (back_x + 4, seat_x + 5)
+    else:
+        # Backrest along east (right) edge, seat plank facing west (left)
+        back_x, back_w = width - 16, 9
+        seat_x, seat_w = 8, 15
+        back_hi_x = back_x + 1
+        seat_hi_x = seat_x + 1
+        seat_seam_x = seat_x + 8
+        rivet_xs = (back_x + 4, seat_x + seat_w - 6)
+
+    # Tall vertical backrest timber
+    pygame.draw.rect(surface, (60, 36, 21, 255), (back_x, 4, back_w, height - 8), border_radius=2)
+    pygame.draw.rect(surface, (112, 74, 42, 255), (back_hi_x, 5, 3, height - 10))
+    pygame.draw.line(surface, (38, 22, 12, 255), (back_x + back_w - 1, 5), (back_x + back_w - 1, height - 6), 1)
+    # Wider vertical seat planks
+    pygame.draw.rect(surface, (78, 48, 26, 255), (seat_x, 3, seat_w, height - 6), border_radius=2)
+    pygame.draw.rect(surface, (124, 84, 48, 255), (seat_hi_x, 4, 3, height - 8))
+    pygame.draw.line(surface, (42, 24, 14, 255), (seat_seam_x, 4), (seat_seam_x, height - 5), 1)
+    # Iron end-straps & rivets
+    for by in brace_ys:
+        pygame.draw.rect(surface, (46, 48, 58, 255), (min(back_x, seat_x), by, back_w + seat_w + 1, 3))
+        for rx in rivet_xs:
+            surface.set_at((rx, by + 1), (165, 170, 184, 255))
+    grain_count = 24 if height >= TILE_HEIGHT * 2 else 12
     for _ in range(grain_count):
-        gx = rng.randint(5, width - 6)
-        gy = rng.choice([11, 13, 21, 26])
-        surface.set_at((gx, gy), (52, 30, 18, 220))
+        gx = rng.choice([back_x + 3, back_x + 6, seat_x + 4, seat_x + 10])
+        gy = rng.randint(5, height - 6)
+        surface.set_at((gx, gy), (50, 28, 16, 220))
     return surface
 
 
@@ -6558,6 +6651,9 @@ def generate_all_assets(
     wellspring_path: str = DEFAULT_WELLSPRING_PATH,
     lotus_frame_path: str = DEFAULT_LOTUS_FRAME_PATH,
     bench_path: str = DEFAULT_BENCH_PATH,
+    bench_north_path: str = DEFAULT_BENCH_NORTH_PATH,
+    bench_east_path: str = DEFAULT_BENCH_EAST_PATH,
+    bench_west_path: str = DEFAULT_BENCH_WEST_PATH,
     heavy_bookcase_path: str = DEFAULT_HEAVY_BOOKCASE_PATH,
     ink_urn_path: str = DEFAULT_INK_URN_PATH,
     inkwell_puddle_path: str = DEFAULT_INKWELL_PUDDLE_PATH,
@@ -6758,7 +6854,22 @@ def generate_all_assets(
     legacy_prop_specs = [
         ("wellspring", wellspring_path, generate_wellspring(TILE_WIDTH, TILE_HEIGHT, rng=_rng("wellspring"))),
         ("lotus_frame", lotus_frame_path, generate_lotus_frame(TILE_WIDTH, TILE_HEIGHT, rng=_rng("lotus_frame"))),
-        ("bench", bench_path, generate_bench(TILE_WIDTH * 2, TILE_HEIGHT, rng=_rng("bench"))),
+        ("bench", bench_path, generate_bench(TILE_WIDTH * 2, TILE_HEIGHT, rng=_rng("bench"), facing="south")),
+        (
+            "bench_north",
+            bench_north_path,
+            generate_bench(TILE_WIDTH * 2, TILE_HEIGHT, rng=_rng("bench_north"), facing="north"),
+        ),
+        (
+            "bench_east",
+            bench_east_path,
+            generate_bench(TILE_WIDTH, TILE_HEIGHT * 2, rng=_rng("bench_east"), facing="east"),
+        ),
+        (
+            "bench_west",
+            bench_west_path,
+            generate_bench(TILE_WIDTH, TILE_HEIGHT * 2, rng=_rng("bench_west"), facing="west"),
+        ),
         (
             "heavy_bookcase",
             heavy_bookcase_path,

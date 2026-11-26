@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_WHITE, COLOR_BLUE, COLOR_YELLOW,
     COLOR_RED, COLOR_CHARCOAL, COLOR_WALL, COLOR_FLOOR, TILE_SIZE,
-    COLOR_PURPLE, COLOR_GREY, COLOR_CYAN
+    COLOR_PURPLE, COLOR_GREY, COLOR_CYAN, normalize_bench_facing,
 )
 
 # Master Registry of all available tools and brushes
@@ -63,10 +63,38 @@ MASTER_TOOL_REGISTRY = [
     {
         "id": "tile_bench",
         "char": "S",
-        "name": "Bench",
+        "facing": "south",
+        "name": "Bench (South)",
         "type": "tile",
         "size": "80x40 px (2x1 tiles)",
-        "desc": "Solid sitting bench prop. Spans 2 tiles horizontally."
+        "desc": "Solid sitting bench facing South. Spans 2 tiles horizontally."
+    },
+    {
+        "id": "tile_bench_north",
+        "char": "S",
+        "facing": "north",
+        "name": "Bench (North)",
+        "type": "tile",
+        "size": "80x40 px (2x1 tiles)",
+        "desc": "Solid sitting bench facing North. Spans 2 tiles horizontally."
+    },
+    {
+        "id": "tile_bench_east",
+        "char": "S",
+        "facing": "east",
+        "name": "Bench (East)",
+        "type": "tile",
+        "size": "40x80 px (1x2 tiles)",
+        "desc": "Solid sitting bench facing East. Spans 2 tiles vertically."
+    },
+    {
+        "id": "tile_bench_west",
+        "char": "S",
+        "facing": "west",
+        "name": "Bench (West)",
+        "type": "tile",
+        "size": "40x80 px (1x2 tiles)",
+        "desc": "Solid sitting bench facing West. Spans 2 tiles vertically."
     },
     {
         "id": "tile_candelabra",
@@ -421,6 +449,7 @@ class MapEditor:
 
         self.selected_slot = 0
         self.current_brush_char = "#"
+        self.current_brush_facing = None
         self.active_tool = "PENCIL"  # "PENCIL", "RECTANGLE", or "SOCKET"
 
         self.camera_x = 0
@@ -464,6 +493,7 @@ class MapEditor:
 
         if tool["type"] in ("tile", "enemy", "patrol"):
             self.current_brush_char = tool["char"]
+            self.current_brush_facing = tool.get("facing")
             if self.active_tool == "SOCKET":
                 self.active_tool = "PENCIL"
         elif tool["type"] == "utility":
@@ -520,8 +550,11 @@ class MapEditor:
         if not self.filename.endswith(".json"):
             self.filename += ".json"
 
-        # Construct full legend from registry
-        full_legend = {t["char"]: t["name"] for t in MASTER_TOOL_REGISTRY if "char" in t}
+        # Construct full legend from registry (keep canonical single-char label for multi-facing props)
+        full_legend = {}
+        for t in MASTER_TOOL_REGISTRY:
+            if "char" in t and t["char"] not in full_legend:
+                full_legend[t["char"]] = "Bench" if t["char"] == "S" else t["name"]
 
         data = {
             "map_id": self.filename.replace(".json", ""),
@@ -541,6 +574,17 @@ class MapEditor:
         except Exception as e:
             print(f"Failed to save map: {e}")
 
+    def paint_tile(self, gx, gy):
+        """Stamp the active brush onto (gx, gy), syncing directional bench metadata in self.entities."""
+        self.grid[gy][gx] = self.current_brush_char
+        coord_key = f"{gx},{gy}"
+        if self.current_brush_char == "S":
+            self.entities[coord_key] = {"facing": normalize_bench_facing(self.current_brush_facing)}
+        else:
+            existing = self.entities.get(coord_key)
+            if isinstance(existing, dict) and set(existing.keys()) == {"facing"}:
+                self.entities.pop(coord_key, None)
+
     def fill_rectangle(self):
         """Fills the selected rectangle with the current brush."""
         x1, y1 = self.drag_start
@@ -548,10 +592,9 @@ class MapEditor:
         gx1, gx2 = min(x1, x2), max(x1, x2)
         gy1, gy2 = min(y1, y2), max(y1, y2)
 
-        char = self.current_brush_char
         for y in range(max(0, gy1), min(self.map_h, gy2 + 1)):
             for x in range(max(0, gx1), min(self.map_w, gx2 + 1)):
-                self.grid[y][x] = char
+                self.paint_tile(x, y)
 
     def draw_grid(self, ts):
         """Draws the map grid."""
@@ -582,6 +625,8 @@ class MapEditor:
                     color = COLOR_BLUE
                 elif char == 'V':
                     color = (230, 120, 32)
+                elif char == 'S':
+                    color = (128, 84, 46)
                 elif char in enemy_chars:
                     color = COLOR_RED
                 elif char in patrol_chars:
@@ -591,7 +636,12 @@ class MapEditor:
                 pygame.draw.rect(self.screen, (50, 50, 50), rect, 1)
 
                 if ts > 10:
-                    sym_surf = self.font.render(char, True, COLOR_WHITE)
+                    label = char
+                    if char == 'S':
+                        meta = self.entities.get(f"{x},{y}", {})
+                        b_dir = normalize_bench_facing(meta.get("facing") if isinstance(meta, dict) else None)
+                        label = f"S{b_dir[0]}"
+                    sym_surf = self.font.render(label, True, COLOR_WHITE)
                     self.screen.blit(sym_surf, (rect.x + 2, rect.y + 2))
 
         # Draw Module Sockets
@@ -688,8 +738,15 @@ class MapEditor:
         brush_info = None
         if self.active_tool in ("PENCIL", "RECTANGLE"):
             brush_info = next(
-                (t for t in MASTER_TOOL_REGISTRY if t.get("char") == self.current_brush_char),
-                None
+                (
+                    t for t in MASTER_TOOL_REGISTRY
+                    if t.get("char") == self.current_brush_char
+                    and (
+                        self.current_brush_facing is None
+                        or t.get("facing") == self.current_brush_facing
+                    )
+                ),
+                None,
             )
 
         brush_text = f"Brush: {self.current_brush_char}"
@@ -1211,7 +1268,7 @@ class MapEditor:
                 gy = (my + self.camera_y) // ts
                 if 0 <= gx < self.map_w and 0 <= gy < self.map_h:
                     if self.active_tool == "PENCIL":
-                        self.grid[gy][gx] = self.current_brush_char
+                        self.paint_tile(gx, gy)
                     elif self.active_tool in ("RECTANGLE", "SOCKET"):
                         self.drag_current = (gx, gy)
 

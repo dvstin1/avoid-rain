@@ -1085,6 +1085,9 @@ class Renderer:
             ("wellspring.png", "The Wellspring"),
             ("lotus_frame.png", "LotusFrame"),
             ("bench.png", "Bench"),
+            ("bench_north.png", "BenchNorth"),
+            ("bench_east.png", "BenchEast"),
+            ("bench_west.png", "BenchWest"),
             ("candelabra.png", "Candelabra"),
         ):
             lp_path = os.path.join(base_path, lp_file)
@@ -3687,14 +3690,24 @@ class Renderer:
             elif obj.name == "Fire Chalice":
                 self._draw_vitreous_fire_chalice(obj, sx_o, sy_o, now, prop_cache, is_real_surface)
             elif obj.name == "Bench":
-                bench_surf = prop_cache.get("Bench")
+                b_facing = constants.normalize_bench_facing(getattr(obj, "facing", None))
+                b_cache_key = constants.BENCH_PROP_CACHE_KEYS.get(b_facing, "Bench")
+                bench_surf = prop_cache.get(b_cache_key)
                 if bench_surf is not None:
                     self.screen.blit(bench_surf, (int(sx_o), int(sy_o)))
                 else:
-                    bw = int(getattr(obj, "width", ts * 2))
-                    bh = int(getattr(obj, "height", ts))
+                    default_w, default_h = constants.get_bench_dimensions(b_facing)
+                    bw = int(getattr(obj, "width", default_w))
+                    bh = int(getattr(obj, "height", default_h))
                     pygame.draw.rect(self.screen, (101, 67, 33), (sx_o, sy_o, bw, bh))
-                    pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, bw, 2))
+                    if b_facing == "north":
+                        pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + bh - 7, bw, 2))
+                    elif b_facing == "east":
+                        pygame.draw.rect(self.screen, (60, 40, 20), (sx_o + 5, sy_o, 2, bh))
+                    elif b_facing == "west":
+                        pygame.draw.rect(self.screen, (60, 40, 20), (sx_o + bw - 7, sy_o, 2, bh))
+                    else:
+                        pygame.draw.rect(self.screen, (60, 40, 20), (sx_o, sy_o + 5, bw, 2))
             elif obj.name == "Rock":
                 obj_biome = self._resolve_tile_biome(state, int(obj.x) // ts, int(obj.y) // ts)
                 w_name = getattr(state.world, "name", "").lower()

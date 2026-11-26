@@ -1834,3 +1834,48 @@ def select_weapon_sprite_key(weapon_data) -> str:
         return DEFAULT_PLAYER_WEAPON_KEY
     standard_keys = ("WeaponQuillStandard", "WeaponQuillRefined", "WeaponScriberBlade")
     return standard_keys[sum(ord(ch) for ch in name) % len(standard_keys)]
+
+
+# Multi-Directional 80px Benches (South/North: 80x40, East/West: 40x80)
+BENCH_FACINGS = ("south", "north", "east", "west")
+BENCH_DEFAULT_FACING = "south"
+BENCH_HORIZONTAL_FACINGS = frozenset(("south", "north"))
+BENCH_VERTICAL_FACINGS = frozenset(("east", "west"))
+BENCH_SPRITE_FILENAMES = {
+    "south": "bench.png",
+    "north": "bench_north.png",
+    "east": "bench_east.png",
+    "west": "bench_west.png",
+}
+BENCH_PROP_CACHE_KEYS = {
+    "south": "Bench",
+    "north": "BenchNorth",
+    "east": "BenchEast",
+    "west": "BenchWest",
+}
+_BENCH_FACING_ALIASES = {"s": "south", "n": "north", "e": "east", "w": "west"}
+
+
+def normalize_bench_facing(facing) -> str:
+    """Normalize a bench facing token into one of ('south', 'north', 'east', 'west')."""
+    if not facing:
+        return BENCH_DEFAULT_FACING
+    token = str(facing).strip().lower()
+    token = _BENCH_FACING_ALIASES.get(token, token)
+    return token if token in BENCH_FACINGS else BENCH_DEFAULT_FACING
+
+
+def get_bench_dimensions(facing: str = BENCH_DEFAULT_FACING) -> tuple:
+    """Return pixel (width, height) for a bench: 80x40 for N/S, 40x80 for E/W."""
+    norm = normalize_bench_facing(facing)
+    if norm in BENCH_VERTICAL_FACINGS:
+        return (TILE_SIZE, TILE_SIZE * 2)
+    return (TILE_SIZE * 2, TILE_SIZE)
+
+
+def get_bench_footprint_tiles(x: int, y: int, facing: str = BENCH_DEFAULT_FACING) -> tuple:
+    """Return the 2 occupied grid tile coordinates for a bench anchored at (x, y)."""
+    norm = normalize_bench_facing(facing)
+    if norm in BENCH_VERTICAL_FACINGS:
+        return ((x, y), (x, y + 1))
+    return ((x, y), (x + 1, y))
