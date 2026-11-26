@@ -314,6 +314,7 @@ class GameState:
         self.active_choice = None
         self.active_dialogue = None
         self.active_respite = None
+        self.respite_rested_during_menu: bool = False
         self.chronicle_dialog: Optional[dict] = None
         self.binder_dialog: Optional[dict] = None
         self.sync_player_binder_scripts(
@@ -3430,9 +3431,12 @@ class GameState:
                     self.start_warp("sanctuary")
 
     def close_respite_menu(self) -> None:
-        """Close any open Respite modal and reset staged session state."""
-        had_respite = getattr(self, "active_respite", None) is not None
+        """Close any open Respite modal, reset staged session state, and emit unobstructed bloom if rested."""
+        respite = getattr(self, "active_respite", None)
+        rested_during_menu = bool(getattr(self, "respite_rested_during_menu", False))
+        had_respite = respite is not None
         self.active_respite = None
+        self.respite_rested_during_menu = False
         if had_respite or (
             isinstance(getattr(self, "active_dialogue", None), dict)
             and self.active_dialogue.get("speaker") == "Respite Anchor"
@@ -3443,6 +3447,11 @@ class GameState:
         self.respite_marked_idx = -1
         if getattr(self, "player", None) is not None:
             self.player.has_rested_this_session = False
+        if respite is not None and rested_during_menu:
+            self.spawn_respite_pulse(
+                float(respite.x) + float(respite.width) * 0.5,
+                float(respite.y) + float(respite.height) * 0.5,
+            )
 
     def restore_post_night_boss_hp(self) -> None:
         """Restore player HP (and active co-op runners on Host) to max_hp on post-Night-Boss warps."""
@@ -3637,6 +3646,7 @@ class GameState:
             self.respite_pulses.clear()
         self.destroyed_prop_ids = set()
         self.active_dialogue = self.active_choice = self.active_respite = None
+        self.respite_rested_during_menu = False
 
     def trigger_bloom(self, text, priority=1):
         if priority >= self.bloom_priority or self.bloom_timer <= 0:
@@ -3871,6 +3881,7 @@ class GameState:
         self.active_dialogue = None
         self.active_choice = None
         self.active_respite = None
+        self.respite_rested_during_menu = False
         self.chronicle_dialog = None
         self.binder_dialog = None
         self.sync_player_binder_scripts(refill_in_sanctuary=True)

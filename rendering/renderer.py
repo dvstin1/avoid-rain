@@ -5805,16 +5805,21 @@ class Renderer:
             if ring_a > 0:
                 outer_r = max(2, int(round(pulse.ring_radius)))
                 inner_r = max(2, int(round(pulse.inner_ring_radius)))
-                surf_r = outer_r + 4
+                surf_r = outer_r + 6
                 ring_surf = pygame.Surface((surf_r * 2, surf_r * 2), pygame.SRCALPHA)
                 halo_a = int(pulse.halo_alpha)
                 if halo_a > 0:
                     ir, ig, ib = constants.RESPITE_PULSE_RING_COLOR_INNER
                     pygame.draw.circle(ring_surf, (ir, ig, ib, halo_a), (surf_r, surf_r), outer_r)
+                dr, dg, db = constants.RESPITE_PULSE_DARK_INK_COLOR
+                backing_outer_a = max(0, min(255, int(round(ring_a * 0.9))))
+                pygame.draw.circle(ring_surf, (dr, dg, db, backing_outer_a), (surf_r, surf_r), outer_r + 1, 5)
                 or_c, og_c, ob_c = constants.RESPITE_PULSE_RING_COLOR_OUTER
-                pygame.draw.circle(ring_surf, (or_c, og_c, ob_c, ring_a), (surf_r, surf_r), outer_r, 2)
+                pygame.draw.circle(ring_surf, (or_c, og_c, ob_c, ring_a), (surf_r, surf_r), outer_r, 3)
                 ir_c, ig_c, ib_c = constants.RESPITE_PULSE_RING_COLOR_INNER
                 inner_a = max(0, min(255, int(round(ring_a * 0.85))))
+                backing_inner_a = max(0, min(255, int(round(inner_a * 0.9))))
+                pygame.draw.circle(ring_surf, (dr, dg, db, backing_inner_a), (surf_r, surf_r), inner_r + 1, 4)
                 pygame.draw.circle(ring_surf, (ir_c, ig_c, ib_c, inner_a), (surf_r, surf_r), inner_r, 2)
                 self.screen.blit(ring_surf, (sx - surf_r, sy - surf_r))
 
@@ -5827,14 +5832,17 @@ class Renderer:
                 if not (-24 <= gx <= sw + 24 and -24 <= gy <= sh + 24):
                     continue
                 try:
-                    shadow_surf = glyph_font.render(g_part.glyph, True, constants.COLOR_BLACK)
-                    shadow_surf.set_alpha(max(0, min(255, int(round(g_alpha * 0.7)))))
+                    outline_surf = glyph_font.render(
+                        g_part.glyph, True, constants.RESPITE_PULSE_DARK_INK_COLOR
+                    )
+                    outline_surf.set_alpha(max(0, min(255, int(round(g_alpha * 0.9)))))
                     g_surf = glyph_font.render(g_part.glyph, True, g_part.color)
                     if g_alpha < 255:
                         g_surf.set_alpha(g_alpha)
                     half_w = g_surf.get_width() // 2
                     half_h = g_surf.get_height() // 2
-                    self.screen.blit(shadow_surf, (gx - half_w + 1, gy - half_h + 1))
+                    for odx, ody in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                        self.screen.blit(outline_surf, (gx - half_w + odx, gy - half_h + ody))
                     self.screen.blit(g_surf, (gx - half_w, gy - half_h))
                 except Exception:
                     pass

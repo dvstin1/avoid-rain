@@ -47,6 +47,10 @@ def test_respite_pulse_dt_lifecycle_drift_framerate_independence_and_expiry():
     mgr.update(0.50)
     assert pulse.ring_radius > r_early
     assert pulse.ring_alpha < a_early
+    # Wider ring sweeps visibly past the 620x290 Respite modal (> 145px) by mid-pulse
+    assert constants.RESPITE_PULSE_RING_MAX_RADIUS == pytest.approx(195.0)
+    assert constants.RESPITE_PULSE_GLYPH_COUNT == 20
+    assert pulse.ring_radius > 145.0
 
     # Advancing past max duration + glyph lifetime automatically cleans up the pulse
     mgr.update(constants.RESPITE_PULSE_DURATION + 0.5)
@@ -166,5 +170,67 @@ def test_headless_respite_pulse_rendering():
         state.respite_pulses.update(constants.RESPITE_PULSE_DURATION + 0.5)
         assert state.respite_pulses.is_active() is False
         renderer.render(state)
+
+        # High-contrast visibility check against bright snow/terracotta floor (Frozen Peaks / Sunlit Aqueducts)
+        bright_bg = (242, 246, 255)
+        screen.fill(bright_bg)
+        state.spawn_respite_pulse(px, py, seed=11)
+        state.respite_pulses.update(0.30)
+        assert renderer.draw_respite_pulses(state, ox, oy) == 1
+        # Verify crisp dark-ink backing strokes / 4-way glyph outlines darkened pixels on the bright surface
+        cx_s, cy_s = int(round(px - ox)), int(round(py - oy))
+        dark_pixels = 0
+        for sy in range(max(0, cy_s - 150), min(constants.SCREEN_HEIGHT, cy_s + 150), 2):
+            for sx in range(max(0, cx_s - 150), min(constants.SCREEN_WIDTH, cx_s + 150), 2):
+                col = screen.get_at((sx, sy))
+                if col.r < 120 and col.g < 120 and col.b < 140:
+                    dark_pixels += 1
+        assert dark_pixels > 20, f"Expected dark-ink ring backing & glyph outlines on bright bg, got {dark_pixels}"
+    finally:
+        state.shutdown_save_worker(timeout=1.0)
+
+
+def test_respite_rested_during_menu_emits_unobstructed_pulse_on_close_after_upgrades():
+    """Closing the Respite modal after resting (even after finalizing upgrades) emits a fresh unobstructed pulse."""
+    state = GameState(auto_load=False, stats=StatisticsTracker())
+    try:
+        respite = Respite((320, 240), (constants.TILE_SIZE, constants.TILE_SIZE))
+        state.world.interactables.append(respite)
+        state.enemies = []
+        state.stats.data["lifetime_stats"]["pages_collected"] = 500
+
+        # 1. Opening modal without resting -> closing emits NO pulse
+        respite.execute_interaction(state)
+        assert state.active_respite is respite
+        assert state.respite_rested_during_menu is False
+        state.close_respite_menu()
+        assert state.respite_pulses.is_active() is False
+
+        # 2. Open modal -> Rest -> Stage & Finalize upgrades (clears has_rested_this_session) -> Close modal
+        respite.execute_interaction(state)
+        assert state.respite_rested_during_menu is False
+        respite.execute_rest(state)
+        assert state.respite_rested_during_menu is True
+        assert len(state.respite_pulses.pulses) == 1  # Immediate pulse while menu is open
+
+        # Simulate initial pulse finishing while the player spends time upgrading in the modal
+        state.respite_pulses.clear()
+        state.respite_upgrades[1] = 1
+        assert respite.execute_finalize_upgrades(state) is True
+        assert state.player.has_rested_this_session is False
+        assert state.respite_rested_during_menu is True
+
+        # Closing the modal spawns a fresh unobstructed pulse centered on the Respite anchor
+        state.close_respite_menu()
+        assert state.active_respite is None
+        assert state.respite_rested_during_menu is False
+        assert len(state.respite_pulses.pulses) == 1
+        pulse = state.respite_pulses.pulses[0]
+        assert (pulse.cx, pulse.cy) == pytest.approx((340.0, 260.0))
+
+        # Closing again does not re-trigger
+        state.respite_pulses.clear()
+        state.close_respite_menu()
+        assert state.respite_pulses.is_active() is False
     finally:
         state.shutdown_save_worker(timeout=1.0)

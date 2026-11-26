@@ -1956,13 +1956,14 @@ def compute_death_bleach_state(death_timer: float, duration: float = DEATH_SCREE
 # Respite Activation Pulse (Section 8: Localized Typographic Bloom)
 RESPITE_PULSE_DURATION = 1.45
 RESPITE_PULSE_RING_START_RADIUS = 16.0
-RESPITE_PULSE_RING_MAX_RADIUS = 112.0
+RESPITE_PULSE_RING_MAX_RADIUS = 195.0
 RESPITE_PULSE_RING_INNER_SCALE = 0.72
-RESPITE_PULSE_RING_MAX_ALPHA = 210
-RESPITE_PULSE_HALO_MAX_ALPHA = 42
+RESPITE_PULSE_RING_MAX_ALPHA = 245
+RESPITE_PULSE_HALO_MAX_ALPHA = 85
 RESPITE_PULSE_RING_COLOR_OUTER = (110, 232, 240)   # Soft cyan-ink shimmer
 RESPITE_PULSE_RING_COLOR_INNER = (238, 228, 200)   # Warm parchment glow
-RESPITE_PULSE_GLYPH_COUNT = 14
+RESPITE_PULSE_DARK_INK_COLOR = (14, 12, 24)        # High-contrast dark-ink backing & glyph outline
+RESPITE_PULSE_GLYPH_COUNT = 20
 RESPITE_PULSE_GLYPH_POOL = (
     "A", "E", "I", "O", "R", "S", "T", "V", "§", "¶", "†", "‡", "※", "ø",
 )

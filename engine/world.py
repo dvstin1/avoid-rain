@@ -682,9 +682,10 @@ class Respite(GameObject):
             return
 
         # Only reset and log if first opening
-        if getattr(game_state, 'active_respite', None) != self:
+        if getattr(game_state, 'active_respite', None) is not self:
             game_state.respite_selection_idx = 5
             game_state.respite_marked_idx = -1
+            game_state.respite_rested_during_menu = False
             print("[RESPITE] Interaction engaged.")
         
         game_state.active_dialogue = {
@@ -711,6 +712,7 @@ class Respite(GameObject):
         game_state.player.hp = float(game_state.player.max_hp)
         game_state.player.flask_charges = int(FLASK_MAX_CHARGES)
         game_state.player.has_rested_this_session = True
+        game_state.respite_rested_during_menu = True
         pulse_cx = float(self.x) + float(self.width) * 0.5
         pulse_cy = float(self.y) + float(self.height) * 0.5
         if hasattr(game_state, "spawn_respite_pulse"):
