@@ -13,17 +13,17 @@
 ---
 
 ## 1. Input & Accessibility
-- **Gamepad Support (Polish):** Native controller mapping for Xbox/PlayStation layouts is implemented, but could use further refinement and rumble support.
-- **Remappable Keys:** In-game menu for custom keyboard/controller bindings.
+- **Gamepad Rumble (`Joystick.rumble()`):** Add tactile controller rumble feedback via `pygame.joystick.Joystick.rumble()` on combat hits, parries, and boss summon eruptions (native Xbox/PlayStation controller mapping and auto-switching are already implemented).
+- **Remappable Keys:** [DONE] Implemented in-game key remapping via `ControlsConfigMenu` in `ui/menu.py` and `GameState.keybindings` (accessible from Title and Pause menus and persisted in `save_data.json`).
 - **Screen Shake Toggle:** [DONE] Implemented `Screen Shake: ON/OFF` in the Pause Menu (`screen_shake_enabled`), persisted in `save_data.json` and gating combat/parry camera shake impulses.
 
 ## 2. Audio & Atmosphere
-- **Noir Soundtrack:** Procedural ambient tracks that shift intensity based on proximity to enemies or the Rain.
+- **Noir Soundtrack:** [DROPPED] Superseded by dynamic `.ogg` biome/boss music crossfades (`AudioManager`) and distance/intensity-scaled `RAIN_LOOP_SFX`.
 - **Environment Audio:** Directional audio for candelabras, wellsprings, and the distant rumble of the author's madness.
 
-## 3. Narrative & Visuals
+## 3. Narrative & Visuals [DONE]
 - **Layered Visual System (Ghost Indicators):** [DONE] Implement a decoupled animation system that uses abstract indicators (color tints, squashing, borders) to represent states (WOUNDED, STAGGERED, BIND) without finalized assets.
-- **Logical Effect Buffer:** Create an engine-side queue for visual events (INK_DEATH, PARRY_SPARK) that the renderer consumes, ensuring visuals remain decoupled from logic.
+- **Logical Effect Buffer:** [DONE] Implemented via decoupled engine-side VFX queues and managers on `GameState` (`glyph_particles`, `respite_pulses`, `parry_effects`, `impact_sparks`, `slash_effects`, `active_boss_summons`, and `warp_controller`) consumed headlessly by `Renderer`.
 - **Chapter Titles:** [DONE] Large typographic overlays (Typographic Bloom) when entering new modular zones and climatic weather transitions.
 
 ## 4. Technical & Navigation (Future Phases)
@@ -41,10 +41,10 @@
 - **Boss Visibility:** [DONE] Host now broadcasts enemy names and dynamic interactables (Appendix Warp), and Clients correctly spawn them mid-session.
 - **Combat Balance:** [DONE] Implemented hit-latching to ensure each swing only deals damage once, preventing 'instant kill' glitches.
 
-## 6. Combat Refinement
+## 6. Combat Refinement [DONE]
 - **Anomalous Weapon Effects:** [DONE] Implemented passive effects for Anomalous weapons (`INK_BLEED`, `VOID_STRIKE`, `PARRY_WINDOW`, `VAMPIRISM`) in `engine/anomalous_weapon.py`.
-- **Quill Pressure (Stamina):** [Speculative] A resource meter that limits rapid-fire attacks and dashes, encouraging tactical positioning and deliberate timing.
-- **Advanced Stagger Mechanics:** [Speculative] Variable stagger thresholds based on weapon weight or impact force.
+- **Quill Pressure (Stamina):** [DROPPED] Speculative stamina rewrite incompatible with the tuned 5-Act combat pacing and boss encounters.
+- **Advanced Stagger Mechanics:** [DROPPED] Speculative stagger-threshold rewrite incompatible with the tuned 5-Act combat and boss loop.
 
 ## 7. Binder Scripts (Upgrade System) [DONE]
 - **Concept (`[DONE]`):** **The Binder** NPC (`'&'` in `maps/sanctuary.json`, mirrored across `constants.py`, `engine/world.py`, `tools/edit_map.py`, `generate_maps.py`, and `assets/graphics/binder.png`) acts as a procedural artisan in Sanctuary, weaving **Scripts** (e.g., *Hemming Script*, *Vellum Buckram Script*, *Serifed Edge Script*, *Rubricated Nib Script*, *Marginal Gloss Script*, *Palimpsest Ward Script*) into the Reader's frame using persistent **Margin Scraps** (`margin_scraps`, earned from Night Bosses, Marginalia events, and *The Final Author* while preserving the Closed Volume Paradox where `pages_collected` resets to `0` on Sanctuary entry).
@@ -56,7 +56,7 @@ Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.
 - **Enhanced Death Sequence (Text Bleaching) (`[DONE]` — `constants.py`, `engine/game_state.py`, `rendering/renderer.py`, `tests/test_death_bleaching_sequence.py`):** Replaced the static gray death overlay with a dt-driven Text Bleaching sequence (`compute_death_bleach_state()`, `GameState.get_death_bleach_state()`, `Renderer.draw_death_bleaching_sequence()`) featuring progressive C-accelerated luminance desaturation, subtle camera pull-back framing the shrinking scene inside a dark-ink manuscript margin, rising pale parchment washout and edge vignette, and staged `"TEXT BLEACHING..."` / `"FADING INTO A REJECTED DRAFT"` typographic fade-in.
 - **Tactile Menu Transitions:** Implement unrolling or sliding animations for the Chronicle (Title/Pause) menus to make them feel like physical parchment.
 - **Respite Activation Pulse (`[DONE]` — `constants.py`, `engine/particles.py`, `engine/world.py`, `engine/game_state.py`, `rendering/renderer.py`, `tests/test_respite_activation_pulse.py`):** Added a decoupled, dt-driven localized typographic bloom (`RespitePulseManager`, `RespiteActivationPulse`, `RespitePulseGlyph`) featuring an expanding soft cyan-ink/parchment double ring and gently rising, swaying, fading manuscript letters/glyphs triggered whenever a Scholar rests at a Respite anchor (offline, local Client, and LAN Host `RESPITE_ACTION`), with automatic expiry and scene/warp transition cleanup.
-- **Typographic Run-Start:** Animate the world map "inking" itself using letters cascading into the room shapes during the Chronicle transition.
+- **Typographic Run-Start:** [DROPPED] Superseded by `InkWarpController` three-stage Ink & Fog transitions and Typographic Bloom chapter titles.
 
 ## 9. Expanded Progression & Global Leveling
 - **Capability Thresholds:** Currently, the player's global 'Understanding' level strictly dictates passive damage reduction. In the future, reaching specific total level thresholds (e.g., Level 5, Level 10) should automatically unlock new capabilities or narrative dialogue paths to provide distinct progression milestones.
