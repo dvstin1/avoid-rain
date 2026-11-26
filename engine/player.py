@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 # pylint: disable=multiple-statements,trailing-whitespace,import-outside-toplevel,no-member,access-member-before-definition,attribute-defined-outside-init,unused-import
 """
 Core player logic and state management.

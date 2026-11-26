@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for PauseMenu navigation, Debug Text toggle, and persistence."""
 # pylint: disable=no-member,too-few-public-methods
 import pygame

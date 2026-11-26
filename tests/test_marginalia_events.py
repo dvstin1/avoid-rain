@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit and integration tests for the Marginalia Event Engine (Section 10).
 """

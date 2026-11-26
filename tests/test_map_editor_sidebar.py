@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for the Map Editor sidebar interaction logic."""
 # pylint: disable=no-member,redefined-outer-name,unused-argument
 from unittest import mock

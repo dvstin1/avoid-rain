@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Respite stability & root-cause fixes:
 1. Opening a Respite puts non-boss idle/patrolling enemies to sleep (is_within_active_simulation == False).

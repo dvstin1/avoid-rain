@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit and integration tests for Section 4: A* Pathfinding & Live Map Patrols.
 Verifies corner-safe A* routing around walls and solid GameObjects, unreachable targets,

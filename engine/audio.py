@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 # pylint: disable=too-many-instance-attributes,too-many-locals,too-many-branches,too-many-statements,broad-exception-caught,chained-comparison
 """
 AudioManager: Handles cross-platform audio initialization, asset loading,

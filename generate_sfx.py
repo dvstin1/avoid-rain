@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# copyright 2026 Dustin Massop, License: GPLv2
 """Standalone offline procedural sound-effect generator for Avoid Rain.
 
 Synthesizes game-ready Ogg Vorbis (.ogg) SFX matching the engine's audio standard

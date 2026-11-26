@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Act 2 difficulty escalation, stat scaling, empowered visuals, and co-op sync."""
 import os
 from unittest.mock import MagicMock

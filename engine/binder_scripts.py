@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Headless Binder Scripts upgrade & syntax conflict compiler (Section 7).
 Compiles equipped scripts into player stat modifiers, resolves syntax conflicts

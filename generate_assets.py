@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# copyright 2026 Dustin Massop, License: GPLv2
 """Standalone offline procedural pixel art PNG asset generator for Avoid Rain.
 
 Generates grit-textured, dark-fantasy game tiles using noise, jitter, and low-contrast

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Tech Tower Pass 1: Recessed Grating, Titanium Deck, Chamfered Seams & Bulkhead Walls."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access
 

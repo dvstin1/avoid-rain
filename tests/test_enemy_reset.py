@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Regression test for the Enemy Population Reset Lifecycle Fix.
 Ensures that enemies are re-instantiated fresh when a room is loaded via warp or run reset.

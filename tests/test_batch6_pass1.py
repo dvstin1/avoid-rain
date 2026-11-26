@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Batch 6 Pass 1:
 1. SmearEnemy walking Inkwell Puddle 10s lifetime, smooth fade rendering, spatial cache invalidation,

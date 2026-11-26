@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Tests for corrupt save handling in StatisticsTracker.load"""
 import json
 from pathlib import Path

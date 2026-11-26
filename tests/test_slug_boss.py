@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Batch 4 Pass 2: Swamp Night Boss (SlugBoss), slime pools, ground crown & dual weapon scatter."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access
 

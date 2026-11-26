@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements,no-member
 # pylint: disable=import-outside-toplevel,redefined-outer-name,reimported,invalid-name
 # pylint: disable=unused-argument,unused-import,wrong-import-order,too-many-public-methods

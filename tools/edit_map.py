@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Native Pygame-based Map Editor for Avoid Rain.
 Supports click-and-drag drawing, canvas resizing, and JSON export.

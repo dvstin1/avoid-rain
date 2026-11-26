@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 LootManager: a low-coupled probability engine for rolling loot items.
 

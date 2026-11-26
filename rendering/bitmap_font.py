@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Drop-in bitmap font runtime wrapper matching the pygame.font.Font interface."""
 # pylint: disable=no-member,too-many-arguments,too-many-positional-arguments,too-many-instance-attributes
 

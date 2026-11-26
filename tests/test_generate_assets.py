@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for procedural asset generator script (generate_assets.py)."""
 # pylint: disable=no-member
 import os

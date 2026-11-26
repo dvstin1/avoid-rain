@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# copyright 2026 Dustin Massop, License: GPLv2
 """Standalone procedural pixel/manuscript bitmap font atlas generator for Avoid Rain.
 
 Generates white-on-transparent RGBA glyph sprite sheets and JSON metric sidecars

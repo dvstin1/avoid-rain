@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Headless Marginalia Event Engine (Section 10).
 Manages per-Act event rolls, spatial/trigger modes, weather locking,

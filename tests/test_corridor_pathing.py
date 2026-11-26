@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Section 13: Map Generation & Corridor Pathing Fixes.
 
 Verifies hallway clearance guards for Heavy Bookcases ('h', 2x1) and Benches ('S'),

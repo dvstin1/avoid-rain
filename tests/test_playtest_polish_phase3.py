@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Phase 3 playtest polish: Sanctuary Y-sorting, pond wading, facades, and lively NPCs."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access,too-many-locals
 

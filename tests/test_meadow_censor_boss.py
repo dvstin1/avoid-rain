@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Batch 5 Pass 2: Pastoral Valley Night Boss (MeadowCensorBoss — The Meadow Censor),
 hooked scythe pull-cleave, boiling plum tar geysers, Phase 2 culling whistle + 4 Punctuation Wolves,

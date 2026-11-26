@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for the Boss attack hitboxes and damage resolution logic.
 """

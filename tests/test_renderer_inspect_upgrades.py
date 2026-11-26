@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Test that the renderer displays character upgrades in the inspect HUD panel."""
 # pylint: disable=no-member
 import pygame

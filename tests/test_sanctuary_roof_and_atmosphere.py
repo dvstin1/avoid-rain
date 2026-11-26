@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Pass 3: Roof Overhangs, Interior/Exterior Fade & Courtyard Micro-Animations.
 
 Verifies sanctuary_interior_alpha interpolation and non-Sanctuary reset, Scriptorium roof

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Macro-World Generator for Avoid Rain.
 Generates a symmetric 440x440 grid of modules based on modular_system.md specifications.

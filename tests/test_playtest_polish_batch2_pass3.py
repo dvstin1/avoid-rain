@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Playtest Polish Pass 3:
 1. Single 40px Sanctuary Scriptorium doorway at [38, 21] with solid [37, 21] and [39, 21] walls and single arch blit.

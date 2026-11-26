@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Transition controller for "The Ink & Fog Warp".
 Handles cinematic map teleports in three non-blocking phases:

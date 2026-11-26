@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Phase 1 playtest polish: audio cleanup, debug gating, warding, boss balance, and Binder UX."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access
 # pylint: disable=too-few-public-methods,too-many-locals,missing-function-docstring

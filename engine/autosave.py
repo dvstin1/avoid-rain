@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Autosave manager that triggers periodic persistence of GameState statistics.
 
 This lives as a separate low-coupled utility and calls GameState.save_stats()

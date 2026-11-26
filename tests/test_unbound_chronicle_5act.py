@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit and integration tests for Pass 1 of Section 12:
 5-Act Unbound Chronicle Progression, 5-of-7 Biome Draft & Ordering,

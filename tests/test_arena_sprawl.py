@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 import pytest
 from engine.maps import create_world
 from engine.enemy import Miniboss

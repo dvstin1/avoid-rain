@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Batch 11: Enemy & Boss Sprite Polish.
 
 Covers 3-frame FlutterEnemy wing-flap animation (base & empowered frames 0..2, preloading,

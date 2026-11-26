@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Batch 14: Respite Close Menu Default/Styling, requirements.txt, and README.md."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access
 

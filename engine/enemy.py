@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Enemy AI and behavior definitions.
 Inherits from Actor for the Stanza patrol system.

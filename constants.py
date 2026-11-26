@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Central registry for all game configuration and 'magic numbers'.
 """

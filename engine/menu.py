@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 MenuBase: shared navigation helpers for simple menu controllers.
 

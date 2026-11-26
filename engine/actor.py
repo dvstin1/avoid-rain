@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 # pylint: disable=trailing-whitespace,missing-class-docstring,missing-function-docstring,too-many-instance-attributes,too-many-arguments,too-many-positional-arguments,redefined-builtin,multiple-statements,no-value-for-parameter,too-many-branches,unused-argument,unnecessary-pass,redefined-outer-name,reimported,import-outside-toplevel,unused-import
 """
 Unified Actor base class for mobile entities (Enemies, NPCs).

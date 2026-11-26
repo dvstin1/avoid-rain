@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Headless A* pathfinding engine for Avoid Rain.
 Computes corner-safe 8-way tile routes around static walls and solid GameObjects

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for the Grass Floor Tile data-driven decoration logic."""
 # pylint: disable=no-member,protected-access
 import pygame

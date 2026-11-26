@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for generate_fonts.py and rendering.bitmap_font.BitmapFont."""
 # pylint: disable=no-member
 import json

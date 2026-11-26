@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Venomous Mire (swamp_mire) Pass 1: strata grain, mycelium patterns, soft seams & root cliffs."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access
 

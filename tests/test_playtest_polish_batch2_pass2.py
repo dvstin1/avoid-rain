@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Playtest Polish Pass 2:
 1. Biome & Connector Area Name Resolution (vitreous_basin, sunlit_aqueducts, connector fallbacks).

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 import pytest
 from engine.player import Player, PlayerStateEnum
 from constants import BLOCK_DAMAGE_REDUCTION, BLOCK_SPEED_MULTIPLIER

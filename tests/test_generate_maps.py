@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for standalone procedural offline map generator (generate_maps.py).
 Verifies algorithmic generation across biomes, connectivity validation,

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Playtest Polish Batch 3 Pass 1: Slug bite, Bat claw slash, death theme, dash vol & name save."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access
 

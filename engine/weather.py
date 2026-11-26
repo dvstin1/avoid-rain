@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Weather System: The Bleed (The Redacting Circle).
 Handles the spatial contraction logic and exposure damage.

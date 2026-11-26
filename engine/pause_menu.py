@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 PauseMenu: decoupled pause menu state machine that uses PauseHandler.
 

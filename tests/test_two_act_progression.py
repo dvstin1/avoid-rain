@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit and integration tests for Two-Act Progression, Chronicle Biome Dialog,
 Upfront Dual-World LAN Sync, and Expanded Final Boss Arena."""
 import json

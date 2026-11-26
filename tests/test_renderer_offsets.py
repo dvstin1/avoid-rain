@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Tests that the Renderer applies camera offsets when drawing entities.
 
 Uses a fake surface and monkeypatches pygame drawing primitives to capture

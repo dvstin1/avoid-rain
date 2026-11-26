@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Batch 4 Pass 1:
 1. Warding rain damage balance (30% WARD_BUFF_RAIN_REDUCTION on active ward, no flat -5.0 or refresh on rain ticks).

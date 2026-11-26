@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Batch 6 Pass 2 — RimecrestArbiterBoss (Frozen Peaks Night Boss):
 1. Procedural sprites, frost/ice SFX, two-phase glacial music & Renderer preloading.

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Batch 9 — Combat, Interaction, Audio & Minimap QoL:
 1. Hostile interactable lockout (blocks LoreFragment/Respite/WarpPortal while allowing WeaponPickup/ExitLadder

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Batch 10: Environment & Prop Sprite Overhaul.
 
 Covers procedural barrel_0..3.png + biome-matched break/rubble colors (tech_tower cyan/slate),

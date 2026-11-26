@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 # pylint: disable=too-many-arguments,too-many-positional-arguments,unused-argument,too-few-public-methods,too-many-instance-attributes
 """
 Tests for Slug and Bat spatial sound effects, movement loop logic,

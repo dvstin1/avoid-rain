@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Main entry point for Avoid Rain.
 Handles the application lifecycle and top-level loops.

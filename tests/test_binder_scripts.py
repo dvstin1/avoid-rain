@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit and integration tests for Section 7: Binder Scripts (Procedural Upgrade & Conflict Compiler).
 Verifies Sanctuary '&' Binder NPC placement & palette parity, Margin Scraps persistence vs.

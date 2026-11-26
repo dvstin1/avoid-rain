@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for stylized title screen rendering and composite caching."""
 # pylint: disable=no-member,protected-access
 import pygame

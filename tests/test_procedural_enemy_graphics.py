@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for procedural basic-shape enemy, player, and weapon graphics in the Renderer."""
 # pylint: disable=no-member,protected-access,too-many-statements
 from types import SimpleNamespace

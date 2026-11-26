@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Local network discovery (LAN) and authoritative host/client synchronization."""
 # pylint: disable=too-many-instance-attributes,too-many-arguments,too-many-positional-arguments
 # pylint: disable=too-many-branches,too-many-statements

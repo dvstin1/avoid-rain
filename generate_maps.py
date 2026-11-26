@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# copyright 2026 Dustin Massop, License: GPLv2
 """Standalone offline procedural map generator for Avoid Rain.
 
 Generates organic and architectural level maps using real procedural algorithms:

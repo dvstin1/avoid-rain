@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Tests for GameState integration with the StatisticsTracker.
 
 Verifies that GameState integration works and

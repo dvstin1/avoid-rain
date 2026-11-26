@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Batch 12: Respite Menu Ratcheting & Rimecrest Arbiter 2-Hit-in-10s Freeze Rule."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access
 

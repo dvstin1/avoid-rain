@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Tests for GameState auto-loading of a StatisticsTracker from disk.
 
 This test writes a payload to a temporary path and constructs GameState with

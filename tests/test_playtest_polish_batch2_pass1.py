@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Playtest Polish Pass 1:
 1. Isolated test network ports (TEST_LAN_PORT_BASE = 51000 via conftest.py).

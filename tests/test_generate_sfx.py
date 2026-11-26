@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for the procedural Ogg Vorbis SFX generator (generate_sfx.py)."""
 import os
 import subprocess

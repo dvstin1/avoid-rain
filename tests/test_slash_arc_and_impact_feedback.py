@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for visual slash arc geometry, anomalous passive color tinting, and impact sparks feedback.
 """

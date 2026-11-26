@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Windy Ridge Pass 1: Organic Highland Ground Textures & Natural Stratum Seams."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access
 

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for gated Respite activation on forest and ruins maps,
 and Respite deactivation/auto-closure under rain weather conditions.

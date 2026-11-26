@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Pass 2: Expanded Sanctuary Layout & Courtyard Composition.
 
 Verifies the expanded 56x40 maps/sanctuary.json layout, preserved NPC/spawn invariants,

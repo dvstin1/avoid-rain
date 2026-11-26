@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Playtest Polish Batch 3 Pass 2A:
 1. Three-mode Binder dialog tree ('prompt' -> 'consult' / 'weave') and state transitions.

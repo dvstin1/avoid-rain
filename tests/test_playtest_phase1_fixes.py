@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Phase 1 Playtest Fixes:
 
 1. Dash wall-tunneling sub-stepping (1-2 tile distances, dt spikes) & active world-bound clamping.

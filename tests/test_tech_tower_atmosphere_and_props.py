@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Tech Tower Pass 2: cyber-archival props and Sky Citadel atmosphere."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member,protected-access
 

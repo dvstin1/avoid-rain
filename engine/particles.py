@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Particle system for stylized combat effects: Glyph Splatter.
 When an entity takes damage, typographical glyphs erupt outward and fade.

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Batch 13: Boss Sprite Redesign & 3-Frame Directional Boss Animations.
 
 Covers the 4 redesigned canonical boss sprites (night_boss, boss_empowered, miniboss,

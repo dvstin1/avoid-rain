@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Section 14: Combat & Progression Balance.
 
 Verifies rebalanced flat attack-up scaling (Respite Prowess, Choice of Fates, Binder Scripts),

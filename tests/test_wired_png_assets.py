@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests verifying wiring of the 4 procedural PNG assets into the tile/map renderer."""
 # pylint: disable=no-member,protected-access
 import os

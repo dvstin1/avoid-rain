@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for the Glyph Splatter particle system."""
 # pylint: disable=no-member,too-few-public-methods,missing-function-docstring,missing-class-docstring
 import pygame

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for dash SFX, Chronicle tome prop/audio, and Chronicler mumbles."""
 import random
 from unittest.mock import MagicMock

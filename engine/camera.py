@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Simple camera helper to compute viewport offsets based on player position.
 
 The camera centers on the player when possible, and clamps so the view never

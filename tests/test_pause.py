@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 import pytest
 
 from engine.pause import PauseHandler

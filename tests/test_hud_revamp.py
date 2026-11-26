@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Batch 8 — Tall Compact Visual HUD Revamp (252x148):
 1. Panel geometry, side-by-side weapon cards, SLOT B swap rect, and floating pickup pill bounds.

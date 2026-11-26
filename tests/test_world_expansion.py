@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 import pytest
 from engine.world import World
 from constants import SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE, GRID_WIDTH, GRID_HEIGHT

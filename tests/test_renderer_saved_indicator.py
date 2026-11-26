@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Test that the renderer displays a 'Saved' indicator when last_save_elapsed is small."""
 import pygame
 from rendering.renderer import Renderer

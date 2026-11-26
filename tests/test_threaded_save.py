@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Tests for threaded save behavior via GameState.save_stats()."""
 import time
 import os

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for the Game Engine Revision save compatibility system."""
 import json
 from constants import ENGINE_REVISION

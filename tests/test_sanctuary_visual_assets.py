@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Pass 1: Sanctuary Visual Assets & Ground Texture Polish.
 
 Verifies the 12 low-contrast Sanctuary floor tile variants (flagstone, dirt path, wood floor),

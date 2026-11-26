@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Batch 15 — Lore-Tied Boss Summoning Ritual (The Ink-Unsealing Rite):
 1. boss_summon.ogg procedural SFX synthesis, preset/recipe parity, and Ink-Unsealing lore entry.

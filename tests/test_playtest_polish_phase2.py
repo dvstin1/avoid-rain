@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Phase 2 playtest polish: enemy/event sprites, Torn Page illumination, and Sanctuary facades."""
 # pylint: disable=wrong-import-position,wrong-import-order,no-member
 

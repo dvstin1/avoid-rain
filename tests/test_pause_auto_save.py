@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Tests that PauseMenu's on_open hook is invoked and can be used for autosave."""
 
 from engine.pause_menu import PauseMenu

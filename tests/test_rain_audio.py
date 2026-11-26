@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Headless unit tests for dynamic distance-based ambient rain audio."""
 from types import SimpleNamespace
 import pygame

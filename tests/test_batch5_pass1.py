@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Batch 5 Pass 1:
 1. Pastoral Valley stratum tile variants (ruled ledger lines on Stratum 1, (1, 1) == s_base invariant)

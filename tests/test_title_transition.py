@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Headless unit tests for the Storm-and-Lightning Title Transition."""
 import json
 import os

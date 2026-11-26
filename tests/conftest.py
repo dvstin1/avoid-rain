@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Pytest configuration and shared fixtures.
 Isolates unit/integration test NetworkManager ports from the live game's LAN_PORT (55555)

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for responsive melee combat audio (sword_swing.ogg & sword_hit.ogg)."""
 import os
 from unittest.mock import MagicMock

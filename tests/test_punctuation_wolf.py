@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """Unit tests for Punctuation Wolf enemy AI, Act 2 scaling, assets, rendering, and editor parity."""
 import pygame
 import constants

@@ -1,3 +1,4 @@
+# copyright 2026 Dustin Massop, License: GPLv2
 """
 Unit tests for Batch 7 — Interactive Remappable Controls Config Screen & Persistent Keybindings:
 1. DEFAULT_KEYBINDINGS, format_key_name(), and legacy save hydration in StatisticsTracker.
