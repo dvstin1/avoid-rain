@@ -8,6 +8,7 @@ from __future__ import annotations
 from enum import Enum, auto
 
 from constants import (
+    MENU_TRANSITION_SUBVIEW_DURATION,
     STORM_INTRO_SFX,
     TITLE_LIGHTNING_BOLTS,
     TITLE_TRANSITION_FADE_IN_DURATION,
@@ -47,7 +48,19 @@ class TitleMenu(MenuBase):
             # index 1 = Continue
             self._selected = 1
         self._confirmed = False
-        self.state = TitleMenuState.MAIN
+        self._state = TitleMenuState.MAIN
+
+    @property
+    def state(self) -> TitleMenuState:
+        """Return the active TitleMenu sub-view state."""
+        return self._state
+
+    @state.setter
+    def state(self, new_state: TitleMenuState) -> None:
+        """Switch TitleMenu sub-view and trigger a crisp parchment unroll transition."""
+        if new_state != self._state:
+            self._state = new_state
+            self.reset_transition(MENU_TRANSITION_SUBVIEW_DURATION)
 
     def _build_options(self) -> list[str]:
         """Return title menu options reflecting save presence and Online/Offline mode."""

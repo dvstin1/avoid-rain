@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Optional, Callable
 from enum import Enum, auto
+from constants import MENU_TRANSITION_DURATION, MENU_TRANSITION_SUBVIEW_DURATION
 from .pause import PauseHandler
 from .menu import MenuBase
 from .marginalia_events import MARGINALIA_EVENT_CATALOG
@@ -65,9 +66,21 @@ class PauseMenu(MenuBase):
         self._open = False
         self._quit_requested = False
         self._return_to_sanctuary_requested = False
-        self.state = PauseMenuState.MAIN
+        self._state = PauseMenuState.MAIN
         # Optional callback invoked when the pause menu is opened (e.g., to auto-save)
         self.on_open = on_open
+
+    @property
+    def state(self) -> PauseMenuState:
+        """Return the active PauseMenu sub-view state."""
+        return self._state
+
+    @state.setter
+    def state(self, new_state: PauseMenuState) -> None:
+        """Switch PauseMenu sub-view and restart the parchment unroll transition."""
+        if new_state != self._state:
+            self._state = new_state
+            self.reset_transition(MENU_TRANSITION_SUBVIEW_DURATION)
 
     def _format_forced_event_label(self) -> str:
         """Return display label for the debug Marginalia event override option."""
@@ -150,7 +163,8 @@ class PauseMenu(MenuBase):
         self._open = True
         self._quit_requested = False
         self._return_to_sanctuary_requested = False
-        self.state = PauseMenuState.MAIN
+        self._state = PauseMenuState.MAIN
+        self.reset_transition(MENU_TRANSITION_DURATION)
         # reset selection to default
         self._selected = 0
         self.pause_handler.pause()
@@ -165,7 +179,7 @@ class PauseMenu(MenuBase):
     def close(self) -> None:
         """Close the pause menu and resume the game."""
         self._open = False
-        self.state = PauseMenuState.MAIN
+        self._state = PauseMenuState.MAIN
         self.pause_handler.resume()
 
     def toggle(self) -> None:

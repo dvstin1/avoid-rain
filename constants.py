@@ -1990,3 +1990,58 @@ RUMBLE_PRESETS = {
     "parry": RUMBLE_PRESET_PARRY,
     "boss_summon": RUMBLE_PRESET_BOSS_SUMMON,
 }
+
+# Tactile Menu Transitions (Parchment Unroll / Slide — Section 8)
+MENU_TRANSITION_DURATION = 0.28            # Seconds for full Chronicle parchment unroll
+MENU_TRANSITION_SUBVIEW_DURATION = 0.22    # Faster unroll on sub-view transitions (Controls / Confirm)
+MENU_TRANSITION_SLIDE_OFFSET_PX = 28.0     # Vertical slide settle distance (px) from top
+MENU_TRANSITION_MIN_REVEAL = 0.08          # Minimum reveal fraction at progress=0.0 so scroll lip stays visible
+MENU_TRANSITION_ROLLER_HEIGHT_PX = 10      # Decorative rolled parchment cylinder height during unroll
+MENU_TRANSITION_PARCHMENT_BG = (22, 19, 28, 224)
+MENU_TRANSITION_PARCHMENT_BORDER = (164, 146, 114)
+MENU_TRANSITION_PARCHMENT_RULE = (118, 102, 78, 175)
+MENU_TRANSITION_ROLLER_COLOR = (138, 116, 86)
+MENU_TRANSITION_ROLLER_HIGHLIGHT = (212, 192, 152)
+MENU_TRANSITION_ROLLER_SHADOW = (14, 11, 18)
+
+
+def ease_out_cubic(value: float) -> float:
+    """Evaluate a clamped cubic ease-out curve in [0.0, 1.0]."""
+    t = max(0.0, min(1.0, float(value)))
+    return 1.0 - (1.0 - t) ** 3
+
+
+def compute_menu_transition_state(
+    progress: float,
+    slide_px: float = MENU_TRANSITION_SLIDE_OFFSET_PX,
+) -> dict:
+    """Compute pure, dt-decoupled parchment unroll and vertical-slide metrics from progress in [0.0, 1.0]."""
+    raw = max(0.0, min(1.0, float(progress)))
+    if raw >= 1.0:
+        return {
+            "progress": 1.0,
+            "eased": 1.0,
+            "reveal_ratio": 1.0,
+            "offset_y": 0.0,
+            "alpha": 255,
+            "backdrop_alpha_scale": 1.0,
+            "roller_alpha": 0,
+            "settled": True,
+        }
+
+    eased = ease_out_cubic(raw)
+    reveal_ratio = MENU_TRANSITION_MIN_REVEAL + (1.0 - MENU_TRANSITION_MIN_REVEAL) * eased
+    offset_y = -(1.0 - eased) * float(slide_px)
+    alpha = int(round(255 * _smoothstep(0.0, 0.55, raw)))
+    backdrop_alpha_scale = _smoothstep(0.0, 0.70, raw)
+    roller_alpha = int(round(255 * (1.0 - _smoothstep(0.75, 1.0, raw))))
+    return {
+        "progress": raw,
+        "eased": eased,
+        "reveal_ratio": reveal_ratio,
+        "offset_y": offset_y,
+        "alpha": alpha,
+        "backdrop_alpha_scale": backdrop_alpha_scale,
+        "roller_alpha": roller_alpha,
+        "settled": False,
+    }

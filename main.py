@@ -652,6 +652,7 @@ def main():
                 in_title, running, ratchet_reset = handle_title_events(
                     state, renderer, title_menu, audio_manager=audio, controls_menu=controls_menu
                 )
+                title_menu.update_transition(dt)
                 renderer.draw_title_screen(title_menu, state, controls_menu=controls_menu)
                 audio.update(dt, "title_theme.ogg")
                 if ratchet_reset: state.input_ratchet_latched = False
@@ -698,6 +699,7 @@ def main():
                 if ratchet_reset: state.input_ratchet_latched = False
                 
                 if pause_menu.is_open():
+                    pause_menu.update_transition(dt)
                     audio.update_rain_audio(0.0, paused=True)
                     audio.stop_enemy_move_sounds()
                     renderer.draw_pause_menu(pause_menu, state=state, controls_menu=controls_menu)
@@ -714,6 +716,7 @@ def main():
                         try: state.save_stats(wait=True)
                         except Exception: pass
                         pause_menu.clear_quit(); pause_menu.close(); in_title = True
+                        title_menu.reset_transition()
                         state.deallocate()
                         try:
                             title_menu.set_has_save(StatisticsTracker.has_compatible_save())

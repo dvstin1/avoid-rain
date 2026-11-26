@@ -8542,8 +8542,77 @@ class Renderer:
         self._title_composite_surf = surf
         return surf
 
+    @staticmethod
+    def _resolve_menu_transition_state(menu=None, transition_state=None) -> dict:
+        """Resolve a menu transition metrics dict, defaulting to settled (progress=1.0)."""
+        if isinstance(transition_state, dict):
+            return transition_state
+        if menu is not None and hasattr(menu, "get_transition_state"):
+            try:
+                resolved = menu.get_transition_state()
+                if isinstance(resolved, dict):
+                    return resolved
+            except Exception:
+                pass
+        return constants.compute_menu_transition_state(1.0)
+
+    def _draw_parchment_unroll(
+        self,
+        content_surf: pygame.Surface,
+        dest_topleft: tuple[int, int],
+        t_state: dict,
+        draw_roller: bool = True,
+    ) -> pygame.Rect:
+        """Blit a menu parchment surface with dt-driven vertical unroll, slide, and scroll edge."""
+        x, y = int(dest_topleft[0]), int(dest_topleft[1])
+        w, h = content_surf.get_size()
+        if w <= 0 or h <= 0:
+            return pygame.Rect(x, y, max(0, w), max(0, h))
+
+        if t_state.get("settled", True):
+            self.screen.blit(content_surf, (x, y))
+            return pygame.Rect(x, y, w, h)
+
+        reveal = max(0.01, min(1.0, float(t_state.get("reveal_ratio", 1.0))))
+        vis_h = max(1, min(h, int(round(h * reveal))))
+        draw_y = int(round(y + float(t_state.get("offset_y", 0.0))))
+        alpha = max(0, min(255, int(t_state.get("alpha", 255))))
+
+        slice_surf = content_surf.subsurface(pygame.Rect(0, 0, w, vis_h)).copy()
+        if alpha < 255:
+            slice_surf.fill((255, 255, 255, alpha), special_flags=pygame.BLEND_RGBA_MULT)
+        self.screen.blit(slice_surf, (x, draw_y))
+
+        roller_alpha = max(0, min(255, int(t_state.get("roller_alpha", 0))))
+        if draw_roller and roller_alpha > 0:
+            roller_h = max(4, int(constants.MENU_TRANSITION_ROLLER_HEIGHT_PX))
+            roller_w = w + 12
+            roller_surf = pygame.Surface((roller_w, roller_h), pygame.SRCALPHA)
+            pygame.draw.rect(
+                roller_surf,
+                (*constants.MENU_TRANSITION_ROLLER_SHADOW, int(round(roller_alpha * 0.65))),
+                pygame.Rect(0, 2, roller_w, max(2, roller_h - 2)),
+                border_radius=max(2, roller_h // 2),
+            )
+            pygame.draw.rect(
+                roller_surf,
+                (*constants.MENU_TRANSITION_ROLLER_COLOR, roller_alpha),
+                pygame.Rect(0, 0, roller_w, max(2, roller_h - 2)),
+                border_radius=max(2, roller_h // 2),
+            )
+            pygame.draw.line(
+                roller_surf,
+                (*constants.MENU_TRANSITION_ROLLER_HIGHLIGHT, roller_alpha),
+                (6, 2),
+                (roller_w - 6, 2),
+                1,
+            )
+            self.screen.blit(roller_surf, (x - 6, draw_y + vis_h - roller_h // 2))
+
+        return pygame.Rect(x, draw_y, w, vis_h)
+
     def draw_title_screen(self, menu=0, state=None, controls_menu=None):
-        """Draw title screen with atmospheric rain."""
+        """Draw title screen with atmospheric rain and tactile parchment unroll."""
         self.screen.fill(constants.COLOR_BLACK)
         sw, sh = self.screen.get_width(), self.screen.get_height()
 
@@ -8570,8 +8639,6 @@ class Renderer:
             title = self.large_font.render("AVOID RAIN", True, constants.COLOR_SELECTION)
             self.screen.blit(title, title.get_rect(center=(sw // 2, 220 + bob_y)))
 
-        instr = self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE)
-        self.screen.blit(instr, instr.get_rect(center=(sw//2, 280)))
         opts, sel = ["New Draft", "Quit"], 0
         from engine.title_menu import TitleMenuState
         menu_state = TitleMenuState.MAIN
@@ -8585,15 +8652,46 @@ class Renderer:
         except Exception:
             pass
 
+        t_state = self._resolve_menu_transition_state(menu)
+        main_t_state = t_state if menu_state == TitleMenuState.MAIN else constants.compute_menu_transition_state(1.0)
+
+        # Render Chronicle Title Menu block onto a parchment surface preserving exact settled layout
+        panel_w = min(560, sw - 80)
+        panel_top = 258
+        name_y = 340 + len(opts) * 40 + 16
+        panel_bottom = (name_y + 24) if (state and getattr(menu_state, 'name', '') == 'MAIN') else (
+            340 + max(0, len(opts) - 1) * 40 + 32
+        )
+        panel_h = max(120, panel_bottom - panel_top)
+        panel_x = (sw - panel_w) // 2
+        panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        pygame.draw.rect(
+            panel_surf,
+            constants.MENU_TRANSITION_PARCHMENT_BG,
+            pygame.Rect(0, 0, panel_w, panel_h),
+            border_radius=6,
+        )
+        pygame.draw.rect(
+            panel_surf,
+            constants.MENU_TRANSITION_PARCHMENT_BORDER,
+            pygame.Rect(0, 0, panel_w, panel_h),
+            1,
+            border_radius=6,
+        )
+        pygame.draw.line(panel_surf, constants.MENU_TRANSITION_PARCHMENT_RULE, (24, 42), (panel_w - 24, 42), 1)
+
+        local_cx = panel_w // 2
+        instr = self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE)
+        panel_surf.blit(instr, instr.get_rect(center=(local_cx, 280 - panel_top)))
+
         for idx, opt in enumerate(opts):
             col = constants.COLOR_SELECTION if idx == sel else constants.COLOR_WHITE
             surf = self.font.render(opt, True, col)
-            self.screen.blit(surf, surf.get_rect(center=(sw//2, 340 + idx * 40)))
+            panel_surf.blit(surf, surf.get_rect(center=(local_cx, 340 + idx * 40 - panel_top)))
 
         if state and getattr(menu_state, 'name', '') == 'MAIN':
             net_mgr = getattr(state, "network_manager", None)
             identity = getattr(net_mgr, "identity", "Scholar") if net_mgr else "Scholar"
-            name_y = 340 + len(opts) * 40 + 16
             if getattr(state, "lobby_editing_name", False):
                 name_str = f"Editing Name: {identity}_  [ENTER] Save"
                 name_col = constants.COLOR_SELECTION
@@ -8601,27 +8699,32 @@ class Renderer:
                 name_str = f"Scholar Name: {identity}  [N] Change Name"
                 name_col = (180, 195, 215)
             name_surf = self.small_font.render(name_str, True, name_col)
-            self.screen.blit(name_surf, name_surf.get_rect(center=(sw // 2, name_y)))
+            panel_surf.blit(name_surf, name_surf.get_rect(center=(local_cx, name_y - panel_top)))
+
+        self._draw_parchment_unroll(panel_surf, (panel_x, panel_top), main_t_state)
 
         if menu_state == TitleMenuState.CONFIRM_NEW_GAME:
             overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 200))
+            overlay.fill((0, 0, 0, int(round(200 * t_state["backdrop_alpha_scale"]))))
             self.screen.blit(overlay, (0, 0))
 
             rect = pygame.Rect(0, 0, 600, 150)
             rect.center = self.screen.get_rect().center
-            pygame.draw.rect(self.screen, (30, 30, 30), rect)
-            pygame.draw.rect(self.screen, constants.COLOR_WHITE, rect, 2)
+            confirm_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(confirm_surf, (30, 30, 30), pygame.Rect(0, 0, rect.width, rect.height))
+            pygame.draw.rect(confirm_surf, constants.COLOR_WHITE, pygame.Rect(0, 0, rect.width, rect.height), 2)
             m_surf = self.font.render("Are you sure you want to start a New Game? (Y/N)", True, constants.COLOR_WHITE)
             w_surf = self.font.render("This will permanently remove old progress.", True, constants.COLOR_RED)
-            self.screen.blit(m_surf, m_surf.get_rect(center=self.screen.get_rect().center))
-            self.screen.blit(w_surf, w_surf.get_rect(center=(sw//2, sh//2 + 30)))
+            confirm_surf.blit(m_surf, m_surf.get_rect(center=(rect.width // 2, rect.height // 2)))
+            confirm_surf.blit(w_surf, w_surf.get_rect(center=(rect.width // 2, rect.height // 2 + 30)))
+            self._draw_parchment_unroll(confirm_surf, (rect.x, rect.y), t_state)
         elif getattr(menu_state, 'name', '') == 'CONTROLS':
             self.draw_controls_overlay(
                 True,
                 controls_menu=controls_menu,
                 keybindings=getattr(state, "keybindings", None) if state is not None else None,
                 flip=False,
+                transition_state=t_state,
             )
         # Engine Revision & Outdated Save Indicator on Title Screen
         debug_on = bool(state and getattr(state, "debug_text_enabled", False))
@@ -8734,7 +8837,7 @@ class Renderer:
         pygame.display.flip(); sl(min_t)
 
     def draw_pause_menu(self, menu=0, state=None, controls_menu=None):
-        """Draw pause menu."""
+        """Draw pause menu with tactile parchment unroll transition."""
         opts, sel, state_val = ["Resume", "Controls", "Quit"], 0, None
         try:
             from engine.pause_menu import PauseMenuState
@@ -8747,50 +8850,88 @@ class Renderer:
                 state_val = PauseMenuState.MAIN
         except Exception:
             pass
-        
+
+        t_state = self._resolve_menu_transition_state(menu)
+
         if state_val and getattr(state_val, 'name', '') == 'CONTROLS':
             self.draw_controls_overlay(
                 False,
                 controls_menu=controls_menu,
                 keybindings=getattr(state, "keybindings", None) if state is not None else None,
                 flip=True,
+                transition_state=t_state,
             )
             return
-            
+
         sw, sh = self.screen.get_width(), self.screen.get_height()
         over = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        over.fill((0, 0, 0, 180))
+        over.fill((0, 0, 0, int(round(180 * t_state["backdrop_alpha_scale"]))))
         self.screen.blit(over, (0, 0))
-        
+
+        # Frame pause options on a parchment folio while preserving exact settled y-coordinates
+        panel_w = min(560, sw - 80)
+        panel_top = sh // 2 - 78
+        last_opt_y = sh // 2 + 10 + max(0, len(opts) - 1) * 30
+        panel_h = max(160, (last_opt_y + 28) - panel_top)
+        panel_x = (sw - panel_w) // 2
+        panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        pygame.draw.rect(
+            panel_surf,
+            constants.MENU_TRANSITION_PARCHMENT_BG,
+            pygame.Rect(0, 0, panel_w, panel_h),
+            border_radius=6,
+        )
+        pygame.draw.rect(
+            panel_surf,
+            constants.MENU_TRANSITION_PARCHMENT_BORDER,
+            pygame.Rect(0, 0, panel_w, panel_h),
+            2,
+            border_radius=6,
+        )
+        pygame.draw.line(panel_surf, constants.MENU_TRANSITION_PARCHMENT_RULE, (24, 72), (panel_w - 24, 72), 1)
+
+        local_cx = panel_w // 2
         pause_title = self.font.render("PAUSED", True, constants.COLOR_WHITE)
-        self.screen.blit(pause_title, pause_title.get_rect(center=(sw//2, sh//2 - 50)))
-        
+        panel_surf.blit(pause_title, pause_title.get_rect(center=(local_cx, (sh // 2 - 50) - panel_top)))
+
         instruct = self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE)
-        self.screen.blit(instruct, instruct.get_rect(center=(sw//2, sh//2 - 20)))
-        
+        panel_surf.blit(instruct, instruct.get_rect(center=(local_cx, (sh // 2 - 20) - panel_top)))
+
         for i, opt in enumerate(opts):
             color = constants.COLOR_SELECTION if i == sel else constants.COLOR_WHITE
             surf = self.font.render(opt, True, color)
-            self.screen.blit(surf, surf.get_rect(center=(sw//2, sh//2 + 10 + i * 30)))
-        pygame.display.flip()
+            panel_surf.blit(surf, surf.get_rect(center=(local_cx, (sh // 2 + 10 + i * 30) - panel_top)))
 
-    def draw_controls_overlay(self, is_title=True, controls_menu=None, keybindings=None, flip=True):
+        self._draw_parchment_unroll(panel_surf, (panel_x, panel_top), t_state)
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            pygame.display.flip()
+
+    def draw_controls_overlay(
+        self,
+        is_title=True,
+        controls_menu=None,
+        keybindings=None,
+        flip=True,
+        transition_state=None,
+    ):
         """Draw interactive remappable controls & keybinding configuration overlay."""
         _ = is_title
+        t_state = self._resolve_menu_transition_state(transition_state=transition_state)
         sw, sh = self.screen.get_width(), self.screen.get_height()
         over = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        over.fill((0, 0, 0, max(190, constants.UI_ALPHA)))
+        over.fill((0, 0, 0, int(round(max(190, constants.UI_ALPHA) * t_state["backdrop_alpha_scale"]))))
         self.screen.blit(over, (0, 0))
 
         panel_w = min(860, sw - 60)
         panel_h = min(650, sh - 32)
         panel_x = (sw - panel_w) // 2
         panel_y = (sh - panel_h) // 2
-        panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
-        pygame.draw.rect(self.screen, (16, 16, 24), panel_rect, border_radius=8)
-        pygame.draw.rect(self.screen, (110, 118, 136), panel_rect, 2, border_radius=8)
+        panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        local_panel_rect = pygame.Rect(0, 0, panel_w, panel_h)
+        pygame.draw.rect(panel_surf, (16, 16, 24), local_panel_rect, border_radius=8)
+        pygame.draw.rect(panel_surf, (110, 118, 136), local_panel_rect, 2, border_radius=8)
 
-        cx = sw // 2
+        cx = panel_w // 2
         kb = constants.normalize_keybindings(keybindings)
         action_keys = (
             list(controls_menu.action_keys)
@@ -8808,42 +8949,42 @@ class Renderer:
 
         # 1. Header
         header_surf = self.font.render("CONTROLS & KEYBINDINGS", True, constants.COLOR_SELECTION)
-        self.screen.blit(header_surf, header_surf.get_rect(center=(cx, panel_y + 28)))
+        panel_surf.blit(header_surf, header_surf.get_rect(center=(cx, 28)))
 
         # 2. Input Legend
         kbd_surf = self.small_font.render("[ Keyboard / Mouse ]", True, constants.COLOR_WHITE)
-        self.screen.blit(kbd_surf, kbd_surf.get_rect(center=(cx - 170, panel_y + 62)))
+        panel_surf.blit(kbd_surf, kbd_surf.get_rect(center=(cx - 170, 62)))
 
         joy_count = pygame.joystick.get_count() if pygame.joystick.get_init() else 0
         joy_col = constants.COLOR_MODE_GAMEPAD if joy_count > 0 else constants.COLOR_GREY
         joy_label = f"[ Gamepad: {'ACTIVE' if joy_count > 0 else 'NOT DETECTED'} ]"
         joy_surf = self.small_font.render(joy_label, True, joy_col)
-        self.screen.blit(joy_surf, joy_surf.get_rect(center=(cx + 170, panel_y + 62)))
+        panel_surf.blit(joy_surf, joy_surf.get_rect(center=(cx + 170, 62)))
 
         # 3. Interactive Rows (Remappable Actions + Reset + Back)
         row_h = 34
-        y_off = panel_y + 94
-        action_col_x = panel_x + 44
-        key_col_x = panel_x + int(panel_w * 0.48)
-        gp_col_x = panel_x + int(panel_w * 0.72)
+        y_off = 94
+        action_col_x = 44
+        key_col_x = int(panel_w * 0.48)
+        gp_col_x = int(panel_w * 0.72)
 
         for idx, row_id in enumerate(rows):
             is_selected = idx == sel_idx
             is_capturing = is_selected and listening
-            row_rect = pygame.Rect(panel_x + 22, y_off - 4, panel_w - 44, row_h - 4)
+            row_rect = pygame.Rect(22, y_off - 4, panel_w - 44, row_h - 4)
 
             if is_selected:
                 bar_fill = (58, 48, 22) if is_capturing else (28, 46, 36)
                 bar_border = (255, 220, 90) if is_capturing else constants.COLOR_SELECTION
-                pygame.draw.rect(self.screen, bar_fill, row_rect, border_radius=4)
-                pygame.draw.rect(self.screen, bar_border, row_rect, 2, border_radius=4)
+                pygame.draw.rect(panel_surf, bar_fill, row_rect, border_radius=4)
+                pygame.draw.rect(panel_surf, bar_border, row_rect, 2, border_radius=4)
 
             prefix = "> " if is_selected else "  "
             if row_id in constants.DEFAULT_KEYBINDINGS:
                 label = constants.KEYBINDING_ACTION_LABELS.get(row_id, row_id)
                 label_col = constants.COLOR_SELECTION if is_selected else constants.COLOR_WHITE
                 lbl_surf = self.small_font.render(f"{prefix}{label}", True, label_col)
-                self.screen.blit(lbl_surf, (action_col_x, y_off + 2))
+                panel_surf.blit(lbl_surf, (action_col_x, y_off + 2))
 
                 if is_capturing:
                     key_text = "< PRESS ANY KEY >"
@@ -8852,18 +8993,18 @@ class Renderer:
                     key_text = f"[ {constants.format_key_name(kb[row_id])} ]"
                     key_col = constants.COLOR_CYAN
                 k_surf = self.small_font.render(key_text, True, key_col)
-                self.screen.blit(k_surf, (key_col_x, y_off + 2))
+                panel_surf.blit(k_surf, (key_col_x, y_off + 2))
 
                 gp_text = constants.KEYBINDING_GAMEPAD_LABELS.get(row_id, "")
                 if gp_text:
                     g_surf = self.small_font.render(gp_text, True, constants.COLOR_MODE_GAMEPAD)
-                    self.screen.blit(g_surf, (gp_col_x, y_off + 2))
+                    panel_surf.blit(g_surf, (gp_col_x, y_off + 2))
             else:
                 btn_col = constants.COLOR_SELECTION if is_selected else constants.COLOR_WHITE
                 if row_id == "Reset to Defaults" and not is_selected:
                     btn_col = (230, 190, 110)
                 b_surf = self.small_font.render(f"{prefix}{row_id}", True, btn_col)
-                self.screen.blit(b_surf, b_surf.get_rect(center=(cx, row_rect.centery)))
+                panel_surf.blit(b_surf, b_surf.get_rect(center=(cx, row_rect.centery)))
 
             y_off += row_h
 
@@ -8878,7 +9019,7 @@ class Renderer:
             banner_text = "Arrow Keys always move in addition to your custom movement bindings."
             banner_col = constants.COLOR_GREY
         st_surf = self.small_font.render(banner_text, True, banner_col)
-        self.screen.blit(st_surf, st_surf.get_rect(center=(cx, panel_rect.bottom - 58)))
+        panel_surf.blit(st_surf, st_surf.get_rect(center=(cx, panel_h - 58)))
 
         hint_text = (
             "Press any key (ESC to cancel)..."
@@ -8886,7 +9027,9 @@ class Renderer:
             else "UP/DOWN: Select   ENTER/SPACE: Rebind   ESC: Back"
         )
         back = self.small_font.render(hint_text, True, constants.COLOR_WHITE)
-        self.screen.blit(back, back.get_rect(center=(cx, panel_rect.bottom - 26)))
+        panel_surf.blit(back, back.get_rect(center=(cx, panel_h - 26)))
+
+        self._draw_parchment_unroll(panel_surf, (panel_x, panel_y), t_state)
 
         if flip and pygame.display.get_init() and pygame.display.get_surface() is not None:
             pygame.display.flip()
