@@ -34,11 +34,10 @@ A pressure valve connected to the "Unwritten Page"—the untainted source of the
 - **The Reflection:** The basin acts as a memory matrix, projecting historical logs (statistics) and encountered shapes (Bestiary).
 
 ### 3.3. The Redacting Circle Lifecycle (The Bleed)
-The ink-storm operates on a spatial contraction cycle that repeats twice per run:
-- **Night 1 (The Descent):** Safe zone shrinks in stages toward the first Night Boss.
-- **The Dilution (The Breather):** Defeating the boss turns ink to harmless water for 10 seconds.
-- **Night 2 (The Second Draft):** The cycle restarts toward a second arena.
-- **The Appendix (The Final Author):** Defeating the second boss opens a portal to the final encounter.
+The ink-storm operates on a spatial contraction cycle across the five bound Acts of the **Unbound Chronicle** (Nights 1–5):
+- **Night 1 – Night 5 (The Five Folios):** In each drafted biome, the safe zone shrinks in stages toward that Act's Night Boss Arena, escalating ink saturation across deeper Acts.
+- **The Dilution (The Breather):** Defeating each Night Boss turns ink to harmless water for 10 seconds before warping the Reader into the next Act's folio.
+- **The Appendix (The Final Author):** Defeating the fifth Night Boss opens the threshold to the final encounter in the expanded ritual dais.
 
 ## 4. Systems & Equipment Lore
 
@@ -70,7 +69,7 @@ Interacting with an unlocked Respite forces a structural reset across the active
 ### The Strict Economy of Review
 Edification cannot be accumulated casually or incrementally while standing in a zone of safety. A reader must completely clear their mind and open the manuscript anew to process deeper meaning. Therefore, a Level Up sequence can only be performed immediately following a fresh complete world reset (Resting) within the current interaction. Once a point of edification is gained, the connection to the First Edition becomes unstable, requiring the player to commit to another Rest cycle to unblock further progression. To progress, you must accept the burden of an altered world—re-invoking the very common threats you previously cleared.
 
-> **Future Proposal Cross-Link:** The proposed **Marginalia Event Engine** (`docs/backlog.md`, Section 10) adheres strictly to these laws: events never grant direct Edification outside Respite Rest, weapon-roll rewards follow **The Full-Cradle Rule**, Torn Page rewards/penalties use the single active run pool, and triggered `map_anchor` events stay consumed across Respite Rests for the remainder of the Act.
+> **Cross-Link:** The **Marginalia Event Engine** (`docs/architecture.md` Section 16; `docs/backlog.md` Section 10) adheres strictly to these laws: events never grant direct Edification outside Respite Rest, weapon-roll rewards follow **The Full-Cradle Rule**, Torn Page rewards/penalties use the single active run pool, and triggered `map_anchor` events stay consumed across Respite Rests for the remainder of the Act.
 
 ### Redaction In perpetuity (Miniboss Permanence)
 Minibosses represent corrupted, highly unique critical passages within the world's text. Because they drop powerful anomalous equipment variants and premium page bundles, their defeat represents a permanent, irreversible redaction of that threat from the active run. They cannot be re-summoned or farmed, preventing any artificial duplication of the world's highest-tier rewards.

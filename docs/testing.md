@@ -21,8 +21,9 @@ pygame.init()
 ```
 
 ## 3. Directory Structure
-- `tests/`: Contains all `.py` test files.
+- `tests/`: Contains all `.py` test files (`136` test modules covering `550+` unit and regression tests, including `tests/test_copyright_headers.py` enforcing GPLv2 headers across tracked `*.py` files).
 - `tests/repro_...`: Specialized scripts for reproducing specific reported bugs.
+- **Hermetic Disk Isolation:** Tests that touch `save_data.json`, generated assets, or `.desktop` launchers must use pytest's `tmp_path` fixture rather than writing to the live workspace or system paths.
 
 ## 4. Mocking & Isolation
 - **`unittest.mock`**: Used to intercept calls to `Renderer`, `AudioManager`, or the filesystem.
@@ -32,7 +33,7 @@ pygame.init()
 We enforce strict style guidelines via `pylint`.
 - **Target Score:** 8.0/10.0 or higher.
 - **Line Length:** 120 characters maximum.
-- **Command:** `pylint engine/ rendering/ main.py`
+- **Command:** `pylint --max-line-length=120 engine/ rendering/ main.py`
 
 ## 6. Regression Testing
 Whenever a bug is fixed, a corresponding test case must be added to the suite to prevent it from re-emerging. See `tests/repro_warp_failure.py` for an example of a targeted regression test.

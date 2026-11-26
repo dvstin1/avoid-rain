@@ -30,6 +30,20 @@ The persistent JSON document differentiates between permanent lifetime metrics a
   "online_mode": true,
   "debug_text_enabled": false,
   "screen_shake_enabled": true,
+  "rumble_enabled": true,
+  "keybindings": {
+    "move_up": 119,
+    "move_down": 115,
+    "move_left": 97,
+    "move_right": 100,
+    "attack": 32,
+    "block": 107,
+    "dash": 1073742049,
+    "flask": 49,
+    "swap": 113,
+    "inspect": 9,
+    "respite_rest": 114
+  },
   "last_run_result": "INIT",
   "lifetime_stats": {
     "runs_started": 12,
@@ -80,8 +94,7 @@ The persistent JSON document differentiates between permanent lifetime metrics a
         "paused": false,
         "rain_dps": 2.0
     }
-  },
-  "last_run_result": "DEFEAT"
+  }
 }
 ```
 

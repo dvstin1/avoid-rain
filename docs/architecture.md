@@ -9,8 +9,10 @@ To ensure clean execution and process management, the main entry point follows a
 - **Clean Exit:** Mandated `pygame.quit()` and `sys.exit()` in the `finally` block to prevent orphaned processes on Debian Linux.
 
 ### 1.1 Command-Line Arguments
-The application supports the following flags:
+The application supports the following flags (`main.py:parse_args()`):
 - `--fullscreen`: Launches the game in fullscreen mode. Uses `pygame.SCALED` to automatically maintain the 1280x720 aspect ratio with black letterboxing or pillarboxing as required by the monitor.
+- `--offline`: Enforces a strict socket-free `offline_only` lockout across `NetworkManager`, `GameState`, `WarpPortal`, and `TitleMenu` so zero UDP/TCP sockets are opened (avoiding OS firewall prompts).
+- Linux desktop launchers (windowed and fullscreen `.desktop` entries) can be generated via `install-linux.py`.
 
 ## 2. Decoupled Directory Structure
 - `engine/`: **Pure Logic.** No Pygame imports. Contains state management, physics, combat, and world generation.
@@ -32,11 +34,11 @@ The `GameState` object manages the following data structures:
 "The Bleed" is a spatial contraction mechanic that shrinks a designated safe perimeter down toward a sequence of Night Boss Arenas.
 
 ### 1. Radial Proximity Math
-- **The Center Anchor:** Upon map generation, each Act's single-biome world assigns one 40x40 inner socket as its Night Boss Arena (`boss_coords_list`). Across a full two-act run, Act 1 and Act 2 each generate an independent single-biome world with one Night Boss encounter.
+- **The Center Anchor:** Upon map generation, each Act's single-biome world assigns one 40x40 inner socket as its Night Boss Arena (`boss_coords_list`). Across a full five-act run (`MAX_ACTS = 5`), Acts 1 through 5 each generate an independent single-biome world with one Night Boss encounter.
 - **The Safe Zone Radius:** The engine tracks a float variable: `active_safe_radius`.
 - **The Exposure Condition:** During every update frame, the engine calculates the Euclidean distance between the player's position and the active boss center.
   - **Inside Circle:** If `Distance <= active_safe_radius`, the player is safe.
-  - **Outside Circle (In The Bleed):** If `Distance > active_safe_radius`, the player is exposed to the ink-storm. They receive damage over time (2 HP/sec) unless standing beneath a protective structure tile (`"T"`).
+  - **Outside Circle (In The Bleed):** If `Distance > active_safe_radius`, the player is exposed to the ink-storm. They receive damage over time (`2.0`–`4.0` HP/sec scaling per Act via `ACT_SATURATION_MATRIX`) unless standing beneath a protective structure tile (`"T"`).
 - **Non-Staggering Damage:** Environmental hazard damage bypasses standard combat hit-reactions. Health is decremented directly without altering the player's state or movement velocity.
 
 ### 2. The Contraction Lifecycle (Three-Step Protocol)
@@ -85,8 +87,9 @@ To facilitate long-term progression, the engine implements a "Resting" loop and 
 
 ### 1. The Resting Loop (engine/world.py)
 Interacting with an unlocked `Respite` object triggers the `execute_rest()` sequence:
-- **Character Restoration:** Resets `player.hp` to `player.max_hp`, refills `player.flask_charges`, and triggers `respite_rest.ogg`.
-- **World Re-population:** Standard enemy spawners (Z, A, f, b, s) are re-instantiated.
+- **Interaction & Lifecycle Locks:** `Respite.execute_interaction()` blocks opening whenever any alive enemy is within `RESPITE_HOSTILE_BLOCK_RADIUS` (`320.0` px) or actively aggroed, and locks out entirely once a Night Boss spawns (`GameState.night_boss_spawned` or `bleed_state` in `("BOSS_PHASE", "DILUTION", "APPENDIX")`). Opening the Respite menu defers enemy aggro against the resting local player until the menu closes (`GameState.close_respite_menu()`), and warps or storm rain auto-close the menu.
+- **Character Restoration:** Resets `player.hp` to `player.max_hp`, refills `player.flask_charges`, triggers `respite_rest.ogg`, and emits a localized `RespiteActivationPulse` typographic bloom around the Respite anchor (plus an unobstructed replay on modal close).
+- **World Re-population:** Standard enemy spawners (Z, A, f, b, s, Y, w) are re-instantiated.
 - **Elite Exclusion:** Minibosses are never respawned once their unique ID is flagged as defeated in the global session manifest.
 - **Progression Unlocking:** Sets `player.has_rested_this_session = True`, enabling the edification menu.
 
@@ -95,7 +98,7 @@ Attribute upgrades follow a two-step confirmation process to prevent accidental 
 - **The Mark Phase:** Player selects an upgrade to "Mark" it for the current session.
 - **The Finalize Phase:** Player must navigate to the `[ FINALIZE ]` button to commit the change. 
 - **Math Formula:** `Cost = (current_level + 1) * 50` Torn Pages.
-- **Stat Categories:** **Edification** (Passive Defense), **Prowess** (+5 Attack), and **Fortification** (+10 Max HP).
+- **Stat Categories:** **Edification** (Passive Defense), **Prowess** (`+3 Attack`, `PROWESS_ATTACK_STEP = 3`), and **Fortification** (`+10 Max HP`, `FORTIFICATION_HP_STEP = 10`).
 - **The State Lock:** Each purchase resets `has_rested_this_session = False`. To edify again, the player must commit to a fresh Rest action.
 
 ### 3. Conditional Defensive Parsing (engine/player.py)
@@ -113,18 +116,19 @@ Attribute upgrades follow a two-step confirmation process to prevent accidental 
 
 ## 11. Boss Lifecycle Sequencing & Spawning Laws
 
-### 1. The Dormant Arena Spawning Rule
+### 1. The Dormant Arena Spawning Rule & Proximity Summon Ritual
 The `"night_boss"` entity type is strictly restricted from manifesting during run initialization.
-- **The Awakening Phase:** The boss manifests at its arena center the exact frame the safe circle hits its final `CLAMP` boundary.
+- **The Awakening Phase (Proximity-Triggered Summon Eruption):** When the safe circle hits its final `CLAMP` boundary (or for dormant map-placed `Miniboss` / `FinalAuthor` encounters), the engine arms a grey vellum ground ritual circle (`BossSummonManager`). The rising typographic glyph-squares eruption, `boss_summon.ogg` SFX, gamepad rumble (`boss_summon`), delayed boss music drop, and boss emergence hold until an active runner approaches within `BOSS_SUMMON_ERUPTION_RADIUS` (`140.0` px).
+- **Biome-Specific Night Bosses (`engine/enemy.py`):** Depending on the Act's biome, the Night Boss manifests as `SlugBoss` (`swamp_mire`), `MeadowCensorBoss` (`pastoral_valley`), `RimecrestArbiterBoss` (`frozen_peaks`), or the canonical `NightBoss`, each featuring multi-phase mechanics and bottom-center Boss HUD tracking (`GameState.get_active_boss_hud_info()`).
 - **The Lockdown Rule:** Contraction logic is locked in the closed state while the Night Boss is alive. The radius cannot alter until the boss is defeated.
 
 ### 2. 5-Act Unbound Chronicle Progression & The Final Boss Arena
 - **Pre-Run 5-of-7 Biome Draft (`open_chronicle_biome_dialog`):** Before launching a run via `WarpPortal`, the player (or Host in Seamless LAN Co-op) selects and orders **5 distinct biomes** out of the 7-biome `CHRONICLE_BIOME_ROSTER` (`windy_ridge`, `pastoral_valley`, `swamp_mire`, `frozen_peaks`, `tech_tower`, `vitreous_basin`, `sunlit_aqueducts`) across `Acts 1..5` (`MAX_ACTS = 5`, `run_biomes = {"act1": ..., ..., "act5": ...}`, `act_worlds: dict[int, dict]`).
-- **Act-Keyed Segment Resolution (`resolve_segment_pool`):** `WorldGenerator` resolves `(biome_id, act_number)` via `BIOME_ACT_SEGMENT_POOLS[(biome_id, k)]` walking `k` from `act_number` down to `1`, then `BIOME_SEGMENT_POOLS[biome_id]` across all 7 first-class biomes (with `BIOME_FALLBACK_MAP` retained for unknown aliases).
-- **Act 1 → Act 5 Synchronized Warp & Saturation Matrix (`ACT_SATURATION_MATRIX`):** Defeating each Act's Night Boss triggers the 10-second **Dilution** interlude, followed by a synchronized Ink & Fog warp (`transition_to_act(next_act)`) into the next Act (`Act 1 -> 2 -> 3 -> 4 -> 5`). Acts 1–2 spawn base-tier enemies (`empowered_act = False`, `1.0x` / `1.25x`), while Acts 3–5 escalate into empowered/saturated variants (`empowered_act = True`, `1.6x` / `2.0x` / `2.5x`), increasing storm exposure `rain_dps` (`2.0..4.0`) and Torn Page yield multipliers (`1.0x..2.0x`). Player progression persists across Act transitions while weather, debris, and enemies reset.
-- **Manifestation (Final Boss Arena):** Defeating the Act 5 Night Boss triggers a synchronized warp into the expanded **Final Boss Arena** (`maps/night_boss_arena.json`, 72x72 size, `The Final Author`).
+- **Act-Keyed Segment Resolution (`resolve_segment_pool`):** `WorldGenerator` resolves `(biome_id, act_number)` via `BIOME_ACT_SEGMENT_POOLS[(biome_id, k)]` walking `k` from `act_number` down to `1`, then `BIOME_SEGMENT_POOLS[biome_id]` across all 7 first-class biomes (with `BIOME_FALLBACK_MAP` retained for unknown aliases) and enforces a normalized `ACT_MINIBOSS_BUDGET = 4` minibosses per Act.
+- **Act 1 → Act 5 Synchronized Warp & Saturation Matrix (`ACT_SATURATION_MATRIX`):** Defeating each Act's Night Boss triggers the 10-second **Dilution** interlude, followed by a synchronized Ink & Fog warp (`transition_to_act(next_act)`) into the next Act (`Act 1 -> 2 -> 3 -> 4 -> 5`) with automatic post-Night-Boss full HP restoration (`restore_post_night_boss_hp()`). Acts 1–2 spawn base-tier enemies (`empowered = False`, HP `1.0x`/`1.4x`, Damage `1.0x`/`1.35x`), while Acts 3–5 escalate into empowered/saturated variants (`empowered = True`, HP `2.0x`/`2.8x`/`3.8x`, Damage `1.8x`/`2.35x`/`3.0x`, Speed `1.15x..1.28x`), increasing storm exposure `rain_dps` (`2.0..4.0`) and Torn Page yield multipliers (`1.0x`/`1.25x`/`1.5x`/`1.75x`/`2.0x`). Player progression persists across Act transitions while weather, debris, and enemies reset.
+- **Manifestation (Final Boss Arena):** Defeating the Act 5 Night Boss triggers a synchronized warp (with post-Night-Boss full heal) into the expanded **Final Boss Arena** (`maps/night_boss_arena.json`, 72x72 size, `The Final Author`, `FINAL_AUTHOR_MAX_HP = 1600`).
 - **The Extraction Sequence:** Upon defeating The Final Author, a 10-second "Dilution" interlude begins. Once the timer hits zero, the player is automatically warped back to the Sanctuary hub.
-- **Conclusion:** True victory (`last_run_result = "VICTORY"`) is achieved only upon successful extraction.
+- **Conclusion:** True victory (`last_run_result = "VICTORY"`, or `"STITCH_VICTORY"` when `story_flags["perfect_stitch_completed"]` is `True`) is achieved only upon successful extraction.
 
 ## 12. Hub Persistence Boundaries & State Purification
 
@@ -152,12 +156,6 @@ Individual markers can be restricted to specific actor types (e.g., `["Chronicle
 - **Wait Timers:** Upon reaching a marker, actors roll a randomized wait duration (`2s-6s` default) before proceeding to the next waypoint.
 - **Dormancy:** Entities flagged with `is_stationary: True` ignore all patrol logic and remain "sleeping" until player detection.
 
-### 2. Minimap Rendering Order
-To prevent canvas blackouts, the minimap must adhere to a strict pipeline:
-1. **Clear Surface:** `.fill()` with base background tone.
-2. **Sub-Surface Blit:** Draw tiles and entities using strict integer casting and boundary clamping.
-3. **Primary Blit:** Execute `main_screen.blit(minimap_surface, destination_rect)`.
-
 ## 14. Local Area Network (LAN) Architecture
 The engine supports local Wi-Fi co-op sessions using an Authoritative Host / Mirror Client structure (`engine/network_manager.py`).
 
@@ -167,8 +165,10 @@ The engine supports local Wi-Fi co-op sessions using an Authoritative Host / Mir
   - Background UDP broadcast socket loop announcing JSON `{peer_id, identity}` payloads across the LAN subnet without manual IP input (with plain-text fallback and display-name mapping in `found_hosts[ip]`).
 - **Phase 2: Lobby Registration & Connection Handshake [IMPLEMENTED]**
   - Visual Lobby Menu discovering hosts; length-prefixed TCP socket handshake verifying connection state and stopping background discovery threads upon connection.
-- **Phase 3: Ghost Client State Replication [IMPLEMENTED]**
-  - Renders non-local client players as text-tagged coordinate clones with host/client color differentiation driven by peer metadata (`is_host` / `addr`).
+- **Phase 3: 60 FPS Remote Player Interpolation & Full Rig Rendering [IMPLEMENTED]**
+  - Syncs `facing`, player action `state`, equipped `weapon_key`, `swing_seq`, and `in_sanctuary` in the 20 Hz UDP heartbeat and Host `session_players` payload (backward-compatible when omitted).
+  - Buffers remote snapshots via `RemotePlayerInterpolator` (~65 ms interpolation delay with bounded `NET_DEAD_RECKONING_MAX_EXTRAPOLATION = 0.12` fallback and teleport/scene snapping) to produce smooth 60 FPS remote movement and velocity-driven walk/attack animations.
+  - Filters out peers in a different `in_sanctuary` state (both world rendering and minimap) and renders remote players in the world-actor pass using `Renderer.draw_player_rig()` with their equipped weapon, subtle Cyan (Host) / Magenta (Guest) trim, and nameplate.
 - **Phase 4: Authoritative Simulation Sync & Thread-Safe Framing [IMPLEMENTED]**
   - **4-Byte Big-Endian TCP Framing:** All TCP control messages (`HANDSHAKE`, `MAP_REQUEST` / `MAP_RESPONSE`, `UPDATE_FULL_STATE`, `DAMAGE_EVENT`, `HEAL_EVENT`, `RESPITE_ACTION`) use `_send_framed_json()` and `_recv_framed_json()` (`!I` header + exact payload loop, bounded by `MAX_FRAMED_BYTES`) so multi-hundred-kilobyte map payloads never truncate at single-`recv()` boundaries.
   - **Non-Blocking Outbound Reliable Queue:** Client action commands (`send_damage_event`, `send_heal_event`, `send_respite_event`, `send_full_state`) enqueue onto a bounded thread-safe `_outbound_queue` drained by a background TCP worker thread (`_tcp_outbox_loop`) so the 60 FPS main loop never stalls on socket I/O.
@@ -212,16 +212,24 @@ The `Renderer` consumes these packets to draw **"Ghost Indicators"**—abstract 
 - **Composition Rule:** Postures (squash/stretch) are applied first, followed by the base body color, then overlays and progress bars are layered on top.
 
 ## 16. Marginalia Event Engine (`engine/marginalia_events.py`)
-The Marginalia Event Engine coordinates mid-run dynamic encounters, boons, and pocket sub-arenas across Act 1 and Act 2 (`current_act in (1, 2)`).
+The Marginalia Event Engine coordinates mid-run dynamic encounters, boons, and pocket sub-arenas across all run Acts (`current_act in 1..5`, using Act 1 base variants in Act 1 and escalated Act 2 variants in Acts 2–5).
 
 ### 1. Per-Act Roll & Trigger Gating
-- **Roll Frequency:** Rolls a **20% trigger chance once per Act** (`MARGINALIA_TRIGGER_CHANCE = 0.20`, maximum 1 event in Act 1 and 1 event in Act 2).
+- **Roll Frequency:** Rolls a **20% trigger chance once per Act** (`MARGINALIA_TRIGGER_CHANCE = 0.20`, maximum 1 event per Act).
 - **Storm Contraction Gate:** Events may only roll or activate while `weather_manager.current_step_idx < 2` and `weather_manager.bleed_state not in ("BOSS_PHASE", "DILUTION")`.
 - **Weather Lock (`WeatherManager.paused`):** While an event is `ACTIVE`, `weather_manager.paused` is set to `True`, freezing `grace_timer` and contraction `timer` progression and suppressing rain exposure damage (`player.is_exposed = False`). `paused` is restored to `False` immediately upon event completion, failure, or Sanctuary return.
 
 ### 2. Unified State Schema, Spatial Modes & LAN Sync
 - **Shared Event Contract (`MarginaliaEvent`):** Exposes `event_id`, `act_variant` (`1` or `2`), `trigger_mode` (`"auto_safe_zone"` | `"prop_strike"` | `"pitfall_warp"` | `"hunt_timer"`), `spatial_mode` (`"local"` | `"map_anchor"` | `"global_pursuit"`), `time_remaining`, `progress`, and `status` (`"PENDING"` | `"ACTIVE"` | `"COMPLETED"` | `"FAILED"`).
 - **Sub-Arena Pitfall & Return Stack (`ReturnAnchor` / `ExitLadder`):** Stepping onto a disguised `PitfallTrigger` (`"Suspicious Leaf Pile"`) pushes `ReturnAnchor(map_path, x, y)` onto `GameState.return_anchor_stack` and warps the party into `"ink_well_cellar"`. Clearing the cellar spawns an `ExitLadder` that pops the `ReturnAnchor` and returns the party to the saved overworld coordinates.
-- **Breadcrumb Pursuit (`Enemy.persistent_pursuit`):** Global pursuit hunters (`"relentless_censor"`) track `GameState.player_breadcrumbs` with a brief wall-phase fallback if stalled against geometry.
+- **Breadcrumb Pursuit (`Enemy.persistent_pursuit`):** Global pursuit hunters (`"relentless_censor"`) track `GameState.player_breadcrumbs` with A* detours within local range and a brief wall-phase fallback if stalled against geometry.
 - **Respite Anti-Farming & Economy Rules:** Consumed `map_anchor` events remain consumed across `Respite.execute_rest()` for the remainder of that Act. All Torn Page rewards/penalties mutate the single active run pool (clamped `>= 0`, resetting to `0` on Sanctuary return), events never grant direct Edification level-ups outside Respite Rest, and weapon rewards obey the two-slot Full-Cradle Rule.
 - **LAN Co-op Replication:** Host serializes `marginalia_event` and `weather.paused` in 20Hz UDP snapshots to active runner Clients (excluding Waiting Scholars in Sanctuary with `in_sanctuary == True`), and Client `DAMAGE_EVENT` barrel strikes trigger `prop_strike` mimic awakenings on the Host.
+
+## 17. Binder Scripts, Atmospheric VFX & Haptic Feedback
+- **Binder Scripts Compiler (`engine/binder_scripts.py`):** **The Binder** (`'&'` in `maps/sanctuary.json`) weaves persistent Scripts into up to `BINDER_MAX_EQUIPPED_SCRIPTS = 4` slots using persistent `margin_scraps`. `compile_binder_scripts()` resolves syntax conflicts when multiple equipped scripts alter the same stat (stronger magnitude wins `ACTIVE`; weaker fails `CONFLICTED` with `0` effect). Recording the ordered 3-stat conflict sequence (`max_hp -> attack -> damage_mitigation`) sets `story_flags["perfect_stitch_completed"] = True`, unlocking the alternate `"STITCH_VICTORY"` (`"THE INK-BLEED HALTED"`) ending.
+- **Decoupled Atmospheric Micro-Animations (`constants.py`, `engine/particles.py`, `engine/menu.py`):**
+  - **Enhanced Death Sequence (Text Bleaching):** `compute_death_bleach_state()` drives progressive luminance desaturation, subtle camera pull-back into a manuscript margin, rising parchment washout/vignette, and staged `"TEXT BLEACHING..."` typographic fade-in.
+  - **Respite Activation Pulse:** `RespitePulseManager` spawns dt-scaled expanding cyan-ink/parchment rings and drifting glyphs around the Respite anchor on rest (and clears on warp/Sanctuary transitions).
+  - **Tactile Menu Transitions:** `compute_menu_transition_state()` and `MenuBase.update_transition(dt)` drive non-blocking parchment unroll and vertical-slide animations across Title, Pause, Confirm, and Controls views.
+- **Gamepad Rumble Queue (`GameState.trigger_rumble()`, `main.py:dispatch_gamepad_rumble()`):** Priority-ordered rumble impulses (`combat_hit`, `player_damage`, `parry`, `boss_summon` via `RUMBLE_PRESETS` in `constants.py`), gated by persisted `rumble_enabled` and safely dispatched to `Joystick.rumble()` outside `engine/`.
