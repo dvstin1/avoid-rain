@@ -907,17 +907,6 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
   - Added 4 new unit tests verifying cardinal connector alignment, pool generation, on-disk pool completeness, and single-biome world stitching across all 5 active biomes.
   - Verified 100% green test suite across all 246 unit tests in `pytest` and `pylint` rating >= 8.0 (9.74/10).
 
-
-
-
-
-
-
-
-
-
-
-
 ## [ARCHIVED] Two-Act Progression, Chronicle Biome Selection, Dual-World LAN Sync, & Expanded Final Boss Arena - November 2026
 - **Two-Step Chronicle Biome Selection Dialog (`ui/menu.py`, `engine/game_state.py`, `constants.py`):** Implemented host-driven modal matching `draw_respite_menu` styling with Step 1 (Act 1 Biome: `Random` + biomes + `Cancel`) and Step 2 (Act 2 Biome: `Random` + biomes with Step 1's specific pick disabled + `Back to Act 1`), gated by `DEBUG_BIOME_SELECT`.
 - **Upfront Dual-World Generation & LAN Co-op Sync (`engine/world_generator.py`, `engine/game_state.py`):** Added `resolve_run_biomes()` (guaranteeing `Act 2 != Act 1`), `generate_dual_worlds()`, TCP `MAP_RESPONSE` bundling (`act2_world`, `run_biomes`, `current_act`), and UDP `act_warp_target` synchronization.
@@ -941,3 +930,22 @@ Resolved a regression in the Respite world-reset logic to ensure undefeated mini
 - **2x Stat Scaling (`engine/enemy.py`, `engine/world.py`, `engine/maps.py`, `engine/game_state.py`):** Added `Enemy.apply_act_scaling(hp_multiplier, damage_multiplier)` and wired `2.0x` HP and damage scaling for Act 2 enemies, the Act 2 Night Boss, and `The Final Author` in `maps/night_boss_arena.json`, plus UDP `empowered_act` and per-enemy `empowered` sync.
 - **Empowered Visual Variants (`generate_assets.py`, `rendering/renderer.py`):** Generated 6 dark obsidian/crimson/violet procedural enemy sprites (`*_empowered.png`) and cached hue-shifted crimson-violet variants for hand-crafted Slug sprites at load time.
 - **Verification:** Added `tests/test_act2_escalation.py` and verified with the full `pytest` suite.
+
+## [ARCHIVED] Marginalia Events, Seamless LAN, 5-Act 7-Biome Progression, A* Pathfinding & Binder Scripts - November 2026
+- **Core Engine & World Systems (`engine/marginalia_events.py`, `engine/pathfinding.py`, `engine/binder_scripts.py`, `engine/world_generator.py`, `engine/network_manager.py`):**
+  - Implemented the 9-event Marginalia Event Engine (`ReturnAnchor`/`ExitLadder` sub-arenas, weather pause lock, LAN co-op sync) and corner-safe 8-way A* pathfinding with cached solid-prop footprints (`get_solid_obstacle_tiles`) and socket-scoped Stanza patrol routes.
+  - Implemented Seamless LAN Co-op (Title Online/Offline toggle, `peer_id` arbitration, Sanctuary-only spawning, Waiting Scholars HUD + Pause `"Return to Sanctuary"`, and deterministic Host promotion on disconnect).
+  - Expanded runs from 2 Acts / 5 biomes to 5-Act Unbound Chronicle progression (`MAX_ACTS = 5`) across 7 biomes (adding `vitreous_basin` and `sunlit_aqueducts`, 56 on-disk segment pools, `resolve_segment_pool()`, and `ACT_MINIBOSS_BUDGET = 4`).
+  - Added **The Binder** Sanctuary artisan NPC (`'&'`), `margin_scraps` persistence, Script syntax-conflict compilation, and the alternate `"STITCH_VICTORY"` (`"THE INK-BLEED HALTED"`) ending.
+- **Combat Balance & Biome Boss Batches (`engine/enemy.py`, `engine/world.py`, `ui/menu.py`, `rendering/renderer.py`):**
+  - Rebalanced Prowess scaling (`PROWESS_ATTACK_STEP = 3`), enemy/boss HP pools (`NIGHT_BOSS_MAX_HP = 950`, `FINAL_AUTHOR_MAX_HP = 1600`), Respite hostile/boss/warp interaction locks, and steeper Act 2–5 `ACT_SATURATION_MATRIX` scaling.
+  - Implemented biome-specific Night Bosses (`SlugBoss`, `MeadowCensorBoss`, `RimecrestArbiterBoss`), 3-frame directional boss animations, interactive remappable `ControlsConfigMenu`, and the `252x148` compact visual HUD revamp.
+
+## [ARCHIVED] Playtest Polish, Player Rig, 60 FPS Remote Interpolation & Atmospheric Micro-Animations - November 2026
+- **Visuals, Boss Presentation & Packaging (`rendering/renderer.py`, `generate_assets.py`, `generate_maps.py`, `install-linux.py`, `main.py`):**
+  - Added Proximity-Triggered Boss Summon Eruption (`BOSS_SUMMON_ERUPTION_RADIUS = 140.0`), Bottom-Center Boss Name & Health Bar HUD (`draw_boss_hud()`), Post-Night-Boss Warp Full Heal, warm `vitreous_basin` overhaul with `80x80` Fire Chalices (`'V'`), multi-directional `80px` Benches (`south`/`north`/`east`/`west`), and softened floor-zone transition seams (`FLOOR_SEAM_*`).
+  - Implemented the 8-direction steep-overhead player paper-doll rig (`draw_player_rig()`) with visible rotated equipped weapons and reused it for 60 FPS snapshot-interpolated remote LAN players (`RemotePlayerInterpolator` + dead-reckoning clamp + `in_sanctuary` filtering).
+  - Added `--offline` CLI lockout, `install-linux.py` desktop entry generator, and repository-wide GPLv2 copyright header enforcement (`tests/test_copyright_headers.py`).
+- **Atmospheric Polish & Accessibility (`constants.py`, `engine/particles.py`, `engine/menu.py`, `engine/pause_menu.py`, `engine/game_state.py`):**
+  - Implemented Enhanced Death Sequence (`compute_death_bleach_state()`), Respite Activation Pulse (`RespitePulseManager`), Gamepad Rumble queue + Pause Menu `rumble_enabled` toggle (`dispatch_gamepad_rumble()`), and Tactile Menu Transitions (`compute_menu_transition_state()` parchment unroll across Title, Pause, and Controls views).
+  - Verified 100% green suite (**551 passed** across 136 test modules) and `pylint --max-line-length=120` compliance >= 8.0.

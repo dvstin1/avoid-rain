@@ -8,8 +8,10 @@ To maintain a decoupled design, input is translated from raw hardware events int
 - **Discrete Actions (Space, Shift, R, 1-3):** Hybrid event/polling handles instant triggers (Attack, Dash) and menu selections.
 - **State Lock:** The engine suppresses new actions while the player is in an uninterruptible state (e.g., `ATTACKING`).
 
-### 1.1. Key & Button Mapping
-| Input | Keyboard | Gamepad | Action |
+### 1.1. Key & Button Mapping (Remappable Keyboard Controls)
+All 11 keyboard bindings (`DEFAULT_KEYBINDINGS` in `constants.py`) can be remapped interactively via the **Controls** sub-menu (`ControlsConfigMenu` in `ui/menu.py`, accessible from both Title and Pause menus) and are persisted in `save_data.json`. Arrow keys always remain active for movement alongside custom directional bindings.
+
+| Input | Default Keyboard | Gamepad | Action |
 | :--- | :--- | :--- | :--- |
 | **Move** | WASD / Arrows | L-Stick / D-Pad | Movement / Navigation |
 | **Action** | SPACE | Cross / A | Attack / Interact / Pick up |
@@ -18,6 +20,7 @@ To maintain a decoupled design, input is translated from raw hardware events int
 | **Swap** | Q | L1 / LB | Toggle Weapon / Contextual Pickup |
 | **Inspect** | TAB (Hold) | R1 / RB (Hold) | Reveal Weapon Details |
 | **Block** | K | R2 / RT | Raise Shield |
+| **Respite Rest** | R | Circle / B (in Respite) | Rest at Respite Anchor |
 | **Pause** | ESCAPE | Start / Options | Toggle Menu |
 
 ## 2. Viewport Management (Camera)
@@ -29,15 +32,15 @@ The `Camera` is a stateful, frame-rate independent controller centered on the pl
 ## 3. User Interface Systems
 
 ### 3.1. Title Menu
-The title screen adaptively presents options based on the physical presence of `save_data.json`.
-- **Dynamic Options:** Displays `[Continue]` only if valid save data is detected.
-- **Overwrite Protection:** Selecting `[New Game]` while a save exists triggers a mandatory Y/N confirmation modal with a 2-second input lock.
+The title screen adaptively presents options based on the physical presence of a compatible `save_data.json` (`engine_revision == ENGINE_REVISION`):
+- **Dynamic Options:** Displays `New Draft`, `Continue` (only if a compatible save is detected, selected by default), `Mode: Online` / `Mode: Offline` (or `Mode: Offline (--offline)` when locked via CLI), `Controls`, and `Quit`, plus `[N] Change Name` to edit `player_name` directly on the title screen.
+- **Overwrite Protection:** Selecting `New Draft` while a compatible save exists triggers a mandatory Y/N confirmation modal.
+- **Tactile Menu Transitions (`compute_menu_transition_state()`):** Title, Confirm, Pause, and Controls panels smoothly unroll vertically like physical parchment with a fading scroll roller edge (`MENU_TRANSITION_DURATION = 0.28s`, sub-views `0.22s`) without blocking immediate keyboard/gamepad navigation.
 - **Storm-and-Lightning Transition (`TitleTransition`):** Starting or continuing a game runs a 3-phase sequence (`FADE_TO_BLACK` → `STORM_VIGNETTE` with `storm_intro.ogg`, falling rain, and procedural lightning bolts → `FADE_OUT_AND_WARP` into the Sanctuary). Pressing `Space`, `Enter`, `Escape`, or a gamepad button skips directly to the Sanctuary.
 
-### 3.2. HUD Status Display (Lower-Left)
-Text items in the HUD use a compact 14pt font line size to prevent viewport crowding:
-- **Metrics:** `HP`, `Flasks`, `Pages`, and `Level`.
-- **Equipment:** Dual weapon slots with tier coloring (White: Common, Purple: Anomalous).
+### 3.2. HUD Status Display (Lower-Left & Bottom-Center)
+- **Compact Visual HUD (`252x148` Lower-Left):** Visual HP bar, Flask vials, Torn Pages counter, Understanding/Edification level, and dual weapon slots with tier coloring (White: Common, Purple: Anomalous), plus a contextual pickup pill when standing near floor drops.
+- **Bottom-Center Boss Name & Health Bar (`Renderer.draw_boss_hud()`):** Displays the active summoned boss's display name (`BOSS_HUD_DISPLAY_NAMES`, `FinalAuthor > NightBoss > Miniboss` priority) in medium `manuscript_serif` font with a dark 8-way outline above a centered bottom HP bar, clearing automatically on defeat.
 - **Interaction Rules:**
     - **Pick up:** Stand near an item and press `SPACE / A` to collect it.
     - **Contextual Swap:** Press `Q / L1` while over a weapon to immediately swap it into your current slot.
@@ -45,10 +48,10 @@ Text items in the HUD use a compact 14pt font line size to prevent viewport crow
     - **Full Metadata:** Reveals full name, flavor description (Critique), and explicit stat modifiers (e.g., `Bleed`, `Attack`, `Max HP`).
     - **Side-by-Side Comparison:** Tooltips are arranged horizontally for quick evaluation of floor items against current loadouts.
 
-### 3.3. System Diagnostic Telemetry & Pause Options (Top-Center & Left)
-- **Audio & Map OSD (Center):** When `debug_text_enabled` is active, displays the active background music track (e.g., `[ AUDIO_OSD ] MUSIC: night_boss.ogg`) in Toxic Green, followed directly by the active map filename (`Map: <map_filename>`). Controlled via Pause Menu's `Debug Text: OFF/ON` option.
-- **Screen Shake Toggle (Pause Menu):** `Screen Shake: ON/OFF` controls `screen_shake_enabled` (default `ON`), gating combat/parry camera shake impulses and persisted in `save_data.json`.
-- **SFX Trigger Log (Top-Left):** Real-time list of triggered sound effects (e.g., `SFX: attack_hit.ogg`) that fade out over 2 seconds.
+### 3.3. System Diagnostic Telemetry & Pause Options (Top-Center & Pause Menu)
+- **Pause Menu Options (`engine/pause_menu.py`):** Exposes `Resume`, conditional `Return to Sanctuary` (shown when `waiting_scholars > 0` in LAN Co-op), `Controls` (remappable keybindings sub-menu), `Debug Text: OFF/ON`, debug-only `Debug Event: ...` & `Reset Margin Scraps`, `Screen Shake: ON/OFF` (`screen_shake_enabled`, default `ON`), `Gamepad Rumble: ON/OFF` (`rumble_enabled`, default `ON`), and `Quit`. All toggles persist in `save_data.json`.
+- **Audio & Map OSD (Center):** When `debug_text_enabled` is active, displays the active background music track (e.g., `[ AUDIO_OSD ] MUSIC: night_boss.ogg`) in Toxic Green, followed by the active map filename (`Map: <map_filename>`), Biome/Act status, and active Marginalia event state.
+- **SFX Trigger Log (Top-Left):** Real-time list of triggered sound effects (e.g., `SFX: sword_hit.ogg`) that fade out over 2 seconds (gated behind `debug_text_enabled`).
 - **Save Status (Top-Right):** Contextual indicator (`[Saved]`) following autosave operations.
 
 ## 4. Large-Scale Minimap HUD (Top-Left)
@@ -87,11 +90,11 @@ The overlay renders with an asynchronous alpha opacity timeline:
 ## 6. Specialized Leveling Interfaces (Respite Menu)
 
 ### 1. The Mark & Finalize Workflow
-To prevent accidental progression errors, the Respite menu implements a staged upgrade system:
-1. **Focus:** Navigate vertically between Rest, Upgrades, Finalize, and Close.
-2. **Mark:** Pressing `Confirm` (or keys `1-3`) on an upgrade stages it with a `[ MARKED ]` indicator.
-3. **Finalize:** The player must manually navigate to the `[ FINALIZE UPGRADE ]` button to execute the transaction.
-- **Visual Lockout:** If `player.pages < cost`, the option text color shifts to a muted dark charcoal grey, and a red `[ Insufficient Pages ]` warning is rendered inline.
+To prevent accidental progression errors, the Respite menu (`draw_respite_menu`, `620x290` centered modal) defaults its cursor to `[ CLOSE MENU ]` with press-and-release input ratcheting and implements a staged upgrade system:
+1. **Focus:** Navigate vertically between Rest (`[R]`), Upgrades, Finalize, and Close. Resting triggers the `RespiteActivationPulse` localized typographic bloom (immediately and replayed unobstructed upon closing the modal).
+2. **Mark:** Pressing `Confirm` (or keys `1-3`) on an upgrade stages it with a `[ +N ]` indicator.
+3. **Finalize:** The player must manually navigate to the `[ FINALIZE UPGRADES ]` button to execute the transaction.
+- **Visual Lockout:** If `player.pages < cost`, the option text color shifts to a muted dark charcoal grey, and a red `[Insufficient]` warning is rendered inline.
 - **Immediate Feedback:** The interface regenerates its font surfaces every frame to ensure upgrades and costs update visually the instant a button is pressed.
 
 ## 7. Map Editor Interface (Native Pygame Tool)
@@ -129,23 +132,21 @@ The engine registers explicit button vectors based on the hardware initializatio
   - Left Stick / D-Pad: Map to corresponding Axis vectors
   - Face Buttons (Right Quadrant): Map to matching unified action strings based on device index lookup arrays.
 
-### 2. Input Mode Toggling Rules (Automatic Switching)
+### 3. Input Mode Toggling Rules (Automatic Switching)
 To provide a seamless experience, the engine monitors all input hardware concurrently:
 - **Rule - Switch to Gamepad:** If the engine receives a `JOYBUTTONDOWN` or a significant `JOYAXISMOTION` event, the global `input_mode` is instantly set to `"GAMEPAD"`.
 - **Rule - Switch to Keyboard:** If the engine receives a `KEYDOWN` or `MOUSEBUTTONDOWN` event, the global `input_mode` is instantly set to `"KEYBOARD"`.
 - **The State Hysteresis:** The HUD indicator and menu navigation logic respond immediately to these state changes, updating visual prompts (e.g., swapping `[SPACE]` for `(X)`) without requiring a manual setting change.
 
-### 3. Input Mode HUD Indicator
-- The UI layer renders a permanent tracking string on the active gameplay HUD matrix.
-- **Display Configurations:**
+### 4. Input Mode HUD Indicator (Debug-Gated)
+- When `debug_text_enabled` is `True`, the UI layer renders a live input-mode tracking string on the active gameplay HUD:
   - Mode Keyboard: Displays `[ Input: Keyboard ]` in standard ivory white.
   - Mode Gamepad: Displays `[ Input: Gamepad ]` in stark gold/amber.
-- **The Menu Snapping Rule:** While `input_mode == "GAMEPAD"`, all active menu surfaces (Respite, Chronicle Biome Selection, Options) utilize directional index trapping. Moving the analog stick shifts focus loops between menu items, completely bypassing mouse cursor coordinate collision requirements.
+- **The Menu Snapping Rule:** While `input_mode == "GAMEPAD"`, all active menu surfaces (Respite, Chronicle Biome Selection, Binder, Options) utilize directional index trapping. Moving the analog stick shifts focus loops between menu items, completely bypassing mouse cursor coordinate collision requirements.
 
-### 4. Host-Driven Chronicle Biome Selection Dialog
-Interacting with the Sanctuary Chronicle opens a two-step modal (`draw_chronicle_biome_menu`, styled identically to `draw_respite_menu`) before warping:
-- **Step 1 (Act 1 Biome):** `Random` (default) + all active biomes (gated by `DEBUG_BIOME_SELECT`) + `Cancel`.
-- **Step 2 (Act 2 Biome):** `Random` (default) + all active biomes (with Step 1's specific choice greyed out/disabled) + `Back to Act 1`.
+### 5. Host-Driven 5-of-7 Unbound Chronicle Biome Selection Dialog
+Interacting with the Sanctuary Chronicle (`WarpPortal`) opens a 5-step modal (`draw_chronicle_biome_menu` in `ui/menu.py`) before warping:
+- **Acts 1–5 Folio Draft (`MAX_ACTS = 5`):** For each Act step `1..5`, the player (or Host in LAN Co-op) selects `Random` or one of the 7 biomes in `CHRONICLE_BIOME_ROSTER` (`windy_ridge`, `pastoral_valley`, `swamp_mire`, `frozen_peaks`, `tech_tower`, `vitreous_basin`, `sunlit_aqueducts`), with already-drafted biomes greyed out to guarantee 5 distinct biomes per run, plus `Back` / `Cancel`. Each step previews the Act's escalation tier from `ACT_SATURATION_MATRIX`.
 
 ## 9. Map Editor Access & Core Controls
 The project includes a native Pygame-based map editor for designing modular sub-maps and macro layouts.
