@@ -168,6 +168,8 @@ class Enemy(Actor):
             state.trigger_shake(SCREEN_SHAKE_DURATION)
         elif getattr(state, "screen_shake_enabled", True):
             state.shake_timer = SCREEN_SHAKE_DURATION  # Intense feedback
+        if hasattr(state, "trigger_rumble"):
+            state.trigger_rumble("parry")
         
         # Signal Feedback
         if hasattr(state, 'audio_manager') and state.audio_manager:

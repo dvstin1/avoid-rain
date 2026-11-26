@@ -35,6 +35,8 @@ class PauseMenu(MenuBase):
         on_toggle_debug: Optional[Callable[[bool], None]] = None,
         screen_shake_enabled: bool = True,
         on_toggle_screen_shake: Optional[Callable[[bool], None]] = None,
+        rumble_enabled: bool = True,
+        on_toggle_rumble: Optional[Callable[[bool], None]] = None,
         waiting_scholars: int = 0,
         return_to_sanctuary_visible: bool = False,
         on_return_to_sanctuary: Optional[Callable[[], None]] = None,
@@ -46,6 +48,8 @@ class PauseMenu(MenuBase):
         self.on_toggle_debug = on_toggle_debug
         self.screen_shake_enabled = bool(screen_shake_enabled)
         self.on_toggle_screen_shake = on_toggle_screen_shake
+        self.rumble_enabled = bool(rumble_enabled)
+        self.on_toggle_rumble = on_toggle_rumble
         self.waiting_scholars = max(0, int(waiting_scholars))
         self.return_to_sanctuary_visible = bool(return_to_sanctuary_visible or self.waiting_scholars > 0)
         self.on_return_to_sanctuary = on_return_to_sanctuary
@@ -76,6 +80,7 @@ class PauseMenu(MenuBase):
         """Return pause menu options reflecting current toggle and Waiting Scholars states."""
         dbg_label = f"Debug Text: {'ON' if self.debug_text_enabled else 'OFF'}"
         shake_label = f"Screen Shake: {'ON' if self.screen_shake_enabled else 'OFF'}"
+        rumble_label = f"Gamepad Rumble: {'ON' if self.rumble_enabled else 'OFF'}"
         options = ["Resume"]
         if self.return_to_sanctuary_visible:
             options.append("Return to Sanctuary")
@@ -83,7 +88,7 @@ class PauseMenu(MenuBase):
         if self.debug_text_enabled:
             options.append(self._format_forced_event_label())
             options.append("Reset Margin Scraps")
-        options.extend([shake_label, "Quit"])
+        options.extend([shake_label, rumble_label, "Quit"])
         return options
 
     def set_debug_text_enabled(self, enabled: bool) -> None:
@@ -115,6 +120,11 @@ class PauseMenu(MenuBase):
     def set_screen_shake_enabled(self, enabled: bool) -> None:
         """Synchronize the pause menu's screen shake state and option label."""
         self.screen_shake_enabled = bool(enabled)
+        self._options = self._build_options()
+
+    def set_rumble_enabled(self, enabled: bool) -> None:
+        """Synchronize the pause menu's gamepad rumble state and option label."""
+        self.rumble_enabled = bool(enabled)
         self._options = self._build_options()
 
     def set_waiting_scholars(self, count: int) -> None:
@@ -230,3 +240,6 @@ class PauseMenu(MenuBase):
         elif selected.startswith("Screen Shake:"):
             self.set_screen_shake_enabled(not self.screen_shake_enabled)
             self._invoke_callback(self.on_toggle_screen_shake, self.screen_shake_enabled)
+        elif selected.startswith("Gamepad Rumble:"):
+            self.set_rumble_enabled(not self.rumble_enabled)
+            self._invoke_callback(self.on_toggle_rumble, self.rumble_enabled)

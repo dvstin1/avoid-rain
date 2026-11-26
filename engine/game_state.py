@@ -349,6 +349,10 @@ class GameState:
         self.screen_shake_enabled = (
             bool(self.stats.data.get("screen_shake_enabled", True)) if self.stats else True
         )
+        self.rumble_enabled = (
+            bool(self.stats.data.get("rumble_enabled", True)) if self.stats else True
+        )
+        self.pending_rumble_impulses: list[dict] = []
         from constants import normalize_keybindings
         self.keybindings = normalize_keybindings(
             self.stats.data.get("keybindings") if self.stats else None
@@ -1822,6 +1826,7 @@ class GameState:
         if boss is not None:
             boss.dormant_boss_summon = False
         self._play_boss_summon_sfx(audio_manager=audio_manager)
+        self.trigger_rumble("boss_summon")
         return True
 
     def start_boss_summon(self, boss, audio_manager=None, awaiting_proximity=False):
@@ -1845,6 +1850,7 @@ class GameState:
 
         if not awaiting_proximity:
             self._play_boss_summon_sfx(audio_manager=audio_manager)
+            self.trigger_rumble("boss_summon")
         return ritual
 
     def _update_boss_summons(self, dt, audio_manager=None):
@@ -2213,6 +2219,7 @@ class GameState:
                             self.network_manager.send_damage_event("enemy", net_id, damage)
                         self.hit_stop_timer = HIT_STOP_DURATION
                         self.trigger_shake(SCREEN_SHAKE_DURATION)
+                        self.trigger_rumble("combat_hit")
                         self.damage_numbers.append({
                             'val': damage, 'pos': (enemy.x + 10, enemy.y - 20),
                             'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_SELECTION
@@ -3683,6 +3690,7 @@ class GameState:
             from constants import normalize_keybindings
             self.stats.data["debug_text_enabled"] = False
             self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
+            self.rumble_enabled = bool(self.stats.data.get("rumble_enabled", True))
             self.keybindings = normalize_keybindings(self.stats.data.get("keybindings"))
             self.stats.data["keybindings"] = dict(self.keybindings)
             if getattr(self, "offline_only", False):
@@ -3818,6 +3826,8 @@ class GameState:
             self.stats.data["debug_text_enabled"] = False
             self.stats.data.setdefault("screen_shake_enabled", bool(getattr(self, "screen_shake_enabled", True)))
             self.screen_shake_enabled = bool(self.stats.data.get("screen_shake_enabled", True))
+            self.stats.data.setdefault("rumble_enabled", bool(getattr(self, "rumble_enabled", True)))
+            self.rumble_enabled = bool(self.stats.data.get("rumble_enabled", True))
             self.keybindings = normalize_keybindings(
                 self.stats.data.get("keybindings", getattr(self, "keybindings", None))
             )
@@ -3878,6 +3888,8 @@ class GameState:
             self.glyph_particles.clear()
         if hasattr(self, 'respite_pulses') and self.respite_pulses is not None:
             self.respite_pulses.clear()
+        if hasattr(self, "pending_rumble_impulses"):
+            self.pending_rumble_impulses.clear()
         self.active_dialogue = None
         self.active_choice = None
         self.active_respite = None
@@ -3935,6 +3947,73 @@ class GameState:
             self.shake_timer = 0.0
         if self.stats is not None:
             self.stats.data["screen_shake_enabled"] = self.screen_shake_enabled
+            if save:
+                self.save_stats(wait=True)
+
+    def trigger_rumble(
+        self,
+        preset: Optional[str] = None,
+        *,
+        low_frequency: Optional[float] = None,
+        high_frequency: Optional[float] = None,
+        duration_ms: Optional[int] = None,
+        priority: Optional[int] = None,
+    ) -> bool:
+        """Queue a decoupled gamepad rumble impulse when rumble_enabled is True."""
+        if not getattr(self, "rumble_enabled", True):
+            return False
+        from constants import RUMBLE_PRESETS
+
+        if preset is not None and preset in RUMBLE_PRESETS:
+            p_low, p_high, p_dur, p_prio = RUMBLE_PRESETS[preset]
+        else:
+            p_low, p_high, p_dur, p_prio = 0.0, 0.0, 0, 0
+
+        low_f = max(0.0, min(1.0, float(p_low if low_frequency is None else low_frequency)))
+        high_f = max(0.0, min(1.0, float(p_high if high_frequency is None else high_frequency)))
+        dur_ms = max(0, int(p_dur if duration_ms is None else duration_ms))
+        prio = int(p_prio if priority is None else priority)
+        if dur_ms <= 0 or (low_f <= 0.0 and high_f <= 0.0):
+            return False
+
+        if not hasattr(self, "pending_rumble_impulses") or self.pending_rumble_impulses is None:
+            self.pending_rumble_impulses = []
+        self.pending_rumble_impulses.append(
+            {
+                "preset": preset or "custom",
+                "low_frequency": low_f,
+                "high_frequency": high_f,
+                "duration_ms": dur_ms,
+                "priority": prio,
+            }
+        )
+        return True
+
+    def consume_rumble_impulse(self) -> Optional[dict]:
+        """Drain pending rumble impulses and return the highest-priority impulse (or None)."""
+        queue_ref = getattr(self, "pending_rumble_impulses", None)
+        if not queue_ref:
+            return None
+        items = list(queue_ref)
+        queue_ref.clear()
+        if not getattr(self, "rumble_enabled", True):
+            return None
+        return max(
+            items,
+            key=lambda item: (
+                int(item.get("priority", 0)),
+                max(float(item.get("low_frequency", 0.0)), float(item.get("high_frequency", 0.0))),
+                int(item.get("duration_ms", 0)),
+            ),
+        )
+
+    def set_rumble_enabled(self, enabled: bool, save: bool = True) -> None:
+        """Update the gamepad rumble toggle and persist it in the save file."""
+        self.rumble_enabled = bool(enabled)
+        if not self.rumble_enabled and hasattr(self, "pending_rumble_impulses"):
+            self.pending_rumble_impulses.clear()
+        if self.stats is not None:
+            self.stats.data["rumble_enabled"] = self.rumble_enabled
             if save:
                 self.save_stats(wait=True)
 
@@ -4029,6 +4108,7 @@ class GameState:
             self.stats.data["online_mode"] = bool(getattr(self, "online_mode", True))
         self.stats.data["debug_text_enabled"] = bool(getattr(self, "debug_text_enabled", False))
         self.stats.data["screen_shake_enabled"] = bool(getattr(self, "screen_shake_enabled", True))
+        self.stats.data["rumble_enabled"] = bool(getattr(self, "rumble_enabled", True))
         self.stats.data["keybindings"] = dict(normalize_keybindings(getattr(self, "keybindings", None)))
         
         # --- Persistence: Sanctuary is the hub; runs are completed/redacted here ---

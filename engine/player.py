@@ -532,6 +532,10 @@ class Player:
             from constants import PLAYER_HURT_SFX
             audio_manager.play_sfx(PLAYER_HURT_SFX)
 
+        # Queue gamepad rumble on discrete combat damage hits
+        if not bypass_stagger and amount > 0 and game_state and hasattr(game_state, "trigger_rumble"):
+            game_state.trigger_rumble("player_damage")
+
         # Spawn Glyph Splatter on player damage
         if amount > 0 and game_state and hasattr(game_state, 'glyph_particles'):
             from constants import COLOR_PARCHMENT_WHITE

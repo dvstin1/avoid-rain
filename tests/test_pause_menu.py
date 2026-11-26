@@ -46,10 +46,11 @@ def test_request_quit_flag():
     pm = PauseMenu()
     assert not pm.should_quit()
     pm.open()
-    # Options: ["Resume", "Controls", "Debug Text: OFF", "Screen Shake: ON", "Quit"] -> index 4 is Quit
-    for _ in range(4):
+    # Options: ["Resume", "Controls", "Debug Text: OFF", "Screen Shake: ON", "Gamepad Rumble: ON", "Quit"]
+    for _ in range(5):
         pm.navigate('down')
-    assert pm.get_selected_index() == 4
+    assert pm.get_selected_index() == 5
+    assert pm.get_selected() == "Quit"
     pm.confirm()
     assert pm.should_quit()
     pm.clear_quit()

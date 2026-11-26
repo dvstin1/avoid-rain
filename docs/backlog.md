@@ -12,8 +12,8 @@
 
 ---
 
-## 1. Input & Accessibility
-- **Gamepad Rumble (`Joystick.rumble()`):** Add tactile controller rumble feedback via `pygame.joystick.Joystick.rumble()` on combat hits, parries, and boss summon eruptions (native Xbox/PlayStation controller mapping and auto-switching are already implemented).
+## 1. Input & Accessibility [DONE]
+- **Gamepad Rumble (`Joystick.rumble()`):** [DONE] Implemented decoupled rumble impulse queueing and priority resolution on `GameState` (`trigger_rumble()`, `consume_rumble_impulse()`, `RUMBLE_PRESETS` in `constants.py` for combat hits, player damage, parries, and boss summon eruptions), a persisted `Gamepad Rumble: ON/OFF` (`rumble_enabled`) Pause Menu toggle, and guarded `dispatch_gamepad_rumble()` / `stop_gamepad_rumble()` dispatch in `main.py` (`tests/test_gamepad_rumble.py`).
 - **Remappable Keys:** [DONE] Implemented in-game key remapping via `ControlsConfigMenu` in `ui/menu.py` and `GameState.keybindings` (accessible from Title and Pause menus and persisted in `save_data.json`).
 - **Screen Shake Toggle:** [DONE] Implemented `Screen Shake: ON/OFF` in the Pause Menu (`screen_shake_enabled`), persisted in `save_data.json` and gating combat/parry camera shake impulses.
 

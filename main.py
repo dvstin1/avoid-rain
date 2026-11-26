@@ -86,6 +86,52 @@ def _poll_gamepad_vertical() -> float:
     return float(ay) if abs(ay) > 0.3 else 0.0
 
 
+def _resolve_active_joystick(joystick=None):
+    """Return an explicit or primary initialized pygame Joystick, or None if unavailable."""
+    if joystick is not None:
+        return joystick
+    try:
+        if not pygame.joystick.get_init() or pygame.joystick.get_count() <= 0:
+            return None
+        return pygame.joystick.Joystick(0)
+    except Exception:
+        return None
+
+
+def stop_gamepad_rumble(joystick=None) -> bool:
+    """Safely stop any active rumble motor vibration on the connected gamepad."""
+    joy = _resolve_active_joystick(joystick)
+    if joy is None or not callable(getattr(joy, "stop_rumble", None)):
+        return False
+    try:
+        joy.stop_rumble()
+        return True
+    except Exception:
+        return False
+
+
+def dispatch_gamepad_rumble(state, joystick=None) -> bool:
+    """Drain pending GameState rumble impulses and dispatch safely to Joystick.rumble()."""
+    if state is None or not hasattr(state, "consume_rumble_impulse"):
+        return False
+    impulse = state.consume_rumble_impulse()
+    if not impulse or not getattr(state, "rumble_enabled", True):
+        return False
+    joy = _resolve_active_joystick(joystick)
+    if joy is None or not callable(getattr(joy, "rumble", None)):
+        return False
+    try:
+        return bool(
+            joy.rumble(
+                float(impulse["low_frequency"]),
+                float(impulse["high_frequency"]),
+                int(impulse["duration_ms"]),
+            )
+        )
+    except Exception:
+        return False
+
+
 def handle_title_events(
     state,
     renderer,
@@ -531,6 +577,11 @@ def main():
         on_toggle_debug=lambda val: state.set_debug_text_enabled(val, save=True),
         screen_shake_enabled=getattr(state, "screen_shake_enabled", True),
         on_toggle_screen_shake=lambda val: state.set_screen_shake_enabled(val, save=True),
+        rumble_enabled=getattr(state, "rumble_enabled", True),
+        on_toggle_rumble=lambda val: (
+            state.set_rumble_enabled(val, save=True),
+            stop_gamepad_rumble() if not val else None,
+        ),
         forced_marginalia_event_id=getattr(state, "forced_marginalia_event_id", None),
         on_select_forced_event=state.set_forced_marginalia_event_id,
         on_reset_margin_scraps=lambda: state.reset_margin_scraps(save=True),
@@ -591,6 +642,7 @@ def main():
                                 state.start_seamless_lan(background=True)
                         pause_menu.set_debug_text_enabled(False)
                         pause_menu.set_screen_shake_enabled(getattr(state, "screen_shake_enabled", True))
+                        pause_menu.set_rumble_enabled(getattr(state, "rumble_enabled", True))
                         pause_menu.set_forced_marginalia_event_id(
                             getattr(state, "forced_marginalia_event_id", None)
                         )
@@ -690,6 +742,7 @@ def main():
                         if joy.get_button(5): actions['inspect'] = True
                     
                     state.update(dt, actions, audio_manager=audio)
+                    dispatch_gamepad_rumble(state)
                     audio.update(dt, state.player.active_track_name)
                     renderer.render(state, audio_manager=audio)
 

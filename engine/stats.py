@@ -54,6 +54,7 @@ class StatisticsTracker:
                 "online_mode": True,
                 "debug_text_enabled": False,
                 "screen_shake_enabled": True,
+                "rumble_enabled": True,
                 "keybindings": dict(DEFAULT_KEYBINDINGS),
                 "active_session_in_progress": False,
                 "run_state": None,
@@ -100,6 +101,8 @@ class StatisticsTracker:
                 self.data["debug_text_enabled"] = False
             if "screen_shake_enabled" not in self.data:
                 self.data["screen_shake_enabled"] = True
+            if "rumble_enabled" not in self.data:
+                self.data["rumble_enabled"] = True
             self.data["keybindings"] = normalize_keybindings(self.data.get("keybindings"))
             if "margin_scraps" not in self.data or not isinstance(self.data.get("margin_scraps"), (int, float)):
                 self.data["margin_scraps"] = 0
