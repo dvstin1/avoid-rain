@@ -1880,3 +1880,74 @@ def get_bench_footprint_tiles(x: int, y: int, facing: str = BENCH_DEFAULT_FACING
     if norm in BENCH_VERTICAL_FACINGS:
         return ((x, y), (x, y + 1))
     return ((x, y), (x + 1, y))
+
+
+# Enhanced Death Sequence (Text Bleaching — Section 8)
+DEATH_BLEACH_DURATION = DEATH_SCREEN_DURATION
+DEATH_BLEACH_SATURATION_END = 0.72          # Normalized progress where color desaturation completes
+DEATH_BLEACH_WASH_START = 0.14              # Normalized progress where pale parchment washout begins
+DEATH_BLEACH_WASH_MAX_ALPHA = 185           # Peak parchment washout alpha (0..255)
+DEATH_BLEACH_VIGNETTE_END = 0.55            # Normalized progress where edge ink vignette peaks
+DEATH_BLEACH_VIGNETTE_MAX_ALPHA = 135       # Peak dark-ink vignette border alpha
+DEATH_BLEACH_CAMERA_PULLBACK_MAX = 0.14     # Max camera zoom-out pull-back fraction (1.0 -> 0.86)
+DEATH_BLEACH_TEXT_FADE_START = 0.10         # Progress when 'TEXT BLEACHING...' begins fading in
+DEATH_BLEACH_TEXT_FADE_END = 0.40           # Progress when 'TEXT BLEACHING...' reaches full alpha
+DEATH_BLEACH_SUBTITLE_FADE_START = 0.34     # Progress when subtitle begins fading in
+DEATH_BLEACH_SUBTITLE_FADE_END = 0.62       # Progress when subtitle reaches full alpha
+DEATH_BLEACH_TEXT_Y_DRIFT_PX = 14.0         # Subtle upward typographic settle drift during fade-in
+DEATH_BLEACH_PARCHMENT_COLOR = (232, 224, 206)
+DEATH_BLEACH_MARGIN_COLOR = (26, 22, 24)
+DEATH_BLEACH_FRAME_BORDER_COLOR = (128, 118, 102)
+DEATH_BLEACH_SUBTITLE_COLOR = (58, 50, 46)
+DEATH_BLEACH_TITLE = "TEXT BLEACHING..."
+DEATH_BLEACH_SUBTITLE = "FADING INTO A REJECTED DRAFT"
+
+
+def _smoothstep(edge0: float, edge1: float, value: float) -> float:
+    """Evaluate a clamped Hermite smoothstep interpolation in [0.0, 1.0]."""
+    span = edge1 - edge0
+    if span <= 1e-6:
+        return 1.0 if value >= edge1 else 0.0
+    t = max(0.0, min(1.0, (float(value) - edge0) / span))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def compute_death_bleach_state(death_timer: float, duration: float = DEATH_SCREEN_DURATION) -> dict:
+    """Compute decoupled, dt-driven Text Bleaching animation parameters from remaining death_timer."""
+    rem = float(death_timer or 0.0)
+    dur = float(duration or 0.0)
+    if rem <= 0.0 or dur <= 0.0:
+        return {
+            "active": False,
+            "progress": 0.0,
+            "desaturation": 0.0,
+            "wash_alpha": 0,
+            "vignette_alpha": 0,
+            "pullback_ratio": 0.0,
+            "camera_scale": 1.0,
+            "text_alpha": 0,
+            "subtitle_alpha": 0,
+            "text_offset_y": 0.0,
+        }
+
+    progress = max(0.0, min(1.0, 1.0 - (rem / dur)))
+    desaturation = _smoothstep(0.0, DEATH_BLEACH_SATURATION_END, progress)
+    wash_t = _smoothstep(DEATH_BLEACH_WASH_START, 1.0, progress)
+    vignette_t = _smoothstep(0.0, DEATH_BLEACH_VIGNETTE_END, progress)
+    pullback_ratio = 1.0 - (1.0 - progress) ** 2
+    camera_scale = 1.0 - (pullback_ratio * DEATH_BLEACH_CAMERA_PULLBACK_MAX)
+    text_t = _smoothstep(DEATH_BLEACH_TEXT_FADE_START, DEATH_BLEACH_TEXT_FADE_END, progress)
+    sub_t = _smoothstep(DEATH_BLEACH_SUBTITLE_FADE_START, DEATH_BLEACH_SUBTITLE_FADE_END, progress)
+
+    return {
+        "active": True,
+        "progress": progress,
+        "desaturation": desaturation,
+        "wash_alpha": int(round(wash_t * DEATH_BLEACH_WASH_MAX_ALPHA)),
+        "vignette_alpha": int(round(vignette_t * DEATH_BLEACH_VIGNETTE_MAX_ALPHA)),
+        "pullback_ratio": pullback_ratio,
+        "camera_scale": camera_scale,
+        "text_alpha": int(round(text_t * 255)),
+        "subtitle_alpha": int(round(sub_t * 255)),
+        "text_offset_y": (1.0 - text_t) * DEATH_BLEACH_TEXT_Y_DRIFT_PX,
+    }

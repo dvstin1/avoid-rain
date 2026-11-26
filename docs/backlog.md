@@ -53,7 +53,7 @@
 
 ## 8. Atmospheric Polish & Micro-Animations
 Small, code-driven visual beats to enhance the "Scriptorium Noir" feel.
-- **Enhanced Death Sequence (Text Bleaching):** Replace the static gray overlay with a dynamic saturation drop and camera pull-back as the player "fades into a rejected draft."
+- **Enhanced Death Sequence (Text Bleaching) (`[DONE]` — `constants.py`, `engine/game_state.py`, `rendering/renderer.py`, `tests/test_death_bleaching_sequence.py`):** Replaced the static gray death overlay with a dt-driven Text Bleaching sequence (`compute_death_bleach_state()`, `GameState.get_death_bleach_state()`, `Renderer.draw_death_bleaching_sequence()`) featuring progressive C-accelerated luminance desaturation, subtle camera pull-back framing the shrinking scene inside a dark-ink manuscript margin, rising pale parchment washout and edge vignette, and staged `"TEXT BLEACHING..."` / `"FADING INTO A REJECTED DRAFT"` typographic fade-in.
 - **Tactile Menu Transitions:** Implement unrolling or sliding animations for the Chronicle (Title/Pause) menus to make them feel like physical parchment.
 - **Respite Activation Pulse:** Add a localized typographic bloom effect (drifting letters/glyphs) when resting at a Respite anchor.
 - **Typographic Run-Start:** Animate the world map "inking" itself using letters cascading into the room shapes during the Chronicle transition.

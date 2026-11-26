@@ -3904,14 +3904,7 @@ class Renderer:
         
         if getattr(state, 'active_choice', None): self.draw_choice_of_fates(state.active_choice)
         if getattr(state, 'death_timer', 0) > 0:
-            overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-            overlay.fill((200, 200, 200, 150))
-            self.screen.blit(overlay, (0, 0))
-            bleach_font = getattr(self, "bloom_font", None) or self.font
-            shadow_msg = bleach_font.render("TEXT BLEACHING...", True, constants.COLOR_BLOOM_SHADOW)
-            self.screen.blit(shadow_msg, shadow_msg.get_rect(center=(sw // 2 + 2, sh // 2 + 2)))
-            msg = bleach_font.render("TEXT BLEACHING...", True, constants.COLOR_BLACK)
-            self.screen.blit(msg, msg.get_rect(center=(sw // 2, sh // 2)))
+            self.draw_death_bleaching_sequence(state)
 
         self.draw_weather(state)
         self.draw_bloom_overlay(state)
@@ -3931,6 +3924,105 @@ class Renderer:
 
         if pygame.display.get_init() and pygame.display.get_surface() is not None:
             pygame.display.flip()
+
+    def draw_death_bleaching_sequence(self, state):
+        """Render the progressive Text Bleaching death sequence (desaturation, camera pull-back, typography)."""
+        if hasattr(state, "get_death_bleach_state") and callable(state.get_death_bleach_state):
+            bleach = state.get_death_bleach_state()
+        else:
+            bleach = constants.compute_death_bleach_state(
+                getattr(state, "death_timer", 0.0),
+                constants.DEATH_SCREEN_DURATION,
+            )
+        if not bleach.get("active"):
+            return None
+
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        cam_scale = float(bleach.get("camera_scale", 1.0))
+        desat = float(bleach.get("desaturation", 0.0))
+        wash_alpha = int(bleach.get("wash_alpha", 0))
+        vignette_alpha = int(bleach.get("vignette_alpha", 0))
+        text_alpha = int(bleach.get("text_alpha", 0))
+        subtitle_alpha = int(bleach.get("subtitle_alpha", 0))
+        text_offset_y = float(bleach.get("text_offset_y", 0.0))
+
+        # 1. Subtle camera pull-back + progressive C-accelerated desaturation over the captured scene
+        if isinstance(self.screen, pygame.Surface):
+            scaled_w = max(1, int(round(sw * cam_scale)))
+            scaled_h = max(1, int(round(sh * cam_scale)))
+            if scaled_w < sw or scaled_h < sh:
+                scene_copy = self.screen.copy()
+                if scene_copy.get_bitsize() >= 24:
+                    pulled = pygame.transform.smoothscale(scene_copy, (scaled_w, scaled_h))
+                else:
+                    pulled = pygame.transform.scale(scene_copy, (scaled_w, scaled_h))
+                dest_x = (sw - scaled_w) // 2
+                dest_y = (sh - scaled_h) // 2
+                if desat > 0.01 and hasattr(pygame.transform, "grayscale"):
+                    gray_surf = pygame.transform.grayscale(pulled)
+                    gray_surf.set_alpha(max(0, min(255, int(round(desat * 255)))))
+                    pulled.blit(gray_surf, (0, 0))
+                self.screen.fill(constants.DEATH_BLEACH_MARGIN_COLOR)
+                self.screen.blit(pulled, (dest_x, dest_y))
+                pygame.draw.rect(
+                    self.screen,
+                    constants.DEATH_BLEACH_FRAME_BORDER_COLOR,
+                    (dest_x, dest_y, scaled_w, scaled_h),
+                    1,
+                )
+            elif desat > 0.01 and hasattr(pygame.transform, "grayscale"):
+                gray_surf = pygame.transform.grayscale(self.screen)
+                gray_surf.set_alpha(max(0, min(255, int(round(desat * 255)))))
+                self.screen.blit(gray_surf, (0, 0))
+
+        # 2. Progressive pale parchment washout
+        if wash_alpha > 0:
+            wash = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            pr, pg, pb = constants.DEATH_BLEACH_PARCHMENT_COLOR
+            wash.fill((pr, pg, pb, max(0, min(255, wash_alpha))))
+            self.screen.blit(wash, (0, 0))
+
+        # 3. Subtle dark-ink rejected-draft edge vignette
+        if vignette_alpha > 0:
+            vig = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            band_x = max(16, sw // 12)
+            band_y = max(12, sh // 10)
+            steps = 4
+            for idx in range(steps):
+                frac = (steps - idx) / float(steps)
+                layer_a = max(1, int(round((vignette_alpha * frac) / steps)))
+                thickness_x = max(1, int(round((band_x * (idx + 1)) / steps)))
+                thickness_y = max(1, int(round((band_y * (idx + 1)) / steps)))
+                col = (18, 14, 18, layer_a)
+                pygame.draw.rect(vig, col, (0, 0, sw, thickness_y))
+                pygame.draw.rect(vig, col, (0, sh - thickness_y, sw, thickness_y))
+                pygame.draw.rect(vig, col, (0, thickness_y, thickness_x, max(0, sh - 2 * thickness_y)))
+                pygame.draw.rect(
+                    vig, col, (sw - thickness_x, thickness_y, thickness_x, max(0, sh - 2 * thickness_y))
+                )
+            self.screen.blit(vig, (0, 0))
+
+        # 4. Staged 'TEXT BLEACHING...' typographic fade-in using large bloom_font
+        if text_alpha > 0:
+            bleach_font = getattr(self, "bloom_font", None) or self.font
+            cy = int(round(sh // 2 + text_offset_y))
+            shadow_msg = bleach_font.render(constants.DEATH_BLEACH_TITLE, True, constants.COLOR_BLOOM_SHADOW)
+            shadow_msg.set_alpha(max(0, min(255, int(round(text_alpha * 0.85)))))
+            self.screen.blit(shadow_msg, shadow_msg.get_rect(center=(sw // 2 + 2, cy + 2)))
+            msg = bleach_font.render(constants.DEATH_BLEACH_TITLE, True, constants.COLOR_BLACK)
+            msg.set_alpha(max(0, min(255, text_alpha)))
+            self.screen.blit(msg, msg.get_rect(center=(sw // 2, cy)))
+
+            if subtitle_alpha > 0:
+                sub_font = getattr(self, "small_font", None) or self.font
+                sub_surf = sub_font.render(
+                    constants.DEATH_BLEACH_SUBTITLE, True, constants.DEATH_BLEACH_SUBTITLE_COLOR
+                )
+                sub_surf.set_alpha(max(0, min(255, subtitle_alpha)))
+                sub_y = cy + (msg.get_height() // 2) + 18
+                self.screen.blit(sub_surf, sub_surf.get_rect(center=(sw // 2, sub_y)))
+
+        return bleach
 
     def draw_boss_projectiles(self, state, ox, oy):
         """Render active anti-cheese boss ink-bolt projectiles in world space."""

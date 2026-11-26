@@ -2388,6 +2388,16 @@ class GameState:
             if slash['time'] <= 0:
                 self.slash_effects.remove(slash)
 
+    @property
+    def death_bleach_progress(self) -> float:
+        """Return normalized [0.0, 1.0] progression through the Text Bleaching death sequence."""
+        return float(self.get_death_bleach_state()["progress"])
+
+    def get_death_bleach_state(self) -> dict:
+        """Return decoupled dt-driven Text Bleaching visual parameters for the current death_timer."""
+        from constants import DEATH_SCREEN_DURATION, compute_death_bleach_state
+        return compute_death_bleach_state(getattr(self, "death_timer", 0.0), DEATH_SCREEN_DURATION)
+
     def _update_player_lifecycle(self, dt, actions, attack_pressed, audio_manager):
         if self.hit_stop_timer > 0:
             self.hit_stop_timer -= dt
@@ -2402,7 +2412,7 @@ class GameState:
             print("[GAME] Scholar has been redacted.")
 
         if self.death_timer > 0:
-            self.death_timer -= dt
+            self.death_timer = max(0.0, self.death_timer - dt)
             self._update_audio_track(dt)
             if self.death_timer <= 0: self.respawn_player()
             return
