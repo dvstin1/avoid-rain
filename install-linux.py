@@ -20,6 +20,8 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_CANDIDATES = (
     os.path.join(PROJECT_DIR, "assets", "graphics", "icon.png"),
     os.path.join(PROJECT_DIR, "assets", "graphics", "player.png"),
+    os.path.join(PROJECT_DIR, "assets", "graphics", "chronicle.png"),
+    os.path.join(PROJECT_DIR, "assets", "graphics", "player_hood_s_idle.png"),
 )
 ENTRIES = (
     ("avoid-rain.desktop", "Avoid Rain", ""),
@@ -65,12 +67,12 @@ def build_entry(name, extra_args):
     )
 
 
-def main():
+def main(argv=None):
     """Install or remove the desktop entries."""
     parser = argparse.ArgumentParser(description="Install Avoid Rain desktop entries.")
     parser.add_argument("--dest", default=DEFAULT_DEST, help=f"Target directory (default: {DEFAULT_DEST})")
     parser.add_argument("--uninstall", action="store_true", help="Remove the installed desktop entries.")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     dest = os.path.expanduser(args.dest)
 
     try:
