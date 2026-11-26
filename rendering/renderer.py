@@ -3846,6 +3846,7 @@ class Renderer:
                 self.font.render(str(num['val']), True, num['color']),
                 (num['pos'][0] - ox, num['pos'][1] - oy),
             )
+        self.draw_respite_pulses(state, ox, oy)
 
         # Y-sorted overhead Sanctuary tree canopies whose trunk base sits south of the player
         if deferred_tree_canopies:
@@ -5780,6 +5781,66 @@ class Renderer:
             col = spark.get("color", constants.COLOR_IMPACT_SPARK_CORE)
             pygame.draw.line(self.screen, col, (sx, sy), (tail_x, tail_y), 2)
             pygame.draw.circle(self.screen, constants.COLOR_IMPACT_SPARK_CORE, (sx, sy), 1)
+
+    def draw_respite_pulses(self, state, ox, oy):
+        """Render localized Respite Activation Pulses (expanding parchment/cyan rings + drifting glyphs)."""
+        manager = getattr(state, "respite_pulses", None)
+        pulses = getattr(manager, "pulses", None) if manager is not None else None
+        if not pulses:
+            return 0
+
+        sw = self.screen.get_width()
+        sh = self.screen.get_height()
+        glyph_font = getattr(self, "glyph_font", None) or self.small_font
+        rendered = 0
+        cull_pad = int(constants.RESPITE_PULSE_RING_MAX_RADIUS) + 48
+
+        for pulse in pulses:
+            sx = int(round(pulse.cx - ox))
+            sy = int(round(pulse.cy - oy))
+            if sx < -cull_pad or sx > sw + cull_pad or sy < -cull_pad or sy > sh + cull_pad:
+                continue
+
+            ring_a = int(pulse.ring_alpha)
+            if ring_a > 0:
+                outer_r = max(2, int(round(pulse.ring_radius)))
+                inner_r = max(2, int(round(pulse.inner_ring_radius)))
+                surf_r = outer_r + 4
+                ring_surf = pygame.Surface((surf_r * 2, surf_r * 2), pygame.SRCALPHA)
+                halo_a = int(pulse.halo_alpha)
+                if halo_a > 0:
+                    ir, ig, ib = constants.RESPITE_PULSE_RING_COLOR_INNER
+                    pygame.draw.circle(ring_surf, (ir, ig, ib, halo_a), (surf_r, surf_r), outer_r)
+                or_c, og_c, ob_c = constants.RESPITE_PULSE_RING_COLOR_OUTER
+                pygame.draw.circle(ring_surf, (or_c, og_c, ob_c, ring_a), (surf_r, surf_r), outer_r, 2)
+                ir_c, ig_c, ib_c = constants.RESPITE_PULSE_RING_COLOR_INNER
+                inner_a = max(0, min(255, int(round(ring_a * 0.85))))
+                pygame.draw.circle(ring_surf, (ir_c, ig_c, ib_c, inner_a), (surf_r, surf_r), inner_r, 2)
+                self.screen.blit(ring_surf, (sx - surf_r, sy - surf_r))
+
+            for g_part in pulse.glyphs:
+                g_alpha = int(g_part.alpha)
+                if g_alpha <= 0:
+                    continue
+                gx = int(round(g_part.x - ox))
+                gy = int(round(g_part.y - oy))
+                if not (-24 <= gx <= sw + 24 and -24 <= gy <= sh + 24):
+                    continue
+                try:
+                    shadow_surf = glyph_font.render(g_part.glyph, True, constants.COLOR_BLACK)
+                    shadow_surf.set_alpha(max(0, min(255, int(round(g_alpha * 0.7)))))
+                    g_surf = glyph_font.render(g_part.glyph, True, g_part.color)
+                    if g_alpha < 255:
+                        g_surf.set_alpha(g_alpha)
+                    half_w = g_surf.get_width() // 2
+                    half_h = g_surf.get_height() // 2
+                    self.screen.blit(shadow_surf, (gx - half_w + 1, gy - half_h + 1))
+                    self.screen.blit(g_surf, (gx - half_w, gy - half_h))
+                except Exception:
+                    pass
+            rendered += 1
+
+        return rendered
 
     def draw_glyph_splatter(self, state, ox, oy):
         """Render active manuscript glyph splatter particles scattering from combat impacts."""

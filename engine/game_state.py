@@ -260,8 +260,9 @@ class GameState:
         self.defeated_miniboss_ids = set()
         self.destroyed_prop_ids = set()
         self.respite_upgrades = {1: 0, 2: 0}
-        from engine.particles import GlyphSplatterManager
+        from engine.particles import GlyphSplatterManager, RespitePulseManager
         self.glyph_particles = GlyphSplatterManager()
+        self.respite_pulses = RespitePulseManager()
         from engine.warp_controller import InkWarpController
         self.warp_controller = InkWarpController()
         if self.player:
@@ -1467,13 +1468,10 @@ class GameState:
             from engine.world import Respite
 
             for peer_or_id, action_type, _marked_idx, data in self.pending_remote_respite_actions:
-                anchor = (
-                    next(
-                        (obj for obj in self.world.interactables if isinstance(obj, Respite)),
-                        None,
-                    )
+                respites = (
+                    [obj for obj in self.world.interactables if isinstance(obj, Respite)]
                     if self.world
-                    else None
+                    else []
                 )
                 resolved_key = self._resolve_remote_player_key(peer_or_id)
                 if resolved_key and resolved_key in self.network_manager.remote_players:
@@ -1482,6 +1480,16 @@ class GameState:
                     cached = self._get_cached_client_state(resolved_key, p_identity)
                     data_dict = data if isinstance(data, dict) else {}
                     m_hp = float(data_dict.get("max_hp", cached.get("max_hp", 100.0)))
+                    anchor = None
+                    if respites:
+                        if "x" in p_data and "y" in p_data:
+                            px_r, py_r = float(p_data["x"]), float(p_data["y"])
+                            anchor = min(
+                                respites,
+                                key=lambda obj: (float(obj.x) - px_r) ** 2 + (float(obj.y) - py_r) ** 2,
+                            )
+                        else:
+                            anchor = respites[0]
 
                     if action_type == "REST":
                         p_data["hp"] = m_hp
@@ -2327,6 +2335,8 @@ class GameState:
         self.update_damage_numbers(dt)
         if hasattr(self, 'glyph_particles'):
             self.glyph_particles.update(dt)
+        if hasattr(self, 'respite_pulses') and self.respite_pulses is not None:
+            self.respite_pulses.update(dt)
         for fading in self.fading_entities[:]:
             fading['time'] -= dt
             if fading['time'] <= 0:
@@ -3202,6 +3212,8 @@ class GameState:
             self.loot = []
             self.destroyed_prop_ids.clear()
             self.defeated_miniboss_ids.clear()
+        if hasattr(self, "respite_pulses") and self.respite_pulses is not None:
+            self.respite_pulses.clear()
 
         self.world = World(world_name)
         (
@@ -3450,10 +3462,18 @@ class GameState:
                     cached = self._get_cached_client_state(peer_key, p_identity)
                     p_data["hp"] = float(cached.get("max_hp", 100.0))
 
+    def spawn_respite_pulse(self, x: float, y: float, seed: Optional[int] = None):
+        """Trigger a localized typographic bloom pulse at Respite anchor world coordinates (x, y)."""
+        if hasattr(self, "respite_pulses") and self.respite_pulses is not None:
+            return self.respite_pulses.spawn_pulse(x, y, seed=seed)
+        return None
+
     def start_warp(self, target, callback=None, confirmed=False, full_heal=False):
         """Initiate the three-stage Ink & Fog transit sequence."""
         self.close_respite_menu()
         self.active_boss_summons = []
+        if hasattr(self, "respite_pulses") and self.respite_pulses is not None:
+            self.respite_pulses.clear()
         target_name = getattr(target, 'target_name', target if isinstance(target, str) else None)
         is_client = hasattr(self, 'network_manager') and self.network_manager.network_mode == "CLIENT"
         if not confirmed and not is_client and target_name == "macro_world":
@@ -3512,6 +3532,8 @@ class GameState:
         self.world_debris = []
         self.slime_pools = []
         self.active_boss_summons = []
+        if hasattr(self, "respite_pulses") and self.respite_pulses is not None:
+            self.respite_pulses.clear()
         self.destroyed_prop_ids.clear()
         self.chronicle_dialog = None
         self.binder_dialog = None
@@ -3611,6 +3633,8 @@ class GameState:
         self.enemies = self.loot = self.world_debris = []
         self.slime_pools = []
         self.active_boss_summons = []
+        if hasattr(self, "respite_pulses") and self.respite_pulses is not None:
+            self.respite_pulses.clear()
         self.destroyed_prop_ids = set()
         self.active_dialogue = self.active_choice = self.active_respite = None
 
@@ -3842,6 +3866,8 @@ class GameState:
         self.damage_numbers = []
         if hasattr(self, 'glyph_particles'):
             self.glyph_particles.clear()
+        if hasattr(self, 'respite_pulses') and self.respite_pulses is not None:
+            self.respite_pulses.clear()
         self.active_dialogue = None
         self.active_choice = None
         self.active_respite = None

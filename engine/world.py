@@ -707,10 +707,16 @@ class Respite(GameObject):
         if audio_manager:
             audio_manager.play_sfx("respite_rest.ogg")
 
-        # 1. Character Restoration
+        # 1. Character Restoration & Localized Typographic Activation Pulse
         game_state.player.hp = float(game_state.player.max_hp)
         game_state.player.flask_charges = int(FLASK_MAX_CHARGES)
         game_state.player.has_rested_this_session = True
+        pulse_cx = float(self.x) + float(self.width) * 0.5
+        pulse_cy = float(self.y) + float(self.height) * 0.5
+        if hasattr(game_state, "spawn_respite_pulse"):
+            game_state.spawn_respite_pulse(pulse_cx, pulse_cy)
+        elif getattr(game_state, "respite_pulses", None) is not None:
+            game_state.respite_pulses.spawn_pulse(pulse_cx, pulse_cy)
 
         # Phase 4: Network Notify
         if game_state.network_manager.network_mode == "CLIENT":

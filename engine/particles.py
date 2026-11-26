@@ -4,6 +4,7 @@ Particle system for stylized combat effects: Glyph Splatter.
 When an entity takes damage, typographical glyphs erupt outward and fade.
 """
 # pylint: disable=too-few-public-methods,too-many-arguments,too-many-positional-arguments
+import math
 import random
 from typing import List, Tuple, Optional
 from constants import (
@@ -15,6 +16,25 @@ from constants import (
     GLYPH_GRAVITY_PER_FRAME,
     GLYPH_FRICTION_X,
     COLOR_INK_CHARCOAL,
+    RESPITE_PULSE_DURATION,
+    RESPITE_PULSE_RING_START_RADIUS,
+    RESPITE_PULSE_RING_MAX_RADIUS,
+    RESPITE_PULSE_RING_INNER_SCALE,
+    RESPITE_PULSE_RING_MAX_ALPHA,
+    RESPITE_PULSE_HALO_MAX_ALPHA,
+    RESPITE_PULSE_RING_COLOR_OUTER,
+    RESPITE_PULSE_RING_COLOR_INNER,
+    RESPITE_PULSE_GLYPH_COUNT,
+    RESPITE_PULSE_GLYPH_POOL,
+    RESPITE_PULSE_GLYPH_SPAWN_RADIUS_MIN,
+    RESPITE_PULSE_GLYPH_SPAWN_RADIUS_MAX,
+    RESPITE_PULSE_GLYPH_RISE_SPEED_MIN,
+    RESPITE_PULSE_GLYPH_RISE_SPEED_MAX,
+    RESPITE_PULSE_GLYPH_RADIAL_DRIFT_MAX,
+    RESPITE_PULSE_GLYPH_SWAY_AMP,
+    RESPITE_PULSE_GLYPH_SWAY_FREQ,
+    RESPITE_PULSE_GLYPH_LIFETIME_MIN,
+    RESPITE_PULSE_GLYPH_LIFETIME_MAX,
 )
 
 
@@ -109,6 +129,183 @@ class GlyphSplatterManager:
     def clear(self):
         """Clear all active particles."""
         self.particles.clear()
+
+
+class RespitePulseGlyph:
+    """Single rising, gently drifting manuscript letter/glyph emitted by a Respite Activation Pulse."""
+
+    # pylint: disable=too-many-instance-attributes
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        glyph: str,
+        vx: float,
+        vy: float,
+        lifetime: float,
+        color: Tuple[int, int, int],
+        sway_amp: float = RESPITE_PULSE_GLYPH_SWAY_AMP,
+        sway_freq: float = RESPITE_PULSE_GLYPH_SWAY_FREQ,
+        sway_phase: float = 0.0,
+    ):
+        self.x0 = float(x)
+        self.y0 = float(y)
+        self.x = float(x)
+        self.y = float(y)
+        self.glyph = str(glyph)
+        self.vx = float(vx)
+        self.vy = float(vy)
+        self.lifetime = max(0.05, float(lifetime))
+        self.age = 0.0
+        self.color = color
+        self.sway_amp = float(sway_amp)
+        self.sway_freq = float(sway_freq)
+        self.sway_phase = float(sway_phase)
+
+    def update(self, dt: float) -> bool:
+        """Advance dt-scaled upward drift and gentle horizontal sway. Returns False when expired."""
+        step = max(0.0, float(dt))
+        self.age += step
+        if self.age >= self.lifetime:
+            return False
+        self.x = self.x0 + self.vx * self.age + math.sin(self.age * self.sway_freq + self.sway_phase) * self.sway_amp
+        self.y = self.y0 + self.vy * self.age
+        return True
+
+    @property
+    def alpha(self) -> int:
+        """Quick fade-in over first 15% and smooth fade-out over the final 55% of lifetime."""
+        ratio = max(0.0, min(1.0, self.age / self.lifetime))
+        if ratio < 0.15:
+            return int(round((ratio / 0.15) * 255))
+        if ratio <= 0.45:
+            return 255
+        fade = max(0.0, 1.0 - ((ratio - 0.45) / 0.55))
+        return int(round(fade * fade * 255))
+
+
+class RespiteActivationPulse:
+    """Localized dt-driven typographic bloom (expanding parchment/cyan ring + drifting letters)."""
+
+    def __init__(
+        self,
+        cx: float,
+        cy: float,
+        duration: float = RESPITE_PULSE_DURATION,
+        glyph_count: int = RESPITE_PULSE_GLYPH_COUNT,
+        seed: Optional[int] = None,
+    ):
+        self.cx = float(cx)
+        self.cy = float(cy)
+        self.duration = max(0.1, float(duration))
+        self.elapsed = 0.0
+        self.glyphs: List[RespitePulseGlyph] = []
+
+        rng = random.Random(seed) if seed is not None else random
+        count = max(0, int(glyph_count))
+        for idx in range(count):
+            base_angle = (2.0 * math.pi * idx) / max(1, count)
+            angle = base_angle + rng.uniform(-0.28, 0.28)
+            spawn_r = rng.uniform(RESPITE_PULSE_GLYPH_SPAWN_RADIUS_MIN, RESPITE_PULSE_GLYPH_SPAWN_RADIUS_MAX)
+            gx = self.cx + math.cos(angle) * spawn_r
+            gy = self.cy + math.sin(angle) * spawn_r * 0.72
+            radial_spd = rng.uniform(4.0, RESPITE_PULSE_GLYPH_RADIAL_DRIFT_MAX)
+            vx = math.cos(angle) * radial_spd
+            vy = -rng.uniform(RESPITE_PULSE_GLYPH_RISE_SPEED_MIN, RESPITE_PULSE_GLYPH_RISE_SPEED_MAX)
+            life = rng.uniform(RESPITE_PULSE_GLYPH_LIFETIME_MIN, RESPITE_PULSE_GLYPH_LIFETIME_MAX)
+            col = RESPITE_PULSE_RING_COLOR_INNER if idx % 2 == 0 else RESPITE_PULSE_RING_COLOR_OUTER
+            self.glyphs.append(
+                RespitePulseGlyph(
+                    x=gx,
+                    y=gy,
+                    glyph=rng.choice(RESPITE_PULSE_GLYPH_POOL),
+                    vx=vx,
+                    vy=vy,
+                    lifetime=life,
+                    color=col,
+                    sway_amp=rng.uniform(RESPITE_PULSE_GLYPH_SWAY_AMP * 0.6, RESPITE_PULSE_GLYPH_SWAY_AMP),
+                    sway_freq=RESPITE_PULSE_GLYPH_SWAY_FREQ,
+                    sway_phase=rng.uniform(0.0, 2.0 * math.pi),
+                )
+            )
+
+    @property
+    def progress(self) -> float:
+        """Normalized [0.0, 1.0] progress across the pulse ring expansion."""
+        return max(0.0, min(1.0, self.elapsed / self.duration))
+
+    @property
+    def ring_radius(self) -> float:
+        """Ease-out expanding outer cyan-ink ring radius in pixels."""
+        eased = 1.0 - (1.0 - self.progress) ** 2
+        span = RESPITE_PULSE_RING_MAX_RADIUS - RESPITE_PULSE_RING_START_RADIUS
+        return RESPITE_PULSE_RING_START_RADIUS + span * eased
+
+    @property
+    def inner_ring_radius(self) -> float:
+        """Trailing inner warm parchment echo ring radius in pixels."""
+        eased = 1.0 - (1.0 - self.progress) ** 2
+        span = (RESPITE_PULSE_RING_MAX_RADIUS - RESPITE_PULSE_RING_START_RADIUS) * RESPITE_PULSE_RING_INNER_SCALE
+        return RESPITE_PULSE_RING_START_RADIUS + span * eased
+
+    @property
+    def ring_alpha(self) -> int:
+        """Translucent ring alpha fading smoothly to 0 at pulse completion."""
+        if self.elapsed >= self.duration:
+            return 0
+        rem = max(0.0, 1.0 - self.progress)
+        return int(round((rem ** 1.4) * RESPITE_PULSE_RING_MAX_ALPHA))
+
+    @property
+    def halo_alpha(self) -> int:
+        """Soft parchment fill wash alpha inside the expanding ring."""
+        if self.elapsed >= self.duration:
+            return 0
+        rem = max(0.0, 1.0 - self.progress)
+        return int(round((rem ** 1.6) * RESPITE_PULSE_HALO_MAX_ALPHA))
+
+    def update(self, dt: float) -> bool:
+        """Advance the ring expansion and all drifting letters by dt seconds."""
+        step = max(0.0, float(dt))
+        self.elapsed += step
+        self.glyphs = [g for g in self.glyphs if g.update(step)]
+        return self.elapsed < self.duration or bool(self.glyphs)
+
+
+class RespitePulseManager:
+    """Manages active localized Respite Activation Pulses and automatic cleanup."""
+
+    def __init__(self):
+        self.pulses: List[RespiteActivationPulse] = []
+
+    def spawn_pulse(
+        self,
+        x: float,
+        y: float,
+        glyph_count: Optional[int] = None,
+        seed: Optional[int] = None,
+    ) -> RespiteActivationPulse:
+        """Spawn a new localized typographic bloom pulse centered at (x, y)."""
+        pulse = RespiteActivationPulse(
+            cx=x,
+            cy=y,
+            glyph_count=RESPITE_PULSE_GLYPH_COUNT if glyph_count is None else glyph_count,
+            seed=seed,
+        )
+        self.pulses.append(pulse)
+        return pulse
+
+    def update(self, dt: float) -> None:
+        """Tick all active pulses by dt seconds and drop completed ones."""
+        self.pulses = [p for p in self.pulses if p.update(dt)]
+
+    def clear(self) -> None:
+        """Immediately remove all active Respite pulses (e.g., on warp or map transition)."""
+        self.pulses.clear()
+
+    def is_active(self) -> bool:
+        """Return True while at least one Respite Activation Pulse is active."""
+        return bool(self.pulses)
 
 
 def resolve_boss_summon_palette(boss) -> Tuple[Tuple[int, int, int], ...]:
