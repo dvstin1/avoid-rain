@@ -849,7 +849,7 @@ BIOME_PALETTES = {
         "floor_accent": (88, 178, 96),
         "floor_speck": (235, 204, 148),
         "strata": [
-            ((42, 112, 128), (64, 144, 158)),
+            ((36, 104, 122), (50, 124, 142)),
             ((168, 108, 72), (192, 128, 88)),
             ((92, 164, 84), (118, 192, 108))
         ],
@@ -860,6 +860,23 @@ BIOME_PALETTES = {
         "wall_glow": (132, 224, 124)
     }
 }
+
+# Sunlit Aqueducts Continuous Channel Water & Atmosphere (Section 20)
+AQUEDUCT_WATER_BASE_COLOR = (36, 104, 122)
+AQUEDUCT_WATER_SHIMMER_HI = (108, 194, 208)
+AQUEDUCT_WATER_SHIMMER_LO = (58, 138, 156)
+AQUEDUCT_TROUGH_RIM_PX = 3
+AQUEDUCT_TROUGH_RIM_NORTH = (118, 86, 62)       # Shaded wet-stone/terracotta upper trough lip
+AQUEDUCT_TROUGH_RIM_SOUTH = (152, 114, 82)      # Sunlit carved terracotta lower trough lip
+AQUEDUCT_TROUGH_RIM_SIDE = (134, 98, 70)        # Carved wet terracotta E/W trough lip
+AQUEDUCT_TROUGH_WATERLINE = (24, 78, 96)        # 1px recessed waterline undercut along N/W edge
+AQUEDUCT_RIPPLE_COLOR = (164, 224, 234)         # Soft ambient water ripple ring tint
+AQUEDUCT_RIPPLE_MAX_RADIUS = 13.0
+AQUEDUCT_RIPPLE_MAX_COUNT = 8
+AQUEDUCT_CURRENT_STREAK_COUNT = 10
+AQUEDUCT_SUNLIT_MOTE_COUNT = 14
+AQUEDUCT_MOTE_HALO_COLOR = (255, 226, 148)
+AQUEDUCT_MOTE_CORE_COLOR = (255, 248, 214)
 
 # Flat Walkable Floor-Zone Transition Seam Constants
 # Keeps flat floor-to-floor boundaries softer than wall/cliff edges across all biomes.

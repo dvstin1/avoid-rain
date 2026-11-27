@@ -2234,10 +2234,9 @@ class Renderer:
                     )
         elif biome == "sunlit_aqueducts":
             if s_idx == 0:
-                # Sunken turquoise aqueduct channel with sun-dappled current bands
-                pygame.draw.rect(target_surf, (64, 144, 158), (ax + 8, ay + 16, 64, 48), border_radius=10)
-                pygame.draw.line(target_surf, (132, 224, 236), (ax + 14, ay + 32), (ax + 64, ay + 32), 2)
-                pygame.draw.line(target_surf, (132, 224, 236), (ax + 20, ay + 50), (ax + 58, ay + 50), 1)
+                # Continuous channel water, trough rims, and current streaks are drawn in
+                # _draw_sunlit_aqueducts_water_tile() to avoid repeating 2x2 pill seams.
+                pass
             elif s_idx == 2:
                 # Lush overgrown moss viaduct bridge
                 pygame.draw.ellipse(target_surf, pal["wall_glow"], (ax + 10, ay + 12, 60, 54))
@@ -2966,6 +2965,72 @@ class Renderer:
             return 0
         return (((int(x) * 73856093) ^ (int(y) * 19349663)) & 0x7FFFFFFF) % count
 
+    def _is_sunlit_aqueducts_water_tile(self, state, tx: int, ty: int) -> bool:
+        """Return True if grid cell (tx, ty) is a walkable sunlit_aqueducts Stratum 0 water channel."""
+        world = getattr(state, "world", None)
+        grid = getattr(world, "grid", None) if world is not None else None
+        if not grid or ty < 0 or ty >= len(grid) or tx < 0 or tx >= len(grid[0]):
+            return False
+        if grid[ty][tx] == constants.TILE_WALL:
+            return False
+        if self._resolve_tile_biome(state, tx, ty) != "sunlit_aqueducts":
+            return False
+        return self._get_tile_stratum(state, tx, ty) == 0
+
+    def _draw_sunlit_aqueducts_water_tile(self, target_surf, state, coords, dr) -> None:
+        """Draw seamless sunlit-turquoise channel fill, neighbor-aware 3px trough rims, and staggered 1px shimmers."""
+        if not isinstance(target_surf, pygame.Surface):
+            return
+        x, y, _w, _h = coords
+        sx, sy, ts, _ = dr
+        rim = int(constants.AQUEDUCT_TROUGH_RIM_PX)
+
+        # 1. Continuous deep sunlit-turquoise fill (no repeating 2x2 pill or checkerboard seams)
+        target_surf.fill(constants.AQUEDUCT_WATER_BASE_COLOR, (sx, sy, ts, ts))
+
+        # 2. Neighbor-aware 3px carved wet-stone/terracotta trough rims on N/S/E/W non-water edges
+        w_n = self._is_sunlit_aqueducts_water_tile(state, x, y - 1)
+        w_s = self._is_sunlit_aqueducts_water_tile(state, x, y + 1)
+        w_w = self._is_sunlit_aqueducts_water_tile(state, x - 1, y)
+        w_e = self._is_sunlit_aqueducts_water_tile(state, x + 1, y)
+
+        if not w_n:
+            target_surf.fill(constants.AQUEDUCT_TROUGH_RIM_NORTH, (sx, sy, ts, rim))
+            wl_x0 = sx + (rim if not w_w else 0)
+            wl_w = max(0, ts - (rim if not w_w else 0) - (rim if not w_e else 0))
+            if wl_w > 0:
+                target_surf.fill(constants.AQUEDUCT_TROUGH_WATERLINE, (wl_x0, sy + rim, wl_w, 1))
+        if not w_s:
+            target_surf.fill(constants.AQUEDUCT_TROUGH_RIM_SOUTH, (sx, sy + ts - rim, ts, rim))
+        if not w_w:
+            target_surf.fill(constants.AQUEDUCT_TROUGH_RIM_SIDE, (sx, sy, rim, ts))
+            wl_y0 = sy + (rim if not w_n else 0)
+            wl_h = max(0, ts - (rim if not w_n else 0) - (rim if not w_s else 0))
+            if wl_h > 0:
+                target_surf.fill(constants.AQUEDUCT_TROUGH_WATERLINE, (sx + rim, wl_y0, 1, wl_h))
+        if not w_e:
+            target_surf.fill(constants.AQUEDUCT_TROUGH_RIM_SIDE, (sx + ts - rim, sy, rim, ts))
+
+        # 3. Staggered 1px horizontal current-streak shimmers clipped safely inside trough lips
+        min_x = sx + (rim + 3 if not w_w else 3)
+        max_x = sx + ts - (rim + 3 if not w_e else 3)
+        min_y = sy + (rim + 3 if not w_n else 4)
+        max_y = sy + ts - (rim + 3 if not w_s else 4)
+        if max_x - min_x >= 8 and max_y >= min_y:
+            span_y = max(1, max_y - min_y)
+            y1 = min_y + ((x * 11 + y * 7) % max(1, min(12, span_y)))
+            x1_start = min_x + ((x * 5 + y * 13) % 6)
+            x1_end = min(max_x, x1_start + 14 + ((x * 3 + y * 7) % 8))
+            if x1_end > x1_start + 3:
+                pygame.draw.line(target_surf, constants.AQUEDUCT_WATER_SHIMMER_HI, (x1_start, y1), (x1_end, y1), 1)
+
+            y2 = min(max_y, y1 + 12 + ((x * 7 + y * 5) % 5))
+            if y2 > y1 + 3:
+                x2_start = min_x + ((x * 9 + y * 3 + 4) % 8)
+                x2_end = min(max_x, x2_start + 12 + ((x * 11 + y * 5) % 9))
+                if x2_end > x2_start + 3:
+                    pygame.draw.line(target_surf, constants.AQUEDUCT_WATER_SHIMMER_LO, (x2_start, y2), (x2_end, y2), 1)
+
     def _draw_static_tile_to_surface(self, target_surf, state, coords, dr):
         """Render static tile to surface."""
         x, y, _, _ = coords
@@ -3088,25 +3153,28 @@ class Renderer:
         if b_pack:
             strata_defs = pal.get("strata", [(pal["floor_base"], pal["floor_alt"])] * 3)
             s_base, s_alt = strata_defs[s_idx]
-            strata_list = b_pack.get("strata_floors")
-            tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
-            v_idx = (x * 7 + y * 13) % len(tier_floors)
-            target_surf.blit(tier_floors[v_idx], (sx, sy))
-            if biome == "vitreous_basin":
-                v_key = "VitreousGlassFlat" if s_idx == 0 else "VitreousSaltFloor"
-                v_tile = getattr(self, "prop_cache", {}).get(v_key)
-                if v_tile is not None:
-                    target_surf.blit(v_tile, (sx, sy))
-            elif biome == "sunlit_aqueducts" and s_idx == 1:
-                aq_tile = getattr(self, "prop_cache", {}).get("AqueductTerracottaFloor")
-                if aq_tile is not None:
-                    target_surf.blit(aq_tile, (sx, sy))
+            if biome == "sunlit_aqueducts" and s_idx == 0:
+                self._draw_sunlit_aqueducts_water_tile(target_surf, state, coords, dr)
+            else:
+                strata_list = b_pack.get("strata_floors")
+                tier_floors = strata_list[s_idx] if strata_list else b_pack["floors"]
+                v_idx = (x * 7 + y * 13) % len(tier_floors)
+                target_surf.blit(tier_floors[v_idx], (sx, sy))
+                if biome == "vitreous_basin":
+                    v_key = "VitreousGlassFlat" if s_idx == 0 else "VitreousSaltFloor"
+                    v_tile = getattr(self, "prop_cache", {}).get(v_key)
+                    if v_tile is not None:
+                        target_surf.blit(v_tile, (sx, sy))
+                elif biome == "sunlit_aqueducts" and s_idx == 1:
+                    aq_tile = getattr(self, "prop_cache", {}).get("AqueductTerracottaFloor")
+                    if aq_tile is not None:
+                        target_surf.blit(aq_tile, (sx, sy))
 
-            # 1. Multi-tile connected patterns (2x2 80x80px & 4x4 160x160px) across same-surface tiles
-            self._draw_connected_floor_patterns(target_surf, (biome, pal, s_idx, s_alt), coords, dr)
+                # 1. Multi-tile connected patterns (2x2 80x80px & 4x4 160x160px) across same-surface tiles
+                self._draw_connected_floor_patterns(target_surf, (biome, pal, s_idx, s_alt), coords, dr)
 
-            # 2. Borders, rims, and rounded corners ONLY on outer perimeter edges against different surfaces
-            self._draw_stratum_perimeter_borders(target_surf, state, coords, dr, (biome, pal, s_idx, strata_defs))
+                # 2. Borders, rims, and rounded corners ONLY on outer perimeter edges against different surfaces
+                self._draw_stratum_perimeter_borders(target_surf, state, coords, dr, (biome, pal, s_idx, strata_defs))
 
             # 3. Ambient occlusion drop-shadows from adjacent north/west walls
             if y > 0 and state.world.grid[y - 1][x] == constants.TILE_WALL:
@@ -3869,6 +3937,7 @@ class Renderer:
         self.draw_pastoral_valley_atmosphere(state, ox, oy, now=now)
         self.draw_frozen_peaks_atmosphere(state, ox, oy, now=now)
         self.draw_vitreous_basin_atmosphere(state, ox, oy, now=now)
+        self.draw_sunlit_aqueducts_atmosphere(state, ox, oy, now=now)
         if getattr(getattr(state, "world", None), "name", "") != "sanctuary":
             self._draw_player_water_ripples(state, ox, oy, t_now=now, vis=1.0)
         self.draw_sanctuary_roofs_and_blackout(state, ox, oy)
@@ -7961,6 +8030,109 @@ class Renderer:
                 cache[e_key] = e_surf
             half = e_surf.get_width() // 2
             self.screen.blit(e_surf, (ex - half, ey - half))
+
+    def draw_sunlit_aqueducts_atmosphere(self, state, ox, oy, now=None):
+        """Render ambient water ripples, flowing current glints, and warm sunlit motes on sunlit_aqueducts."""
+        if not isinstance(self.screen, pygame.Surface):
+            return
+        player = getattr(state, "player", None)
+        world = getattr(state, "world", None)
+        grid = getattr(world, "grid", None) if world is not None else None
+        if player is None or world is None or not grid:
+            return
+
+        ts = constants.TILE_SIZE
+        px_c, py_c = player.get_center()
+        if self._resolve_tile_biome(state, int(px_c // ts), int(py_c // ts)) != "sunlit_aqueducts":
+            return
+
+        t_now = time.time() if now is None else float(now)
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        cache = self._fx_surface_cache
+
+        grid_h = len(grid)
+        grid_w = len(grid[0]) if grid_h > 0 else 0
+        tx0 = max(0, int(ox // ts) - 1)
+        tx1 = min(grid_w - 1, int((ox + sw) // ts) + 1)
+        ty0 = max(0, int(oy // ts) - 1)
+        ty1 = min(grid_h - 1, int((oy + sh) // ts) + 1)
+
+        water_tiles = []
+        for ty in range(ty0, ty1 + 1):
+            for tx in range(tx0, tx1 + 1):
+                if self._is_sunlit_aqueducts_water_tile(state, tx, ty):
+                    water_tiles.append((tx, ty))
+
+        # 1. Subtle ambient expanding water ripples & gliding current glints across visible aqueduct channels
+        if water_tiles:
+            rip_step = max(1, len(water_tiles) // constants.AQUEDUCT_RIPPLE_MAX_COUNT)
+            for idx, (tx, ty) in enumerate(water_tiles[::rip_step][: constants.AQUEDUCT_RIPPLE_MAX_COUNT]):
+                rx = int(tx * ts + ts // 2 - ox)
+                ry = int(ty * ts + ts // 2 - oy)
+                if rx < -24 or rx > sw + 24 or ry < -24 or ry > sh + 24:
+                    continue
+                cycle = (t_now * 0.52 + idx * 0.31 + (tx * 0.13 + ty * 0.07)) % 1.0
+                rad = max(2, int(2 + cycle * constants.AQUEDUCT_RIPPLE_MAX_RADIUS))
+                rip_alpha = int(104 * (1.0 - cycle))
+                if rip_alpha < 8:
+                    continue
+                q_alpha = (rip_alpha // 8) * 8
+                r_key = ("aqueduct_ripple", rad, q_alpha)
+                r_surf = cache.get(r_key)
+                if r_surf is None:
+                    d_w = rad * 2 + 4
+                    d_h = max(6, int(rad * 1.15) + 4)
+                    r_surf = pygame.Surface((d_w, d_h), pygame.SRCALPHA)
+                    pygame.draw.ellipse(
+                        r_surf, (*constants.AQUEDUCT_RIPPLE_COLOR, q_alpha), (2, 2, d_w - 4, d_h - 4), 1
+                    )
+                    cache[r_key] = r_surf
+                self.screen.blit(r_surf, (rx - r_surf.get_width() // 2, ry - r_surf.get_height() // 2))
+
+            streak_step = max(1, len(water_tiles) // constants.AQUEDUCT_CURRENT_STREAK_COUNT)
+            for idx, (tx, ty) in enumerate(water_tiles[::streak_step][: constants.AQUEDUCT_CURRENT_STREAK_COUNT]):
+                phase = (t_now * 0.45 + idx * 0.23 + (tx * 0.17 + ty * 0.11)) % 1.0
+                streak_len = 8 + (idx % 3) * 3
+                gx = int(tx * ts + 6 + phase * max(4, ts - 12 - streak_len) - ox)
+                gy = int(ty * ts + 9 + ((tx * 7 + ty * 13 + idx * 5) % (ts - 18)) - oy)
+                if gx < -16 or gx > sw + 16 or gy < -8 or gy > sh + 8:
+                    continue
+                glint_alpha = int(math.sin(phase * math.pi) * 116)
+                if glint_alpha < 12:
+                    continue
+                q_ga = (glint_alpha // 12) * 12
+                g_key = ("aqueduct_glint", streak_len, q_ga)
+                g_surf = cache.get(g_key)
+                if g_surf is None:
+                    g_surf = pygame.Surface((streak_len, 2), pygame.SRCALPHA)
+                    pygame.draw.line(
+                        g_surf, (*constants.AQUEDUCT_WATER_SHIMMER_HI, q_ga), (0, 0), (streak_len - 1, 0), 1
+                    )
+                    cache[g_key] = g_surf
+                self.screen.blit(g_surf, (gx, gy))
+
+        # 2. Slow-drifting warm sunlit pollen / water-spray motes across the aqueduct courtyard
+        span_w = sw + 64
+        span_h = sh + 64
+        for idx in range(constants.AQUEDUCT_SUNLIT_MOTE_COUNT):
+            drift_x = 10.0 + (idx % 4) * 4.5
+            drift_y = 6.0 + (idx % 3) * 3.0
+            mx = int(((idx * 137.0 + t_now * drift_x + math.sin(t_now * 1.4 + idx) * 18.0 - ox * 0.85) % span_w) - 32)
+            my_raw = idx * 89.0 - t_now * drift_y + math.cos(t_now * 1.1 + idx * 1.3) * 12.0 - oy * 0.85
+            my = int((my_raw % span_h) - 32)
+            if mx < -10 or mx > sw + 10 or my < -10 or my > sh + 10:
+                continue
+            pulse = (math.sin(t_now * (1.8 + (idx % 3) * 0.5) + idx * 1.7) + 1.0) * 0.5
+            mote_alpha = int(42 + pulse * 126)
+            q_ma = (mote_alpha // 12) * 12
+            m_key = ("aqueduct_sunlit_mote", q_ma)
+            m_surf = cache.get(m_key)
+            if m_surf is None:
+                m_surf = pygame.Surface((10, 10), pygame.SRCALPHA)
+                pygame.draw.circle(m_surf, (*constants.AQUEDUCT_MOTE_HALO_COLOR, min(120, q_ma // 2)), (5, 5), 4)
+                pygame.draw.circle(m_surf, (*constants.AQUEDUCT_MOTE_CORE_COLOR, min(255, q_ma)), (5, 5), 1)
+                cache[m_key] = m_surf
+            self.screen.blit(m_surf, (mx - 5, my - 5))
 
     def _draw_sanctuary_tree_canopy(self, obj, ox, oy, prop_cache):
         """Draw a SanctuaryTreeCanopy (80x100) anchored onto its 40x40 solid trunk footprint."""
