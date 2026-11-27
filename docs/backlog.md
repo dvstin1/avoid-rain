@@ -17,9 +17,9 @@
 - **Remappable Keys:** [DONE] Implemented in-game key remapping via `ControlsConfigMenu` in `ui/menu.py` and `GameState.keybindings` (accessible from Title and Pause menus and persisted in `save_data.json`).
 - **Screen Shake Toggle:** [DONE] Implemented `Screen Shake: ON/OFF` in the Pause Menu (`screen_shake_enabled`), persisted in `save_data.json` and gating combat/parry camera shake impulses.
 
-## 2. Audio & Atmosphere
+## 2. Audio & Atmosphere [DONE]
 - **Noir Soundtrack:** [DROPPED] Superseded by dynamic `.ogg` biome/boss music crossfades (`AudioManager`) and distance/intensity-scaled `RAIN_LOOP_SFX`.
-- **Environment Audio:** Directional audio for candelabras, wellsprings, and the distant rumble of the author's madness.
+- **Environment Audio:** [DONE] Added seamless looping ambient `.ogg` synthesis presets and generated assets (`ambient_flame.ogg`, `ambient_water.ogg`, `ambient_author_rumble.ogg` via `generate_sfx.py`), pure directional stereo panning/attenuation math (`compute_stereo_volumes()` in `constants.py`), and a channel-capped `AudioManager.update_environment_audio()` pass (`engine/audio.py`, wired in `engine/game_state.py` and `main.py`) for Candelabras, Vitreous Fire Chalices, Wellsprings/Sanctuary pond/Aqueduct water, and the distant subterranean rumble of the Author's madness (`tests/test_environment_audio.py`).
 
 ## 3. Narrative & Visuals [DONE]
 - **Layered Visual System (Ghost Indicators):** [DONE] Implement a decoupled animation system that uses abstract indicators (color tints, squashing, borders) to represent states (WOUNDED, STAGGERED, BIND) without finalized assets.

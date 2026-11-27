@@ -835,6 +835,60 @@ def preset_rain(rng: random.Random, p: Dict):
     return make_loopable(bed, p["loop_fade"])
 
 
+def preset_ambient_flame(rng: random.Random, p: Dict):
+    """Seamless warm flame crackle loop for Candelabras and Vitreous Fire Chalices."""
+    n = n_samples(p["duration"] + p["loop_fade"])
+    warm_bed = normalize(biquad(brown_noise(n, rng), "lowpass", p["warm_lp_hz"], q=0.85, order=2))
+    warm_bed = multiply(warm_bed, lfo(n, p["flicker_hz"], p["flicker_depth"]))
+    flutter = normalize(biquad(pink_noise(n, rng), "bandpass", p["flutter_bp_hz"], 1.1))
+    flutter = multiply(flutter, lfo(n, p["flicker_hz"] * 1.9, p["flicker_depth"] * 1.3))
+    pops_mid = normalize(biquad(crackle(n, rng, p["crackle_rate_hz"], 0.0022), "bandpass", 2400.0, 1.4))
+    pops_hi = normalize(biquad(crackle(n, rng, p["crackle_rate_hz"] * 0.55, 0.0014), "highpass", 4200.0))
+    out = mix(
+        (warm_bed, p["warm_level"]),
+        (flutter, p["flutter_level"]),
+        (pops_mid, p["crackle_level"]),
+        (pops_hi, p["crackle_level"] * 0.65),
+    )
+    return make_loopable(out, p["loop_fade"])
+
+
+def preset_ambient_water(rng: random.Random, p: Dict):
+    """Seamless gentle shimmering water hum loop for Wellsprings, Sanctuary pond, and Aqueduct channels."""
+    n = n_samples(p["duration"] + p["loop_fade"])
+    flow = normalize(biquad(pink_noise(n, rng), "bandpass", p["flow_bp_hz"], 0.9))
+    flow = multiply(flow, lfo(n, p["sway_hz"], p["sway_depth"]))
+    shimmer = normalize(biquad(white_noise(n, rng), "bandpass", p["shimmer_bp_hz"], 1.4))
+    shimmer = multiply(shimmer, lfo(n, p["sway_hz"] * 1.7, p["sway_depth"] * 1.4))
+    hum_root = oscillator(constant(p["hum_hz"], n), "sine", rng.uniform(0.0, TAU))
+    hum_fifth = oscillator(constant(p["hum_hz"] * 1.498, n), "sine", rng.uniform(0.0, TAU))
+    hum = multiply(mix((hum_root, 0.72), (hum_fifth, 0.36)), lfo(n, p["sway_hz"] * 0.8, 0.20))
+    out = mix(
+        (flow, p["flow_level"]),
+        (shimmer, p["shimmer_level"]),
+        (hum, p["hum_level"]),
+    )
+    return make_loopable(out, p["loop_fade"])
+
+
+def preset_ambient_author_rumble(rng: random.Random, p: Dict):
+    """Seamless low distant subterranean rumble loop for the Author's madness."""
+    n = n_samples(p["duration"] + p["loop_fade"])
+    sub_bed = normalize(biquad(brown_noise(n, rng), "lowpass", p["rumble_lp_hz"], q=0.9, order=2))
+    sub_bed = multiply(sub_bed, lfo(n, p["swell_hz"], p["swell_depth"]))
+    drone_a = oscillator(constant(p["drone_hz"], n), "sine", rng.uniform(0.0, TAU))
+    drone_b = oscillator(constant(p["drone_hz"] + p["beat_hz"], n), "sine", rng.uniform(0.0, TAU))
+    dissonance = oscillator(constant(p["drone_hz"] * 2.83, n), "triangle", rng.uniform(0.0, TAU))
+    dissonance = normalize(biquad(dissonance, "lowpass", 180.0, order=2))
+    dissonance = multiply(dissonance, lfo(n, p["swell_hz"] * 1.5, 0.35))
+    out = mix(
+        (sub_bed, p["rumble_level"]),
+        (mix((drone_a, 0.65), (drone_b, 0.55)), p["drone_level"]),
+        (dissonance, p["dissonance_level"]),
+    )
+    return make_loopable(out, p["loop_fade"])
+
+
 def preset_mumble(rng: random.Random, p: Dict):
     """Closed-mouth vocal mumble: low-passed vocal buzz formants modulated by syllabic cadence."""
     n = n_samples(p["duration"])
@@ -1357,6 +1411,21 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "rustle_count": 18, "rustle_level": 0.64, "chime_time": 1.52, "chime_hz": 528.0,
         "chime_level": 0.78, "peak": 0.84,
     }, "Deep ink-well sub-bass swell + fluttering parchment squares + hollow seal chime"),
+    "ambient_flame": (preset_ambient_flame, {
+        "duration": 3.0, "loop_fade": 0.35, "warm_lp_hz": 260.0, "warm_level": 0.65,
+        "flutter_bp_hz": 740.0, "flutter_level": 0.38, "flicker_hz": 3.4, "flicker_depth": 0.22,
+        "crackle_rate_hz": 26.0, "crackle_level": 0.42, "loopable": True, "peak": 0.62,
+    }, "Seamless warm flame crackle loop for Candelabras and Fire Chalices"),
+    "ambient_water": (preset_ambient_water, {
+        "duration": 3.2, "loop_fade": 0.40, "flow_bp_hz": 860.0, "flow_level": 0.58,
+        "shimmer_bp_hz": 2350.0, "shimmer_level": 0.30, "hum_hz": 293.66, "hum_level": 0.28,
+        "sway_hz": 0.55, "sway_depth": 0.18, "loopable": True, "peak": 0.58,
+    }, "Seamless gentle shimmering water hum loop for Wellsprings and channels"),
+    "ambient_author_rumble": (preset_ambient_author_rumble, {
+        "duration": 3.4, "loop_fade": 0.45, "rumble_lp_hz": 96.0, "rumble_level": 0.85,
+        "drone_hz": 38.0, "beat_hz": 2.4, "drone_level": 0.52, "dissonance_level": 0.24,
+        "swell_hz": 0.42, "swell_depth": 0.24, "loopable": True, "peak": 0.68,
+    }, "Seamless distant subterranean rumble loop for the Author's madness"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1425,6 +1494,9 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "player_hurt.ogg": ("player_hurt", {"duration": 0.22, "peak": 0.58}),
     "flask_empty.ogg": ("flask_empty", {"duration": 0.18, "peak": 0.55}),
     "boss_summon.ogg": ("boss_summon", {"duration": 2.2, "peak": 0.84}),
+    "ambient_flame.ogg": ("ambient_flame", {}),
+    "ambient_water.ogg": ("ambient_water", {}),
+    "ambient_author_rumble.ogg": ("ambient_author_rumble", {}),
 }
 
 # Keyword heuristics for unknown missing references (first match wins)

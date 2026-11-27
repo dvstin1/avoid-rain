@@ -1637,6 +1637,8 @@ class GameState:
         )
         if audio_manager and hasattr(audio_manager, 'update_rain_audio'):
             audio_manager.update_rain_audio(self.weather_manager.rain_audio_intensity)
+        if audio_manager and hasattr(audio_manager, 'update_environment_audio'):
+            audio_manager.update_environment_audio(self, dt=dt)
 
         # Close Respite instantly if it is getting rained on
         if getattr(self, 'active_respite', None):

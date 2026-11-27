@@ -9,12 +9,41 @@ import math
 import random
 import pygame
 from constants import (
-    SFX_FULL_VOLUME_DIST,
-    SFX_MIN_VOLUME_DIST,
-    SFX_MIN_VOLUME,
-    SFX_VOLUME_SCALE,
+    AMBIENT_AUTHOR_RUMBLE_SFX,
+    AMBIENT_FLAME_SFX,
+    AMBIENT_WATER_SFX,
+    ENV_AUDIO_CHALICE_VOL_MULT,
+    ENV_AUDIO_FADE_RATE,
+    ENV_AUDIO_FLAME_BASE_VOL,
+    ENV_AUDIO_FLAME_FULL_DIST,
+    ENV_AUDIO_FLAME_MAX_DIST,
+    ENV_AUDIO_MAX_CHANNELS,
+    ENV_AUDIO_MAX_PAN_BIAS,
+    ENV_AUDIO_PAN_RANGE,
+    ENV_AUDIO_RUMBLE_BASE_VOL,
+    ENV_AUDIO_RUMBLE_FULL_DIST,
+    ENV_AUDIO_RUMBLE_MAX_DIST,
+    ENV_AUDIO_RUMBLE_MIN_LATE_STORM,
+    ENV_AUDIO_SLOTS,
+    ENV_AUDIO_STOP_EPSILON,
+    ENV_AUDIO_WATER_BASE_VOL,
+    ENV_AUDIO_WATER_FULL_DIST,
+    ENV_AUDIO_WATER_MAX_DIST,
     RAIN_LOOP_SFX,
+    SFX_FULL_VOLUME_DIST,
+    SFX_MIN_VOLUME,
+    SFX_MIN_VOLUME_DIST,
+    SFX_VOLUME_SCALE,
+    TILE_SIZE,
+    compute_stereo_volumes,
 )
+
+ENV_AUDIO_SLOT_FILES = {
+    "flame": AMBIENT_FLAME_SFX,
+    "water": AMBIENT_WATER_SFX,
+    "author_rumble": AMBIENT_AUTHOR_RUMBLE_SFX,
+}
+
 
 class AudioManager:
     """Manages music and sound effect playback with smooth transitions."""
@@ -22,11 +51,17 @@ class AudioManager:
         pygame.mixer.init()
         pygame.mixer.set_num_channels(32)
         self.rain_channel = None
+        self.env_channels = {}
+        self.env_levels = {slot: (0.0, 0.0) for slot in ENV_AUDIO_SLOTS}
+        self._env_world_sig = None
         try:
-            pygame.mixer.set_reserved(1)
+            pygame.mixer.set_reserved(1 + ENV_AUDIO_MAX_CHANNELS)
             self.rain_channel = pygame.mixer.Channel(0)
+            for idx, slot in enumerate(ENV_AUDIO_SLOTS, start=1):
+                self.env_channels[slot] = pygame.mixer.Channel(idx)
         except Exception:
             self.rain_channel = None
+            self.env_channels = {}
         self.music_dir = os.path.join("assets", "audio", "music")
         self.sfx_dir = os.path.join("assets", "audio", "sfx")
 
@@ -61,6 +96,267 @@ class AudioManager:
         # Linear interpolation from 1.0 to SFX_MIN_VOLUME
         frac = (dist - SFX_FULL_VOLUME_DIST) / (SFX_MIN_VOLUME_DIST - SFX_FULL_VOLUME_DIST)
         return 1.0 - frac * (1.0 - SFX_MIN_VOLUME)
+
+    def calculate_stereo_volumes(
+        self,
+        dx: float,
+        dy: float,
+        max_dist: float = SFX_MIN_VOLUME_DIST,
+        full_dist: float = SFX_FULL_VOLUME_DIST,
+        base_volume: float = 1.0,
+        min_attenuation: float = 0.0,
+    ) -> tuple:
+        """Compute stereo (left, right) gains scaled by master volume for a relative offset (dx, dy)."""
+        master = max(0.0, min(1.0, float(self.volume)))
+        return compute_stereo_volumes(
+            dx,
+            dy,
+            max_dist=max_dist,
+            full_dist=full_dist,
+            base_volume=float(base_volume) * master,
+            pan_range=ENV_AUDIO_PAN_RANGE,
+            max_pan_bias=ENV_AUDIO_MAX_PAN_BIAS,
+            min_attenuation=min_attenuation,
+        )
+
+    def _load_sfx_cached(self, sfx_name: str):
+        """Load and cache a Sound object from sfx_dir, returning None if unavailable."""
+        sound = self.sfx_cache.get(sfx_name)
+        if sound is not None:
+            return sound
+        path = os.path.join(self.sfx_dir, sfx_name)
+        if not os.path.exists(path):
+            return None
+        try:
+            sound = pygame.mixer.Sound(path)
+            self.sfx_cache[sfx_name] = sound
+            return sound
+        except Exception as exc:
+            print(f"[AUDIO] Error loading SFX {sfx_name}: {exc}")
+            return None
+
+    def stop_environment_audio(self):
+        """Stop and clear all actively looping directional environment audio channels."""
+        for slot in ENV_AUDIO_SLOTS:
+            channel = self.env_channels.get(slot)
+            if channel is not None:
+                try:
+                    if channel.get_busy():
+                        channel.stop()
+                except Exception:
+                    pass
+            self.env_levels[slot] = (0.0, 0.0)
+
+    def _compute_environment_targets(self, state) -> dict:
+        """Evaluate directional stereo (left, right) targets for flame, water, and Author rumble."""
+        targets = {slot: (0.0, 0.0) for slot in ENV_AUDIO_SLOTS}
+        player = getattr(state, "player", None)
+        world = getattr(state, "world", None)
+        if player is None or world is None or not hasattr(player, "get_center"):
+            return targets
+
+        px, py = player.get_center()
+        best_flame = (0.0, 0.0)
+        best_water = (0.0, 0.0)
+
+        for obj in getattr(world, "interactables", None) or ():
+            obj_name = str(getattr(obj, "name", "") or "")
+            ox = float(getattr(obj, "x", 0.0)) + float(getattr(obj, "width", TILE_SIZE)) * 0.5
+            oy = float(getattr(obj, "y", 0.0)) + float(getattr(obj, "height", TILE_SIZE)) * 0.5
+            dx, dy = ox - px, oy - py
+
+            if obj_name in ("Candelabra", "Fire Chalice"):
+                mult = ENV_AUDIO_CHALICE_VOL_MULT if obj_name == "Fire Chalice" else 1.0
+                cand = self.calculate_stereo_volumes(
+                    dx,
+                    dy,
+                    max_dist=ENV_AUDIO_FLAME_MAX_DIST,
+                    full_dist=ENV_AUDIO_FLAME_FULL_DIST,
+                    base_volume=min(1.0, ENV_AUDIO_FLAME_BASE_VOL * mult),
+                )
+                if max(cand) > max(best_flame):
+                    best_flame = cand
+            elif obj_name == "The Wellspring" or obj.__class__.__name__ == "Wellspring":
+                cand = self.calculate_stereo_volumes(
+                    dx,
+                    dy,
+                    max_dist=ENV_AUDIO_WATER_MAX_DIST,
+                    full_dist=ENV_AUDIO_WATER_FULL_DIST,
+                    base_volume=ENV_AUDIO_WATER_BASE_VOL,
+                )
+                if max(cand) > max(best_water):
+                    best_water = cand
+
+        # Optional nearby Sanctuary pond or Sunlit Aqueducts channel water hum
+        world_name = str(getattr(world, "name", "") or "")
+        if world_name == "sanctuary":
+            zones = getattr(world, "sanctuary_zones", None)
+            pond_tiles = zones.get("pond_water", ()) if isinstance(zones, dict) else ()
+            if pond_tiles:
+                nearest_sq = float("inf")
+                best_dx, best_dy = 0.0, 0.0
+                for entry in pond_tiles:
+                    if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+                        tx_c = entry[0] * TILE_SIZE + TILE_SIZE * 0.5
+                        ty_c = entry[1] * TILE_SIZE + TILE_SIZE * 0.5
+                        ddx, ddy = tx_c - px, ty_c - py
+                        d_sq = ddx * ddx + ddy * ddy
+                        if d_sq < nearest_sq:
+                            nearest_sq = d_sq
+                            best_dx, best_dy = ddx, ddy
+                if nearest_sq < ENV_AUDIO_WATER_MAX_DIST ** 2:
+                    cand = self.calculate_stereo_volumes(
+                        best_dx,
+                        best_dy,
+                        max_dist=ENV_AUDIO_WATER_MAX_DIST,
+                        full_dist=ENV_AUDIO_WATER_FULL_DIST,
+                        base_volume=ENV_AUDIO_WATER_BASE_VOL * 0.75,
+                    )
+                    if max(cand) > max(best_water):
+                        best_water = cand
+        elif world_name == "sunlit_aqueducts" and hasattr(world, "is_in_shallow_water"):
+            # Lightweight local probe around player for adjacent sunlit aqueduct channels
+            p_rect = getattr(player, "rect", None)
+            if p_rect is not None and world.is_in_shallow_water(p_rect):
+                cand = self.calculate_stereo_volumes(
+                    0.0,
+                    0.0,
+                    max_dist=ENV_AUDIO_WATER_MAX_DIST,
+                    full_dist=ENV_AUDIO_WATER_FULL_DIST,
+                    base_volume=ENV_AUDIO_WATER_BASE_VOL * 0.70,
+                )
+                if max(cand) > max(best_water):
+                    best_water = cand
+
+        targets["flame"] = best_flame
+        targets["water"] = best_water
+
+        # Distant subterranean rumble of the Author's madness (suppressed in Sanctuary)
+        in_sanctuary = bool(getattr(state, "in_sanctuary", False)) or world_name == "sanctuary"
+        if not in_sanctuary:
+            targets["author_rumble"] = self._compute_author_rumble_target(state, world, px, py)
+
+        return targets
+
+    def _compute_author_rumble_target(self, state, world, px: float, py: float) -> tuple:
+        """Compute directional stereo target for the Author's distant madness rumble."""
+        world_name = str(getattr(world, "name", "") or "")
+        enemies = getattr(state, "enemies", None) or ()
+        final_author = None
+        night_boss = None
+        for enemy in enemies:
+            if getattr(enemy, "hp", 0) <= 0:
+                continue
+            cls_name = enemy.__class__.__name__
+            if cls_name == "FinalAuthor" or getattr(enemy, "name", "") == "The Final Author":
+                final_author = enemy
+                break
+            if cls_name in ("NightBoss", "SlugBoss", "MeadowCensorBoss", "RimecrestArbiterBoss"):
+                night_boss = enemy
+
+        wm = getattr(state, "weather_manager", None)
+        bleed_state = str(getattr(wm, "bleed_state", "") or "") if wm is not None else ""
+        step_idx = int(getattr(wm, "current_step_idx", 0) or 0) if wm is not None else 0
+
+        if final_author is not None or world_name in ("night_boss_arena", "final_boss"):
+            if final_author is not None and hasattr(final_author, "get_center"):
+                ax, ay = final_author.get_center()
+            else:
+                grid = getattr(world, "grid", None) or []
+                ax = (len(grid[0]) * TILE_SIZE * 0.5) if grid and grid[0] else px
+                ay = (len(grid) * TILE_SIZE * 0.5) if grid else py
+            return self.calculate_stereo_volumes(
+                ax - px,
+                ay - py,
+                max_dist=ENV_AUDIO_RUMBLE_MAX_DIST,
+                full_dist=ENV_AUDIO_RUMBLE_FULL_DIST,
+                base_volume=ENV_AUDIO_RUMBLE_BASE_VOL,
+                min_attenuation=ENV_AUDIO_RUMBLE_MIN_LATE_STORM,
+            )
+
+        if bleed_state in ("GRACE_PERIOD", "DILUTION", "") and night_boss is None:
+            return (0.0, 0.0)
+
+        anchor_x, anchor_y = px, py
+        if night_boss is not None and hasattr(night_boss, "get_center"):
+            anchor_x, anchor_y = night_boss.get_center()
+        elif wm is not None and hasattr(wm, "get_current_boss_coords"):
+            coords = wm.get_current_boss_coords()
+            if isinstance(coords, dict) and "x" in coords and "y" in coords:
+                anchor_x = float(coords["x"]) * TILE_SIZE + TILE_SIZE * 0.5
+                anchor_y = float(coords["y"]) * TILE_SIZE + TILE_SIZE * 0.5
+
+        if night_boss is not None or bleed_state in ("BOSS_PHASE", "CLAMPED"):
+            intensity = 1.0
+            floor_atten = ENV_AUDIO_RUMBLE_MIN_LATE_STORM
+        elif step_idx >= 2:
+            intensity = 0.82
+            floor_atten = ENV_AUDIO_RUMBLE_MIN_LATE_STORM * 0.75
+        elif step_idx == 1:
+            intensity = 0.50
+            floor_atten = 0.0
+        else:
+            intensity = 0.28
+            floor_atten = 0.0
+
+        return self.calculate_stereo_volumes(
+            anchor_x - px,
+            anchor_y - py,
+            max_dist=ENV_AUDIO_RUMBLE_MAX_DIST,
+            full_dist=ENV_AUDIO_RUMBLE_FULL_DIST,
+            base_volume=ENV_AUDIO_RUMBLE_BASE_VOL * intensity,
+            min_attenuation=floor_atten,
+        )
+
+    def update_environment_audio(self, state, dt: float = 0.016, paused: bool = False) -> dict:
+        """Update capped, directional stereo ambient loops for flames, water, and the Author's rumble."""
+        if paused or state is None or getattr(state, "player", None) is None or getattr(state, "world", None) is None:
+            self.stop_environment_audio()
+            return dict(self.env_levels)
+
+        world = state.world
+        world_sig = (id(world), getattr(world, "name", ""))
+        if self._env_world_sig is not None and world_sig != self._env_world_sig:
+            self.stop_environment_audio()
+        self._env_world_sig = world_sig
+
+        targets = self._compute_environment_targets(state)
+        step = max(0.0, float(dt))
+        ramp = 1.0 if step <= 0.0 else min(1.0, step * ENV_AUDIO_FADE_RATE)
+
+        for slot in ENV_AUDIO_SLOTS:
+            cur_l, cur_r = self.env_levels.get(slot, (0.0, 0.0))
+            tgt_l, tgt_r = targets.get(slot, (0.0, 0.0))
+            new_l = cur_l + (tgt_l - cur_l) * ramp
+            new_r = cur_r + (tgt_r - cur_r) * ramp
+            if max(new_l, new_r) <= ENV_AUDIO_STOP_EPSILON and max(tgt_l, tgt_r) <= ENV_AUDIO_STOP_EPSILON:
+                new_l, new_r = 0.0, 0.0
+            self.env_levels[slot] = (new_l, new_r)
+
+            channel = self.env_channels.get(slot)
+            if channel is None:
+                continue
+
+            if max(new_l, new_r) <= ENV_AUDIO_STOP_EPSILON:
+                try:
+                    if channel.get_busy():
+                        channel.stop()
+                except Exception:
+                    pass
+                continue
+
+            sfx_name = ENV_AUDIO_SLOT_FILES[slot]
+            sound = self._load_sfx_cached(sfx_name)
+            if sound is None:
+                continue
+            try:
+                if not channel.get_busy():
+                    channel.play(sound, loops=-1)
+                channel.set_volume(new_l, new_r)
+            except Exception as exc:
+                print(f"[AUDIO] Error updating environment loop {sfx_name}: {exc}")
+
+        return dict(self.env_levels)
 
     def update_enemy_sounds(self, state):
         """Update continuous movement sounds for slugs and bats."""

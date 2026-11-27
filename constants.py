@@ -1356,6 +1356,65 @@ DEATH_SCREEN_DURATION = 5.5  # Full playback duration covering 5.38s death_theme
 
 # Dynamic Rain Ambient Audio Constants
 RAIN_LOOP_SFX = "rain_loop.ogg"
+
+# Environment Audio (Section 2: Directional Stereo Ambient Loops)
+AMBIENT_FLAME_SFX = "ambient_flame.ogg"
+AMBIENT_WATER_SFX = "ambient_water.ogg"
+AMBIENT_AUTHOR_RUMBLE_SFX = "ambient_author_rumble.ogg"
+
+ENV_AUDIO_SLOTS = ("flame", "water", "author_rumble")
+ENV_AUDIO_MAX_CHANNELS = len(ENV_AUDIO_SLOTS)   # Reserved channel budget (never starves combat SFX)
+ENV_AUDIO_PAN_RANGE = 420.0                     # Horizontal distance (px) reaching full stereo pan bias
+ENV_AUDIO_MAX_PAN_BIAS = 0.85                   # Keeps opposite ear subtly audible at full horizontal offset
+ENV_AUDIO_FLAME_MAX_DIST = 420.0                # Audible radius for Candelabras & Vitreous Fire Chalices
+ENV_AUDIO_FLAME_FULL_DIST = 72.0
+ENV_AUDIO_FLAME_BASE_VOL = 0.34
+ENV_AUDIO_CHALICE_VOL_MULT = 1.25               # Larger 80x80 Vitreous Fire Chalices burn slightly louder
+ENV_AUDIO_WATER_MAX_DIST = 460.0                # Audible radius for Wellsprings, Sanctuary pond, & Aqueduct channels
+ENV_AUDIO_WATER_FULL_DIST = 80.0
+ENV_AUDIO_WATER_BASE_VOL = 0.30
+ENV_AUDIO_RUMBLE_MAX_DIST = 2600.0              # Subterranean Author madness rumble range toward boss/storm center
+ENV_AUDIO_RUMBLE_FULL_DIST = 320.0
+ENV_AUDIO_RUMBLE_BASE_VOL = 0.38
+ENV_AUDIO_RUMBLE_MIN_LATE_STORM = 0.35          # Swell floor during late contraction / BOSS_PHASE / FinalAuthor
+ENV_AUDIO_FADE_RATE = 4.5                       # Smooth dt-scaled per-second volume/pan ramp rate
+ENV_AUDIO_STOP_EPSILON = 0.005                  # Threshold below which ambient channels stop cleanly
+
+
+def compute_stereo_volumes(
+    dx: float,
+    dy: float,
+    max_dist: float,
+    full_dist: float = SFX_FULL_VOLUME_DIST,
+    base_volume: float = 1.0,
+    pan_range: float = ENV_AUDIO_PAN_RANGE,
+    max_pan_bias: float = ENV_AUDIO_MAX_PAN_BIAS,
+    min_attenuation: float = 0.0,
+) -> tuple:
+    """Compute directional stereo (left, right) gains in [0.0, 1.0] from relative source offset (dx, dy)."""
+    vol = max(0.0, min(1.0, float(base_volume)))
+    if vol <= 0.0 or max_dist <= 0.0:
+        return (0.0, 0.0)
+
+    dist = math.hypot(float(dx), float(dy))
+    if dist <= full_dist:
+        atten = 1.0
+    elif dist >= max_dist:
+        atten = max(0.0, min(1.0, float(min_attenuation)))
+    else:
+        span = max(1e-6, float(max_dist) - float(full_dist))
+        frac = (dist - float(full_dist)) / span
+        atten = max(float(min_attenuation), (1.0 - frac) ** 1.4)
+
+    if atten <= 0.0:
+        return (0.0, 0.0)
+
+    pan = max(-1.0, min(1.0, float(dx) / max(1e-6, float(pan_range))))
+    bias = max(0.0, min(1.0, float(max_pan_bias)))
+    left_gain = max(0.0, min(1.0, 1.0 - max(0.0, pan) * bias))
+    right_gain = max(0.0, min(1.0, 1.0 - max(0.0, -pan) * bias))
+    scaled = vol * atten
+    return (min(1.0, scaled * left_gain), min(1.0, scaled * right_gain))
 RAIN_CAMERA_VIEW_RADIUS = ((SCREEN_WIDTH / 2.0) ** 2 + (SCREEN_HEIGHT / 2.0) ** 2) ** 0.5
 RAIN_AUDIO_WARNING_BUFFER = 1.5 * RAIN_CAMERA_VIEW_RADIUS
 RAIN_AUDIO_APPROACH_MAX = 0.45

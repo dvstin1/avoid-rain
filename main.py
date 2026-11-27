@@ -654,6 +654,7 @@ def main():
                 )
                 title_menu.update_transition(dt)
                 renderer.draw_title_screen(title_menu, state, controls_menu=controls_menu)
+                audio.stop_environment_audio()
                 audio.update(dt, "title_theme.ogg")
                 if ratchet_reset: state.input_ratchet_latched = False
                 
@@ -701,10 +702,12 @@ def main():
                 if pause_menu.is_open():
                     pause_menu.update_transition(dt)
                     audio.update_rain_audio(0.0, paused=True)
+                    audio.update_environment_audio(state, paused=True)
                     audio.stop_enemy_move_sounds()
                     renderer.draw_pause_menu(pause_menu, state=state, controls_menu=controls_menu)
                     if pause_menu.should_return_to_sanctuary():
                         audio.stop_enemy_move_sounds()
+                        audio.stop_environment_audio()
                         pause_menu.clear_return_to_sanctuary()
                         pause_menu.close()
                         state.return_party_to_sanctuary()
@@ -712,6 +715,7 @@ def main():
                         continue
                     if pause_menu.should_quit():
                         audio.update_rain_audio(0.0, paused=True)
+                        audio.stop_environment_audio()
                         audio.stop_enemy_move_sounds()
                         try: state.save_stats(wait=True)
                         except Exception: pass
