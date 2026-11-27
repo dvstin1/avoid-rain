@@ -128,9 +128,11 @@ prior to this audit:
 - **Relative Markdown Links:** 100% valid across `AGENTS.md`, `README.md`, and `docs/**/*.md` (**0** dead links).
 - **Stale Proposal Cross-Links (Remediated):** Updated `"proposed Marginalia Event Engine"` notices in
   `docs/modular_system.md` and `docs/world_and_lore.md` to reflect its completed `[DONE]` status.
-- **Note for Future Skill Maintenance:** `.gemini/skills/doc-audit/SKILL.md` line 131 mentions `engine/boss.py`, whereas
-  boss classes (`Boss`, `NightBoss`, `SlugBoss`, `MeadowCensorBoss`, `RimecrestArbiterBoss`, `FinalAuthor`) live in
-  `engine/enemy.py` (noted here without modifying skill files).
+- **Skill File Module References (`[RESOLVED]`):** Updated `.gemini/skills/doc-audit/SKILL.md` to replace stale module
+  paths (`engine/boss.py` → `engine/enemy.py`, `engine/weapon.py` → `engine/loot.py`/`engine/world.py`/`engine/combat.py`,
+  `engine/minimap.py` → `rendering/renderer.py`, `persistence.py` → `engine/stats.py`/`engine/autosave.py`, and
+  `sanctuary_*.txt` → `maps/sanctuary.json`), and aligned `.gemini/skills/prompt-review/SKILL.md` with the live 5-Act
+  engine and existing classes.
 
 ---
 

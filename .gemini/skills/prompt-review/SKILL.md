@@ -37,8 +37,8 @@ Inspect the live codebase and `docs/` to evaluate `<proposed_prompt>` across all
   root `network_manager.py`; `rendering/renderer.py`; `engine/weather.py`).
 - **Classes, Methods & Fields:** Confirm referenced classes, attributes, and state keys exist with exact
   spelling (e.g., `Enemy` vs. `EnemyBase`, `WeatherManager.current_step_idx` vs. `circle_close_stage`,
-  `GameState.current_act`). Flag any non-existent fields or classes (e.g., `WeatherManager.paused`,
-  `ReturnAnchor`) that the prompt must explicitly label as **proposed new**.
+  `GameState.current_act`). Flag any fields or classes not yet present in the live codebase so the prompt
+  explicitly labels them as **proposed new**.
 - **Constants & Map Symbols:** Check `constants.py` (`TILE_KEY`, `BIOME_SEGMENT_POOLS`, `ENGINE_REVISION`)
   and `tools/edit_map.py` (`MASTER_TOOL_REGISTRY` parity per the Palette Divergence Law).
 - **Asset & Map Pipeline Boundary:** Verify runtime biome spawns/layouts target
@@ -48,8 +48,8 @@ Inspect the live codebase and `docs/` to evaluate `<proposed_prompt>` across all
 
 ### 2. Lore, Economy & Progression Alignment
 Cross-check against `docs/world_and_lore.md` and `docs/architecture.md`:
-- **Two-Act Naming:** Confirm canonical **Act 1 / Act 2** (`current_act == 1 | 2`, `empowered_act`) or
-  lore **Night 1 / Night 2** terminology rather than ungrounded labels (e.g., "Day 1 / Day 2").
+- **Five-Act Naming:** Confirm canonical **Act 1–Act 5** (`current_act in 1..5`, `MAX_ACTS = 5`,
+  `empowered_act`) or lore **Night 1–Night 5** terminology rather than ungrounded labels (e.g., "Day 1 / Day 2").
 - **Strict Economy of Review:** Events/mechanics must not grant direct Edification level-ups outside
   a Respite Rest cycle (`docs/world_and_lore.md`).
 - **The Full-Cradle Rule:** Anomalous Weapon drops must respect the two-slot cradle check (dropping

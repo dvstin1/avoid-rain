@@ -95,7 +95,7 @@ flowchart TD
     B --> C1["Audit World & Biomes\n(maps/, world_generator.py vs modular_system.md)"]
     B --> C2["Audit Entities & Combat\n(enemy.py, combat.py vs architecture.md)"]
     B --> C3["Audit UI & Navigation\n(renderer.py, camera.py vs navigation_and_ui.md)"]
-    B --> C4["Audit Persistence & Sync\n(persistence.py, network_manager.py vs persistence.md)"]
+    B --> C4["Audit Persistence & Sync\n(stats.py, autosave.py, network_manager.py vs persistence.md)"]
     
     C1 --> D["Classify Gaps into 4 Categories"]
     C2 --> D
@@ -119,26 +119,28 @@ Inspect the codebase using file reads and search commands to populate the audit:
 
 #### 1. World, Maps, and Biomes
 - Compare `constants.BIOME_PALETTES` and `constants.TILE_KEY` against `docs/reference.md` and `docs/modular_system.md`.
-- Inspect `maps/` directory: check that all map files (`windy_ridge.json`, `swamp_mire.json`, `the_colophon.json`,
-  `sanctuary_*.txt`, etc.) are documented in `docs/modular_system.md` or `docs/world_and_lore.md`.
+- Inspect `maps/` directory: check that active map files (`maps/sanctuary.json`, `maps/the_colophon.json`,
+  `maps/night_boss_arena.json`, and `maps/segments/<biome>/` pools) are documented in `docs/modular_system.md` or
+  `docs/world_and_lore.md`.
 - Check room assembly logic in `engine/world_generator.py` (symmetric sizing array `[120, 40, 120, 40, 120]`)
   against `docs/modular_system.md`.
 
 #### 2. Enemies, Minibosses, and Bosses
-- Compare `SYMBOL_REGISTRY` in `engine/world.py` and enemy classes in `engine/enemy.py`
-  (`BatEnemy`, `SlugEnemy`, `FlutterEnemy`, `BindlingEnemy`, `SmearEnemy`, `SentryEnemy`, `Miniboss`)
-  against `docs/architecture.md` and `docs/extended-notes/enemies/`.
-- Check Boss implementation in `engine/boss.py` (`NightBoss`) and arena mechanics against `docs/architecture.md`.
+- Compare `SYMBOL_REGISTRY` and enemy classes in `engine/enemy.py` (imported by `engine/world.py` —
+  `BatEnemy`, `SlugEnemy`, `FlutterEnemy`, `BindlingEnemy`, `SmearEnemy`, `SentryEnemy`, `PunctuationWolfEnemy`,
+  `Miniboss`) against `docs/architecture.md` and `docs/extended-notes/enemies/`.
+- Check Boss implementations in `engine/enemy.py` (`Boss`, `NightBoss`, `SlugBoss`, `MeadowCensorBoss`,
+  `RimecrestArbiterBoss`, `FinalAuthor`) and arena mechanics against `docs/architecture.md`.
 
 #### 3. Combat, Physics, and Equipment
-- Compare weapon constants and anomalous traits in `constants.py`, `engine/weapon.py`, and
-  `engine/player.py` (`bleed`, `slow_hp_regen`, etc.) against `docs/architecture.md`.
+- Compare weapon constants and anomalous traits in `constants.py`, `engine/loot.py`, `engine/world.py` (`WeaponPickup`),
+  `engine/combat.py`, and `engine/player.py` (`bleed`, `slow_hp_regen`, etc.) against `docs/architecture.md`.
 - Verify combat parameters (sword reach, crescent arc radians, dash duration, parry window, block reduction)
   in `constants.py` match the combat specifications in `docs/architecture.md`.
 
 #### 4. UI, Camera, and Visual Systems
-- Check Minimap rules (radar color tokens, Sanctuary exclusion, safe circle ring) in `engine/minimap.py` and
-  `rendering/renderer.py` against `docs/navigation_and_ui.md`.
+- Check Minimap rules (radar color tokens, Sanctuary exclusion, safe circle ring) in `constants.py` and
+  `rendering/renderer.py` (`draw_minimap`) against `docs/navigation_and_ui.md`.
 - Check audio and debug text visibility controls (pause menu debug toggle, persistent audio HUD)
   against `docs/navigation_and_ui.md`.
 
