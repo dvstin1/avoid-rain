@@ -889,6 +889,74 @@ def preset_ambient_author_rumble(rng: random.Random, p: Dict):
     return make_loopable(out, p["loop_fade"])
 
 
+def preset_armor_deflect(rng: random.Random, p: Dict):
+    """Sharp metallic armor deflection clang + high chiptune ricochet ping (~0.24s)."""
+    n = n_samples(p["duration"])
+    clink = multiply(
+        normalize(biquad(white_noise(n, rng), "highpass", p["clink_hp_hz"], order=2)),
+        exp_decay(n, 0.014, attack=0.0005),
+    )
+    ring = normalize(metallic_ring(n, jitter(rng, p["ring_hz"], 0.03), RING_RATIOS_ARMOR, p["ring_decay"], rng))
+    ricochet_freq = freq_curve(p["ping_start_hz"], p["ping_end_hz"], n)
+    ricochet = multiply(oscillator(ricochet_freq, "square"), exp_decay(n, p["ping_decay"], attack=0.001))
+    ricochet = normalize(biquad(ricochet, "bandpass", p["ping_start_hz"] * 0.9, 1.8))
+    return soft_clip(
+        normalize(mix((clink, p["clink_level"]), (ring, p["ring_level"]), (ricochet, p["ping_level"]))),
+        1.4,
+    )
+
+
+def preset_boss_expose(rng: random.Random, p: Dict):
+    """Dramatic armor-seal break + shimmering crystalline weak-point expose chime (~0.55s)."""
+    n = n_samples(p["duration"])
+    crack = multiply(
+        normalize(biquad(white_noise(n, rng), "bandpass", 2800.0, 1.2)),
+        exp_decay(n, 0.045, attack=0.001),
+    )
+    sub_drop = multiply(
+        oscillator(pitch_drop(n, p["sub_start_hz"], p["sub_end_hz"], 0.09)),
+        exp_decay(n, 0.24, attack=0.004),
+    )
+    chime_start = 0.06
+    m = max(16, n - offset_samples(chime_start))
+    chime_root = oscillator(constant(p["chime_hz"], m), "triangle", rng.uniform(0.0, TAU))
+    chime_fifth = oscillator(constant(p["chime_hz"] * 1.498, m), "sine", rng.uniform(0.0, TAU))
+    chime_oct = oscillator(constant(p["chime_hz"] * 2.0, m), "sine", rng.uniform(0.0, TAU))
+    chime = multiply(
+        mix((chime_root, 0.7), (chime_fifth, 0.55), (chime_oct, 0.4)),
+        multiply(exp_decay(m, p["chime_decay"], attack=0.008), lfo(m, 9.5, 0.22)),
+    )
+    return mix(
+        (crack, p["crack_level"], 0.0),
+        (sub_drop, p["sub_level"], 0.0),
+        (normalize(chime), p["chime_level"], chime_start),
+    )
+
+
+def preset_weakpoint_crit(rng: random.Random, p: Dict):
+    """Punchy heavy sub-impact + bright crunchy harmonic weak-point crit burst (~0.32s)."""
+    n = n_samples(p["duration"])
+    thump = multiply(
+        oscillator(pitch_drop(n, p["thump_start_hz"], p["thump_end_hz"], 0.032)),
+        exp_decay(n, 0.095, attack=0.001),
+    )
+    crunch = multiply(
+        normalize(biquad(bitcrush(white_noise(n, rng), 5, hold=2), "highpass", 2400.0)),
+        exp_decay(n, 0.032, attack=0.0005),
+    )
+    crit_a = multiply(oscillator(constant(p["crit_hz"], n), "square"), exp_decay(n, 0.09, attack=0.001))
+    crit_b_start = 0.045
+    m = max(16, n - offset_samples(crit_b_start))
+    crit_b = multiply(oscillator(constant(p["crit_hz"] * 1.5, m), "triangle"), exp_decay(m, 0.14, attack=0.002))
+    out = mix(
+        (thump, p["thump_level"], 0.0),
+        (crunch, p["crunch_level"], 0.0),
+        (normalize(biquad(crit_a, "lowpass", 3600.0)), p["crit_level"], 0.0),
+        (crit_b, p["crit_level"] * 0.9, crit_b_start),
+    )
+    return soft_clip(normalize(out), 1.8)
+
+
 def preset_mumble(rng: random.Random, p: Dict):
     """Closed-mouth vocal mumble: low-passed vocal buzz formants modulated by syllabic cadence."""
     n = n_samples(p["duration"])
@@ -1426,6 +1494,22 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "drone_hz": 38.0, "beat_hz": 2.4, "drone_level": 0.52, "dissonance_level": 0.24,
         "swell_hz": 0.42, "swell_depth": 0.24, "loopable": True, "peak": 0.68,
     }, "Seamless distant subterranean rumble loop for the Author's madness"),
+    "armor_deflect": (preset_armor_deflect, {
+        "duration": 0.24, "clink_hp_hz": 3200.0, "clink_level": 0.72,
+        "ring_hz": 1680.0, "ring_decay": 0.095, "ring_level": 0.92,
+        "ping_start_hz": 2400.0, "ping_end_hz": 1450.0, "ping_decay": 0.075, "ping_level": 0.52,
+        "peak": 0.82,
+    }, "Sharp metallic armor deflection clang + ricochet ping"),
+    "boss_expose": (preset_boss_expose, {
+        "duration": 0.55, "crack_level": 0.72, "sub_start_hz": 150.0, "sub_end_hz": 44.0,
+        "sub_level": 0.80, "chime_hz": 659.25, "chime_decay": 0.24, "chime_level": 0.85,
+        "peak": 0.84,
+    }, "Armor-seal break + shimmering weak-point expose chime"),
+    "weakpoint_crit": (preset_weakpoint_crit, {
+        "duration": 0.32, "thump_start_hz": 210.0, "thump_end_hz": 46.0, "thump_level": 0.92,
+        "crunch_level": 0.78, "crit_hz": 880.0, "crit_level": 0.70,
+        "peak": 0.86,
+    }, "Heavy sub-impact + harmonic weak-point critical burst"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1497,6 +1581,9 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "ambient_flame.ogg": ("ambient_flame", {}),
     "ambient_water.ogg": ("ambient_water", {}),
     "ambient_author_rumble.ogg": ("ambient_author_rumble", {}),
+    "armor_deflect.ogg": ("armor_deflect", {}),
+    "boss_expose.ogg": ("boss_expose", {}),
+    "weakpoint_crit.ogg": ("weakpoint_crit", {}),
 }
 
 # Keyword heuristics for unknown missing references (first match wins)

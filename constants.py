@@ -1745,8 +1745,21 @@ BOSS_HUD_DISPLAY_NAMES = {
     "MeadowCensorBoss": "The Meadow Censor",
     "RimecrestArbiterBoss": "The Rimecrest Arbiter",
     "NightBoss": "Night Boss",
+    "MarginWarden": "The Margin Warden",
     "FinalAuthor": "The Final Author",
 }
+
+# Articulated Boss Rig, MarginWarden Sibling Miniboss & Gimmick Armor/Weak-Point Constants
+MARGIN_WARDEN_MAX_HP = 480
+BOSS_ARMOR_DEFAULT_DAMAGE_MULT = 0.25
+BOSS_WEAKPOINT_DEFAULT_DAMAGE_MULT = 2.0
+BOSS_RIG_ANGLE_QUANT_DEG = 5
+ARMOR_DEFLECT_SFX = "armor_deflect.ogg"
+BOSS_EXPOSE_SFX = "boss_expose.ogg"
+WEAKPOINT_CRIT_SFX = "weakpoint_crit.ogg"
+COLOR_ARMOR_DEFLECT_SPARK = (196, 224, 248)
+COLOR_ARMOR_DEFLECT_TEXT = (176, 194, 212)
+COLOR_WEAKPOINT_CRIT_TEXT = (255, 196, 72)
 
 # Glass Salt Flats (The Vitreous Basin) Fire Chalice & Heat Atmosphere Constants
 VITREOUS_FIRE_CHALICE_SIZE = 80

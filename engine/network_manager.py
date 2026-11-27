@@ -188,7 +188,10 @@ class NetworkManager:
                     self.host_client_state_cacher(identity, addr_ip, state_data)
         elif event_type == "DAMAGE_EVENT":
             if self.host_damage_handler:
-                self.host_damage_handler(*payload)
+                try:
+                    self.host_damage_handler(*payload)
+                except TypeError:
+                    self.host_damage_handler(*payload[:3])
         elif event_type == "HEAL_EVENT":
             if self.host_heal_handler:
                 self.host_heal_handler(*payload)
@@ -796,7 +799,8 @@ class NetworkManager:
 
             elif m_type == "DAMAGE_EVENT":
                 self.enqueue_inbound(
-                    "DAMAGE_EVENT", (msg.get("target_type"), msg.get("target_id"), msg.get("amount"))
+                    "DAMAGE_EVENT",
+                    (msg.get("target_type"), msg.get("target_id"), msg.get("amount"), peer_id),
                 )
 
             elif m_type == "HEAL_EVENT":

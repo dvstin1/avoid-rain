@@ -4707,10 +4707,143 @@ class Renderer:
             return flipped
         return surf
 
+    def _draw_articulated_boss_rig(
+        self,
+        actor,
+        draw_rect,
+        packet,
+        parts_spec,
+        under_shapes_fn=None,
+    ):
+        """Render a reusable multi-part articulated boss rig with procedural under-layer and Z-ordered pixmaps."""
+        w, h = max(1, int(draw_rect.width)), max(1, int(draw_rect.height))
+        cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
+        anim_t = float(packet.get("anim_timer", 0.0) if isinstance(packet, dict) else 0.0)
+        cache = self._fx_surface_cache
+
+        # 1. Procedural Under-Layer: ground shadow ellipse
+        sh_w = max(24, int(round(w * 0.86)))
+        sh_h = max(12, int(round(h * 0.28)))
+        sh_key = ("boss_rig_shadow", sh_w, sh_h)
+        sh_surf = cache.get(sh_key)
+        if sh_surf is None:
+            sh_surf = pygame.Surface((sh_w, sh_h), pygame.SRCALPHA)
+            pygame.draw.ellipse(sh_surf, (8, 6, 14, 118), (0, 0, sh_w, sh_h))
+            cache[sh_key] = sh_surf
+        self.screen.blit(sh_surf, (cx - sh_w // 2, draw_rect.bottom - sh_h // 2 - 2))
+
+        # 2. Procedural Under-Layer: Phase 2 energy aura
+        phase = int(getattr(actor, "phase", 1) or 1)
+        if phase >= 2:
+            pulse = 0.5 + 0.5 * math.sin(anim_t * 6.0)
+            aura_w = w + 18 + int(round(pulse * 6))
+            aura_h = h + 18 + int(round(pulse * 6))
+            q_aura_a = (int(round(72 + pulse * 48)) // 8) * 8
+            aura_key = ("boss_rig_phase2_aura", aura_w, aura_h, q_aura_a)
+            aura_surf = cache.get(aura_key)
+            if aura_surf is None:
+                aura_surf = pygame.Surface((aura_w, aura_h), pygame.SRCALPHA)
+                pygame.draw.ellipse(aura_surf, (216, 76, 178, q_aura_a // 2), (0, 0, aura_w, aura_h))
+                pygame.draw.ellipse(aura_surf, (255, 212, 92, q_aura_a), (3, 3, aura_w - 6, aura_h - 6), 2)
+                cache[aura_key] = aura_surf
+            self.screen.blit(aura_surf, (cx - aura_w // 2, cy - aura_h // 2))
+
+        # 3. Procedural Under-Layer: Armor / Weak-Point state rings
+        weak_t = float(getattr(actor, "weakpoint_exposed_timer", 0.0) or 0.0)
+        armor_on = bool(getattr(actor, "armor_active", False))
+        if weak_t > 0.0:
+            w_pulse = 0.5 + 0.5 * math.sin(anim_t * 10.0)
+            ring_r = max(14, max(w, h) // 2 + 4 + int(round(w_pulse * 4)))
+            q_wa = (int(round(136 + w_pulse * 96)) // 8) * 8
+            w_key = ("boss_rig_weak_ring", ring_r, q_wa)
+            w_surf = cache.get(w_key)
+            if w_surf is None:
+                dim = ring_r * 2 + 6
+                w_surf = pygame.Surface((dim, dim), pygame.SRCALPHA)
+                pygame.draw.circle(w_surf, (255, 196, 72, q_wa), (ring_r + 3, ring_r + 3), ring_r, 3)
+                cache[w_key] = w_surf
+            self.screen.blit(w_surf, (cx - w_surf.get_width() // 2, cy - w_surf.get_height() // 2))
+        elif armor_on:
+            ring_r = max(14, max(w, h) // 2 + 3)
+            a_key = ("boss_rig_armor_ring", ring_r)
+            a_surf = cache.get(a_key)
+            if a_surf is None:
+                dim = ring_r * 2 + 6
+                a_surf = pygame.Surface((dim, dim), pygame.SRCALPHA)
+                pygame.draw.circle(a_surf, (148, 194, 232, 136), (ring_r + 3, ring_r + 3), ring_r, 2)
+                cache[a_key] = a_surf
+            self.screen.blit(a_surf, (cx - a_surf.get_width() // 2, cy - a_surf.get_height() // 2))
+
+        # 4. Optional custom procedural under-shapes callback (gears, wind ribbons, molten cores, water eddies)
+        if callable(under_shapes_fn):
+            under_shapes_fn(self.screen, draw_rect, actor, packet)
+
+        # 5. Z-Ordered Independent Pixmap Parts with 5-degree quantized transform caching
+        quant = max(1, int(constants.BOSS_RIG_ANGLE_QUANT_DEG))
+        ordered_parts = sorted(
+            enumerate(parts_spec or ()),
+            key=lambda pair: (float(pair[1].get("z_order", 0.0)), pair[0]),
+        )
+        rendered_order = []
+        prop_cache = getattr(self, "prop_cache", {})
+        image_cache = getattr(self, "image_cache", {})
+
+        for _idx, part in ordered_parts:
+            sprite_key = part.get("sprite_key")
+            base_surf = part.get("surface")
+            if base_surf is None and sprite_key:
+                base_surf = prop_cache.get(sprite_key) or image_cache.get(sprite_key)
+            if base_surf is None:
+                continue
+
+            offset_x = float(part.get("offset_x", 0.0))
+            offset_y = float(part.get("offset_y", 0.0))
+            pivot_x = float(part.get("pivot_x", 0.0))
+            pivot_y = float(part.get("pivot_y", 0.0))
+            angle_deg = float(part.get("angle_deg", 0.0))
+            scale = max(0.05, float(part.get("scale", 1.0)))
+            flip_x = bool(part.get("flip_x", False))
+            alpha = max(0, min(255, int(part.get("alpha", 255))))
+
+            q_angle = int(round(angle_deg / quant) * quant) % 360
+            q_scale = round(scale, 2)
+            q_alpha = 255 if alpha >= 255 else (alpha // 8) * 8
+
+            p_key = ("boss_rig_part", sprite_key or id(base_surf), q_angle, q_scale, flip_x, q_alpha)
+            surf = cache.get(p_key)
+            if surf is None:
+                work = base_surf.convert_alpha() if pygame.display.get_surface() else base_surf.copy()
+                if flip_x:
+                    work = pygame.transform.flip(work, True, False)
+                if q_angle != 0 or abs(q_scale - 1.0) > 1e-4:
+                    work = pygame.transform.rotozoom(work, -q_angle, q_scale)
+                if q_alpha < 255:
+                    work = work.copy()
+                    work.fill((255, 255, 255, q_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+                surf = work
+                cache[p_key] = surf
+
+            anchor_x = cx + offset_x
+            anchor_y = cy + offset_y
+            if pivot_x != 0.0 or pivot_y != 0.0:
+                rad = math.radians(q_angle)
+                cos_a, sin_a = math.cos(rad), math.sin(rad)
+                lp_x = -pivot_x * q_scale
+                lp_y = -pivot_y * q_scale
+                anchor_x += lp_x * cos_a - lp_y * sin_a
+                anchor_y += lp_x * sin_a + lp_y * cos_a
+
+            dest_x = int(round(anchor_x - surf.get_width() * 0.5))
+            dest_y = int(round(anchor_y - surf.get_height() * 0.5))
+            self.screen.blit(surf, (dest_x, dest_y))
+            rendered_order.append((sprite_key or id(base_surf), p_key))
+
+        return rendered_order
+
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
         """Draw image sprites or procedural basic-shape graphics for enemies and bosses."""
         from engine.enemy import (
-            BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy,
+            BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy, MarginWarden,
             MeadowCensorBoss, Miniboss, MinibossM2, MinibossM3, NightBoss,
             PunctuationWolfEnemy, RimecrestArbiterBoss, SentryEnemy, SlugBoss, SmearEnemy,
         )
@@ -4798,7 +4931,12 @@ class Renderer:
             elif isinstance(actor, FinalAuthor) or "author" in actor_tag:
                 base_key = "final_author.png"
                 used_directional_boss = True
-            elif isinstance(actor, NightBoss) or "night boss" in actor_tag or "night_boss" in actor_tag:
+            elif (
+                isinstance(actor, (NightBoss, MarginWarden))
+                or "night boss" in actor_tag
+                or "night_boss" in actor_tag
+                or "margin warden" in actor_tag
+            ):
                 base_key = "night_boss.png"
                 used_directional_boss = True
             elif is_event_champion:

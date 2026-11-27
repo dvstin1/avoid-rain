@@ -421,6 +421,52 @@ class Boss(Enemy):
         self._flank_dir = random.choice((-1.0, 1.0))
         self.ink_bolts = []
 
+        # Optional gimmick armor-deflection and weak-point expose hooks
+        from constants import BOSS_ARMOR_DEFAULT_DAMAGE_MULT, BOSS_WEAKPOINT_DEFAULT_DAMAGE_MULT
+        self.armor_active = False
+        self.armor_front_only = False
+        self.armor_damage_mult = float(BOSS_ARMOR_DEFAULT_DAMAGE_MULT)
+        self.weakpoint_exposed_timer = 0.0
+        self.weakpoint_damage_mult = float(BOSS_WEAKPOINT_DEFAULT_DAMAGE_MULT)
+
+    def expose_weakpoint(self, duration: float, state=None) -> None:
+        """Open a timed vulnerability window and emit the boss_expose SFX cue."""
+        dur = max(0.0, float(duration))
+        if dur <= 0.0:
+            return
+        self.weakpoint_exposed_timer = max(float(self.weakpoint_exposed_timer), dur)
+        if state is None:
+            return
+        from constants import BOSS_EXPOSE_SFX
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx(BOSS_EXPOSE_SFX)
+            except Exception:
+                pass
+        else:
+            pending = getattr(state, "pending_remote_sfx", None)
+            if isinstance(pending, list):
+                cx, cy = self.get_center()
+                pending.append((BOSS_EXPOSE_SFX, cx, cy))
+
+    def check_gimmick_hit(self, attacker_x: float, attacker_y: float) -> str:
+        """Classify an incoming melee hit as 'weakpoint', 'armor', or 'normal'."""
+        if float(getattr(self, "weakpoint_exposed_timer", 0.0) or 0.0) > 0.0:
+            return "weakpoint"
+        if bool(getattr(self, "armor_active", False)):
+            if bool(getattr(self, "armor_front_only", False)):
+                cx, cy = self.get_center()
+                dx, dy = float(attacker_x) - cx, float(attacker_y) - cy
+                d_mag = math.hypot(dx, dy)
+                fx, fy = self.facing
+                f_mag = math.hypot(fx, fy)
+                if d_mag > 1e-4 and f_mag > 1e-4:
+                    dot = (dx * fx + dy * fy) / (d_mag * f_mag)
+                    return "armor" if dot >= 0.0 else "normal"
+            return "armor"
+        return "normal"
+
     def get_display_name(self) -> str:
         """Return the player-facing HUD display name for this boss."""
         explicit = getattr(self, "display_name", None)
@@ -433,11 +479,13 @@ class Boss(Enemy):
         return str(getattr(self, "name", "Boss") or "Boss")
 
     def update(self, dt, state):
-        """Advance boss ranged cooldown and active ink-bolt projectiles alongside base AI."""
+        """Advance boss ranged cooldown, weak-point timer, and ink-bolt projectiles alongside base AI."""
         if self.is_summoning_or_dormant():
             self.vx = 0.0
             self.vy = 0.0
             return
+        if self.weakpoint_exposed_timer > 0.0:
+            self.weakpoint_exposed_timer = max(0.0, self.weakpoint_exposed_timer - max(0.0, float(dt)))
         if self.ranged_cooldown_timer > 0.0:
             self.ranged_cooldown_timer = max(0.0, self.ranged_cooldown_timer - dt)
         if self.ink_bolts:
@@ -1143,6 +1191,19 @@ class NightBoss(Miniboss):
         self.name = "Night Boss"
         self.speed = MINIBOSS_SPEED * 0.9
         self.loot_tier = 1
+
+
+class MarginWarden(Miniboss):
+    """Archival sentinel miniboss sibling using NightBoss visuals without Night Boss lifecycle hooks."""
+
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import MARGIN_WARDEN_MAX_HP, MINIBOSS_SPEED
+        initial_hp = hp if hp is not None else MARGIN_WARDEN_MAX_HP
+        super().__init__(x, y, initial_hp, id=id)
+        self.name = "Margin Warden"
+        self.display_name = "The Margin Warden"
+        self.speed = MINIBOSS_SPEED * 0.95
+        self.loot_tier = 2
 
 
 class SlugBoss(NightBoss):
@@ -2140,8 +2201,8 @@ class FinalAuthor(Boss):
 ENEMY_REGISTRY = {
     "SlugEnemy": SlugEnemy, "BatEnemy": BatEnemy, "FlutterEnemy": FlutterEnemy,
     "BindlingEnemy": BindlingEnemy, "Miniboss": Miniboss, "MinibossM2": MinibossM2,
-    "MinibossM3": MinibossM3, "SmearEnemy": SmearEnemy, "SentryEnemy": SentryEnemy,
-    "PunctuationWolfEnemy": PunctuationWolfEnemy,
+    "MinibossM3": MinibossM3, "MarginWarden": MarginWarden, "SmearEnemy": SmearEnemy,
+    "SentryEnemy": SentryEnemy, "PunctuationWolfEnemy": PunctuationWolfEnemy,
     "NightBoss": NightBoss, "SlugBoss": SlugBoss, "MeadowCensorBoss": MeadowCensorBoss,
     "RimecrestArbiterBoss": RimecrestArbiterBoss,
     "FinalAuthor": FinalAuthor,

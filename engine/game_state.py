@@ -1223,11 +1223,12 @@ class GameState:
             if net_id not in local_net_ids:
                 # We need to map Name back to Class.
                 from engine.enemy import (
-                    SlugEnemy, BatEnemy, NightBoss, MinibossM2, MinibossM3, SentryEnemy,
+                    SlugEnemy, BatEnemy, NightBoss, MarginWarden, MinibossM2, MinibossM3, SentryEnemy,
                     PunctuationWolfEnemy, BindlingEnemy, SmearEnemy,
                 )
                 mapping = {
                     "Slug": SlugEnemy, "Bat": BatEnemy, "Night Boss": NightBoss,
+                    "Margin Warden": MarginWarden,
                     "Ink-Stained": MinibossM2, "Bleeding Scribe": MinibossM2,
                     "Overwritten Elite": MinibossM2, "Empowered Champion": MinibossM2,
                     "The Relentless Censor": MinibossM2, "Empowered Relentless Censor": MinibossM2,
@@ -1399,9 +1400,40 @@ class GameState:
         self.player.hp = min(float(self.player.max_hp), float(data.get("hp", self.player.hp)))
         if hasattr(self, 'camera'): self.camera.instant_center(self.player.get_center())
 
-    def handle_remote_damage(self, target_type, target_id, amount):
+    def handle_remote_damage(self, target_type, target_id, amount, attacker_peer_id=None):
         """Phase 4: Queues damage events sent by remote clients."""
-        self.pending_remote_damage.append((target_type, target_id, amount))
+        self.pending_remote_damage.append((target_type, target_id, amount, attacker_peer_id))
+
+    @staticmethod
+    def _resolve_gimmick_hit_damage(enemy, base_damage, attacker_x, attacker_y):
+        """Evaluate Boss.check_gimmick_hit() if present, returning (effective_damage, hit_kind)."""
+        if not hasattr(enemy, "check_gimmick_hit"):
+            return base_damage, "normal"
+        hit_kind = str(enemy.check_gimmick_hit(attacker_x, attacker_y) or "normal")
+        if hit_kind == "armor":
+            mult = float(getattr(enemy, "armor_damage_mult", 0.25))
+            return base_damage * mult, "armor"
+        if hit_kind == "weakpoint":
+            mult = float(getattr(enemy, "weakpoint_damage_mult", 2.0))
+            return base_damage * mult, "weakpoint"
+        return base_damage, "normal"
+
+    def _resolve_remote_attacker_pos(self, attacker_peer_id, target_enemy):
+        """Resolve world-space (x, y) center of the remote peer attacking target_enemy."""
+        remote_players = getattr(self.network_manager, "remote_players", {}) or {}
+        if attacker_peer_id is not None:
+            resolved_key = self._resolve_remote_player_key(attacker_peer_id)
+            p_data = remote_players.get(resolved_key) if resolved_key else None
+            if isinstance(p_data, dict):
+                return (float(p_data.get("x", 0.0)) + 20.0, float(p_data.get("y", 0.0)) + 20.0)
+        ex, ey = target_enemy.get_center()
+        if remote_players:
+            nearest = min(
+                remote_players.values(),
+                key=lambda p: (float(p.get("x", 0.0)) + 20.0 - ex) ** 2 + (float(p.get("y", 0.0)) + 20.0 - ey) ** 2,
+            )
+            return (float(nearest.get("x", 0.0)) + 20.0, float(nearest.get("y", 0.0)) + 20.0)
+        return (ex, ey)
 
     def handle_remote_heal(self, identity, amount):
         """Phase 4: Queues heal events sent by remote clients."""
@@ -1418,17 +1450,41 @@ class GameState:
             return
 
         if self.pending_remote_damage:
-            for target_type, target_id, amount in self.pending_remote_damage:
+            from constants import (
+                ARMOR_DEFLECT_SFX,
+                COLOR_ARMOR_DEFLECT_SPARK,
+                COLOR_ARMOR_DEFLECT_TEXT,
+                COLOR_WEAKPOINT_CRIT_TEXT,
+                WEAKPOINT_CRIT_SFX,
+            )
+            for entry in self.pending_remote_damage:
+                if len(entry) >= 4:
+                    target_type, target_id, amount, attacker_peer_id = entry[:4]
+                else:
+                    target_type, target_id, amount = entry[:3]
+                    attacker_peer_id = None
                 if target_type == "enemy":
                     for e in self.enemies:
                         if getattr(e, "network_id", -1) == target_id:
-                            e.take_damage(amount)
+                            ax, ay = self._resolve_remote_attacker_pos(attacker_peer_id, e)
+                            eff_amount, hit_kind = self._resolve_gimmick_hit_damage(e, amount, ax, ay)
+                            e.take_damage(eff_amount)
+                            ex, ey = e.get_center()
+                            num_col = (255, 255, 0)
+                            if hit_kind == "armor":
+                                num_col = COLOR_ARMOR_DEFLECT_TEXT
+                                self.pending_remote_sfx.append((ARMOR_DEFLECT_SFX, ex, ey))
+                                self.spawn_impact_sparks(ex, ey, color=COLOR_ARMOR_DEFLECT_SPARK)
+                            elif hit_kind == "weakpoint":
+                                num_col = COLOR_WEAKPOINT_CRIT_TEXT
+                                self.pending_remote_sfx.append((WEAKPOINT_CRIT_SFX, ex, ey))
+                                self.trigger_rumble("combat_hit")
                             self.damage_numbers.append(
                                 {
-                                    "val": amount,
+                                    "val": eff_amount,
                                     "pos": (e.x + 10, e.y - 20),
                                     "time": 1.0,
-                                    "color": (255, 255, 0),
+                                    "color": num_col,
                                 }
                             )
                             break
@@ -2087,7 +2143,7 @@ class GameState:
                     self.world.interactables.append(portal)
                     self.trigger_bloom("THE APPENDIX REVEALED", priority=2)
 
-    def spawn_impact_sparks(self, x, y, weapon=None, count=None):
+    def spawn_impact_sparks(self, x, y, weapon=None, count=None, color=None):
         """Spawns subtle directional impact sparks upon landed melee hits."""
         import random
         import math
@@ -2098,7 +2154,7 @@ class GameState:
             IMPACT_SPARK_SPEED_MAX,
             get_weapon_passive_color,
         )
-        tint = get_weapon_passive_color(weapon)
+        tint = color if color is not None else get_weapon_passive_color(weapon)
         fx, fy = self.player.facing
         base_angle = math.atan2(fy, fx)
         spark_count = count if count is not None else IMPACT_SPARK_COUNT
@@ -2197,15 +2253,32 @@ class GameState:
                     if check_sword_hit(player_center, player_facing, e_rect, hitbox=hitbox):
                         # Rule: Hit once per attack swing
                         self.player.hit_entities_this_attack.add(net_id)
-                        
-                        enemy.take_damage(damage, bypass_stagger=is_client)
-                        
-                        # Glyph Splatter Particle Burst at impact point
-                        from constants import COLOR_INK_CHARCOAL
+
+                        effective_damage, hit_kind = self._resolve_gimmick_hit_damage(
+                            enemy, damage, player_center[0], player_center[1]
+                        )
+                        enemy.take_damage(effective_damage, bypass_stagger=is_client)
+
+                        # Glyph Splatter & Impact Sparks at impact point
+                        from constants import (
+                            ARMOR_DEFLECT_SFX,
+                            COLOR_ARMOR_DEFLECT_SPARK,
+                            COLOR_ARMOR_DEFLECT_TEXT,
+                            COLOR_INK_CHARCOAL,
+                            COLOR_WEAKPOINT_CRIT_TEXT,
+                            WEAKPOINT_CRIT_SFX,
+                        )
                         impact_x, impact_y = enemy.get_center()
                         enemy_color = getattr(enemy, 'glyph_splatter_color', COLOR_INK_CHARCOAL)
                         self.glyph_particles.spawn_burst(impact_x, impact_y, color=enemy_color)
-                        self.spawn_impact_sparks(impact_x, impact_y, weapon=active_weapon)
+                        if hit_kind == "armor":
+                            self.spawn_impact_sparks(impact_x, impact_y, color=COLOR_ARMOR_DEFLECT_SPARK)
+                            if audio_manager:
+                                audio_manager.play_sfx(ARMOR_DEFLECT_SFX)
+                        else:
+                            self.spawn_impact_sparks(impact_x, impact_y, weapon=active_weapon)
+                            if hit_kind == "weakpoint" and audio_manager:
+                                audio_manager.play_sfx(WEAKPOINT_CRIT_SFX)
 
                         # Apply anomalous weapon & Binder Script bleed modifiers on hit
                         all_mods = self.player.get_all_modifiers()
@@ -2222,9 +2295,14 @@ class GameState:
                         self.hit_stop_timer = HIT_STOP_DURATION
                         self.trigger_shake(SCREEN_SHAKE_DURATION)
                         self.trigger_rumble("combat_hit")
+                        num_color = COLOR_SELECTION
+                        if hit_kind == "armor":
+                            num_color = COLOR_ARMOR_DEFLECT_TEXT
+                        elif hit_kind == "weakpoint":
+                            num_color = COLOR_WEAKPOINT_CRIT_TEXT
                         self.damage_numbers.append({
-                            'val': damage, 'pos': (enemy.x + 10, enemy.y - 20),
-                            'time': DAMAGE_NUMBER_LIFETIME, 'color': COLOR_SELECTION
+                            'val': effective_damage, 'pos': (enemy.x + 10, enemy.y - 20),
+                            'time': DAMAGE_NUMBER_LIFETIME, 'color': num_color
                         })
                 except Exception: pass
 
