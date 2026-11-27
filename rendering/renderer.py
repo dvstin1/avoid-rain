@@ -174,6 +174,7 @@ class Renderer:
             "bat", "flutter", "flutter_1", "flutter_2", "bindling", "smear", "sentry", "punctuation_wolf",
             "event_champion", "miniboss", "night_boss", "final_author",
             "gale_raptor_torso", "gale_raptor_head", "gale_raptor_wing", "gale_raptor_tail",
+            "typesetter_chassis", "typesetter_turret", "typesetter_leg", "typesetter_platen",
         ):
             name = f"{kind}.png"
             path = os.path.join(base_path, name)
@@ -4650,6 +4651,7 @@ class Renderer:
             not is_slug
             and not is_slug_boss
             and not bool(getattr(actor, "is_gale_raptor", False))
+            and not bool(getattr(actor, "is_typesetter_boss", False))
             and hasattr(actor, 'get_attack_hitbox')
         ):
             self.draw_boss_weapon(actor, ox, oy)
@@ -5027,15 +5029,259 @@ class Renderer:
             pygame.draw.circle(self.screen, brass, (int(cx + head_ox), int(cy + head_oy)), 10)
             pygame.draw.circle(self.screen, (255, 196, 76), (int(cx + tail_ox), int(cy + tail_oy)), 7)
 
+    def _draw_typesetter_automaton_boss(self, actor, draw_rect, packet):
+        """Render The Typesetter Automaton via the articulated multi-part rig with brass gears & fallback."""
+        cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
+        w, h = max(1, int(draw_rect.width)), max(1, int(draw_rect.height))
+        fx, fy = packet.get("facing", getattr(actor, "facing", (0.0, 1.0)))
+        f_mag = math.hypot(fx, fy)
+        ux, uy = (fx / f_mag, fy / f_mag) if f_mag > 1e-4 else (0.0, 1.0)
+        anim_t = float(packet.get("anim_timer", getattr(actor, "animation_timer", 0.0)) or 0.0)
+        attack_mode = str(packet.get("attack_mode", getattr(actor, "attack_mode", "platen_march")))
+        stamp_substate = str(packet.get("stamp_substate", getattr(actor, "stamp_substate", "lift")))
+        phase = int(packet.get("phase", getattr(actor, "phase", 1)) or 1)
+        platen_off_y = float(packet.get("platen_offset_y", getattr(actor, "platen_offset_y", 0.0)) or 0.0)
+        leg_phase = float(packet.get("leg_phase", getattr(actor, "leg_phase", 0.0)) or 0.0)
+        armor_active = bool(packet.get("armor_active", getattr(actor, "armor_active", False)))
+        weak_t = float(packet.get("weakpoint_exposed_timer", getattr(actor, "weakpoint_exposed_timer", 0.0)) or 0.0)
+
+        face_rad = math.atan2(uy, ux)
+        body_deg = math.degrees(face_rad) - 90.0
+        cos_b = math.cos(math.radians(body_deg))
+        sin_b = math.sin(math.radians(body_deg))
+
+        def _rot_off(lx, ly):
+            return (lx * cos_b - ly * sin_b, lx * sin_b + ly * cos_b)
+
+        def _under_shapes(screen, rect, act, pkt):
+            rcx, rcy = int(rect.centerx), int(rect.centery)
+            gear_r = max(24, int(round(max(rect.width, rect.height) * 0.44)))
+
+            # 1. Rotating interlocking oxidized-brass gear ring beneath the carriage
+            if attack_mode == "boiler_vent":
+                spin = anim_t * 0.45 + math.sin(anim_t * 28.0) * 0.06
+            else:
+                spin = anim_t * (2.2 if phase >= 2 else 1.3)
+            pygame.draw.circle(screen, (152, 114, 52), (rcx, rcy), gear_r, 3)
+            pygame.draw.circle(screen, (68, 86, 112), (rcx, rcy), max(10, gear_r - 7), 2)
+            for tooth_i in range(12):
+                ang = spin + tooth_i * (math.pi / 6.0)
+                p_in = (int(rcx + math.cos(ang) * (gear_r - 5)), int(rcy + math.sin(ang) * (gear_r - 5)))
+                p_out = (int(rcx + math.cos(ang) * (gear_r + 5)), int(rcy + math.sin(ang) * (gear_r + 5)))
+                t_col = (224, 188, 106) if tooth_i % 2 == 0 else (128, 96, 44)
+                pygame.draw.line(screen, t_col, p_in, p_out, 3)
+            # Counter-rotating inner pinion spokes
+            pin_r = max(10, int(round(gear_r * 0.62)))
+            for sp_i in range(6):
+                ang = -spin * 1.5 + sp_i * (math.pi / 3.0)
+                p1 = (int(rcx + math.cos(ang) * 8), int(rcy + math.sin(ang) * 8))
+                p2 = (int(rcx + math.cos(ang) * pin_r), int(rcy + math.sin(ang) * pin_r))
+                pygame.draw.line(screen, (0, 186, 224), p1, p2, 1)
+
+            # 2. Frontal Platen March armored carapace shield arc
+            if attack_mode == "platen_march" and armor_active:
+                arc_r = gear_r + 8
+                arc_rect = pygame.Rect(rcx - arc_r, rcy - arc_r, arc_r * 2, arc_r * 2)
+                pygame.draw.arc(screen, (124, 212, 242), arc_rect, -face_rad - 1.15, -face_rad + 1.15, 3)
+
+            # 3. Type Stamp overhead telegraph ring & expanding circular ink-shockwave rings
+            if attack_mode == "type_stamp":
+                if stamp_substate == "lift":
+                    pulse = 0.5 + 0.5 * math.sin(anim_t * 24.0)
+                    tel_r = gear_r + 12 + int(round(pulse * 12))
+                    pygame.draw.circle(screen, (255, 168, 62), (rcx, rcy), tel_r, 2)
+                    pygame.draw.circle(screen, (0, 230, 255), (rcx, rcy), max(12, tel_r - 8), 1)
+                else:
+                    pygame.draw.circle(screen, (255, 198, 94), (rcx, rcy), gear_r + 16, 4)
+
+            acx, acy = act.get_center() if hasattr(act, "get_center") else (0.0, 0.0)
+            for ring in pkt.get("shockwave_rings", ()):
+                rx = int(rcx + (float(ring.get("x", acx)) - acx))
+                ry = int(rcy + (float(ring.get("y", acy)) - acy))
+                rr = max(8, int(round(float(ring.get("radius", 24.0)))))
+                ratio = max(0.0, min(1.0, float(ring.get("life", 0.0)) / max(0.01, float(ring.get("max_life", 0.52)))))
+                pygame.draw.circle(screen, (255, 146, 52), (rx, ry), rr, max(2, int(round(5 * ratio))))
+                pygame.draw.circle(screen, (0, 232, 255), (rx, ry), max(4, rr - 4), 1)
+
+            # 4. Boiler Vent glowing molten-cyan/amber rear boiler core arc & venting steam sparks
+            if attack_mode == "boiler_vent" or weak_t > 0.0:
+                pulse = 0.5 + 0.5 * math.sin(anim_t * 18.0)
+                b_r = gear_r + 10 + int(round(pulse * 5))
+                b_rect = pygame.Rect(rcx - b_r, rcy - b_r, b_r * 2, b_r * 2)
+                rear_a = -(face_rad + math.pi)
+                pygame.draw.arc(screen, (255, 178, 56), b_rect, rear_a - 1.15, rear_a + 1.15, 4)
+                pygame.draw.arc(screen, (0, 240, 255), b_rect.inflate(-8, -8), rear_a - 0.95, rear_a + 0.95, 2)
+                bx_dot = int(rcx - ux * (gear_r * 0.72))
+                by_dot = int(rcy - uy * (gear_r * 0.72))
+                pygame.draw.circle(screen, (255, 198, 76), (bx_dot, by_dot), 7 + int(round(pulse * 2)), 2)
+                pygame.draw.circle(screen, (0, 242, 255), (bx_dot, by_dot), 4)
+
+            for sp in pkt.get("steam_sparks", ()):
+                sx = int(rcx + (float(sp.get("x", acx)) - acx))
+                sy = int(rcy + (float(sp.get("y", acy)) - acy))
+                s_ratio = max(0.0, min(1.0, float(sp.get("life", 0.0)) / max(0.01, float(sp.get("max_life", 0.55)))))
+                s_col = (196, 248, 255) if s_ratio > 0.45 else (255, 178, 72)
+                pygame.draw.circle(screen, s_col, (sx, sy), max(2, int(round(4 * s_ratio))))
+
+        # 4 independent articulated mechanical spider leg gait angles
+        if attack_mode == "platen_march":
+            stride_a = math.sin(leg_phase) * 20.0
+            stride_b = -stride_a
+            fl_ang = -24.0 + stride_a
+            fr_ang = 24.0 + stride_b
+            rl_ang = 28.0 + stride_b
+            rr_ang = -28.0 + stride_a
+        elif attack_mode == "type_stamp":
+            brace = 10.0 if stamp_substate == "impact" else -4.0
+            fl_ang = -30.0 - brace
+            fr_ang = 30.0 + brace
+            rl_ang = 36.0 + brace
+            rr_ang = -36.0 - brace
+        else:  # boiler_vent: buckled & trembling
+            tremble = math.sin(anim_t * 34.0) * 6.5
+            fl_ang = -10.0 + tremble
+            fr_ang = 10.0 - tremble
+            rl_ang = 14.0 - tremble
+            rr_ang = -14.0 + tremble
+
+        turret_scan = (
+            math.sin(anim_t * 28.0) * 5.0 if attack_mode == "boiler_vent" else math.sin(anim_t * 4.8) * 7.0
+        )
+        chassis_shake_x = (
+            math.sin(anim_t * 46.0) * 2.0
+            if (attack_mode == "boiler_vent" or (attack_mode == "type_stamp" and stamp_substate == "impact"))
+            else 0.0
+        )
+
+        fl_ox, fl_oy = _rot_off(-20.0, 12.0)
+        fr_ox, fr_oy = _rot_off(20.0, 12.0)
+        rl_ox, rl_oy = _rot_off(-20.0, -14.0)
+        rr_ox, rr_oy = _rot_off(20.0, -14.0)
+        turret_ox, turret_oy = _rot_off(0.0, 14.0)
+        platen_ox, platen_oy = _rot_off(0.0, -4.0)
+
+        parts_spec = [
+            {
+                "sprite_key": "typesetter_leg.png",
+                "offset_x": rl_ox,
+                "offset_y": rl_oy,
+                "pivot_x": 16.0,
+                "pivot_y": 1.0,
+                "angle_deg": body_deg + rl_ang,
+                "flip_x": True,
+                "scale": 1.08,
+                "z_order": 1,
+            },
+            {
+                "sprite_key": "typesetter_leg.png",
+                "offset_x": rr_ox,
+                "offset_y": rr_oy,
+                "pivot_x": -16.0,
+                "pivot_y": 1.0,
+                "angle_deg": body_deg + rr_ang,
+                "flip_x": False,
+                "scale": 1.08,
+                "z_order": 1,
+            },
+            {
+                "sprite_key": "typesetter_leg.png",
+                "offset_x": fl_ox,
+                "offset_y": fl_oy,
+                "pivot_x": 16.0,
+                "pivot_y": 1.0,
+                "angle_deg": body_deg + fl_ang,
+                "flip_x": True,
+                "scale": 1.08,
+                "z_order": 1,
+            },
+            {
+                "sprite_key": "typesetter_leg.png",
+                "offset_x": fr_ox,
+                "offset_y": fr_oy,
+                "pivot_x": -16.0,
+                "pivot_y": 1.0,
+                "angle_deg": body_deg + fr_ang,
+                "flip_x": False,
+                "scale": 1.08,
+                "z_order": 1,
+            },
+            {
+                "sprite_key": "typesetter_chassis.png",
+                "offset_x": chassis_shake_x,
+                "offset_y": 0.0,
+                "angle_deg": body_deg,
+                "scale": 1.08,
+                "z_order": 2,
+            },
+            {
+                "sprite_key": "typesetter_turret.png",
+                "offset_x": turret_ox + chassis_shake_x,
+                "offset_y": turret_oy,
+                "angle_deg": body_deg + turret_scan,
+                "scale": 1.04,
+                "z_order": 3,
+            },
+            {
+                "sprite_key": "typesetter_platen.png",
+                "offset_x": platen_ox + chassis_shake_x,
+                "offset_y": platen_oy + platen_off_y,
+                "angle_deg": 0.0,
+                "scale": 1.08,
+                "z_order": 4,
+            },
+        ]
+
+        rendered = self._draw_articulated_boss_rig(
+            actor,
+            draw_rect,
+            packet,
+            parts_spec,
+            under_shapes_fn=_under_shapes,
+        )
+
+        # Procedural fallback silhouette if modular PNG parts are absent (e.g., stripped headless test)
+        if len(rendered) < len(parts_spec):
+            steel = (64, 78, 102)
+            brass = (180, 140, 64)
+            cyan = (0, 230, 255)
+            ember = (255, 162, 64)
+            for lx, ly in ((fl_ox, fl_oy), (fr_ox, fr_oy), (rl_ox, rl_oy), (rr_ox, rr_oy)):
+                foot = (int(cx + lx * 2.0), int(cy + ly * 2.0))
+                pygame.draw.line(self.screen, brass, (cx, cy), foot, 4)
+            pygame.draw.rect(
+                self.screen,
+                steel,
+                (cx - w // 4, cy - h // 4, w // 2, h // 2),
+                border_radius=6,
+            )
+            pygame.draw.rect(
+                self.screen,
+                brass,
+                (cx - w // 4, cy - h // 4, w // 2, h // 2),
+                2,
+                border_radius=6,
+            )
+            pygame.draw.circle(self.screen, cyan, (int(cx + turret_ox), int(cy + turret_oy)), 8)
+            pygame.draw.rect(
+                self.screen,
+                ember,
+                (int(cx - 20), int(cy - 12 + platen_off_y), 40, 14),
+                border_radius=3,
+            )
+
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
         """Draw image sprites or procedural basic-shape graphics for enemies and bosses."""
         from engine.enemy import (
             BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy, GaleVaneRaptorBoss, MarginWarden,
             MeadowCensorBoss, Miniboss, MinibossM2, MinibossM3, NightBoss,
             PunctuationWolfEnemy, RimecrestArbiterBoss, SentryEnemy, SlugBoss, SmearEnemy,
+            TypesetterAutomatonBoss,
         )
         if bool(getattr(actor, "is_gale_raptor", False)) or isinstance(actor, GaleVaneRaptorBoss):
             self._draw_gale_vane_raptor_boss(actor, draw_rect, packet)
+            return True
+        if bool(getattr(actor, "is_typesetter_boss", False)) or isinstance(actor, TypesetterAutomatonBoss):
+            self._draw_typesetter_automaton_boss(actor, draw_rect, packet)
             return True
         if bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss):
             self._draw_slug_boss(actor, draw_rect, packet)
@@ -5794,13 +6040,33 @@ class Renderer:
         if not hasattr(actor, 'state') or not hasattr(actor, 'combat_timer'):
             return
 
-        from engine.enemy import BatEnemy, MeadowCensorBoss, RimecrestArbiterBoss, SlugBoss, SlugEnemy
+        from engine.enemy import (
+            BatEnemy,
+            GaleVaneRaptorBoss,
+            MeadowCensorBoss,
+            RimecrestArbiterBoss,
+            SlugBoss,
+            SlugEnemy,
+            TypesetterAutomatonBoss,
+        )
         actor_tag = str(getattr(actor, 'name', '')).lower()
         if (
             bool(getattr(actor, "is_slug_boss", False))
             or bool(getattr(actor, "is_meadow_censor", False))
             or bool(getattr(actor, "is_rimecrest_arbiter", False))
-            or isinstance(actor, (SlugBoss, SlugEnemy, MeadowCensorBoss, RimecrestArbiterBoss))
+            or bool(getattr(actor, "is_gale_raptor", False))
+            or bool(getattr(actor, "is_typesetter_boss", False))
+            or isinstance(
+                actor,
+                (
+                    SlugBoss,
+                    SlugEnemy,
+                    MeadowCensorBoss,
+                    RimecrestArbiterBoss,
+                    GaleVaneRaptorBoss,
+                    TypesetterAutomatonBoss,
+                ),
+            )
             or "slug" in actor_tag
         ):
             return

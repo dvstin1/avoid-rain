@@ -129,6 +129,7 @@ class Actor:
             "MeadowCensorBoss",
             "RimecrestArbiterBoss",
             "GaleVaneRaptorBoss",
+            "TypesetterAutomatonBoss",
             "FinalAuthor",
         ):
             return True

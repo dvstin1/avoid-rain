@@ -752,8 +752,14 @@ class Respite(GameObject):
                 or getattr(e, "is_meadow_censor", False)
                 or getattr(e, "is_rimecrest_arbiter", False)
                 or getattr(e, "is_gale_raptor", False)
+                or getattr(e, "is_typesetter_boss", False)
                 or e.__class__.__name__ in (
-                    "NightBoss", "SlugBoss", "MeadowCensorBoss", "RimecrestArbiterBoss", "GaleVaneRaptorBoss",
+                    "NightBoss",
+                    "SlugBoss",
+                    "MeadowCensorBoss",
+                    "RimecrestArbiterBoss",
+                    "GaleVaneRaptorBoss",
+                    "TypesetterAutomatonBoss",
                 )
             )
         ]
@@ -1560,6 +1566,8 @@ class World:
                 or getattr(enemy, "is_slug_boss", False)
                 or getattr(enemy, "is_meadow_censor", False)
                 or getattr(enemy, "is_rimecrest_arbiter", False)
+                or getattr(enemy, "is_gale_raptor", False)
+                or getattr(enemy, "is_typesetter_boss", False)
             ):
                 continue
             spawns.append(

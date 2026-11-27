@@ -7115,6 +7115,17 @@ def generate_all_assets(
         out_path = os.path.join("assets", "graphics", f"{gr_key}.png")
         _emit(gr_key, out_path, gr_surf)
 
+    # Pipeline 19: Modular Articulated Boss Rig Parts (The Typesetter Automaton — Tech Tower Night Boss)
+    typesetter_parts = (
+        ("typesetter_chassis", generate_typesetter_chassis(64, 56, rng=_rng("typesetter_chassis"))),
+        ("typesetter_turret", generate_typesetter_turret(36, 36, rng=_rng("typesetter_turret"))),
+        ("typesetter_leg", generate_typesetter_leg(44, 24, rng=_rng("typesetter_leg"))),
+        ("typesetter_platen", generate_typesetter_platen(48, 32, rng=_rng("typesetter_platen"))),
+    )
+    for ts_key, ts_surf in typesetter_parts:
+        out_path = os.path.join("assets", "graphics", f"{ts_key}.png")
+        _emit(ts_key, out_path, ts_surf)
+
     if stats_out is not None:
         stats_out["updated"] = updated_count
         stats_out["unchanged"] = unchanged_count
@@ -7355,6 +7366,235 @@ def generate_gale_raptor_tail(width: int = 36, height: int = 44, rng: random.Ran
     pygame.draw.circle(surf, amber_core, (cx, 19), 3)
     if rng.random() >= 0.0:
         pygame.draw.circle(surf, (255, 244, 196, 255), (cx - 1, 18), 1)
+    return surf
+
+
+def generate_typesetter_chassis(width: int = 64, height: int = 56, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Typesetter Automaton heavy printing-press arachnid carriage (64x56, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7201)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    ink = (18, 22, 32, 255)
+    steel_dark = (40, 48, 66, 255)
+    steel_mid = (66, 78, 102, 255)
+    steel_hi = (114, 132, 160, 255)
+    brass_dark = (118, 86, 38, 255)
+    brass_mid = (176, 136, 62, 255)
+    brass_hi = (224, 188, 106, 255)
+    ember_dark = (186, 68, 26, 255)
+    ember_hi = (255, 162, 64, 255)
+    cyan_glow = (0, 232, 255, 230)
+
+    # Heavy beveled octagonal printing-press carriage hull
+    hull_pts = [
+        (14, 6), (width - 15, 6),
+        (width - 6, 15), (width - 6, height - 16),
+        (width - 15, height - 6), (14, height - 6),
+        (6, height - 16), (6, 15),
+    ]
+    pygame.draw.polygon(surf, steel_dark, hull_pts)
+    pygame.draw.polygon(surf, ink, hull_pts, 2)
+
+    # Inner armored gunmetal carapace plate with top-left specular chamfer
+    inner_pts = [
+        (17, 10), (width - 18, 10),
+        (width - 10, 18), (width - 10, height - 19),
+        (width - 18, height - 11), (17, height - 11),
+        (10, height - 19), (10, 18),
+    ]
+    pygame.draw.polygon(surf, steel_mid, inner_pts)
+    pygame.draw.line(surf, steel_hi, (17, 11), (width - 19, 11), 2)
+    pygame.draw.line(surf, steel_hi, (11, 18), (11, height - 20), 1)
+
+    # Rear ink-boiler exhaust grille (top / -Y side in native forward=+Y orientation)
+    grille_rect = pygame.Rect(cx - 14, 8, 28, 11)
+    pygame.draw.rect(surf, ink, grille_rect, border_radius=2)
+    pygame.draw.rect(surf, ember_dark, grille_rect.inflate(-4, -4))
+    for gx in range(cx - 10, cx + 12, 4):
+        pygame.draw.line(surf, ember_hi, (gx, 10), (gx, 16), 2)
+    pygame.draw.rect(surf, brass_mid, grille_rect, 1, border_radius=2)
+
+    # Twin lateral oxidized-brass gear housings
+    for gx in (13, width - 14):
+        pygame.draw.circle(surf, ink, (gx, cy + 2), 9)
+        pygame.draw.circle(surf, brass_dark, (gx, cy + 2), 8)
+        pygame.draw.circle(surf, brass_mid, (gx, cy + 2), 6)
+        for tooth_i in range(6):
+            ang = tooth_i * (math.pi / 3.0)
+            tx = int(round(gx + math.cos(ang) * 7.5))
+            ty = int(round(cy + 2 + math.sin(ang) * 7.5))
+            pygame.draw.circle(surf, brass_hi, (tx, ty), 1)
+        pygame.draw.circle(surf, steel_dark, (gx, cy + 2), 3)
+        pygame.draw.circle(surf, cyan_glow, (gx, cy + 2), 1)
+
+    # Central press bed rail & riveted brass spine
+    pygame.draw.rect(surf, brass_dark, (cx - 10, cy - 8, 20, 22), border_radius=3)
+    pygame.draw.rect(surf, steel_dark, (cx - 8, cy - 6, 16, 18), border_radius=2)
+    for ry in (cy - 3, cy + 2, cy + 7):
+        pygame.draw.line(surf, steel_hi, (cx - 6, ry), (cx + 6, ry), 1)
+
+    # Forward (+Y) armored cowcatcher / type-tray ram plate
+    ram_pts = [(18, height - 11), (width - 19, height - 11), (width - 14, height - 4), (14, height - 4)]
+    pygame.draw.polygon(surf, brass_mid, ram_pts)
+    pygame.draw.polygon(surf, ink, ram_pts, 1)
+    pygame.draw.line(surf, brass_hi, (19, height - 10), (width - 20, height - 10), 1)
+
+    # Subtle cyan optical telemetry pips & brass rivets
+    for rx, ry in ((16, 16), (width - 17, 16), (18, height - 14), (width - 19, height - 14)):
+        col = cyan_glow if rng.random() > 0.35 else brass_hi
+        pygame.draw.circle(surf, col, (rx, ry), 2)
+    return surf
+
+
+def generate_typesetter_turret(width: int = 36, height: int = 36, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Typesetter Automaton rotating cylinder head with glowing cyan/amber lens (36x36, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7202)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    ink = (18, 22, 32, 255)
+    steel_dark = (42, 52, 72, 255)
+    steel_mid = (74, 88, 114, 255)
+    steel_hi = (132, 152, 182, 255)
+    brass_dark = (118, 86, 38, 255)
+    brass_mid = (182, 142, 66, 255)
+    brass_hi = (232, 196, 116, 255)
+    cyan_mid = (0, 214, 245, 255)
+    cyan_hi = (186, 252, 255, 255)
+    amber_glow = (255, 178, 58, 255)
+
+    # Outer rotating cylinder drum
+    pygame.draw.circle(surf, ink, (cx, cy), 14)
+    pygame.draw.circle(surf, steel_dark, (cx, cy), 13)
+    pygame.draw.circle(surf, steel_mid, (cx, cy), 10)
+    pygame.draw.arc(surf, steel_hi, (cx - 10, cy - 10, 20, 20), 1.6, 3.6, 2)
+
+    # Oxidized brass sensor collar & twin side rangefinder lugs
+    pygame.draw.circle(surf, brass_dark, (cx, cy), 11, 2)
+    for lx in (cx - 13, cx + 10):
+        pygame.draw.rect(surf, brass_mid, (lx, cy - 3, 4, 6), border_radius=1)
+        pygame.draw.rect(surf, ink, (lx, cy - 3, 4, 6), 1, border_radius=1)
+
+    # Forward (+Y) optical lens barrel protruding cleanly
+    barrel = pygame.Rect(cx - 6, cy + 4, 12, 11)
+    pygame.draw.rect(surf, brass_dark, barrel, border_radius=2)
+    pygame.draw.rect(surf, brass_mid, barrel.inflate(-2, -2), border_radius=2)
+    pygame.draw.rect(surf, ink, barrel, 1, border_radius=2)
+
+    # Glowing cyan primary optical lens + amber inner iris ring
+    pygame.draw.ellipse(surf, ink, (cx - 5, cy + 7, 10, 7))
+    pygame.draw.ellipse(surf, cyan_mid, (cx - 4, cy + 8, 8, 5))
+    pygame.draw.circle(surf, amber_glow, (cx, cy + 10), 2)
+    pygame.draw.circle(surf, cyan_hi, (cx - 2, cy + 9), 1)
+
+    # Top-cap brass dial & reticle
+    pygame.draw.circle(surf, brass_mid, (cx, cy - 2), 5)
+    pygame.draw.circle(surf, ink, (cx, cy - 2), 3)
+    pygame.draw.circle(surf, amber_glow if rng.random() >= 0.0 else cyan_mid, (cx, cy - 2), 2)
+    pygame.draw.circle(surf, brass_hi, (cx - 1, cy - 3), 1)
+    return surf
+
+
+def generate_typesetter_leg(width: int = 44, height: int = 24, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Typesetter Automaton articulated multi-jointed spider leg (44x24, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7203)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+
+    ink = (18, 22, 32, 255)
+    steel_dark = (42, 50, 68, 255)
+    steel_mid = (72, 86, 112, 255)
+    steel_hi = (128, 146, 174, 255)
+    brass_dark = (118, 86, 38, 255)
+    brass_mid = (180, 140, 64, 255)
+    brass_hi = (232, 198, 118, 255)
+    ember = (242, 128, 44, 255)
+
+    # Shoulder socket at left (x=6, y=13), knee apex mid-upper (x=22, y=6), spiked foot at right (x=40, y=18)
+    femur = [(6, 10), (22, 4), (24, 9), (8, 16)]
+    tibia = [(21, 5), (41, 16), (38, 20), (19, 10)]
+    pygame.draw.polygon(surf, steel_dark, femur)
+    pygame.draw.polygon(surf, ink, femur, 1)
+    pygame.draw.line(surf, steel_hi, (8, 11), (21, 6), 1)
+
+    pygame.draw.polygon(surf, steel_mid, tibia)
+    pygame.draw.polygon(surf, ink, tibia, 1)
+    pygame.draw.line(surf, steel_hi, (22, 7), (38, 16), 1)
+
+    # Hydraulic brass piston rod beneath femur
+    pygame.draw.line(surf, brass_dark, (10, 16), (25, 13), 3)
+    pygame.draw.line(surf, brass_hi, (10, 15), (24, 12), 1)
+
+    # Brass shoulder & knee joints with hot-lead rivet pin
+    pygame.draw.circle(surf, ink, (7, 13), 5)
+    pygame.draw.circle(surf, brass_mid, (7, 13), 4)
+    pygame.draw.circle(surf, brass_hi, (6, 12), 1)
+
+    pygame.draw.circle(surf, ink, (22, 7), 5)
+    pygame.draw.circle(surf, brass_dark, (22, 7), 4)
+    pygame.draw.circle(surf, brass_mid, (22, 7), 3)
+    pygame.draw.circle(surf, ember if rng.random() >= 0.0 else brass_hi, (22, 7), 1)
+
+    # Sharp steel claw tip
+    claw = [(37, 15), (43, 19), (36, 21)]
+    pygame.draw.polygon(surf, brass_hi, claw)
+    pygame.draw.polygon(surf, ink, claw, 1)
+    return surf
+
+
+def generate_typesetter_platen(width: int = 48, height: int = 32, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Typesetter Automaton overhead lead-type stamping hammer/platen (48x32, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7204)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    ink = (18, 22, 32, 255)
+    steel_dark = (38, 46, 64, 255)
+    steel_mid = (68, 82, 108, 255)
+    steel_hi = (126, 144, 174, 255)
+    brass_dark = (118, 86, 38, 255)
+    brass_mid = (182, 142, 66, 255)
+    brass_hi = (234, 198, 120, 255)
+    ember_mid = (232, 108, 36, 255)
+    ember_hi = (255, 188, 84, 255)
+    cyan_pip = (0, 232, 255, 255)
+
+    # Twin overhead hydraulic piston shafts at top
+    for px in (11, width - 16):
+        pygame.draw.rect(surf, brass_dark, (px, 2, 5, 9))
+        pygame.draw.rect(surf, brass_hi, (px + 1, 2, 2, 8))
+        pygame.draw.rect(surf, ink, (px, 2, 5, 9), 1)
+
+    # Heavy gunmetal stamping platen block
+    block = pygame.Rect(4, 9, width - 8, 18)
+    pygame.draw.rect(surf, steel_dark, block, border_radius=3)
+    pygame.draw.rect(surf, steel_mid, (6, 11, width - 12, 10), border_radius=2)
+    pygame.draw.line(surf, steel_hi, (7, 11), (width - 8, 11), 2)
+    pygame.draw.rect(surf, ink, block, 2, border_radius=3)
+
+    # Oxidized brass reinforcement straps
+    for sx in (10, width - 15):
+        pygame.draw.rect(surf, brass_mid, (sx, 9, 5, 18))
+        pygame.draw.rect(surf, ink, (sx, 9, 5, 18), 1)
+        pygame.draw.circle(surf, cyan_pip if rng.random() >= 0.0 else brass_hi, (sx + 2, 14), 1)
+
+    # Glowing hot-lead type-matrix teeth along the lower stamping face
+    for tx in range(8, width - 10, 5):
+        pygame.draw.rect(surf, ink, (tx, 24, 4, 6))
+        pygame.draw.rect(surf, ember_mid, (tx + 1, 25, 2, 4))
+        pygame.draw.rect(surf, ember_hi, (tx + 1, 27, 2, 2))
+
+    # Central press emblem
+    pygame.draw.rect(surf, brass_dark, (cx - 6, 12, 12, 8), border_radius=2)
+    pygame.draw.rect(surf, ember_hi, (cx - 4, 14, 8, 4), border_radius=1)
     return surf
 
 

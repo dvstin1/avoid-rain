@@ -2785,6 +2785,116 @@ def generate_gale_raptor_music(seed: int = DEFAULT_SEED):
     return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
 
 
+def generate_typesetter_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~13.52s loopable 142 BPM F# Phrygian Dominant Mega Man-style industrial chiptune boss theme."""
+    rng = random.Random(seed ^ 0x779E5E77)
+    bpm = 142.0
+    step_s = 60.0 / bpm / 4.0  # 16th note (~0.10563s) -> 1.690s/bar
+    total_bars = 8  # 8 bars = ~13.52s exact seamless loop
+    total_samples = n_samples(total_bars * 16 * step_s)
+
+    lead_buf = silence(total_samples)
+    ostinato_buf = silence(total_samples)
+    bass_buf = silence(total_samples)
+    drum_buf = silence(total_samples)
+
+    # F# Phrygian Dominant (F#, G, A#, B, C#, D, E) industrial progression:
+    # (4-note 50% square ostinato cells, triangle bass root)
+    prog = (
+        ((54, 58, 61, 55), 42),  # F# Phrygian Dominant stomp
+        ((55, 59, 62, 58), 43),  # G major bII tension
+        ((54, 58, 61, 64), 42),  # F#7 industrial drive
+        ((52, 55, 59, 61), 40),  # Em / C# tension
+        ((50, 54, 57, 62), 38),  # D (bVI) heavy press drop
+        ((49, 54, 58, 61), 37),  # F#/C# mechanical climb
+        ((55, 58, 62, 67), 43),  # Gdim/bII climax
+        ((54, 61, 66, 67), 42),  # F# turnaround with b2 bite
+    )
+
+    # Syncopated 25% pulse lead phrases in F# Phrygian Dominant: (step_offset, midi_note, duration_in_16ths)
+    lead_phrases = (
+        ((0, 66, 2), (2, 67, 1), (3, 70, 2), (5, 73, 1), (6, 70, 2), (8, 74, 3), (11, 73, 2), (13, 70, 3)),
+        ((0, 67, 2), (2, 71, 2), (4, 74, 2), (6, 73, 2), (8, 70, 3), (11, 67, 2), (13, 66, 3)),
+        ((0, 73, 2), (2, 74, 1), (3, 73, 1), (4, 70, 2), (6, 67, 2), (8, 78, 3), (11, 76, 2), (13, 74, 3)),
+        ((0, 76, 2), (2, 74, 2), (4, 73, 2), (6, 70, 2), (8, 67, 2), (10, 70, 2), (12, 73, 4)),
+        ((0, 74, 3), (3, 73, 1), (4, 70, 2), (6, 74, 2), (8, 78, 3), (11, 74, 2), (13, 73, 3)),
+        ((0, 73, 2), (2, 70, 2), (4, 73, 2), (6, 78, 2), (8, 79, 3), (11, 78, 2), (13, 76, 3)),
+        ((0, 79, 2), (2, 78, 2), (4, 74, 2), (6, 73, 2), (8, 70, 2), (10, 74, 2), (12, 79, 4)),
+        ((0, 78, 2), (2, 74, 2), (4, 73, 2), (6, 70, 2), (8, 67, 2), (10, 70, 2), (12, 73, 2), (14, 78, 2)),
+    )
+
+    kick_sig = _synth_music_kick(n_samples(0.135), 148.0, 42.0, 0.032, drive=2.05)
+    snare_sig = _synth_music_noise_hit(n_samples(0.105), rng, 1450.0, 6800.0, 0.032, bits=4, hold=2)
+    ratchet_sig = _synth_music_noise_hit(n_samples(0.032), rng, 4800.0, 10800.0, 0.009, bits=5, hold=1)
+    bell_sig = _synth_pulse_note(n_samples(0.075), _midi_to_hz(90), duty=0.125)  # F#6 carriage-return bell
+
+    for bar_idx, (ost_notes, bass_root) in enumerate(prog):
+        bar_step = bar_idx * 16
+
+        # Ch 1: Syncopated 25% pulse lead (bright mechanical synth cutting over press rhythm)
+        for s_off, midi_n, dur_steps in lead_phrases[bar_idx]:
+            pos = offset_samples((bar_step + s_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.88)
+            sq = _synth_pulse_note(dur_n, _midi_to_hz(midi_n), duty=0.25)
+            _ring_add(lead_buf, sq, pos, 0.66)
+
+        # Ch 2: Punchy 50% square-wave industrial ostinato locked to rigid 4/4 mechanical stomp
+        ost_pattern = (
+            (0, 0, 2), (2, 2, 1), (3, 1, 1),
+            (4, 0, 2), (6, 3, 1), (7, 2, 1),
+            (8, 0, 2), (10, 2, 1), (11, 1, 1),
+            (12, 3, 2), (14, 2, 1), (15, 0, 1),
+        )
+        for s_off, n_idx, dur_steps in ost_pattern:
+            pos = offset_samples((bar_step + s_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.78)
+            ost_n = _synth_pulse_note(dur_n, _midi_to_hz(ost_notes[n_idx]), duty=0.50)
+            _ring_add(ostinato_buf, ost_n, pos, 0.56 if s_off % 4 == 0 else 0.38)
+
+        # Ch 3: Driving NES triangle bassline pumping rigid 4/4 octaves & fifths
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            if s_i % 4 == 0:
+                semi_off = 0
+                amp = 0.92
+            elif s_i % 4 == 2:
+                semi_off = 12 if (s_i // 4) % 2 == 0 else 7
+                amp = 0.82
+            elif s_i in (3, 11, 15):
+                semi_off = 1 if s_i == 15 and bar_idx % 2 == 1 else 7
+                amp = 0.68
+            else:
+                continue
+            tri = _synth_nes_triangle_note(n_samples(step_s * 0.90), _midi_to_hz(bass_root + semi_off))
+            _ring_add(bass_buf, tri, pos, amp)
+
+        # Ch 4: Quantized LFSR carriage-return percussion (rigid 4/4 stomp + industrial fills + return bell)
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            # Heavy 4/4 mechanical press stomp on every quarter beat + double-stomp pickup
+            if s_i in (0, 4, 8, 12) or (s_i == 10 and bar_idx % 2 == 1) or (s_i == 14):
+                _ring_add(drum_buf, kick_sig, pos, 0.88 if s_i % 4 == 0 else 0.66)
+            # Crisp mechanical platen slap on beats 2 & 4 + carriage-return roll on bars 4 & 8
+            if s_i in (4, 12) or (bar_idx in (3, 7) and s_i in (13, 14, 15)):
+                _ring_add(drum_buf, snare_sig, pos, 0.74 if s_i in (4, 12) else 0.58)
+            # Quantized type-bar ratchet ticks
+            _ring_add(drum_buf, ratchet_sig, pos, 0.32 if s_i % 2 == 0 else 0.17)
+            # Metallic carriage-return ding at the end of every 2nd bar
+            if bar_idx % 2 == 1 and s_i == 14:
+                _ring_add(drum_buf, bell_sig, pos, 0.28)
+
+    lead_clean = biquad(lead_buf, "lowpass", 8400.0)
+    ost_clean = biquad(ostinato_buf, "lowpass", 6200.0)
+    bass_clean = biquad(bass_buf, "lowpass", 1650.0)
+    combined = mix(
+        (lead_clean, 0.60),
+        (ost_clean, 0.48),
+        (bass_clean, 0.70),
+        (drum_buf, 0.58),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
 MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "slug_boss_phase1.ogg": generate_slug_boss_phase1_music,
     "slug_boss_phase2.ogg": generate_slug_boss_phase2_music,
@@ -2793,6 +2903,7 @@ MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "frozen_boss_phase1.ogg": generate_frozen_boss_phase1_music,
     "frozen_boss_phase2.ogg": generate_frozen_boss_phase2_music,
     "boss_gale_raptor.ogg": generate_gale_raptor_music,
+    "boss_typesetter.ogg": generate_typesetter_music,
 }
 
 

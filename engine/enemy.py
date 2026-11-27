@@ -2573,6 +2573,523 @@ class GaleVaneRaptorBoss(NightBoss):
         return packet
 
 
+class TypesetterAutomatonBoss(NightBoss):
+    """Tech Tower Night Boss: articulated printing-press arachnid with 3-stamp Platen Press & Boiler Vent."""
+
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import (
+            NIGHT_BOSS_MAX_HP,
+            TYPESETTER_ARMOR_DAMAGE_MULT,
+            TYPESETTER_MARCH_DURATION,
+            TYPESETTER_SIZE,
+            TYPESETTER_SLUG_INTERVAL,
+            TYPESETTER_SPEED,
+            TYPESETTER_WEAKPOINT_DAMAGE_MULT,
+        )
+        initial_hp = hp if hp is not None else NIGHT_BOSS_MAX_HP
+        super().__init__(x, y, hp=initial_hp, id=id)
+        self.width = int(TYPESETTER_SIZE)
+        self.height = int(TYPESETTER_SIZE)
+        self.name = "Night Boss"
+        self.display_name = "The Typesetter Automaton"
+        self.is_typesetter_boss = True
+        self.speed = float(TYPESETTER_SPEED)
+        self.detect_radius = 1200.0
+        self.persistent_pursuit = True
+
+        # Frontal carapace armor & Overheat Boiler Vent weak-point tuning
+        self.armor_front_only = True
+        self.armor_active = True
+        self.armor_damage_mult = float(TYPESETTER_ARMOR_DAMAGE_MULT)
+        self.weakpoint_damage_mult = float(TYPESETTER_WEAKPOINT_DAMAGE_MULT)
+        self.weakpoint_exposed_timer = 0.0
+
+        # 3-state rhythmic gimmick loop + Phase 2 escalation
+        self.phase = 1
+        self.attack_mode = "platen_march"
+        self.stamp_substate = "lift"
+        self.stamp_count = 0
+        self.mode_timer = float(TYPESETTER_MARCH_DURATION)
+        self.volley_timer = float(TYPESETTER_SLUG_INTERVAL) * 0.6
+        self.volley_alt = 0
+        self.platen_offset_y = 0.0
+        self.leg_phase = 0.0
+        self.shockwave_rings = []
+        self.steam_sparks = []
+        self._steam_emit_accum = 0.0
+
+    def _enter_platen_march(self):
+        """Transition into armored Platen March advance with alternating type-slug volleys."""
+        from constants import TYPESETTER_MARCH_DURATION, TYPESETTER_SLUG_INTERVAL
+        self.attack_mode = "platen_march"
+        self.stamp_substate = "lift"
+        self.stamp_count = 0
+        self.armor_active = True
+        self.weakpoint_exposed_timer = 0.0
+        self.state = ActorState.CHASE
+        cd_scale = 0.85 if self.phase >= 2 else 1.0
+        self.mode_timer = float(TYPESETTER_MARCH_DURATION) * cd_scale
+        self.volley_timer = float(TYPESETTER_SLUG_INTERVAL) * 0.65 * cd_scale
+        self.platen_offset_y = 0.0
+
+    def _enter_type_stamp(self, state):
+        """Transition into 3-stamp rhythmic Platen Press shockwave combo."""
+        from constants import (
+            TYPESETTER_PLATEN_LIFT_OFFSET,
+            TYPESETTER_STAMP_LIFT_DURATION_P1,
+            TYPESETTER_STAMP_LIFT_DURATION_P2,
+        )
+        self.attack_mode = "type_stamp"
+        self.stamp_substate = "lift"
+        self.stamp_count = 0
+        self.armor_active = True
+        self.weakpoint_exposed_timer = 0.0
+        self.state = ActorState.WIND_UP
+        self.vx = 0.0
+        self.vy = 0.0
+        lift_dur = TYPESETTER_STAMP_LIFT_DURATION_P2 if self.phase >= 2 else TYPESETTER_STAMP_LIFT_DURATION_P1
+        self.mode_timer = float(lift_dur)
+        self.platen_offset_y = float(TYPESETTER_PLATEN_LIFT_OFFSET) * 0.5
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("enemy_telegraph.ogg")
+            except Exception:
+                pass
+
+    def _enter_boiler_vent(self, state):
+        """Overheat carriage after 3rd stamp, lifting rear ink-boiler vent for a 1.50s weak-point window."""
+        from constants import TYPESETTER_BOILER_VENT_DURATION
+        self.attack_mode = "boiler_vent"
+        self.armor_active = False
+        self.state = ActorState.RECOVERY
+        self.vx = 0.0
+        self.vy = 0.0
+        self.mode_timer = float(TYPESETTER_BOILER_VENT_DURATION)
+        self.platen_offset_y = -10.0
+        self._steam_emit_accum = 0.0
+        self.expose_weakpoint(
+            float(TYPESETTER_BOILER_VENT_DURATION),
+            state=state,
+            audio_manager=getattr(state, "audio_manager", None),
+        )
+        self._emit_steam_sparks(count=6)
+
+    def _emit_steam_sparks(self, count=10):
+        """Spawn pressurized steam & hot-lead spark particles around the rear ink-boiler vent."""
+        from constants import TYPESETTER_STEAM_SPARK_LIFE
+        cx, cy = self.get_center()
+        fx, fy = self.facing
+        f_mag = math.hypot(fx, fy)
+        ux, uy = (fx / f_mag, fy / f_mag) if f_mag > 1e-4 else (0.0, 1.0)
+        vent_x = cx - ux * (self.width * 0.34)
+        vent_y = cy - uy * (self.height * 0.34)
+        base_rear = math.atan2(-uy, -ux)
+        total = max(1, int(count))
+        for idx in range(total):
+            spread = ((idx / max(1, total - 1)) - 0.5) * 1.8 if total > 1 else 0.0
+            ang = base_rear + spread
+            spd = 58.0 + (idx % 4) * 26.0
+            self.steam_sparks.append({
+                "x": float(vent_x),
+                "y": float(vent_y),
+                "vx": math.cos(ang) * spd,
+                "vy": math.sin(ang) * spd - 16.0,
+                "life": float(TYPESETTER_STEAM_SPARK_LIFE),
+                "max_life": float(TYPESETTER_STEAM_SPARK_LIFE),
+            })
+
+    def _fire_type_slug_volley(self, target_x, target_y, state):
+        """Fire alternating horizontal/diagonal ink-slug bolts (3 in Phase 1, 5 in Phase 2)."""
+        from constants import (
+            BOSS_BOLT_DAMAGE,
+            BOSS_BOLT_MAX_LIFETIME,
+            BOSS_BOLT_RADIUS,
+            BOSS_BOLT_SPEED,
+            TYPESETTER_SLUG_COUNT_P1,
+            TYPESETTER_SLUG_COUNT_P2,
+            TYPESETTER_SLUG_SPREAD_DEG,
+        )
+        net = getattr(state, "network_manager", None)
+        if getattr(net, "network_mode", "OFFLINE") == "CLIENT":
+            return
+        cx, cy = self.get_center()
+        dx, dy = target_x - cx, target_y - cy
+        raw_angle = math.atan2(dy, dx)
+        is_horizontal = (self.volley_alt % 2) == 0
+        self.volley_alt += 1
+
+        if is_horizontal:
+            base_angle = 0.0 if dx >= 0.0 else math.pi
+            if abs(dy) > abs(dx) * 1.45:
+                base_angle = (math.pi * 0.5) if dy >= 0.0 else (-math.pi * 0.5)
+            pattern = "horizontal"
+        else:
+            # Snap to nearest 45-degree diagonal quadrant facing target
+            quad = math.floor(raw_angle / (math.pi * 0.5))
+            base_angle = (quad + 0.5) * (math.pi * 0.5)
+            pattern = "diagonal"
+
+        count = int(TYPESETTER_SLUG_COUNT_P2 if self.phase >= 2 else TYPESETTER_SLUG_COUNT_P1)
+        spread_rad = math.radians(float(TYPESETTER_SLUG_SPREAD_DEG))
+        half = (count - 1) * 0.5
+        dmg = float(BOSS_BOLT_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+        bolt_speed = float(BOSS_BOLT_SPEED) * (1.12 if self.phase >= 2 else 1.0)
+        for idx in range(count):
+            ang = base_angle + (idx - half) * spread_rad
+            self.ink_bolts.append({
+                "x": float(cx + math.cos(ang) * 32.0),
+                "y": float(cy + math.sin(ang) * 32.0),
+                "vx": math.cos(ang) * bolt_speed,
+                "vy": math.sin(ang) * bolt_speed,
+                "damage": dmg,
+                "life": float(BOSS_BOLT_MAX_LIFETIME),
+                "radius": int(BOSS_BOLT_RADIUS),
+                "style": "type_slug",
+                "pattern": pattern,
+            })
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("enemy_telegraph.ogg")
+            except Exception:
+                pass
+
+    def _execute_platen_stamp_impact(self, state):
+        """Slam the overhead platen down, emitting an expanding ink-shockwave ring + radial ink bolts."""
+        from constants import (
+            BOSS_BOLT_DAMAGE,
+            BOSS_BOLT_MAX_LIFETIME,
+            BOSS_BOLT_RADIUS,
+            BOSS_BOLT_SPEED,
+            TYPESETTER_PLATEN_SLAM_OFFSET,
+            TYPESETTER_STAMP_RADIAL_BOLTS_P1,
+            TYPESETTER_STAMP_RADIAL_BOLTS_P2,
+            TYPESETTER_STAMP_RING_DURATION,
+            TYPESETTER_STAMP_RING_RADIUS_P1,
+            TYPESETTER_STAMP_RING_RADIUS_P2,
+        )
+        self.stamp_count += 1
+        self.platen_offset_y = float(TYPESETTER_PLATEN_SLAM_OFFSET)
+        cx, cy = self.get_center()
+        max_r = float(TYPESETTER_STAMP_RING_RADIUS_P2 if self.phase >= 2 else TYPESETTER_STAMP_RING_RADIUS_P1)
+        self.shockwave_rings.append({
+            "x": float(cx),
+            "y": float(cy),
+            "radius": 24.0,
+            "max_radius": max_r,
+            "life": float(TYPESETTER_STAMP_RING_DURATION),
+            "max_life": float(TYPESETTER_STAMP_RING_DURATION),
+            "hit_player": False,
+            "stamp_index": int(self.stamp_count),
+        })
+
+        net = getattr(state, "network_manager", None)
+        if getattr(net, "network_mode", "OFFLINE") != "CLIENT":
+            radial_n = int(
+                TYPESETTER_STAMP_RADIAL_BOLTS_P2 if self.phase >= 2 else TYPESETTER_STAMP_RADIAL_BOLTS_P1
+            )
+            angle_offset = (self.stamp_count - 1) * (math.pi / max(1, radial_n))
+            dmg = float(BOSS_BOLT_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+            bolt_speed = float(BOSS_BOLT_SPEED) * (0.98 if self.phase < 2 else 1.10)
+            for idx in range(radial_n):
+                ang = angle_offset + idx * (2.0 * math.pi / radial_n)
+                self.ink_bolts.append({
+                    "x": float(cx + math.cos(ang) * 30.0),
+                    "y": float(cy + math.sin(ang) * 30.0),
+                    "vx": math.cos(ang) * bolt_speed,
+                    "vy": math.sin(ang) * bolt_speed,
+                    "damage": dmg,
+                    "life": float(BOSS_BOLT_MAX_LIFETIME),
+                    "radius": int(BOSS_BOLT_RADIUS),
+                    "style": "type_stamp_bolt",
+                })
+
+        if hasattr(state, "trigger_shake"):
+            try:
+                state.trigger_shake(0.14)
+            except Exception:
+                pass
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("combat_parry.ogg")
+            except Exception:
+                pass
+
+    def _update_shockwave_rings(self, dt, state):
+        """Expand active ink-shockwave rings and resolve ring-band damage against the local player."""
+        from constants import TYPESETTER_STAMP_RING_BAND, TYPESETTER_STAMP_RING_DAMAGE
+        net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+        player = getattr(state, "player", None)
+        can_hit_local = (
+            net_mode != "CLIENT"
+            and player is not None
+            and hasattr(player, "take_damage")
+            and getattr(state, "active_respite", None) is None
+            and getattr(player, "hp", 0.0) > 0.0
+            and float(getattr(state, "death_timer", 0.0) or 0.0) <= 0.0
+        )
+        half_band = float(TYPESETTER_STAMP_RING_BAND) * 0.5
+        audio_mgr = getattr(state, "audio_manager", None)
+
+        kept = []
+        for ring in self.shockwave_rings:
+            ring["life"] = float(ring.get("life", 0.0)) - dt
+            if ring["life"] <= 0.0:
+                continue
+            max_life = max(0.01, float(ring.get("max_life", 0.52)))
+            progress = max(0.0, min(1.0, 1.0 - (ring["life"] / max_life)))
+            ring["radius"] = 24.0 + (float(ring["max_radius"]) - 24.0) * progress
+
+            if can_hit_local and not ring.get("hit_player", False):
+                px, py = player.get_center()
+                dist = math.hypot(px - float(ring["x"]), py - float(ring["y"]))
+                if abs(dist - float(ring["radius"])) <= half_band:
+                    ring["hit_player"] = True
+                    dmg = float(TYPESETTER_STAMP_RING_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+                    try:
+                        player.take_damage(dmg, audio_manager=audio_mgr, game_state=state)
+                    except TypeError:
+                        player.take_damage(dmg)
+            kept.append(ring)
+        self.shockwave_rings = kept
+
+    def _update_steam_sparks(self, dt):
+        """Advance and decay boiler steam sparks."""
+        if not self.steam_sparks:
+            return
+        kept = []
+        for sp in self.steam_sparks:
+            sp["life"] = float(sp.get("life", 0.0)) - dt
+            if sp["life"] <= 0.0:
+                continue
+            sp["x"] = float(sp["x"]) + float(sp["vx"]) * dt
+            sp["y"] = float(sp["y"]) + float(sp["vy"]) * dt
+            sp["vx"] *= max(0.0, 1.0 - 2.4 * dt)
+            sp["vy"] *= max(0.0, 1.0 - 2.4 * dt)
+            kept.append(sp)
+        self.steam_sparks = kept
+
+    def _resolve_target_point(self, state):
+        """Return nearest active player center or None when resting/dead."""
+        if getattr(state, "active_respite", None) is not None or getattr(state, "in_sanctuary", False):
+            return None
+        player = getattr(state, "player", None)
+        if (
+            player is not None
+            and getattr(player, "hp", 0.0) > 0.0
+            and float(getattr(state, "death_timer", 0.0) or 0.0) <= 0.0
+        ):
+            return player.get_center()
+        return None
+
+    def _move_with_walls(self, dx, dy, state):
+        """Translate boss by (dx, dy) and resolve against nearby world walls."""
+        self.x += dx
+        self.y += dy
+        world = getattr(state, "world", None)
+        if world is not None and hasattr(world, "get_nearby_walls"):
+            walls = world.get_nearby_walls(self.get_rect())
+            self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+
+    def _check_phase2_transition(self, state=None):
+        """Promote boss to Phase 2 once HP drops to or below 50%."""
+        from constants import TYPESETTER_PHASE2_HP_RATIO
+        if (
+            self.phase < 2
+            and self.hp > 0.0
+            and self.max_hp > 0.0
+            and self.hp <= self.max_hp * float(TYPESETTER_PHASE2_HP_RATIO)
+        ):
+            self.phase = 2
+            audio = getattr(state, "audio_manager", None) if state is not None else None
+            if audio is not None:
+                try:
+                    audio.play_sfx("bleed_start.ogg")
+                except Exception:
+                    pass
+
+    def take_damage(self, amount, bypass_stagger=False):
+        """Apply damage; striking the exposed Boiler Vent vents steam sparks, stuns, and resets to platen_march."""
+        from constants import TYPESETTER_VENT_STUN_DURATION
+        was_venting = self.attack_mode == "boiler_vent" and float(amount) > 0.0
+        super().take_damage(amount, bypass_stagger=bypass_stagger)
+        if self.is_dead():
+            self.weakpoint_exposed_timer = 0.0
+            self.armor_active = False
+            return
+        self._check_phase2_transition()
+        if was_venting:
+            self._emit_steam_sparks(count=12)
+            self.stagger_timer = max(float(self.stagger_timer), float(TYPESETTER_VENT_STUN_DURATION))
+            self._enter_platen_march()
+
+    def update(self, dt, state):
+        """Run The Typesetter Automaton 3-state rhythmic loop (platen_march -> type_stamp -> boiler_vent)."""
+        from constants import (
+            TYPESETTER_PLATEN_LIFT_OFFSET,
+            TYPESETTER_PLATEN_SLAM_OFFSET,
+            TYPESETTER_SLUG_INTERVAL,
+            TYPESETTER_STAMP_COUNT,
+            TYPESETTER_STAMP_IMPACT_HOLD_P1,
+            TYPESETTER_STAMP_IMPACT_HOLD_P2,
+            TYPESETTER_STAMP_LIFT_DURATION_P1,
+            TYPESETTER_STAMP_LIFT_DURATION_P2,
+        )
+        if self.is_summoning_or_dormant():
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
+        dt = max(0.0, float(dt))
+        self.animation_timer += dt
+        if getattr(self, "hit_flash_timer", 0.0) > 0.0:
+            self.hit_flash_timer = max(0.0, float(self.hit_flash_timer) - dt)
+        if self.bleed_timer > 0.0 and not self.is_dead():
+            self.bleed_timer = max(0.0, self.bleed_timer - dt)
+            self.hp = max(0.0, self.hp - float(getattr(self, "bleed_damage", 0.0)) * dt)
+        if self.weakpoint_exposed_timer > 0.0:
+            self.weakpoint_exposed_timer = max(0.0, self.weakpoint_exposed_timer - dt)
+        if self.ink_bolts:
+            self._update_ink_bolts(dt, state)
+        if self.shockwave_rings:
+            self._update_shockwave_rings(dt, state)
+        if self.steam_sparks:
+            self._update_steam_sparks(dt)
+
+        if self.is_dead():
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
+        self._check_phase2_transition(state)
+
+        net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+        if net_mode == "CLIENT":
+            if self.attack_mode == "platen_march":
+                self.leg_phase += dt * 7.5
+                self.platen_offset_y = math.sin(self.leg_phase * 2.0) * 2.5
+            elif self.attack_mode == "boiler_vent":
+                self.platen_offset_y = -10.0 + math.sin(self.animation_timer * 30.0) * 2.5
+            return
+
+        if self.stagger_timer > 0.0:
+            self.stagger_timer = max(0.0, self.stagger_timer - dt)
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
+        target = self._resolve_target_point(state)
+        self.active_target = target
+        if target is None:
+            self.vx = 0.0
+            self.vy = 0.0
+            self.state = ActorState.IDLE
+            return
+
+        tx, ty = target
+        cx, cy = self.get_center()
+        dx, dy = tx - cx, ty - cy
+        dist = math.hypot(dx, dy)
+        ux, uy = (dx / dist, dy / dist) if dist > 1e-3 else (self.facing[0], self.facing[1])
+
+        if self.attack_mode == "platen_march":
+            self.armor_active = True
+            self.weakpoint_exposed_timer = 0.0
+            self.state = ActorState.CHASE
+            self.facing = (ux, uy)
+
+            stride_rate = 8.5 if self.phase >= 2 else 6.8
+            self.leg_phase += dt * stride_rate
+            self.platen_offset_y = math.sin(self.leg_phase * 2.0) * 2.5
+
+            spd = float(self.speed) * (1.14 if self.phase >= 2 else 1.0)
+            approach_w = 0.90 if dist > 140.0 else (0.25 if dist > 85.0 else 0.0)
+            self.vx = ux * spd * approach_w
+            self.vy = uy * spd * approach_w
+            self._move_with_walls(self.vx * dt, self.vy * dt, state)
+
+            self.volley_timer -= dt
+            if self.volley_timer <= 0.0:
+                self._fire_type_slug_volley(tx, ty, state)
+                self.volley_timer = float(TYPESETTER_SLUG_INTERVAL) * (0.82 if self.phase >= 2 else 1.0)
+
+            self.mode_timer -= dt
+            if self.mode_timer <= 0.0:
+                self._enter_type_stamp(state)
+
+        elif self.attack_mode == "type_stamp":
+            self.armor_active = True
+            self.weakpoint_exposed_timer = 0.0
+            self.vx = 0.0
+            self.vy = 0.0
+            lift_dur = float(
+                TYPESETTER_STAMP_LIFT_DURATION_P2 if self.phase >= 2 else TYPESETTER_STAMP_LIFT_DURATION_P1
+            )
+            hold_dur = float(
+                TYPESETTER_STAMP_IMPACT_HOLD_P2 if self.phase >= 2 else TYPESETTER_STAMP_IMPACT_HOLD_P1
+            )
+
+            if self.stamp_substate == "lift":
+                self.state = ActorState.WIND_UP
+                self.facing = (ux, uy)
+                self.mode_timer -= dt
+                lift_progress = max(0.0, min(1.0, 1.0 - (self.mode_timer / max(0.01, lift_dur))))
+                self.platen_offset_y = float(TYPESETTER_PLATEN_LIFT_OFFSET) * lift_progress
+                if self.mode_timer <= 0.0:
+                    self.stamp_substate = "impact"
+                    self.state = ActorState.STRIKE
+                    self.mode_timer = hold_dur
+                    self._execute_platen_stamp_impact(state)
+            else:
+                self.state = ActorState.STRIKE
+                self.platen_offset_y = float(TYPESETTER_PLATEN_SLAM_OFFSET)
+                self.mode_timer -= dt
+                if self.mode_timer <= 0.0:
+                    if self.stamp_count < int(TYPESETTER_STAMP_COUNT):
+                        self.stamp_substate = "lift"
+                        self.state = ActorState.WIND_UP
+                        self.mode_timer = lift_dur
+                        audio = getattr(state, "audio_manager", None)
+                        if audio is not None:
+                            try:
+                                audio.play_sfx("enemy_telegraph.ogg")
+                            except Exception:
+                                pass
+                    else:
+                        self._enter_boiler_vent(state)
+
+        else:  # boiler_vent
+            self.armor_active = False
+            self.state = ActorState.RECOVERY
+            self.vx = 0.0
+            self.vy = 0.0
+            self.platen_offset_y = -10.0 + math.sin(self.animation_timer * 32.0) * 2.5
+            self._steam_emit_accum += dt
+            if self._steam_emit_accum >= 0.18:
+                self._steam_emit_accum = 0.0
+                self._emit_steam_sparks(count=3)
+            self.mode_timer -= dt
+            if self.mode_timer <= 0.0 or self.weakpoint_exposed_timer <= 0.0:
+                self._enter_platen_march()
+
+    def get_visual_packet(self):
+        """Expose Typesetter Automaton articulation, platen stamp & boiler vent state to the renderer."""
+        packet = super().get_visual_packet()
+        packet["attack_mode"] = self.attack_mode
+        packet["stamp_substate"] = self.stamp_substate
+        packet["phase"] = int(self.phase)
+        packet["stamp_count"] = int(self.stamp_count)
+        packet["platen_offset_y"] = float(self.platen_offset_y)
+        packet["leg_phase"] = float(self.leg_phase)
+        packet["armor_active"] = bool(self.armor_active)
+        packet["weakpoint_exposed_timer"] = float(self.weakpoint_exposed_timer)
+        packet["shockwave_rings"] = list(self.shockwave_rings)
+        packet["steam_sparks"] = list(self.steam_sparks)
+        return packet
+
+
 class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
@@ -2594,6 +3111,7 @@ ENEMY_REGISTRY = {
     "SentryEnemy": SentryEnemy, "PunctuationWolfEnemy": PunctuationWolfEnemy,
     "NightBoss": NightBoss, "SlugBoss": SlugBoss, "MeadowCensorBoss": MeadowCensorBoss,
     "RimecrestArbiterBoss": RimecrestArbiterBoss, "GaleVaneRaptorBoss": GaleVaneRaptorBoss,
+    "TypesetterAutomatonBoss": TypesetterAutomatonBoss,
     "FinalAuthor": FinalAuthor,
 }
 
