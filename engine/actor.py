@@ -107,6 +107,8 @@ class Actor:
             player is not None
             and hasattr(player, "get_center")
             and getattr(game_state, "active_respite", None) is None
+            and getattr(player, "hp", 1) > 0
+            and float(getattr(game_state, "death_timer", 0.0) or 0.0) <= 0.0
         ):
             runners.append(player.get_center())
         in_sanctuary = bool(getattr(game_state, "in_sanctuary", False))

@@ -1220,6 +1220,7 @@ class SlugBoss(NightBoss):
         next_net_id = max((getattr(e, "network_id", -1) for e in enemies), default=0) + 1
         cx, cy = self.get_center()
         count = int(SLUG_BOSS_MINION_COUNT)
+        active_runners = Actor.get_active_runner_positions(state)
 
         for idx in range(count):
             angle = (2.0 * math.pi * idx) / max(1, count)
@@ -1243,6 +1244,14 @@ class SlugBoss(NightBoss):
                     speed_multiplier=spd_mult,
                     cooldown_multiplier=cd_mult,
                 )
+            minion.persistent_pursuit = True
+            if active_runners:
+                mcx, mcy = minion.get_center()
+                minion.active_target = min(
+                    active_runners,
+                    key=lambda pos, mx=mcx, my=mcy: (pos[0] - mx) ** 2 + (pos[1] - my) ** 2,
+                )
+                minion.state = ActorState.CHASE
             minion.network_id = next_net_id
             next_net_id += 1
             enemies.append(minion)

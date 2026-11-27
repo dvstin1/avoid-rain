@@ -401,3 +401,91 @@ def test_slug_boss_phase2_transition_music_switch_10_slug_summon_and_client_guar
         assert state.enemies == [client_boss]
     finally:
         state.shutdown_save_worker(timeout=1.0)
+
+
+def test_slug_boss_phase2_minions_persistent_pursuit_vs_normal_slug_and_guards():
+    """Verify Phase 2 minions pursue beyond normal slug leash/LOS while respecting Respite and dead-player guards."""
+    state = GameState(auto_load=False)
+    state.network_manager.stop_network()
+    try:
+        # 40x16 arena with an interior wall divider at x=18 (leaving top/bottom gaps) to test LOS drop + long range
+        rows = ["#" * 40]
+        for y in range(1, 15):
+            row = ["#"] + ["."] * 38 + ["#"]
+            if 3 <= y <= 11:
+                row[18] = "#"
+            rows.append("".join(row))
+        rows.append("#" * 40)
+
+        state.world = World("swamp_mire")
+        state.world.load_from_prototype(rows)
+        state.in_sanctuary = False
+        state.current_act = 1
+        state.player.x = 6.0 * constants.TILE_SIZE
+        state.player.y = 7.0 * constants.TILE_SIZE
+        state.player.hp = state.player.max_hp
+        state.death_timer = 0.0
+        state.active_respite = None
+
+        boss = SlugBoss(7.0 * constants.TILE_SIZE, 6.0 * constants.TILE_SIZE)
+        boss.hp = boss.max_hp * constants.SLUG_BOSS_PHASE2_HP_RATIO
+        state.enemies = [boss]
+        state.world.enemies = list(state.enemies)
+
+        # Trigger Phase 2 summon
+        boss.update(0.05, state)
+        minions = [e for e in state.enemies if isinstance(e, SlugEnemy)]
+        assert len(minions) == constants.SLUG_BOSS_MINION_COUNT == 10
+        for m in minions:
+            assert m.persistent_pursuit is True
+            assert m.state == ActorState.CHASE
+            assert m.active_target is not None
+
+        # Regular map-spawned slug stays unaffected (persistent_pursuit is False)
+        normal_slug = SlugEnemy(minions[0].x, minions[0].y)
+        assert normal_slug.persistent_pursuit is False
+
+        # Move player far beyond SLUG_DETECT_METERS (5 tiles = 200px) and behind wall (x=34 -> >1000px away)
+        state.player.x = 34.0 * constants.TILE_SIZE
+        state.player.y = 7.0 * constants.TILE_SIZE
+        normal_slug.state = ActorState.CHASE
+        normal_slug.update(0.1, state)
+        assert normal_slug.state == ActorState.IDLE, "Normal SlugEnemy must de-aggro past detect_radius"
+
+        # Phase 2 minions keep aggressively chasing far past detect_radius and across broken LOS
+        for m in minions:
+            dist_before = math.hypot(
+                state.player.get_center()[0] - m.get_center()[0],
+                state.player.get_center()[1] - m.get_center()[1],
+            )
+            assert dist_before > m.detect_radius * 3.0
+            pos_before = (m.x, m.y)
+            m.update(0.1, state)
+            assert m.state == ActorState.CHASE
+            assert math.hypot(m.vx, m.vy) > 0.0
+            assert (m.x, m.y) != pos_before
+
+        # Guard 1: Opening Respite disengages persistent-pursuit minions cleanly
+        state.active_respite = object()
+        minions[0].update(0.1, state)
+        assert minions[0].state == ActorState.IDLE
+        assert (minions[0].vx, minions[0].vy) == (0.0, 0.0)
+        state.active_respite = None
+
+        # Closing Respite resumes aggressive chase even at long distance
+        minions[0].update(0.1, state)
+        assert minions[0].state == ActorState.CHASE
+
+        # Guard 2: Dead player (hp <= 0 or active death_timer) disengages minions cleanly
+        state.player.hp = 0
+        minions[0].update(0.1, state)
+        assert minions[0].state == ActorState.IDLE
+        assert (minions[0].vx, minions[0].vy) == (0.0, 0.0)
+
+        state.player.hp = state.player.max_hp
+        state.death_timer = 1.5
+        minions[1].update(0.1, state)
+        assert minions[1].state == ActorState.IDLE
+        assert (minions[1].vx, minions[1].vy) == (0.0, 0.0)
+    finally:
+        state.shutdown_save_worker(timeout=1.0)
