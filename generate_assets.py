@@ -7104,10 +7104,258 @@ def generate_all_assets(
             )
             _emit(p_key, out_path, surf)
 
+    # Pipeline 18: Modular Articulated Boss Rig Parts (The Gale-Vane Raptor — Windy Ridge Night Boss)
+    gale_raptor_parts = (
+        ("gale_raptor_torso", generate_gale_raptor_torso(56, 64, rng=_rng("gale_raptor_torso"))),
+        ("gale_raptor_head", generate_gale_raptor_head(36, 36, rng=_rng("gale_raptor_head"))),
+        ("gale_raptor_wing", generate_gale_raptor_wing(64, 40, rng=_rng("gale_raptor_wing"))),
+        ("gale_raptor_tail", generate_gale_raptor_tail(36, 44, rng=_rng("gale_raptor_tail"))),
+    )
+    for gr_key, gr_surf in gale_raptor_parts:
+        out_path = os.path.join("assets", "graphics", f"{gr_key}.png")
+        _emit(gr_key, out_path, gr_surf)
+
     if stats_out is not None:
         stats_out["updated"] = updated_count
         stats_out["unchanged"] = unchanged_count
     return results
+
+
+def generate_gale_raptor_torso(width: int = 56, height: int = 64, rng: random.Random = None) -> pygame.Surface:
+    """Generate the Gale-Vane Raptor sculpted brass-and-slate keel chassis (56x64, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7101)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    ink = (26, 28, 36, 255)
+    slate_dark = (52, 66, 82, 255)
+    slate_mid = (78, 96, 114, 255)
+    slate_hi = (116, 138, 156, 255)
+    brass_dark = (128, 94, 42, 255)
+    brass_mid = (182, 142, 68, 255)
+    brass_hi = (228, 194, 112, 255)
+    verdigris = (96, 154, 146, 220)
+    parchment = (224, 210, 178, 255)
+
+    # Outer slate armor hull (swept kite/keel chassis)
+    hull_pts = [
+        (cx, 4),
+        (width - 9, 16),
+        (width - 5, cy + 4),
+        (width - 13, height - 10),
+        (cx, height - 3),
+        (13, height - 10),
+        (5, cy + 4),
+        (9, 16),
+    ]
+    pygame.draw.polygon(surf, slate_dark, hull_pts)
+    pygame.draw.polygon(surf, ink, hull_pts, 2)
+
+    # Inner contoured slate breastplate with top-left specular bevel
+    inner_pts = [
+        (cx, 9),
+        (width - 13, 19),
+        (width - 10, cy + 2),
+        (cx, height - 9),
+        (10, cy + 2),
+        (13, 19),
+    ]
+    pygame.draw.polygon(surf, slate_mid, inner_pts)
+    pygame.draw.line(surf, slate_hi, (cx, 10), (14, 19), 2)
+    pygame.draw.line(surf, slate_hi, (14, 19), (11, cy + 1), 1)
+
+    # Central brass keel ridge & articulated chest ribs
+    keel_pts = [(cx, 6), (cx + 6, 18), (cx + 4, height - 12), (cx, height - 5), (cx - 4, height - 12), (cx - 6, 18)]
+    pygame.draw.polygon(surf, brass_mid, keel_pts)
+    pygame.draw.polygon(surf, brass_dark, keel_pts, 1)
+    pygame.draw.line(surf, brass_hi, (cx - 1, 9), (cx - 1, height - 10), 2)
+
+    for rib_y in (20, 30, 40, 49):
+        span = 16 if rib_y in (20, 30) else 12
+        pygame.draw.line(surf, brass_dark, (cx - span, rib_y), (cx + span, rib_y), 3)
+        pygame.draw.line(surf, brass_mid, (cx - span + 1, rib_y - 1), (cx + span - 1, rib_y - 1), 1)
+
+    # Shoulder wing-socket collars & parchment trim
+    for sx in (11, width - 11):
+        pygame.draw.circle(surf, brass_dark, (sx, 22), 6)
+        pygame.draw.circle(surf, brass_mid, (sx, 22), 4)
+        pygame.draw.circle(surf, brass_hi, (sx - 1, 21), 2)
+
+    # Central weathered compass rose medallion
+    pygame.draw.circle(surf, ink, (cx, cy - 2), 9)
+    pygame.draw.circle(surf, brass_mid, (cx, cy - 2), 8)
+    pygame.draw.circle(surf, parchment, (cx, cy - 2), 5)
+    pygame.draw.circle(surf, verdigris, (cx, cy - 2), 3)
+    pygame.draw.circle(surf, brass_hi, (cx - 1, cy - 3), 1)
+
+    # Subtle weathered verdigris patina rivets
+    for rx, ry in ((16, 15), (width - 16, 15), (14, 42), (width - 14, 42)):
+        if rng.random() > 0.15:
+            pygame.draw.circle(surf, verdigris, (rx, ry), 2)
+        pygame.draw.circle(surf, brass_hi, (rx, ry), 1)
+    return surf
+
+
+def generate_gale_raptor_head(width: int = 36, height: int = 36, rng: random.Random = None) -> pygame.Surface:
+    """Generate the Gale-Vane Raptor hooked brass weathercock beak/crest (36x36, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7102)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    ink = (26, 28, 36, 255)
+    slate_dark = (52, 66, 82, 255)
+    slate_mid = (84, 102, 122, 255)
+    brass_dark = (128, 94, 42, 255)
+    brass_mid = (188, 148, 72, 255)
+    brass_hi = (234, 202, 124, 255)
+    parchment = (232, 218, 186, 255)
+    eye_glow = (146, 232, 246, 255)
+
+    # Swept weathervane crest plumes behind the skull
+    crest_l = [(cx - 3, cy - 2), (4, 5), (9, cy - 6), (cx - 1, cy - 10)]
+    crest_r = [(cx + 3, cy - 2), (width - 5, 5), (width - 10, cy - 6), (cx + 1, cy - 10)]
+    for poly in (crest_l, crest_r):
+        pygame.draw.polygon(surf, parchment, poly)
+        pygame.draw.polygon(surf, brass_dark, poly, 1)
+
+    # Central brass weathercock crown fin
+    fin = [(cx, 2), (cx + 5, 12), (cx, 17), (cx - 5, 12)]
+    pygame.draw.polygon(surf, brass_mid, fin)
+    pygame.draw.line(surf, brass_hi, (cx, 3), (cx, 15), 1)
+    pygame.draw.polygon(surf, ink, fin, 1)
+
+    # Armored slate cranium
+    skull = [
+        (cx, 9),
+        (width - 7, 15),
+        (width - 9, 24),
+        (cx, 28),
+        (9, 24),
+        (7, 15),
+    ]
+    pygame.draw.polygon(surf, slate_dark, skull)
+    pygame.draw.polygon(surf, slate_mid, [(cx, 11), (width - 10, 16), (cx, 24), (10, 16)])
+    pygame.draw.polygon(surf, ink, skull, 2)
+
+    # Glowing twin anemometer optics
+    for ex in (cx - 5, cx + 5):
+        pygame.draw.circle(surf, ink, (ex, 18), 3)
+        pygame.draw.circle(surf, eye_glow, (ex, 18), 2)
+
+    # Hooked brass raptor beak pointing downward (+Y forward default)
+    beak = [(cx - 6, 21), (cx + 6, 21), (cx + 3, 29), (cx, height - 2), (cx - 3, 29)]
+    pygame.draw.polygon(surf, brass_mid, beak)
+    pygame.draw.polygon(surf, brass_hi, [(cx - 3, 22), (cx + 1, 22), (cx, height - 4)])
+    pygame.draw.polygon(surf, ink, beak, 1)
+    if rng.random() > 0.0:
+        pygame.draw.line(surf, brass_dark, (cx, 22), (cx, height - 4), 1)
+    return surf
+
+
+def generate_gale_raptor_wing(width: int = 64, height: int = 40, rng: random.Random = None) -> pygame.Surface:
+    """Generate a swept multi-segment parchment-and-brass wing extending rightward from shoulder (64x40, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7103)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+
+    ink = (26, 28, 36, 255)
+    slate_dark = (52, 66, 82, 255)
+    slate_mid = (84, 104, 124, 255)
+    brass_dark = (128, 94, 42, 255)
+    brass_mid = (188, 148, 72, 255)
+    brass_hi = (236, 204, 126, 255)
+    parchment_dark = (188, 172, 140, 255)
+    parchment = (228, 214, 182, 255)
+    parchment_hi = (244, 234, 208, 255)
+
+    # Layered swept parchment flight vanes (secondary -> primary)
+    vane_specs = (
+        [(8, 14), (24, 10), (22, 34), (10, 29)],
+        [(20, 10), (38, 7), (35, 36), (21, 32)],
+        [(34, 7), (52, 5), (49, 32), (34, 33)],
+        [(47, 5), (width - 2, 7), (width - 8, 23), (46, 27)],
+    )
+    for idx, poly in enumerate(vane_specs):
+        fill_col = parchment if idx % 2 == 0 else parchment_hi
+        pygame.draw.polygon(surf, fill_col, poly)
+        pygame.draw.line(surf, parchment_dark, poly[2], poly[3], 2)
+        pygame.draw.polygon(surf, ink, poly, 1)
+
+    # Slate wind-baffle shoulder shield near the inner wing root
+    baffle = [(2, 12), (24, 6), (26, 21), (8, 26), (2, 21)]
+    pygame.draw.polygon(surf, slate_dark, baffle)
+    pygame.draw.polygon(surf, slate_mid, [(4, 13), (21, 9), (22, 17), (7, 21)])
+    pygame.draw.polygon(surf, ink, baffle, 2)
+
+    # Riveted brass leading-edge spar & articulating elbow hinge
+    spar = [(3, 13), (24, 5), (48, 3), (width - 3, 6), (width - 7, 11), (47, 9), (24, 11), (5, 18)]
+    pygame.draw.polygon(surf, brass_mid, spar)
+    pygame.draw.line(surf, brass_hi, (5, 13), (48, 4), 2)
+    pygame.draw.polygon(surf, brass_dark, spar, 1)
+
+    # Tension ribs radiating from hinge across parchment sails
+    for rx, ry in ((23, 33), (36, 34), (49, 30)):
+        pygame.draw.line(surf, brass_dark, (24, 9), (rx, ry), 2)
+        pygame.draw.line(surf, brass_mid, (24, 8), (rx - 1, ry - 1), 1)
+
+    # Brass shoulder & elbow pin bearings
+    for jx, jy, jr in ((7, 15, 4), (24, 9, 4), (46, 7, 3)):
+        pygame.draw.circle(surf, ink, (jx, jy), jr + 1)
+        pygame.draw.circle(surf, brass_mid, (jx, jy), jr)
+        pygame.draw.circle(surf, brass_hi, (jx - 1, jy - 1), max(1, jr - 2))
+    if rng.random() > 0.5:
+        pygame.draw.circle(surf, brass_hi, (15, 13), 1)
+    return surf
+
+
+def generate_gale_raptor_tail(width: int = 36, height: int = 44, rng: random.Random = None) -> pygame.Surface:
+    """Generate the Gale-Vane Raptor articulated compass tail-rudder vane (36x44, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7104)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    ink = (26, 28, 36, 255)
+    slate_dark = (52, 66, 82, 255)
+    slate_mid = (84, 104, 124, 255)
+    brass_dark = (128, 94, 42, 255)
+    brass_mid = (188, 148, 72, 255)
+    brass_hi = (236, 204, 126, 255)
+    parchment = (228, 214, 182, 255)
+    amber_core = (255, 196, 76, 255)
+
+    # Lateral parchment rudder fins
+    left_fin = [(cx - 4, 10), (3, 24), (7, 37), (cx - 3, 30)]
+    right_fin = [(cx + 4, 10), (width - 4, 24), (width - 8, 37), (cx + 3, 30)]
+    for fin in (left_fin, right_fin):
+        pygame.draw.polygon(surf, parchment, fin)
+        pygame.draw.polygon(surf, brass_dark, fin, 1)
+
+    # Slate rear stabilizer diamond
+    stab = [(cx, 6), (cx + 9, 20), (cx, 35), (cx - 9, 20)]
+    pygame.draw.polygon(surf, slate_dark, stab)
+    pygame.draw.polygon(surf, slate_mid, [(cx, 9), (cx + 6, 20), (cx, 31), (cx - 6, 20)])
+    pygame.draw.polygon(surf, ink, stab, 2)
+
+    # Central brass cardinal weathervane arrow pointing aft (+Y)
+    arrow = [(cx - 3, 3), (cx + 3, 3), (cx + 4, 30), (cx + 8, 30), (cx, height - 2), (cx - 8, 30), (cx - 4, 30)]
+    pygame.draw.polygon(surf, brass_mid, arrow)
+    pygame.draw.line(surf, brass_hi, (cx - 1, 5), (cx - 1, height - 6), 2)
+    pygame.draw.polygon(surf, ink, arrow, 1)
+
+    # Glowing amber weak-point rudder hub
+    pygame.draw.circle(surf, ink, (cx, 19), 5)
+    pygame.draw.circle(surf, brass_dark, (cx, 19), 4)
+    pygame.draw.circle(surf, amber_core, (cx, 19), 3)
+    if rng.random() >= 0.0:
+        pygame.draw.circle(surf, (255, 244, 196, 255), (cx - 1, 18), 1)
+    return surf
 
 
 def generate_empowered_enemy_sprite(

@@ -128,6 +128,7 @@ class Actor:
             "SlugBoss",
             "MeadowCensorBoss",
             "RimecrestArbiterBoss",
+            "GaleVaneRaptorBoss",
             "FinalAuthor",
         ):
             return True

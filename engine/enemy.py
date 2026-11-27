@@ -429,24 +429,23 @@ class Boss(Enemy):
         self.weakpoint_exposed_timer = 0.0
         self.weakpoint_damage_mult = float(BOSS_WEAKPOINT_DEFAULT_DAMAGE_MULT)
 
-    def expose_weakpoint(self, duration: float, state=None) -> None:
+    def expose_weakpoint(self, duration: float, state=None, audio_manager=None) -> None:
         """Open a timed vulnerability window and emit the boss_expose SFX cue."""
         dur = max(0.0, float(duration))
         if dur <= 0.0:
             return
         self.weakpoint_exposed_timer = max(float(self.weakpoint_exposed_timer), dur)
-        if state is None:
-            return
         from constants import BOSS_EXPOSE_SFX
-        audio = getattr(state, "audio_manager", None)
+        audio = audio_manager if audio_manager is not None else getattr(state, "audio_manager", None)
         if audio is not None:
             try:
                 audio.play_sfx(BOSS_EXPOSE_SFX)
             except Exception:
                 pass
-        else:
+        if state is not None:
+            net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
             pending = getattr(state, "pending_remote_sfx", None)
-            if isinstance(pending, list):
+            if isinstance(pending, list) and (net_mode == "HOST" or audio is None):
                 cx, cy = self.get_center()
                 pending.append((BOSS_EXPOSE_SFX, cx, cy))
 
@@ -2184,6 +2183,396 @@ class RimecrestArbiterBoss(NightBoss):
         print("[LOOT] RimecrestArbiterBoss planted mirror-ice halberd, 2 scattered weapons, and Choice of Fates.")
 
 
+class GaleVaneRaptorBoss(NightBoss):
+    """Windy Ridge Night Boss: articulated brass-and-parchment weathercock raptor with directional armor & stall."""
+
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import (
+            GALE_RAPTOR_ARMOR_DAMAGE_MULT,
+            GALE_RAPTOR_GUARD_DURATION,
+            GALE_RAPTOR_SIZE,
+            GALE_RAPTOR_SPEED,
+            GALE_RAPTOR_VOLLEY_INTERVAL,
+            GALE_RAPTOR_WEAKPOINT_DAMAGE_MULT,
+            NIGHT_BOSS_MAX_HP,
+        )
+        initial_hp = hp if hp is not None else NIGHT_BOSS_MAX_HP
+        super().__init__(x, y, hp=initial_hp, id=id)
+        self.width = int(GALE_RAPTOR_SIZE)
+        self.height = int(GALE_RAPTOR_SIZE)
+        self.name = "Night Boss"
+        self.display_name = "The Gale-Vane Raptor"
+        self.is_gale_raptor = True
+        self.speed = float(GALE_RAPTOR_SPEED)
+        self.detect_radius = 1200.0
+        self.persistent_pursuit = True
+
+        # Directional Gale Guard armor & Stall Shatter weak-point tuning
+        self.armor_front_only = True
+        self.armor_active = True
+        self.armor_damage_mult = float(GALE_RAPTOR_ARMOR_DAMAGE_MULT)
+        self.weakpoint_damage_mult = float(GALE_RAPTOR_WEAKPOINT_DAMAGE_MULT)
+        self.weakpoint_exposed_timer = 0.0
+
+        # 3-state gimmick combat state machine + Phase 2 escalation
+        self.phase = 1
+        self.attack_mode = "gale_guard"
+        self.dive_substate = "telegraph"
+        self.mode_timer = float(GALE_RAPTOR_GUARD_DURATION)
+        self.volley_timer = float(GALE_RAPTOR_VOLLEY_INTERVAL) * 0.6
+        self.dashes_remaining = 0
+        self.dash_dir = (0.0, 1.0)
+        self.dash_hit_applied = False
+        self.strafe_sign = 1.0
+        self.wing_angle_deg = 32.0
+        self.wind_gust_trails = []
+        self._trail_emit_accum = 0.0
+
+    def _enter_gale_guard(self):
+        """Transition into directional frontal-armor Gale Guard stance."""
+        from constants import GALE_RAPTOR_GUARD_DURATION, GALE_RAPTOR_VOLLEY_INTERVAL
+        self.attack_mode = "gale_guard"
+        self.armor_active = True
+        self.weakpoint_exposed_timer = 0.0
+        self.state = ActorState.CHASE
+        cd_scale = 0.85 if self.phase >= 2 else 1.0
+        self.mode_timer = float(GALE_RAPTOR_GUARD_DURATION) * cd_scale
+        self.volley_timer = float(GALE_RAPTOR_VOLLEY_INTERVAL) * 0.65 * cd_scale
+        self.strafe_sign = -self.strafe_sign
+        self.wing_angle_deg = 32.0
+
+    def _enter_crosswind_dive(self, state):
+        """Transition into telegraphed multi-dash Crosswind Dive sequence."""
+        from constants import (
+            GALE_RAPTOR_DASH_COUNT_P1,
+            GALE_RAPTOR_DASH_COUNT_P2,
+            GALE_RAPTOR_TELEGRAPH_DURATION,
+        )
+        self.attack_mode = "crosswind_dive"
+        self.dive_substate = "telegraph"
+        self.armor_active = True
+        self.weakpoint_exposed_timer = 0.0
+        self.state = ActorState.WIND_UP
+        self.vx = 0.0
+        self.vy = 0.0
+        self.dashes_remaining = int(GALE_RAPTOR_DASH_COUNT_P2 if self.phase >= 2 else GALE_RAPTOR_DASH_COUNT_P1)
+        self.mode_timer = float(GALE_RAPTOR_TELEGRAPH_DURATION) * (0.85 if self.phase >= 2 else 1.0)
+        self.wing_angle_deg = -48.0
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("enemy_telegraph.ogg")
+            except Exception:
+                pass
+
+    def _enter_stall_shatter(self, state):
+        """Overextend wings into Stall Shatter, opening the 1.45s weak-point window."""
+        from constants import GALE_RAPTOR_STALL_DURATION
+        self.attack_mode = "stall_shatter"
+        self.armor_active = False
+        self.state = ActorState.RECOVERY
+        self.vx = 0.0
+        self.vy = 0.0
+        self.mode_timer = float(GALE_RAPTOR_STALL_DURATION)
+        self.wing_angle_deg = -18.0
+        self.expose_weakpoint(
+            float(GALE_RAPTOR_STALL_DURATION),
+            state=state,
+            audio_manager=getattr(state, "audio_manager", None),
+        )
+
+    def _fire_wind_shear_volley(self, target_x, target_y, state):
+        """Fire a 3-bolt (Phase 1) or 5-bolt (Phase 2) wind-shear ink fan toward the target."""
+        from constants import (
+            BOSS_BOLT_DAMAGE,
+            BOSS_BOLT_MAX_LIFETIME,
+            BOSS_BOLT_RADIUS,
+            BOSS_BOLT_SPEED,
+            GALE_RAPTOR_BOLT_COUNT_P1,
+            GALE_RAPTOR_BOLT_COUNT_P2,
+            GALE_RAPTOR_BOLT_SPREAD_DEG,
+        )
+        net = getattr(state, "network_manager", None)
+        if getattr(net, "network_mode", "OFFLINE") == "CLIENT":
+            return
+        cx, cy = self.get_center()
+        base_angle = math.atan2(target_y - cy, target_x - cx)
+        count = int(GALE_RAPTOR_BOLT_COUNT_P2 if self.phase >= 2 else GALE_RAPTOR_BOLT_COUNT_P1)
+        spread_rad = math.radians(float(GALE_RAPTOR_BOLT_SPREAD_DEG))
+        half = (count - 1) * 0.5
+        dmg = float(BOSS_BOLT_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+        bolt_speed = float(BOSS_BOLT_SPEED) * (1.12 if self.phase >= 2 else 1.0)
+        for idx in range(count):
+            ang = base_angle + (idx - half) * spread_rad
+            self.ink_bolts.append({
+                "x": float(cx + math.cos(ang) * 28.0),
+                "y": float(cy + math.sin(ang) * 28.0),
+                "vx": math.cos(ang) * bolt_speed,
+                "vy": math.sin(ang) * bolt_speed,
+                "damage": dmg,
+                "life": float(BOSS_BOLT_MAX_LIFETIME),
+                "radius": int(BOSS_BOLT_RADIUS),
+                "style": "wind_shear",
+            })
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("enemy_telegraph.ogg")
+            except Exception:
+                pass
+
+    def _resolve_target_point(self, state):
+        """Return nearest active player center or None when resting/dead."""
+        if getattr(state, "active_respite", None) is not None or getattr(state, "in_sanctuary", False):
+            return None
+        player = getattr(state, "player", None)
+        if (
+            player is not None
+            and getattr(player, "hp", 0.0) > 0.0
+            and float(getattr(state, "death_timer", 0.0) or 0.0) <= 0.0
+        ):
+            return player.get_center()
+        return None
+
+    def _move_with_walls(self, dx, dy, state):
+        """Translate boss by (dx, dy) and resolve against nearby world walls."""
+        self.x += dx
+        self.y += dy
+        world = getattr(state, "world", None)
+        if world is not None and hasattr(world, "get_nearby_walls"):
+            walls = world.get_nearby_walls(self.get_rect())
+            self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+
+    def _check_phase2_transition(self, state=None):
+        """Promote boss to Phase 2 once HP drops to or below 50%."""
+        from constants import GALE_RAPTOR_PHASE2_HP_RATIO
+        if (
+            self.phase < 2
+            and self.hp > 0.0
+            and self.max_hp > 0.0
+            and self.hp <= self.max_hp * float(GALE_RAPTOR_PHASE2_HP_RATIO)
+        ):
+            self.phase = 2
+            audio = getattr(state, "audio_manager", None) if state is not None else None
+            if audio is not None:
+                try:
+                    audio.play_sfx("bleed_start.ogg")
+                except Exception:
+                    pass
+
+    def take_damage(self, amount, bypass_stagger=False):
+        """Apply damage; landing a hit during Stall Shatter triggers recoil stun and knocks boss out of stall."""
+        from constants import GALE_RAPTOR_STALL_STUN_DURATION
+        was_stalled = self.attack_mode == "stall_shatter" and float(amount) > 0.0
+        super().take_damage(amount, bypass_stagger=bypass_stagger)
+        if self.is_dead():
+            self.weakpoint_exposed_timer = 0.0
+            self.armor_active = False
+            return
+        self._check_phase2_transition()
+        if was_stalled:
+            self.stagger_timer = max(float(self.stagger_timer), float(GALE_RAPTOR_STALL_STUN_DURATION))
+            self._enter_gale_guard()
+
+    def update(self, dt, state):
+        """Run Gale-Vane Raptor 3-state gimmick loop (gale_guard -> crosswind_dive -> stall_shatter)."""
+        from constants import (
+            GALE_RAPTOR_DASH_DAMAGE,
+            GALE_RAPTOR_DASH_DURATION,
+            GALE_RAPTOR_DASH_SPEED,
+            GALE_RAPTOR_STRAFE_SPEED,
+            GALE_RAPTOR_TELEGRAPH_DURATION,
+            GALE_RAPTOR_TRAIL_LIFE,
+            GALE_RAPTOR_VOLLEY_INTERVAL,
+        )
+        if self.is_summoning_or_dormant():
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
+        dt = max(0.0, float(dt))
+        self.animation_timer += dt
+        if getattr(self, "hit_flash_timer", 0.0) > 0.0:
+            self.hit_flash_timer = max(0.0, float(self.hit_flash_timer) - dt)
+        if self.bleed_timer > 0.0 and not self.is_dead():
+            self.bleed_timer = max(0.0, self.bleed_timer - dt)
+            self.hp = max(0.0, self.hp - float(getattr(self, "bleed_damage", 0.0)) * dt)
+        if self.weakpoint_exposed_timer > 0.0:
+            self.weakpoint_exposed_timer = max(0.0, self.weakpoint_exposed_timer - dt)
+        if self.ink_bolts:
+            self._update_ink_bolts(dt, state)
+
+        # Decay wind-gust trails
+        if self.wind_gust_trails:
+            kept = []
+            for tr in self.wind_gust_trails:
+                tr["life"] = float(tr.get("life", 0.0)) - dt
+                if tr["life"] > 0.0:
+                    kept.append(tr)
+            self.wind_gust_trails = kept
+
+        if self.is_dead():
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
+        self._check_phase2_transition(state)
+
+        net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+        if net_mode == "CLIENT":
+            if self.attack_mode == "stall_shatter":
+                self.wing_angle_deg = -18.0 + 7.0 * math.sin(self.animation_timer * 28.0)
+            elif self.attack_mode == "crosswind_dive":
+                self.wing_angle_deg = -48.0
+            else:
+                self.wing_angle_deg = 32.0 + 4.0 * math.sin(self.animation_timer * 5.0)
+            return
+
+        if self.stagger_timer > 0.0:
+            self.stagger_timer = max(0.0, self.stagger_timer - dt)
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
+        target = self._resolve_target_point(state)
+        self.active_target = target
+        if target is None:
+            self.vx = 0.0
+            self.vy = 0.0
+            self.state = ActorState.IDLE
+            return
+
+        tx, ty = target
+        cx, cy = self.get_center()
+        dx, dy = tx - cx, ty - cy
+        dist = math.hypot(dx, dy)
+        ux, uy = (dx / dist, dy / dist) if dist > 1e-3 else (self.facing[0], self.facing[1])
+
+        if self.attack_mode == "gale_guard":
+            self.armor_active = True
+            self.weakpoint_exposed_timer = 0.0
+            self.state = ActorState.CHASE
+            self.facing = (ux, uy)
+            self.wing_angle_deg = 32.0 + 4.0 * math.sin(self.animation_timer * 5.0)
+
+            # Advance with crosswind strafe
+            px, py = -uy * self.strafe_sign, ux * self.strafe_sign
+            approach_w = 0.72 if dist > 180.0 else (-0.25 if dist < 110.0 else 0.15)
+            spd = float(self.speed) * (1.12 if self.phase >= 2 else 1.0)
+            strafe_spd = float(GALE_RAPTOR_STRAFE_SPEED) * (1.15 if self.phase >= 2 else 1.0)
+            self.vx = ux * spd * approach_w + px * strafe_spd
+            self.vy = uy * spd * approach_w + py * strafe_spd
+            prev_x, prev_y = self.x, self.y
+            self._move_with_walls(self.vx * dt, self.vy * dt, state)
+            if dt > 0.0 and math.hypot(self.x - prev_x, self.y - prev_y) < 4.0 * dt:
+                self.strafe_sign = -self.strafe_sign
+
+            self.volley_timer -= dt
+            if self.volley_timer <= 0.0:
+                self._fire_wind_shear_volley(tx, ty, state)
+                self.volley_timer = float(GALE_RAPTOR_VOLLEY_INTERVAL) * (0.82 if self.phase >= 2 else 1.0)
+
+            self.mode_timer -= dt
+            if self.mode_timer <= 0.0:
+                self._enter_crosswind_dive(state)
+
+        elif self.attack_mode == "crosswind_dive":
+            self.armor_active = True
+            self.wing_angle_deg = -48.0
+            if self.dive_substate == "telegraph":
+                self.state = ActorState.WIND_UP
+                self.vx = 0.0
+                self.vy = 0.0
+                self.facing = (ux, uy)
+                self.dash_dir = (ux, uy)
+                self.mode_timer -= dt
+                if self.mode_timer <= 0.0:
+                    self.dive_substate = "dash"
+                    self.state = ActorState.STRIKE
+                    self.mode_timer = float(GALE_RAPTOR_DASH_DURATION)
+                    self.dash_hit_applied = False
+                    self._trail_emit_accum = 0.0
+            else:
+                self.state = ActorState.STRIKE
+                dash_spd = float(GALE_RAPTOR_DASH_SPEED) * (1.12 if self.phase >= 2 else 1.0)
+                ddx, ddy = self.dash_dir
+                self.facing = (ddx, ddy)
+                self.vx = ddx * dash_spd
+                self.vy = ddy * dash_spd
+                self._move_with_walls(self.vx * dt, self.vy * dt, state)
+
+                self._trail_emit_accum += dt
+                if self._trail_emit_accum >= 0.055:
+                    self._trail_emit_accum = 0.0
+                    ncx, ncy = self.get_center()
+                    self.wind_gust_trails.append({
+                        "x": float(ncx),
+                        "y": float(ncy),
+                        "dx": float(ddx),
+                        "dy": float(ddy),
+                        "life": float(GALE_RAPTOR_TRAIL_LIFE),
+                        "max_life": float(GALE_RAPTOR_TRAIL_LIFE),
+                    })
+
+                player = getattr(state, "player", None)
+                if not self.dash_hit_applied and player is not None and getattr(player, "hp", 0.0) > 0.0:
+                    fallback_rect = (
+                        player.x,
+                        player.y,
+                        getattr(player, "width", 40),
+                        getattr(player, "height", 40),
+                    )
+                    p_rect = getattr(player, "rect", fallback_rect)
+                    if check_aabb_collision(self.get_rect(), p_rect):
+                        self.dash_hit_applied = True
+                        dmg = float(GALE_RAPTOR_DASH_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+                        audio_mgr = getattr(state, "audio_manager", None)
+                        try:
+                            player.take_damage(dmg, audio_manager=audio_mgr, game_state=state)
+                        except TypeError:
+                            player.take_damage(dmg)
+
+                self.mode_timer -= dt
+                if self.mode_timer <= 0.0:
+                    self.dashes_remaining -= 1
+                    if self.dashes_remaining > 0:
+                        self.dive_substate = "telegraph"
+                        self.state = ActorState.WIND_UP
+                        self.vx = 0.0
+                        self.vy = 0.0
+                        self.mode_timer = float(GALE_RAPTOR_TELEGRAPH_DURATION) * 0.65
+                        audio = getattr(state, "audio_manager", None)
+                        if audio is not None:
+                            try:
+                                audio.play_sfx("enemy_telegraph.ogg")
+                            except Exception:
+                                pass
+                    else:
+                        self._enter_stall_shatter(state)
+
+        else:  # stall_shatter
+            self.armor_active = False
+            self.state = ActorState.RECOVERY
+            self.vx = 0.0
+            self.vy = 0.0
+            self.wing_angle_deg = -18.0 + 7.0 * math.sin(self.animation_timer * 28.0)
+            self.mode_timer -= dt
+            if self.mode_timer <= 0.0 or self.weakpoint_exposed_timer <= 0.0:
+                self._enter_gale_guard()
+
+    def get_visual_packet(self):
+        """Expose Gale-Vane Raptor articulation & gimmick state to the renderer."""
+        packet = super().get_visual_packet()
+        packet["attack_mode"] = self.attack_mode
+        packet["dive_substate"] = self.dive_substate
+        packet["phase"] = int(self.phase)
+        packet["wing_angle_deg"] = float(self.wing_angle_deg)
+        packet["armor_active"] = bool(self.armor_active)
+        packet["weakpoint_exposed_timer"] = float(self.weakpoint_exposed_timer)
+        packet["wind_gust_trails"] = list(self.wind_gust_trails)
+        return packet
+
+
 class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
@@ -2204,7 +2593,7 @@ ENEMY_REGISTRY = {
     "MinibossM3": MinibossM3, "MarginWarden": MarginWarden, "SmearEnemy": SmearEnemy,
     "SentryEnemy": SentryEnemy, "PunctuationWolfEnemy": PunctuationWolfEnemy,
     "NightBoss": NightBoss, "SlugBoss": SlugBoss, "MeadowCensorBoss": MeadowCensorBoss,
-    "RimecrestArbiterBoss": RimecrestArbiterBoss,
+    "RimecrestArbiterBoss": RimecrestArbiterBoss, "GaleVaneRaptorBoss": GaleVaneRaptorBoss,
     "FinalAuthor": FinalAuthor,
 }
 

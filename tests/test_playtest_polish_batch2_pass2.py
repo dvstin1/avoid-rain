@@ -111,6 +111,7 @@ def test_find_nearest_walkable_spawn_snaps_wall_overlapping_enemies(tmp_path):
         "#..##..#",
         "#......#",
         "#......#",
+        "#......#",
         "########",
     ]
     state.world = World("test_spawn_world")

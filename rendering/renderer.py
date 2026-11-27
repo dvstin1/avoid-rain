@@ -173,6 +173,7 @@ class Renderer:
         for kind in (
             "bat", "flutter", "flutter_1", "flutter_2", "bindling", "smear", "sentry", "punctuation_wolf",
             "event_champion", "miniboss", "night_boss", "final_author",
+            "gale_raptor_torso", "gale_raptor_head", "gale_raptor_wing", "gale_raptor_tail",
         ):
             name = f"{kind}.png"
             path = os.path.join(base_path, name)
@@ -4645,7 +4646,12 @@ class Renderer:
         # 7. Boss Attack Weapon/Limb Visuals (Bat uses crisp claw slash; Slug/SlugBoss have no greatblade)
         if is_bat:
             self._draw_bat_claw_slash(actor, ox, oy)
-        elif not is_slug and not is_slug_boss and hasattr(actor, 'get_attack_hitbox'):
+        elif (
+            not is_slug
+            and not is_slug_boss
+            and not bool(getattr(actor, "is_gale_raptor", False))
+            and hasattr(actor, 'get_attack_hitbox')
+        ):
             self.draw_boss_weapon(actor, ox, oy)
 
     @staticmethod
@@ -4840,13 +4846,197 @@ class Renderer:
 
         return rendered_order
 
+    def _draw_gale_vane_raptor_boss(self, actor, draw_rect, packet):
+        """Render The Gale-Vane Raptor via the articulated multi-part rig with compass under-layer & fallback."""
+        cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
+        w, h = max(1, int(draw_rect.width)), max(1, int(draw_rect.height))
+        fx, fy = packet.get("facing", getattr(actor, "facing", (0.0, 1.0)))
+        f_mag = math.hypot(fx, fy)
+        ux, uy = (fx / f_mag, fy / f_mag) if f_mag > 1e-4 else (0.0, 1.0)
+        anim_t = float(packet.get("anim_timer", getattr(actor, "anim_timer", 0.0)) or 0.0)
+        attack_mode = str(packet.get("attack_mode", getattr(actor, "attack_mode", "gale_guard")))
+        dive_substate = str(packet.get("dive_substate", getattr(actor, "dive_substate", "telegraph")))
+        phase = int(packet.get("phase", getattr(actor, "phase", 1)) or 1)
+        wing_angle_deg = float(packet.get("wing_angle_deg", getattr(actor, "wing_angle_deg", 32.0)) or 0.0)
+        armor_active = bool(packet.get("armor_active", getattr(actor, "armor_active", False)))
+        weak_t = float(packet.get("weakpoint_exposed_timer", getattr(actor, "weakpoint_exposed_timer", 0.0)) or 0.0)
+
+        face_rad = math.atan2(uy, ux)
+        body_deg = math.degrees(face_rad) - 90.0
+        cos_b = math.cos(math.radians(body_deg))
+        sin_b = math.sin(math.radians(body_deg))
+
+        def _rot_off(lx, ly):
+            return (lx * cos_b - ly * sin_b, lx * sin_b + ly * cos_b)
+
+        def _under_shapes(screen, rect, act, pkt):
+            rcx, rcy = int(rect.centerx), int(rect.centery)
+            # 1. Rotating weathered-brass compass ring beneath the chassis
+            ring_r = max(24, int(round(max(rect.width, rect.height) * 0.44)))
+            spin_rate = 1.9 if phase >= 2 else 1.1
+            base_rot = anim_t * spin_rate
+            pygame.draw.circle(screen, (158, 126, 64), (rcx, rcy), ring_r, 2)
+            pygame.draw.circle(screen, (88, 108, 126), (rcx, rcy), max(8, ring_r - 5), 1)
+            for tick_i in range(8):
+                ang = base_rot + tick_i * (math.pi / 4.0)
+                inner_r = ring_r - (7 if tick_i % 2 == 0 else 4)
+                p1 = (int(rcx + math.cos(ang) * inner_r), int(rcy + math.sin(ang) * inner_r))
+                p2 = (int(rcx + math.cos(ang) * (ring_r + 3)), int(rcy + math.sin(ang) * (ring_r + 3)))
+                col = (228, 194, 112) if tick_i % 2 == 0 else (126, 152, 174)
+                pygame.draw.line(screen, col, p1, p2, 2 if tick_i % 2 == 0 else 1)
+
+            # 2. Frontal Gale Guard brass-and-slate deflection arc
+            if attack_mode == "gale_guard" and armor_active:
+                arc_r = ring_r + 8
+                arc_rect = pygame.Rect(rcx - arc_r, rcy - arc_r, arc_r * 2, arc_r * 2)
+                start_a = -face_rad - 1.15
+                end_a = -face_rad + 1.15
+                pygame.draw.arc(screen, (176, 214, 240), arc_rect, start_a, end_a, 3)
+
+            # 3. Crosswind Dive telegraph ring & directional wind-shear ribbons
+            if attack_mode == "crosswind_dive":
+                if dive_substate == "telegraph":
+                    pulse = 0.5 + 0.5 * math.sin(anim_t * 22.0)
+                    t_rad = ring_r + 10 + int(round(pulse * 8))
+                    pygame.draw.circle(screen, (238, 198, 96), (rcx, rcy), t_rad, 2)
+                    tip = (int(rcx + ux * (ring_r + 28)), int(rcy + uy * (ring_r + 28)))
+                    pygame.draw.line(screen, (220, 238, 248), (rcx, rcy), tip, 3)
+                else:
+                    px_perp, py_perp = -uy, ux
+                    for rib in (-18, -6, 6, 18):
+                        r_start = (
+                            int(rcx - ux * 16 + px_perp * rib),
+                            int(rcy - uy * 16 + py_perp * rib),
+                        )
+                        r_end = (
+                            int(rcx - ux * (56 + abs(rib)) + px_perp * rib),
+                            int(rcy - uy * (56 + abs(rib)) + py_perp * rib),
+                        )
+                        pygame.draw.line(screen, (198, 228, 242), r_start, r_end, 2)
+
+            # World-anchored wind gust trail echoes
+            acx, acy = act.get_center() if hasattr(act, "get_center") else (0.0, 0.0)
+            for tr in pkt.get("wind_gust_trails", ()):
+                tx = int(rcx + (float(tr.get("x", acx)) - acx))
+                ty = int(rcy + (float(tr.get("y", acy)) - acy))
+                tdx = float(tr.get("dx", ux))
+                tdy = float(tr.get("dy", uy))
+                ratio = max(0.0, min(1.0, float(tr.get("life", 0.0)) / max(0.01, float(tr.get("max_life", 0.5)))))
+                seg = int(12 + 20 * ratio)
+                pygame.draw.line(
+                    screen,
+                    (172, 206, 224),
+                    (tx - int(tdx * seg), ty - int(tdy * seg)),
+                    (tx + int(tdx * 6), ty + int(tdy * 6)),
+                    max(1, int(3 * ratio)),
+                )
+
+            # 4. Stall Shatter glowing amber tail-rudder target arc
+            if attack_mode == "stall_shatter" or weak_t > 0.0:
+                pulse = 0.5 + 0.5 * math.sin(anim_t * 16.0)
+                t_r = ring_r + 9 + int(round(pulse * 4))
+                t_rect = pygame.Rect(rcx - t_r, rcy - t_r, t_r * 2, t_r * 2)
+                rear_a = -(face_rad + math.pi)
+                pygame.draw.arc(screen, (255, 204, 72), t_rect, rear_a - 1.05, rear_a + 1.05, 4)
+                tx_dot = int(rcx - ux * (ring_r * 0.72))
+                ty_dot = int(rcy - uy * (ring_r * 0.72))
+                pygame.draw.circle(screen, (255, 218, 108), (tx_dot, ty_dot), 6 + int(round(pulse * 2)), 2)
+
+        tail_wag = math.sin(anim_t * (14.0 if attack_mode == "stall_shatter" else 6.0)) * 12.0
+        head_sway = math.sin(anim_t * 4.5) * 6.0
+        wing_jitter = (math.sin(anim_t * 36.0) * 3.0) if attack_mode == "stall_shatter" else 0.0
+
+        tail_ox, tail_oy = _rot_off(0.0, -32.0)
+        lw_ox, lw_oy = _rot_off(-16.0, -4.0)
+        rw_ox, rw_oy = _rot_off(16.0, -4.0)
+        head_ox, head_oy = _rot_off(0.0, 26.0)
+
+        parts_spec = [
+            {
+                "sprite_key": "gale_raptor_tail.png",
+                "offset_x": tail_ox,
+                "offset_y": tail_oy,
+                "angle_deg": body_deg + 180.0 + tail_wag,
+                "scale": 1.05,
+                "z_order": 1,
+            },
+            {
+                "sprite_key": "gale_raptor_wing.png",
+                "offset_x": lw_ox,
+                "offset_y": lw_oy,
+                "pivot_x": 22.0,
+                "pivot_y": -4.0,
+                "angle_deg": body_deg - wing_angle_deg - wing_jitter,
+                "flip_x": True,
+                "scale": 1.05,
+                "z_order": 2,
+            },
+            {
+                "sprite_key": "gale_raptor_wing.png",
+                "offset_x": rw_ox,
+                "offset_y": rw_oy,
+                "pivot_x": -22.0,
+                "pivot_y": -4.0,
+                "angle_deg": body_deg + wing_angle_deg + wing_jitter,
+                "flip_x": False,
+                "scale": 1.05,
+                "z_order": 2,
+            },
+            {
+                "sprite_key": "gale_raptor_torso.png",
+                "offset_x": 0.0,
+                "offset_y": 0.0,
+                "angle_deg": body_deg,
+                "scale": 1.05,
+                "z_order": 3,
+            },
+            {
+                "sprite_key": "gale_raptor_head.png",
+                "offset_x": head_ox,
+                "offset_y": head_oy,
+                "angle_deg": body_deg + head_sway,
+                "scale": 1.05,
+                "z_order": 4,
+            },
+        ]
+
+        rendered = self._draw_articulated_boss_rig(
+            actor,
+            draw_rect,
+            packet,
+            parts_spec,
+            under_shapes_fn=_under_shapes,
+        )
+
+        # Procedural fallback silhouette if modular PNG parts are absent (e.g., stripped headless test)
+        if len(rendered) < len(parts_spec):
+            brass = (188, 148, 72)
+            slate = (68, 86, 106)
+            parchment = (228, 214, 182)
+            # Fallback wings
+            l_tip = (int(cx + _rot_off(-w * 0.52, wing_angle_deg * 0.45)[0]),
+                     int(cy + _rot_off(-w * 0.52, wing_angle_deg * 0.45)[1]))
+            r_tip = (int(cx + _rot_off(w * 0.52, wing_angle_deg * 0.45)[0]),
+                     int(cy + _rot_off(w * 0.52, wing_angle_deg * 0.45)[1]))
+            tail_mid = (int(cx + tail_ox * 0.6), int(cy + tail_oy * 0.6))
+            pygame.draw.polygon(self.screen, parchment, [(cx, cy), l_tip, tail_mid])
+            pygame.draw.polygon(self.screen, parchment, [(cx, cy), r_tip, tail_mid])
+            # Fallback keel torso & brass beak
+            pygame.draw.circle(self.screen, slate, (cx, cy), max(14, w // 4))
+            pygame.draw.circle(self.screen, brass, (cx, cy), max(14, w // 4), 3)
+            pygame.draw.circle(self.screen, brass, (int(cx + head_ox), int(cy + head_oy)), 10)
+            pygame.draw.circle(self.screen, (255, 196, 76), (int(cx + tail_ox), int(cy + tail_oy)), 7)
+
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
         """Draw image sprites or procedural basic-shape graphics for enemies and bosses."""
         from engine.enemy import (
-            BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy, MarginWarden,
+            BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy, GaleVaneRaptorBoss, MarginWarden,
             MeadowCensorBoss, Miniboss, MinibossM2, MinibossM3, NightBoss,
             PunctuationWolfEnemy, RimecrestArbiterBoss, SentryEnemy, SlugBoss, SmearEnemy,
         )
+        if bool(getattr(actor, "is_gale_raptor", False)) or isinstance(actor, GaleVaneRaptorBoss):
+            self._draw_gale_vane_raptor_boss(actor, draw_rect, packet)
+            return True
         if bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss):
             self._draw_slug_boss(actor, draw_rect, packet)
             return True

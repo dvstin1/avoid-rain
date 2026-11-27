@@ -2695,6 +2695,96 @@ def generate_frozen_boss_phase2_music(seed: int = DEFAULT_SEED):
     return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
 
 
+def generate_gale_raptor_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~12.15s loopable 158 BPM E-Mixolydian/Dorian Mega Man-style chiptune boss theme."""
+    rng = random.Random(seed ^ 0x6A1E0001)
+    bpm = 158.0
+    step_s = 60.0 / bpm / 4.0  # 16th note (~0.09494s) -> 1.519s/bar
+    total_bars = 8  # 8 bars = ~12.15s exact seamless loop
+    total_samples = n_samples(total_bars * 16 * step_s)
+
+    lead_buf = silence(total_samples)
+    arp_buf = silence(total_samples)
+    bass_buf = silence(total_samples)
+    drum_buf = silence(total_samples)
+
+    # E-Dorian / E-Mixolydian heroic-urgent chiptune progression: (4-note 12.5% wind arp, bass root)
+    prog = (
+        ((64, 67, 71, 76), 40),  # Em
+        ((62, 66, 69, 74), 38),  # D
+        ((60, 64, 67, 72), 36),  # Cmaj7
+        ((59, 63, 66, 71), 35),  # B7
+        ((64, 68, 71, 76), 40),  # E (Mixolydian lift)
+        ((62, 66, 69, 74), 38),  # D
+        ((61, 64, 69, 73), 37),  # A/C# (Dorian drive)
+        ((59, 63, 66, 71), 35),  # B7 turnaround
+    )
+
+    # Syncopated Mega Man-style square lead phrases: (step_offset, midi_note, duration_in_16ths)
+    lead_phrases = (
+        ((0, 76, 3), (3, 79, 2), (5, 78, 1), (6, 76, 2), (8, 83, 3), (11, 81, 2), (13, 79, 3)),
+        ((0, 78, 3), (3, 81, 2), (5, 79, 1), (6, 78, 2), (8, 74, 2), (10, 76, 2), (12, 78, 4)),
+        ((0, 79, 3), (3, 83, 2), (5, 81, 1), (6, 79, 2), (8, 76, 2), (10, 79, 2), (12, 84, 4)),
+        ((0, 83, 3), (3, 81, 1), (4, 78, 2), (6, 75, 2), (8, 78, 2), (10, 81, 2), (12, 83, 4)),
+        ((0, 88, 3), (3, 86, 2), (5, 83, 1), (6, 80, 2), (8, 83, 3), (11, 86, 2), (13, 88, 3)),
+        ((0, 86, 3), (3, 83, 2), (5, 81, 1), (6, 78, 2), (8, 81, 2), (10, 83, 2), (12, 86, 4)),
+        ((0, 85, 3), (3, 81, 2), (5, 79, 1), (6, 76, 2), (8, 81, 2), (10, 85, 2), (12, 88, 4)),
+        ((0, 87, 2), (2, 83, 2), (4, 81, 2), (6, 78, 2), (8, 83, 2), (10, 87, 2), (12, 90, 2), (14, 83, 2)),
+    )
+
+    kick_sig = _synth_music_kick(n_samples(0.12), 164.0, 46.0, 0.028, drive=1.85)
+    snare_sig = _synth_music_noise_hit(n_samples(0.095), rng, 1750.0, 7600.0, 0.028, bits=4, hold=2)
+    hat_sig = _synth_music_noise_hit(n_samples(0.036), rng, 5600.0, 11000.0, 0.010, bits=5, hold=1)
+
+    for bar_idx, (chord, bass_root) in enumerate(prog):
+        bar_step = bar_idx * 16
+
+        # Ch 1: Syncopated square lead (25% / 50% duty alternating on second half)
+        lead_duty = 0.25 if bar_idx < 4 else 0.50
+        for s_off, midi_n, dur_steps in lead_phrases[bar_idx]:
+            pos = offset_samples((bar_step + s_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.90)
+            sq = _synth_pulse_note(dur_n, _midi_to_hz(midi_n), duty=lead_duty)
+            _ring_add(lead_buf, sq, pos, 0.68)
+
+        # Ch 2: Rapid 16th-note 12.5% pulse-wave wind arpeggios
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            arp_idx = (s_i + (bar_idx % 2)) % 4
+            octave_lift = 12 if (s_i % 8) >= 4 else 0
+            midi_a = chord[arp_idx] + octave_lift
+            arp_n = _synth_pulse_note(n_samples(step_s * 0.85), _midi_to_hz(midi_a), duty=0.125)
+            _ring_add(arp_buf, arp_n, pos, 0.42 if s_i % 4 == 0 else 0.28)
+
+        # Ch 3: Galloping NES triangle bassline (8th + 16th-16th gallop pattern)
+        gallop_pattern = ((0, 0, 2), (2, 12, 1), (3, 7, 1), (4, 0, 2), (6, 12, 1), (7, 7, 1),
+                          (8, 0, 2), (10, 12, 1), (11, 7, 1), (12, 0, 2), (14, 7, 1), (15, 12, 1))
+        for s_off, semi_off, dur_steps in gallop_pattern:
+            pos = offset_samples((bar_step + s_off) * step_s)
+            tri = _synth_nes_triangle_note(n_samples(dur_steps * step_s * 0.92), _midi_to_hz(bass_root + semi_off))
+            _ring_add(bass_buf, tri, pos, 0.86)
+
+        # Ch 4: Crisp LFSR chiptune percussion (driving kick/snare + rapid hats + turnaround fills)
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            if s_i in (0, 3, 6, 8, 10, 14):
+                _ring_add(drum_buf, kick_sig, pos, 0.84)
+            if s_i in (4, 12) or (bar_idx in (3, 7) and s_i in (13, 14, 15)):
+                _ring_add(drum_buf, snare_sig, pos, 0.70 if s_i in (4, 12) else 0.54)
+            _ring_add(drum_buf, hat_sig, pos, 0.34 if s_i % 2 == 0 else 0.19)
+
+    lead_clean = biquad(lead_buf, "lowpass", 8600.0)
+    arp_clean = biquad(arp_buf, "lowpass", 7800.0)
+    bass_clean = biquad(bass_buf, "lowpass", 1700.0)
+    combined = mix(
+        (lead_clean, 0.62),
+        (arp_clean, 0.44),
+        (bass_clean, 0.68),
+        (drum_buf, 0.56),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
 MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "slug_boss_phase1.ogg": generate_slug_boss_phase1_music,
     "slug_boss_phase2.ogg": generate_slug_boss_phase2_music,
@@ -2702,6 +2792,7 @@ MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "pastoral_boss_phase2.ogg": generate_pastoral_boss_phase2_music,
     "frozen_boss_phase1.ogg": generate_frozen_boss_phase1_music,
     "frozen_boss_phase2.ogg": generate_frozen_boss_phase2_music,
+    "boss_gale_raptor.ogg": generate_gale_raptor_music,
 }
 
 

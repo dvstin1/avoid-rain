@@ -344,6 +344,29 @@ RIMECREST_ARBITER_MINION_COUNT = 3
 RIMECREST_ARBITER_PHASE1_MUSIC = "frozen_boss_phase1.ogg"
 RIMECREST_ARBITER_PHASE2_MUSIC = "frozen_boss_phase2.ogg"
 
+# Windy Ridge Night Boss (The Gale-Vane Raptor) Constants
+GALE_RAPTOR_SIZE = 108
+GALE_RAPTOR_SPEED = 116.0
+GALE_RAPTOR_STRAFE_SPEED = 92.0
+GALE_RAPTOR_DASH_SPEED = 360.0
+GALE_RAPTOR_DASH_DURATION = 0.34
+GALE_RAPTOR_DASH_DAMAGE = 26.0
+GALE_RAPTOR_TELEGRAPH_DURATION = 0.55
+GALE_RAPTOR_STALL_DURATION = 1.45
+GALE_RAPTOR_STALL_STUN_DURATION = 0.35
+GALE_RAPTOR_GUARD_DURATION = 3.2
+GALE_RAPTOR_VOLLEY_INTERVAL = 1.35
+GALE_RAPTOR_PHASE2_HP_RATIO = 0.50
+GALE_RAPTOR_ARMOR_DAMAGE_MULT = 0.25
+GALE_RAPTOR_WEAKPOINT_DAMAGE_MULT = 2.25
+GALE_RAPTOR_BOLT_COUNT_P1 = 3
+GALE_RAPTOR_BOLT_COUNT_P2 = 5
+GALE_RAPTOR_BOLT_SPREAD_DEG = 16.0
+GALE_RAPTOR_DASH_COUNT_P1 = 2
+GALE_RAPTOR_DASH_COUNT_P2 = 3
+GALE_RAPTOR_TRAIL_LIFE = 0.55
+GALE_RAPTOR_MUSIC = "boss_gale_raptor.ogg"
+
 # Fast-pursuit Bat enemy configuration
 BAT_MAX_HP = 35
 BAT_SPEED = 150.0  # pixels per second (fast pursuit)
@@ -1432,6 +1455,7 @@ BOSS_COMBAT_TRACKS = (
     MEADOW_CENSOR_PHASE2_MUSIC,
     RIMECREST_ARBITER_PHASE1_MUSIC,
     RIMECREST_ARBITER_PHASE2_MUSIC,
+    GALE_RAPTOR_MUSIC,
 )
 
 # Title Screen Storm-and-Lightning Transition Constants
@@ -1744,6 +1768,7 @@ BOSS_HUD_DISPLAY_NAMES = {
     "SlugBoss": "The Crowned Slug",
     "MeadowCensorBoss": "The Meadow Censor",
     "RimecrestArbiterBoss": "The Rimecrest Arbiter",
+    "GaleVaneRaptorBoss": "The Gale-Vane Raptor",
     "NightBoss": "Night Boss",
     "MarginWarden": "The Margin Warden",
     "FinalAuthor": "The Final Author",

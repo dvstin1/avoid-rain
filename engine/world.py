@@ -751,7 +751,10 @@ class Respite(GameObject):
                 or getattr(e, "is_slug_boss", False)
                 or getattr(e, "is_meadow_censor", False)
                 or getattr(e, "is_rimecrest_arbiter", False)
-                or e.__class__.__name__ in ("NightBoss", "SlugBoss", "MeadowCensorBoss", "RimecrestArbiterBoss")
+                or getattr(e, "is_gale_raptor", False)
+                or e.__class__.__name__ in (
+                    "NightBoss", "SlugBoss", "MeadowCensorBoss", "RimecrestArbiterBoss", "GaleVaneRaptorBoss",
+                )
             )
         ]
 

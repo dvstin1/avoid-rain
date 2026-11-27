@@ -1225,9 +1225,16 @@ class GameState:
                 from engine.enemy import (
                     SlugEnemy, BatEnemy, NightBoss, MarginWarden, MinibossM2, MinibossM3, SentryEnemy,
                     PunctuationWolfEnemy, BindlingEnemy, SmearEnemy,
+                    SlugBoss, MeadowCensorBoss, RimecrestArbiterBoss, GaleVaneRaptorBoss,
                 )
+                biome_night_boss_cls = {
+                    "windy_ridge": GaleVaneRaptorBoss,
+                    "swamp_mire": SlugBoss,
+                    "pastoral_valley": MeadowCensorBoss,
+                    "frozen_peaks": RimecrestArbiterBoss,
+                }.get(self._resolve_active_biome_key(), NightBoss)
                 mapping = {
-                    "Slug": SlugEnemy, "Bat": BatEnemy, "Night Boss": NightBoss,
+                    "Slug": SlugEnemy, "Bat": BatEnemy, "Night Boss": biome_night_boss_cls,
                     "Margin Warden": MarginWarden,
                     "Ink-Stained": MinibossM2, "Bleeding Scribe": MinibossM2,
                     "Overwritten Elite": MinibossM2, "Empowered Champion": MinibossM2,
@@ -2049,7 +2056,9 @@ class GameState:
                 or boss_summoning
             )
             if not boss_alive and self.weather_manager.bleed_state == "CLAMPED":
-                from engine.enemy import MeadowCensorBoss, NightBoss, RimecrestArbiterBoss, SlugBoss
+                from engine.enemy import (
+                    GaleVaneRaptorBoss, MeadowCensorBoss, NightBoss, RimecrestArbiterBoss, SlugBoss,
+                )
                 idx = self.weather_manager.current_boss_idx
                 boss_list = getattr(self.world, 'boss_coords_list', [])
                 if idx < len(boss_list):
@@ -2068,6 +2077,8 @@ class GameState:
                         new_boss = MeadowCensorBoss(bx, by)
                     elif active_biome == "frozen_peaks":
                         new_boss = RimecrestArbiterBoss(bx, by)
+                    elif active_biome == "windy_ridge":
+                        new_boss = GaleVaneRaptorBoss(bx, by)
                     else:
                         new_boss = NightBoss(bx, by)
                     if hasattr(self.world, "find_nearest_walkable_spawn"):
@@ -4270,6 +4281,7 @@ class GameState:
 
     def _update_audio_track(self, dt):
         from constants import (
+            GALE_RAPTOR_MUSIC,
             MEADOW_CENSOR_PHASE1_MUSIC,
             MEADOW_CENSOR_PHASE2_HP_RATIO,
             MEADOW_CENSOR_PHASE2_MUSIC,
@@ -4340,6 +4352,8 @@ class GameState:
                         near_biome_boss_track = (
                             RIMECREST_ARBITER_PHASE2_MUSIC if in_phase2 else RIMECREST_ARBITER_PHASE1_MUSIC
                         )
+                    elif getattr(enemy, "is_gale_raptor", False):
+                        near_biome_boss_track = GALE_RAPTOR_MUSIC
                     elif ename == "Night Boss":
                         near_night_boss = True
                     else:
