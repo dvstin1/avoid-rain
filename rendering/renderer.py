@@ -75,6 +75,7 @@ class Renderer:
         self._load_empowered_enemy_assets()
         self._load_player_rig_assets()
         self.grass_pools = {}
+        self._title_sanctuary_backdrop_cache = {}
         self._load_grass_assets()
         self._generate_prop_cache()
 
@@ -9816,16 +9817,342 @@ class Renderer:
 
         return pygame.Rect(x, draw_y, w, vis_h)
 
-    def draw_title_screen(self, menu=0, state=None, controls_menu=None):
-        """Draw title screen with atmospheric rain and tactile parchment unroll."""
-        self.screen.fill(constants.COLOR_BLACK)
-        sw, sh = self.screen.get_width(), self.screen.get_height()
+    def _get_title_sanctuary_backdrop(self, sw: int, sh: int) -> pygame.Surface:
+        """Build and cache the crisp low-res (320x180) 2.5D Sanctuary dusk diorama scaled to (sw, sh)."""
+        cache = getattr(self, "_title_sanctuary_backdrop_cache", None)
+        if cache is None:
+            cache = {}
+            self._title_sanctuary_backdrop_cache = cache
+        key = (int(sw), int(sh))
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
 
-        # Atmospheric Rain on Title Screen (Selection Color: Amber/Gold)
+        bw = int(constants.TITLE_DIORAMA_WIDTH)
+        bh = int(constants.TITLE_DIORAMA_HEIGHT)
+        base = pygame.Surface((bw, bh))
+
+        # 1. Deep charcoal-indigo twilight sky gradient (rows 0..108)
+        horizon_y = 108
+        for y in range(horizon_y):
+            t = y / max(1, horizon_y - 1)
+            if t < 0.65:
+                u = t / 0.65
+                r = int(10 + 14 * u)
+                g = int(14 + 14 * u)
+                b = int(28 + 20 * u)
+            else:
+                u = (t - 0.65) / 0.35
+                r = int(24 + 26 * u)
+                g = int(28 + 14 * u)
+                b = int(48 + 10 * u)
+            pygame.draw.line(base, (r, g, b), (0, y), (bw - 1, y))
+
+        # Subtle dusk cloud ribbons (framing left/right, keeping upper-center behind AVOID RAIN clean)
+        cloud_bands = (
+            ((14, 24, 62, 6), (22, 26, 46)),
+            ((244, 20, 66, 6), (22, 26, 46)),
+            ((36, 42, 74, 5), (28, 30, 52)),
+            ((212, 40, 82, 5), (28, 30, 52)),
+            ((86, 56, 46, 4), (34, 34, 54)),
+            ((190, 54, 48, 4), (34, 34, 54)),
+        )
+        for rect_args, col in cloud_bands:
+            pygame.draw.rect(base, col, rect_args, border_radius=2)
+
+        # Faint pinpoint twilight stars in upper zenith
+        stars = (
+            (22, 12), (48, 18), (74, 9), (108, 14), (218, 11), (252, 16), (286, 10), (304, 24),
+            (32, 34), (276, 32), (62, 28), (238, 26),
+        )
+        for sx_p, sy_p in stars:
+            base.set_at((sx_p, sy_p), (138, 152, 188))
+
+        # 2. Layered distant mountain & Scriptorium ridge silhouettes
+        far_ridge = [
+            (0, 108), (0, 84), (26, 74), (58, 82), (92, 68), (126, 79), (156, 72),
+            (194, 78), (228, 66), (266, 77), (298, 70), (319, 80), (319, 108),
+        ]
+        pygame.draw.polygon(base, (22, 24, 42), far_ridge)
+        near_ridge = [
+            (0, 114), (0, 92), (38, 84), (72, 94), (112, 86), (146, 92),
+            (184, 88), (222, 95), (264, 84), (302, 91), (319, 88), (319, 114),
+        ]
+        pygame.draw.polygon(base, (15, 18, 32), near_ridge)
+
+        # 3. Cobblestone Sanctuary clearing & terrace base (rows 108..133)
+        pygame.draw.rect(base, (28, 30, 40), (0, 108, bw, 25))
+        pygame.draw.rect(base, (36, 38, 48), (68, 114, 184, 18))
+        # Cobblestone terrace path stones & warm lantern-kissed highlights
+        for row_i, py_c in enumerate((116, 120, 124, 128)):
+            step_x = 12
+            x_off = (row_i % 2) * 6
+            for px_c in range(74 + x_off, 244, step_x):
+                dist_c = abs((px_c + 4) - 160)
+                warm = max(0.0, 1.0 - dist_c / 78.0)
+                stone_col = (
+                    int(40 + 26 * warm),
+                    int(42 + 18 * warm),
+                    int(52 + 6 * warm),
+                )
+                pygame.draw.rect(base, stone_col, (px_c, py_c, 9, 3))
+        # Low stone terrace balustrade & pond retaining wall lip
+        pygame.draw.rect(base, (46, 48, 60), (64, 129, 192, 3))
+        pygame.draw.rect(base, (22, 24, 34), (64, 132, 192, 2))
+        for post_x in (72, 108, 144, 176, 212, 246):
+            pygame.draw.rect(base, (58, 58, 70), (post_x, 126, 4, 6))
+            pygame.draw.line(base, (92, 88, 96), (post_x, 126), (post_x + 3, 126))
+
+        # 4. 2.5D Pixel-Art Sanctuary Pavilion / Scriptorium (centered x=112..208)
+        # Wing walls (stone masonry with shaded 2.5D side bevels)
+        pygame.draw.rect(base, (36, 38, 50), (114, 92, 92, 27))
+        pygame.draw.rect(base, (24, 26, 36), (114, 92, 6, 27))
+        pygame.draw.rect(base, (24, 26, 36), (200, 92, 6, 27))
+        # Central taller Scriptorium nave
+        pygame.draw.rect(base, (44, 46, 60), (138, 78, 44, 41))
+        pygame.draw.rect(base, (30, 32, 44), (138, 78, 3, 41))
+        pygame.draw.rect(base, (30, 32, 44), (179, 78, 3, 41))
+
+        # Pitched slate roofs (left/right wings + central gable + lantern cupola)
+        wing_roof = [(106, 93), (120, 82), (200, 82), (214, 93)]
+        pygame.draw.polygon(base, (24, 32, 48), wing_roof)
+        pygame.draw.polygon(base, (54, 68, 92), wing_roof, 1)
+        pygame.draw.line(base, (72, 88, 114), (120, 83), (200, 83))
+
+        main_roof = [(130, 80), (160, 62), (190, 80)]
+        pygame.draw.polygon(base, (28, 38, 56), main_roof)
+        pygame.draw.polygon(base, (66, 82, 108), main_roof, 1)
+        # Cupola spire & finial
+        pygame.draw.rect(base, (34, 44, 62), (156, 54, 8, 10))
+        pygame.draw.polygon(base, (48, 62, 86), [(154, 54), (160, 46), (166, 54)])
+        pygame.draw.line(base, (124, 142, 170), (160, 43), (160, 47))
+
+        # Stone arches & warm amber lantern windows along wings and central nave
+        amber_outer = (224, 144, 48)
+        amber_core = (255, 224, 138)
+        for wx in (122, 130, 184, 192):
+            pygame.draw.rect(base, (18, 20, 28), (wx - 1, 97, 7, 13), border_radius=2)
+            pygame.draw.rect(base, amber_outer, (wx, 98, 5, 11), border_radius=1)
+            pygame.draw.rect(base, amber_core, (wx + 1, 100, 3, 7))
+            pygame.draw.line(base, (44, 36, 30), (wx + 2, 98), (wx + 2, 108))
+        # Tall central arched lancet windows & glowing Sanctuary entrance arch
+        for wx in (144, 168):
+            pygame.draw.rect(base, (18, 20, 28), (wx - 1, 84, 9, 16), border_radius=3)
+            pygame.draw.rect(base, amber_outer, (wx, 85, 7, 14), border_radius=2)
+            pygame.draw.rect(base, amber_core, (wx + 2, 87, 3, 10))
+        # Central Sanctuary doorway arch & warm lantern keystone
+        pygame.draw.rect(base, (18, 16, 22), (154, 98, 12, 21), border_radius=5)
+        pygame.draw.rect(base, (214, 132, 42), (156, 100, 8, 19), border_radius=4)
+        pygame.draw.rect(base, (255, 228, 148), (158, 103, 4, 14), border_radius=2)
+        # Subtle stone arch lintels along front facade
+        for ax in (118, 140, 178):
+            pygame.draw.line(base, (68, 70, 86), (ax, 118), (ax + 16, 118))
+
+        # 5. Wooden Sanctuary Bench beside the water (right terrace x=204..228, y=118..128)
+        oak_dark = (58, 38, 24)
+        oak_mid = (92, 62, 38)
+        oak_hi = (132, 92, 54)
+        pygame.draw.rect(base, oak_dark, (205, 118, 22, 4))
+        pygame.draw.line(base, oak_hi, (205, 118), (226, 118))
+        pygame.draw.rect(base, oak_mid, (204, 122, 24, 3))
+        pygame.draw.line(base, oak_hi, (204, 122), (227, 122))
+        pygame.draw.rect(base, oak_dark, (206, 125, 2, 4))
+        pygame.draw.rect(base, oak_dark, (224, 125, 2, 4))
+
+        # 6. Layered Dark Pine & Weeping Tree Silhouettes framing left & right margins
+        def _draw_pine(px_t, base_y, tree_h, half_w, col):
+            pygame.draw.rect(base, (12, 12, 18), (px_t - 2, base_y - 8, 4, 10))
+            for tier in range(3):
+                t_top = base_y - tree_h + tier * int(tree_h * 0.24)
+                t_bot = t_top + int(tree_h * 0.42)
+                t_w = int(half_w * (0.55 + tier * 0.24))
+                pygame.draw.polygon(base, col, [(px_t, t_top), (px_t - t_w, t_bot), (px_t + t_w, t_bot)])
+
+        # Back-layer slate-pine trees
+        for px_t, by_t, th, hw in (
+            (18, 124, 66, 22), (52, 120, 56, 18), (84, 116, 44, 14),
+            (238, 118, 46, 15), (272, 122, 58, 20), (304, 124, 68, 22),
+        ):
+            _draw_pine(px_t, by_t, th, hw, (14, 24, 34))
+
+        # Foreground deep-ink pine & weeping willow silhouettes
+        for px_t, by_t, th, hw in (
+            (8, 134, 84, 26), (38, 130, 68, 22), (68, 128, 52, 17),
+            (256, 128, 54, 18), (288, 132, 72, 22), (314, 135, 86, 26),
+        ):
+            _draw_pine(px_t, by_t, th, hw, (9, 15, 22))
+        # Drooping weeping-willow strands framing the clearing edges
+        for wx_b, wy_b, length in (
+            (72, 92, 24), (77, 94, 20), (82, 97, 18),
+            (240, 95, 20), (245, 92, 24), (250, 94, 22),
+        ):
+            pygame.draw.line(base, (12, 22, 28), (wx_b, wy_b), (wx_b, wy_b + length), 1)
+
+        # 7. Foreground Sanctuary Reflecting Pond (rows 133..180)
+        pond_top = 133
+        for y in range(pond_top, bh):
+            u = (y - pond_top) / max(1, bh - pond_top - 1)
+            r = int(10 + 8 * u)
+            g = int(18 + 14 * u)
+            b = int(32 + 18 * u)
+            pygame.draw.line(base, (r, g, b), (0, y), (bw - 1, y))
+
+        # Mirrored slate pavilion silhouette reflected softly in the pond
+        refl_poly = [(114, 135), (206, 135), (192, 166), (160, 174), (128, 166)]
+        pygame.draw.polygon(base, (14, 20, 34), refl_poly)
+
+        # Subtle vertical water reflection streaks of the warm amber lantern windows
+        lantern_xs = (124, 132, 147, 160, 171, 186, 194)
+        for lx in lantern_xs:
+            is_door = lx == 160
+            max_depth = 38 if is_door else 28
+            for dy_r in range(2, max_depth, 2):
+                ry = pond_top + dy_r
+                if ry >= bh:
+                    break
+                fade = max(0.0, 1.0 - (dy_r / max_depth))
+                half_span = (4 if is_door else 2) + ((dy_r // 4) % 2)
+                r_col = (
+                    int(44 + 146 * fade),
+                    int(42 + 96 * fade),
+                    int(46 + 24 * fade),
+                )
+                pygame.draw.line(base, r_col, (lx - half_span, ry), (lx + half_span, ry))
+
+        # Dark framing shoreline banks on far left/right of pond
+        pygame.draw.polygon(base, (10, 14, 22), [(0, 130), (54, 132), (38, 144), (0, 152)])
+        pygame.draw.polygon(base, (10, 14, 22), [(bw - 1, 130), (266, 132), (282, 144), (bw - 1, 152)])
+
+        scaled = pygame.transform.scale(base, (int(sw), int(sh)))
+        if pygame.display.get_init() and pygame.display.get_surface() is not None:
+            scaled = scaled.convert()
+        cache[key] = scaled
+        return scaled
+
+    def _draw_title_sanctuary_scene(self, sw: int, sh: int, ticks_s: float) -> None:
+        """Draw the cached 2.5D Sanctuary dusk diorama with live 60 FPS sway, glow, fireflies & ripples."""
+        backdrop = self._get_title_sanctuary_backdrop(sw, sh)
+        self.screen.blit(backdrop, (0, 0))
+
+        sx = sw / float(constants.TITLE_DIORAMA_WIDTH)
+        sy = sh / float(constants.TITLE_DIORAMA_HEIGHT)
+
+        # 1. Subtle tree-canopy sway along left & right clearing edges
+        overlay_surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        sway_boughs = (
+            (72, 92, 24, 1.4, 0.0), (77, 94, 20, 1.7, 1.1), (82, 97, 18, 1.3, 2.2),
+            (240, 95, 20, 1.5, 0.7), (245, 92, 24, 1.6, 1.9), (250, 94, 22, 1.4, 3.0),
+        )
+        for bx, by, blen, freq, phase in sway_boughs:
+            dx_sway = math.sin(ticks_s * freq + phase) * 2.2
+            p0 = (int(round(bx * sx)), int(round(by * sy)))
+            p1 = (int(round((bx + dx_sway) * sx)), int(round((by + blen) * sy)))
+            pygame.draw.line(overlay_surf, (11, 20, 28, 255), p0, p1, max(2, int(round(sx * 1.2))))
+
+        # 2. Soft breathing amber lantern glow in the Sanctuary windows & pond reflections
+        glow_pulse = 0.78 + 0.22 * math.sin(ticks_s * 2.1)
+        glow_alpha = int(round(44 * glow_pulse))
+        for lx, ly, lrad in (
+            (124, 103, 11), (132, 103, 10), (147, 92, 13), (160, 109, 17),
+            (171, 92, 13), (186, 103, 10), (194, 103, 11),
+        ):
+            gx = int(round(lx * sx))
+            gy = int(round(ly * sy))
+            gr = max(6, int(round(lrad * min(sx, sy))))
+            pygame.draw.circle(overlay_surf, (255, 190, 74, glow_alpha), (gx, gy), gr)
+            pygame.draw.circle(overlay_surf, (255, 232, 152, min(255, glow_alpha + 24)), (gx, gy), max(3, gr // 2))
+
+        # Shimmering lantern reflection glints on the pond surface
+        for idx_l, lx in enumerate((124, 147, 160, 171, 194)):
+            shim_x = lx + math.sin(ticks_s * 2.6 + idx_l * 1.3) * 1.8
+            shim_y = 140 + (idx_l % 3) * 7 + math.sin(ticks_s * 1.8 + idx_l) * 1.5
+            r_w = max(6, int(round((8 if lx == 160 else 5) * sx)))
+            r_h = max(2, int(round(1.5 * sy)))
+            pygame.draw.rect(
+                overlay_surf,
+                (255, 212, 112, int(round(68 * glow_pulse))),
+                (int(round(shim_x * sx)) - r_w // 2, int(round(shim_y * sy)), r_w, r_h),
+            )
+
+        # 3. 10 drifting golden-green firefly / parchment motes near trees and wooden bench
+        firefly_anchors = (
+            (58, 108, 10, 6, 0.9, 0.2), (76, 118, 9, 5, 1.1, 1.4), (92, 102, 8, 6, 0.8, 2.5),
+            (108, 122, 7, 4, 1.2, 3.6), (198, 118, 8, 5, 1.0, 0.9), (214, 114, 9, 6, 0.85, 2.1),
+            (226, 122, 7, 4, 1.15, 3.2), (242, 108, 10, 6, 0.95, 4.4), (258, 118, 9, 5, 1.05, 5.1),
+            (218, 104, 8, 5, 0.75, 1.7),
+        )
+        for idx_f in range(int(constants.TITLE_DIORAMA_FIREFLY_COUNT)):
+            ax, ay, rx_m, ry_m, spd_f, ph_f = firefly_anchors[idx_f % len(firefly_anchors)]
+            fx = ax + math.sin(ticks_s * spd_f + ph_f) * rx_m
+            fy = ay + math.cos(ticks_s * (spd_f * 0.78) + ph_f * 1.3) * ry_m
+            blink = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(ticks_s * (2.2 + idx_f * 0.17) + ph_f))
+            px_f = int(round(fx * sx))
+            py_f = int(round(fy * sy))
+            outer_r_f = max(4, int(round(3 * sx)))
+            inner_r_f = max(2, int(round(1.2 * sx)))
+            pygame.draw.circle(overlay_surf, (196, 238, 124, int(round(88 * blink))), (px_f, py_f), outer_r_f)
+            pygame.draw.circle(overlay_surf, (246, 255, 184, int(round(235 * blink))), (px_f, py_f), inner_r_f)
+
+        # 4. Expanding pixel water ripples on the pond surface synced with rain
+        ripple_sites = (
+            (78, 144, 0.00), (118, 158, 0.19), (154, 148, 0.37), (188, 164, 0.52),
+            (224, 150, 0.68), (138, 170, 0.81), (246, 160, 0.93),
+        )
+        ripple_cycle = 1.45
+        for idx_r in range(int(constants.TITLE_DIORAMA_RIPPLE_COUNT)):
+            rx_b, ry_b, ph_r = ripple_sites[idx_r % len(ripple_sites)]
+            u = ((ticks_s / ripple_cycle) + ph_r) % 1.0
+            rad_x = max(3, int(round((2.0 + 13.0 * u) * sx)))
+            rad_y = max(2, int(round((1.0 + 4.5 * u) * sy)))
+            fade = max(0.0, 1.0 - u)
+            r_col = (
+                int(92 + 138 * fade),
+                int(142 + 86 * fade),
+                int(164 + 34 * fade),
+                int(round(200 * fade)),
+            )
+            rect_r = pygame.Rect(
+                int(round(rx_b * sx)) - rad_x,
+                int(round(ry_b * sy)) - rad_y,
+                rad_x * 2,
+                rad_y * 2,
+            )
+            pygame.draw.ellipse(overlay_surf, r_col, rect_r, max(1, int(round(1.2 * fade + 0.5))))
+
+        # 5. Crisp rain splash ticks along the pavilion roof eaves & cobblestone terrace
+        splash_sites = (
+            (116, 92, 0.08), (142, 74, 0.24), (178, 74, 0.41), (204, 92, 0.59),
+            (92, 124, 0.16), (136, 126, 0.33), (182, 126, 0.72), (222, 122, 0.86),
+        )
+        splash_cycle = 0.68
+        for idx_s in range(int(constants.TITLE_DIORAMA_SPLASH_COUNT)):
+            sp_x, sp_y, ph_s = splash_sites[idx_s % len(splash_sites)]
+            u = ((ticks_s / splash_cycle) + ph_s) % 1.0
+            if u < 0.32:
+                prog = u / 0.32
+                cx_s = int(round(sp_x * sx))
+                cy_s = int(round(sp_y * sy))
+                sp_dx = max(2, int(round((1.5 + 2.8 * prog) * sx)))
+                sp_dy = max(2, int(round((2.8 * (1.0 - prog * 0.5)) * sy)))
+                col_sp = constants.COLOR_SELECTION if prog < 0.55 else (196, 184, 146)
+                sp_rgba = (col_sp[0], col_sp[1], col_sp[2], int(round(230 * (1.0 - prog * 0.4))))
+                pygame.draw.line(overlay_surf, sp_rgba, (cx_s, cy_s), (cx_s - sp_dx, cy_s - sp_dy), 1)
+                pygame.draw.line(overlay_surf, sp_rgba, (cx_s, cy_s), (cx_s + sp_dx, cy_s - sp_dy), 1)
+
+        self.screen.blit(overlay_surf, (0, 0))
+
+    def draw_title_screen(self, menu=0, state=None, controls_menu=None):
+        """Draw title screen with 2.5D Sanctuary dusk diorama, attract flow, and tactile parchment unroll."""
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        now = time.time()
+
+        # 1. Low-Res 2.5D Sanctuary Dusk Diorama + Live Animated Atmosphere
+        self._draw_title_sanctuary_scene(sw, sh, now)
+
+        # 2. Atmospheric Rain on Title Screen (Selection Color: Amber/Gold)
         self.draw_weather(None, override_color=constants.COLOR_SELECTION, force_global=True)
 
-        # Layered Composite Title with gentle floating bob and subtle breathing pulse
-        now = time.time()
+        # 3. Layered Composite Title with gentle floating bob and subtle breathing pulse
         bob_y = int(math.sin(now * 1.8) * 3.0)
         title_composite = self._get_title_composite()
 
@@ -9844,100 +10171,129 @@ class Renderer:
             title = self.large_font.render("AVOID RAIN", True, constants.COLOR_SELECTION)
             self.screen.blit(title, title.get_rect(center=(sw // 2, 220 + bob_y)))
 
-        opts, sel = ["New Draft", "Quit"], 0
-        from engine.title_menu import TitleMenuState
-        menu_state = TitleMenuState.MAIN
-        try:
-            if hasattr(menu, 'get_options'):
-                opts = menu.get_options()
-                sel = menu.get_selected_index()
-                menu_state = getattr(menu, 'state', TitleMenuState.MAIN)
-            else:
-                sel = int(menu)
-        except Exception:
-            pass
+        is_revealed = bool(getattr(menu, "menu_revealed", True))
 
-        t_state = self._resolve_menu_transition_state(menu)
-        main_t_state = t_state if menu_state == TitleMenuState.MAIN else constants.compute_menu_transition_state(1.0)
-
-        # Render Chronicle Title Menu block onto a parchment surface preserving exact settled layout
-        panel_w = min(560, sw - 80)
-        panel_top = 258
-        name_y = 340 + len(opts) * 40 + 16
-        panel_bottom = (name_y + 24) if (state and getattr(menu_state, 'name', '') == 'MAIN') else (
-            340 + max(0, len(opts) - 1) * 40 + 32
-        )
-        panel_h = max(120, panel_bottom - panel_top)
-        panel_x = (sw - panel_w) // 2
-        panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
-        pygame.draw.rect(
-            panel_surf,
-            constants.MENU_TRANSITION_PARCHMENT_BG,
-            pygame.Rect(0, 0, panel_w, panel_h),
-            border_radius=6,
-        )
-        pygame.draw.rect(
-            panel_surf,
-            constants.MENU_TRANSITION_PARCHMENT_BORDER,
-            pygame.Rect(0, 0, panel_w, panel_h),
-            1,
-            border_radius=6,
-        )
-        pygame.draw.line(panel_surf, constants.MENU_TRANSITION_PARCHMENT_RULE, (24, 42), (panel_w - 24, 42), 1)
-
-        local_cx = panel_w // 2
-        instr = self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE)
-        panel_surf.blit(instr, instr.get_rect(center=(local_cx, 280 - panel_top)))
-
-        for idx, opt in enumerate(opts):
-            col = constants.COLOR_SELECTION if idx == sel else constants.COLOR_WHITE
-            surf = self.font.render(opt, True, col)
-            panel_surf.blit(surf, surf.get_rect(center=(local_cx, 340 + idx * 40 - panel_top)))
-
-        if state and getattr(menu_state, 'name', '') == 'MAIN':
-            net_mgr = getattr(state, "network_manager", None)
-            identity = getattr(net_mgr, "identity", "Scholar") if net_mgr else "Scholar"
-            if getattr(state, "lobby_editing_name", False):
-                name_str = f"Editing Name: {identity}_  [ENTER] Save"
-                name_col = constants.COLOR_SELECTION
-            else:
-                name_str = f"Scholar Name: {identity}  [N] Change Name"
-                name_col = (180, 195, 215)
-            name_surf = self.small_font.render(name_str, True, name_col)
-            panel_surf.blit(name_surf, name_surf.get_rect(center=(local_cx, name_y - panel_top)))
-
-        self._draw_parchment_unroll(panel_surf, (panel_x, panel_top), main_t_state)
-
-        if menu_state == TitleMenuState.CONFIRM_NEW_GAME:
-            overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, int(round(200 * t_state["backdrop_alpha_scale"]))))
-            self.screen.blit(overlay, (0, 0))
-
-            rect = pygame.Rect(0, 0, 600, 150)
-            rect.center = self.screen.get_rect().center
-            confirm_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-            pygame.draw.rect(confirm_surf, (30, 30, 30), pygame.Rect(0, 0, rect.width, rect.height))
-            pygame.draw.rect(confirm_surf, constants.COLOR_WHITE, pygame.Rect(0, 0, rect.width, rect.height), 2)
-            m_surf = self.font.render("Are you sure you want to start a New Game? (Y/N)", True, constants.COLOR_WHITE)
-            w_surf = self.font.render("This will permanently remove old progress.", True, constants.COLOR_RED)
-            confirm_surf.blit(m_surf, m_surf.get_rect(center=(rect.width // 2, rect.height // 2)))
-            confirm_surf.blit(w_surf, w_surf.get_rect(center=(rect.width // 2, rect.height // 2 + 30)))
-            self._draw_parchment_unroll(confirm_surf, (rect.x, rect.y), t_state)
-        elif getattr(menu_state, 'name', '') == 'CONTROLS':
-            self.draw_controls_overlay(
-                True,
-                controls_menu=controls_menu,
-                keybindings=getattr(state, "keybindings", None) if state is not None else None,
-                flip=False,
-                transition_state=t_state,
+        if not is_revealed:
+            # Stage 1 Attract Prompt: Gently pulsing, outlined prompt over unobstructed Sanctuary scene
+            prompt_text = constants.TITLE_ATTRACT_PROMPT_TEXT
+            pulse = 0.5 + 0.5 * math.sin(now * 2.8)
+            prompt_y = int(sh * constants.TITLE_ATTRACT_PROMPT_Y_RATIO)
+            p_col = (
+                int(210 + 45 * pulse),
+                int(176 + 52 * pulse),
+                int(104 + 54 * pulse),
             )
+            outline_surf = self.font.render(prompt_text, True, (12, 14, 22))
+            main_surf = self.font.render(prompt_text, True, p_col)
+            p_rect = main_surf.get_rect(center=(sw // 2, prompt_y))
+            for ox_o, oy_o in ((-2, 0), (2, 0), (0, -2), (0, 2), (-1, -1), (1, -1), (-1, 1), (1, 1)):
+                self.screen.blit(outline_surf, (p_rect.x + ox_o, p_rect.y + oy_o))
+            self.screen.blit(main_surf, p_rect)
+        else:
+            opts, sel = ["New Draft", "Quit"], 0
+            from engine.title_menu import TitleMenuState
+            menu_state = TitleMenuState.MAIN
+            try:
+                if hasattr(menu, 'get_options'):
+                    opts = menu.get_options()
+                    sel = menu.get_selected_index()
+                    menu_state = getattr(menu, 'state', TitleMenuState.MAIN)
+                else:
+                    sel = int(menu)
+            except Exception:
+                pass
+
+            t_state = self._resolve_menu_transition_state(menu)
+            main_t_state = (
+                t_state if menu_state == TitleMenuState.MAIN else constants.compute_menu_transition_state(1.0)
+            )
+
+            # Render Chronicle Title Menu block onto a parchment surface preserving exact settled layout
+            panel_w = min(560, sw - 80)
+            panel_top = 258
+            name_y = 340 + len(opts) * 40 + 16
+            panel_bottom = (name_y + 24) if (state and getattr(menu_state, 'name', '') == 'MAIN') else (
+                340 + max(0, len(opts) - 1) * 40 + 32
+            )
+            panel_h = max(120, panel_bottom - panel_top)
+            panel_x = (sw - panel_w) // 2
+            panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+            pygame.draw.rect(
+                panel_surf,
+                constants.MENU_TRANSITION_PARCHMENT_BG,
+                pygame.Rect(0, 0, panel_w, panel_h),
+                border_radius=6,
+            )
+            pygame.draw.rect(
+                panel_surf,
+                constants.MENU_TRANSITION_PARCHMENT_BORDER,
+                pygame.Rect(0, 0, panel_w, panel_h),
+                1,
+                border_radius=6,
+            )
+            pygame.draw.line(panel_surf, constants.MENU_TRANSITION_PARCHMENT_RULE, (24, 42), (panel_w - 24, 42), 1)
+
+            local_cx = panel_w // 2
+            instr = self.font.render("Use ARROW KEYS and ENTER to choose", True, constants.COLOR_WHITE)
+            panel_surf.blit(instr, instr.get_rect(center=(local_cx, 280 - panel_top)))
+
+            for idx, opt in enumerate(opts):
+                col = constants.COLOR_SELECTION if idx == sel else constants.COLOR_WHITE
+                surf = self.font.render(opt, True, col)
+                panel_surf.blit(surf, surf.get_rect(center=(local_cx, 340 + idx * 40 - panel_top)))
+
+            if state and getattr(menu_state, 'name', '') == 'MAIN':
+                net_mgr = getattr(state, "network_manager", None)
+                identity = getattr(net_mgr, "identity", "Scholar") if net_mgr else "Scholar"
+                if getattr(state, "lobby_editing_name", False):
+                    name_str = f"Editing Name: {identity}_  [ENTER] Save"
+                    name_col = constants.COLOR_SELECTION
+                else:
+                    name_str = f"Scholar Name: {identity}  [N] Change Name"
+                    name_col = (180, 195, 215)
+                name_surf = self.small_font.render(name_str, True, name_col)
+                panel_surf.blit(name_surf, name_surf.get_rect(center=(local_cx, name_y - panel_top)))
+
+            self._draw_parchment_unroll(panel_surf, (panel_x, panel_top), main_t_state)
+
+            if menu_state == TitleMenuState.CONFIRM_NEW_GAME:
+                overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, int(round(200 * t_state["backdrop_alpha_scale"]))))
+                self.screen.blit(overlay, (0, 0))
+
+                rect = pygame.Rect(0, 0, 600, 150)
+                rect.center = self.screen.get_rect().center
+                confirm_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+                pygame.draw.rect(confirm_surf, (30, 30, 30), pygame.Rect(0, 0, rect.width, rect.height))
+                pygame.draw.rect(confirm_surf, constants.COLOR_WHITE, pygame.Rect(0, 0, rect.width, rect.height), 2)
+                m_surf = self.font.render(
+                    "Are you sure you want to start a New Game? (Y/N)", True, constants.COLOR_WHITE
+                )
+                w_surf = self.font.render("This will permanently remove old progress.", True, constants.COLOR_RED)
+                confirm_surf.blit(m_surf, m_surf.get_rect(center=(rect.width // 2, rect.height // 2)))
+                confirm_surf.blit(w_surf, w_surf.get_rect(center=(rect.width // 2, rect.height // 2 + 30)))
+                self._draw_parchment_unroll(confirm_surf, (rect.x, rect.y), t_state)
+            elif getattr(menu_state, 'name', '') == 'CONTROLS':
+                self.draw_controls_overlay(
+                    True,
+                    controls_menu=controls_menu,
+                    keybindings=getattr(state, "keybindings", None) if state is not None else None,
+                    flip=False,
+                    transition_state=t_state,
+                )
+
         # Engine Revision & Outdated Save Indicator on Title Screen
         debug_on = bool(state and getattr(state, "debug_text_enabled", False))
         try:
             if debug_on:
                 rev_surf = self.small_font.render(f"Engine Rev {constants.ENGINE_REVISION}", True, (140, 140, 150))
                 self.screen.blit(rev_surf, (12, sh - 24))
-            if state and getattr(state, "stats", None) and not getattr(state.stats, "is_revision_compatible", True):
+            if (
+                is_revealed
+                and state
+                and getattr(state, "stats", None)
+                and not getattr(state.stats, "is_revision_compatible", True)
+            ):
                 out_msg = "Incompatible older save detected — start a New Draft"
                 out_surf = self.small_font.render(out_msg, True, constants.COLOR_RED)
                 self.screen.blit(out_surf, (sw // 2 - out_surf.get_width() // 2, 305))

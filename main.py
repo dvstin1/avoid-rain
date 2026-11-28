@@ -151,6 +151,14 @@ def handle_title_events(
         if event.type in (pygame.JOYBUTTONDOWN, pygame.JOYHATMOTION, pygame.JOYAXISMOTION):
             state.input_mode = INPUT_MODE_GAMEPAD
 
+        # Two-Stage Attract Gate: First button/key/click reveals menu without triggering selection
+        if not getattr(title_menu, "menu_revealed", True):
+            if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.JOYBUTTONDOWN):
+                title_menu.reveal_menu()
+                if audio_manager:
+                    audio_manager.play_sfx("menu_confirm.ogg")
+            continue
+
         in_controls = getattr(title_menu.state, 'name', '') == 'CONTROLS'
         if event.type == pygame.JOYBUTTONDOWN:
             if in_controls:
@@ -214,6 +222,8 @@ def handle_title_events(
                 title_menu.confirm()
 
     # --- Unified Navigation Polling (Title) ---
+    if not getattr(title_menu, "menu_revealed", True):
+        return True, True, False
     if getattr(state, 'lobby_editing_name', False):
         return True, True, False
     in_controls = getattr(title_menu.state, 'name', '') == 'CONTROLS'
@@ -652,7 +662,8 @@ def main():
                 in_title, running, ratchet_reset = handle_title_events(
                     state, renderer, title_menu, audio_manager=audio, controls_menu=controls_menu
                 )
-                title_menu.update_transition(dt)
+                if getattr(title_menu, "menu_revealed", True):
+                    title_menu.update_transition(dt)
                 renderer.draw_title_screen(title_menu, state, controls_menu=controls_menu)
                 audio.stop_environment_audio()
                 audio.update(dt, "title_theme.ogg")
@@ -720,6 +731,7 @@ def main():
                         try: state.save_stats(wait=True)
                         except Exception: pass
                         pause_menu.clear_quit(); pause_menu.close(); in_title = True
+                        title_menu.menu_revealed = False
                         title_menu.reset_transition()
                         state.deallocate()
                         try:

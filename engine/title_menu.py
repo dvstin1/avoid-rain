@@ -38,10 +38,12 @@ class TitleMenu(MenuBase):
         has_save: bool = False,
         online_mode: bool = True,
         offline_locked: bool = False,
+        menu_revealed: bool = False,
     ) -> None:
         self._has_save = bool(has_save)
         self.offline_locked = bool(offline_locked)
         self.online_mode = False if self.offline_locked else bool(online_mode)
+        self.menu_revealed = bool(menu_revealed)
         super().__init__(self._build_options())
         # Set default selection: when a save exists, default to Continue
         if self._has_save:
@@ -49,6 +51,11 @@ class TitleMenu(MenuBase):
             self._selected = 1
         self._confirmed = False
         self._state = TitleMenuState.MAIN
+
+    def reveal_menu(self) -> None:
+        """Reveal the parchment title menu card and start its unroll transition."""
+        self.menu_revealed = True
+        self.reset_transition()
 
     @property
     def state(self) -> TitleMenuState:
@@ -58,6 +65,8 @@ class TitleMenu(MenuBase):
     @state.setter
     def state(self, new_state: TitleMenuState) -> None:
         """Switch TitleMenu sub-view and trigger a crisp parchment unroll transition."""
+        if new_state != TitleMenuState.MAIN:
+            self.menu_revealed = True
         if new_state != self._state:
             self._state = new_state
             self.reset_transition(MENU_TRANSITION_SUBVIEW_DURATION)

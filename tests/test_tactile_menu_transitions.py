@@ -141,6 +141,7 @@ def test_headless_parchment_unroll_rendering_partial_and_settled(monkeypatch):
     try:
         # 1. Title screen MAIN: partial unroll vs settled
         tm = TitleMenu(has_save=True)
+        tm.reveal_menu()
         recorded_rects.clear()
         renderer.draw_title_screen(tm, gs, controls_menu=cm)
         rect_start, full_size, state_start = recorded_rects[-1]
