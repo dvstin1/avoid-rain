@@ -127,11 +127,15 @@ def test_wellspring_ambient_volume_scaled_by_0_25():
         assert targets["water"][0] == pytest.approx(expected)
         assert targets["water"][1] == pytest.approx(expected)
 
-        # Sanctuary pond remains unchanged at 0.75x
+        # Sanctuary pond scales by ENV_AUDIO_POND_VOL_MULT (0.20 -> 0.06 base)
+        assert constants.ENV_AUDIO_POND_VOL_MULT == pytest.approx(0.20)
         state.world.interactables = []
         state.world.sanctuary_zones = {"pond_water": [(5, 5)]}
         pond_targets = am._compute_environment_targets(state)
-        assert pond_targets["water"][0] == pytest.approx(constants.ENV_AUDIO_WATER_BASE_VOL * 0.75)
+        expected_pond = constants.ENV_AUDIO_WATER_BASE_VOL * constants.ENV_AUDIO_POND_VOL_MULT
+        assert expected_pond == pytest.approx(0.06)
+        assert pond_targets["water"][0] == pytest.approx(expected_pond)
+        assert pond_targets["water"][1] == pytest.approx(expected_pond)
     finally:
         am.stop_environment_audio()
         state.shutdown_save_worker(timeout=1.0)

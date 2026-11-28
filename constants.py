@@ -1495,6 +1495,7 @@ ENV_AUDIO_WATER_MAX_DIST = 460.0                # Audible radius for Wellsprings
 ENV_AUDIO_WATER_FULL_DIST = 80.0
 ENV_AUDIO_WATER_BASE_VOL = 0.30
 ENV_AUDIO_WELLSPRING_VOL_MULT = 0.25            # Gentle Wellspring shimmer without overpowering Sanctuary/combat audio
+ENV_AUDIO_POND_VOL_MULT = 0.20                  # Subtle Sanctuary pond hum without overpowering Sanctuary ambience
 ENV_AUDIO_RUMBLE_MAX_DIST = 2600.0              # Subterranean Author madness rumble range toward boss/storm center
 ENV_AUDIO_RUMBLE_FULL_DIST = 320.0
 ENV_AUDIO_RUMBLE_BASE_VOL = 0.38

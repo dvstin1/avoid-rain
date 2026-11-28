@@ -30,6 +30,7 @@ from constants import (
     ENV_AUDIO_WATER_BASE_VOL,
     ENV_AUDIO_WATER_FULL_DIST,
     ENV_AUDIO_WATER_MAX_DIST,
+    ENV_AUDIO_POND_VOL_MULT,
     ENV_AUDIO_WELLSPRING_VOL_MULT,
     RAIN_LOOP_SFX,
     SFX_FULL_VOLUME_DIST,
@@ -212,7 +213,7 @@ class AudioManager:
                         best_dy,
                         max_dist=ENV_AUDIO_WATER_MAX_DIST,
                         full_dist=ENV_AUDIO_WATER_FULL_DIST,
-                        base_volume=ENV_AUDIO_WATER_BASE_VOL * 0.75,
+                        base_volume=ENV_AUDIO_WATER_BASE_VOL * ENV_AUDIO_POND_VOL_MULT,
                     )
                     if max(cand) > max(best_water):
                         best_water = cand
