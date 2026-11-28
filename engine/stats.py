@@ -78,6 +78,7 @@ class StatisticsTracker:
                 "story_flags": {
                     "perfect_stitch_completed": False,
                     "ink_bleed_halted": False,
+                    "anomalous_weapon_discovered": False,
                 },
             }
         else:
@@ -124,10 +125,12 @@ class StatisticsTracker:
                 self.data["story_flags"] = {
                     "perfect_stitch_completed": False,
                     "ink_bleed_halted": False,
+                    "anomalous_weapon_discovered": False,
                 }
             else:
                 self.data["story_flags"].setdefault("perfect_stitch_completed", False)
                 self.data["story_flags"].setdefault("ink_bleed_halted", False)
+                self.data["story_flags"].setdefault("anomalous_weapon_discovered", False)
 
     @classmethod
     def has_compatible_save(cls, path: Path | str | None = None) -> bool:

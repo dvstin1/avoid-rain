@@ -1474,6 +1474,8 @@ DEATH_SCREEN_DURATION = 5.5  # Full playback duration covering 5.38s death_theme
 # Dynamic Rain Ambient Audio Constants
 RAIN_LOOP_SFX = "rain_loop.ogg"
 LOCKED_DOOR_RATTLE_SFX = "locked_door_rattle.ogg"
+ANOMALOUS_WEAPON_DISCOVERY_SFX = "anomalous_weapon_discovery.ogg"
+ANOMALOUS_WEAPON_DISCOVERY_BANNER = "RARE ANOMALOUS WEAPON DISCOVERED"
 
 # Environment Audio (Section 2: Directional Stereo Ambient Loops)
 AMBIENT_FLAME_SFX = "ambient_flame.ogg"
@@ -1492,6 +1494,7 @@ ENV_AUDIO_CHALICE_VOL_MULT = 1.25               # Larger 80x80 Vitreous Fire Cha
 ENV_AUDIO_WATER_MAX_DIST = 460.0                # Audible radius for Wellsprings, Sanctuary pond, & Aqueduct channels
 ENV_AUDIO_WATER_FULL_DIST = 80.0
 ENV_AUDIO_WATER_BASE_VOL = 0.30
+ENV_AUDIO_WELLSPRING_VOL_MULT = 0.25            # Gentle Wellspring shimmer without overpowering Sanctuary/combat audio
 ENV_AUDIO_RUMBLE_MAX_DIST = 2600.0              # Subterranean Author madness rumble range toward boss/storm center
 ENV_AUDIO_RUMBLE_FULL_DIST = 320.0
 ENV_AUDIO_RUMBLE_BASE_VOL = 0.38
@@ -2179,16 +2182,28 @@ def compute_death_bleach_state(death_timer: float, duration: float = DEATH_SCREE
 
 
 # Respite Activation Pulse (Section 8: Localized Typographic Bloom)
-RESPITE_PULSE_DURATION = 1.45
+RESPITE_PULSE_DURATION = 1.65
 RESPITE_PULSE_RING_START_RADIUS = 16.0
-RESPITE_PULSE_RING_MAX_RADIUS = 195.0
-RESPITE_PULSE_RING_INNER_SCALE = 0.72
+RESPITE_PULSE_RING_MAX_RADIUS = 380.0
+RESPITE_PULSE_RING_INNER_SCALE = 0.74
 RESPITE_PULSE_RING_MAX_ALPHA = 245
-RESPITE_PULSE_HALO_MAX_ALPHA = 85
+RESPITE_PULSE_HALO_MAX_ALPHA = 110
 RESPITE_PULSE_RING_COLOR_OUTER = (110, 232, 240)   # Soft cyan-ink shimmer
 RESPITE_PULSE_RING_COLOR_INNER = (238, 228, 200)   # Warm parchment glow
+RESPITE_PULSE_RING_COLOR_GOLD = (255, 214, 118)    # Warm golden sanctuary bloom
+RESPITE_PULSE_LIGHT_RAY_COUNT = 8
 RESPITE_PULSE_DARK_INK_COLOR = (14, 12, 24)        # High-contrast dark-ink backing & glyph outline
 RESPITE_PULSE_GLYPH_COUNT = 20
+
+# Low-Health Diegetic Enemy & Boss Visual Cue Constants
+LOW_HP_WOUNDED_RATIO = 0.30
+ENEMY_MICRO_HP_BAR_WIDTH = 26
+ENEMY_MICRO_HP_BAR_HEIGHT = 3
+ENEMY_MICRO_HP_BAR_OFFSET_Y = 7
+ENEMY_MICRO_HP_BAR_BG = (18, 14, 22)
+ENEMY_MICRO_HP_BAR_FILL = (218, 48, 56)
+ENEMY_MICRO_HP_BAR_LOW_FILL = (244, 152, 52)
+BOSS_HUD_LOW_HP_BORDER_COLOR = (232, 62, 54)
 RESPITE_PULSE_GLYPH_POOL = (
     "A", "E", "I", "O", "R", "S", "T", "V", "§", "¶", "†", "‡", "※", "ø",
 )

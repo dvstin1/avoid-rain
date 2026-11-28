@@ -47,10 +47,10 @@ def test_respite_pulse_dt_lifecycle_drift_framerate_independence_and_expiry():
     mgr.update(0.50)
     assert pulse.ring_radius > r_early
     assert pulse.ring_alpha < a_early
-    # Wider ring sweeps visibly past the 620x290 Respite modal (> 145px) by mid-pulse
-    assert constants.RESPITE_PULSE_RING_MAX_RADIUS == pytest.approx(195.0)
+    # Wider ring sweeps visibly past the 620x290 Respite modal (> 200px) by mid-pulse
+    assert constants.RESPITE_PULSE_RING_MAX_RADIUS == pytest.approx(380.0)
     assert constants.RESPITE_PULSE_GLYPH_COUNT == 20
-    assert pulse.ring_radius > 145.0
+    assert pulse.ring_radius > 200.0
 
     # Advancing past max duration + glyph lifetime automatically cleans up the pulse
     mgr.update(constants.RESPITE_PULSE_DURATION + 0.5)

@@ -1723,6 +1723,11 @@ class Renderer:
             self._draw_sunlit_aqueducts_plateau_rooftop(target_surf, (x, y, sx, sy, ts), pal, (wall_n, wall_w, wall_e))
             return
 
+        # 2d. Pastoral Valley Biome: Weathered flagstone & timber-edged plateau rooftops (south facade stays intact)
+        if biome == "pastoral_valley" and wall_s:
+            self._draw_pastoral_valley_plateau_rooftop(target_surf, (x, y, sx, sy, ts), pal, (wall_n, wall_w, wall_e))
+            return
+
         # 3. All other biomes: Restore exact legacy procedural geometric wall rendering (matching 70ed514)
         if wall_s:
             # Connected Plateau / Wall Rooftop: seamless across adjacent wall tiles
@@ -1885,6 +1890,86 @@ class Renderer:
             target_surf.fill(pal["wall_hi"], (sx + 2, sy, 2, ts))
         if not wall_e:
             target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
+
+    def _draw_pastoral_valley_plateau_rooftop(self, target_surf, geom, pal, wall_adj):
+        """Render weathered pastoral flagstone & timber-edged terrace masonry rooftops for pastoral_valley."""
+        x, y, sx, sy, ts = geom
+        wall_n, wall_w, wall_e = wall_adj
+        h = ((x * 73856093) ^ (y * 19349663) ^ 0x4F2A91) & 0x7FFFFFFF
+
+        # Warm weathered sandstone/oak terrace stone fill with subtle per-tile tonal variation
+        shift = ((h % 5) - 2) * 3
+        base_col = self._shift_rgb_clamped(pal["wall_top"], shift, shift - 1, shift - 2)
+        target_surf.fill(base_col, (sx, sy, ts, ts))
+
+        slab_warm = constants.blend_rgb(base_col, pal["wall_hi"], 0.30)
+        slab_shaded = constants.blend_rgb(base_col, pal["wall_glow"], 0.38)
+        mortar_col = constants.blend_rgb(base_col, pal["wall_mortar"], 0.46)
+        bevel_hi = constants.blend_rgb(base_col, pal["wall_hi"], 0.50)
+        timber_dark = (88, 60, 36)
+        timber_hi = (146, 106, 66)
+        grass_dark = pal["floor_accent"]
+        grass_hi = pal["floor_alt"]
+
+        # Staggered pastoral terrace flagstones (2 courses per tile)
+        mid_y = sy + (ts // 2) + (((h >> 2) % 3) - 1)
+        joint_a = sx + 7 + ((h >> 5) % 25)
+        joint_b = sx + 7 + (((h >> 10) + 14) % 25)
+
+        if (h >> 3) & 1:
+            target_surf.fill(slab_warm, (sx + 1, sy + 1, max(1, joint_a - sx - 1), max(1, mid_y - sy - 1)))
+        else:
+            target_surf.fill(
+                slab_shaded, (joint_a + 1, sy + 1, max(1, sx + ts - joint_a - 1), max(1, mid_y - sy - 1))
+            )
+        if (h >> 8) & 1:
+            target_surf.fill(slab_shaded, (sx + 1, mid_y + 1, max(1, joint_b - sx - 1), max(1, sy + ts - mid_y - 1)))
+        else:
+            target_surf.fill(
+                slab_warm, (joint_b + 1, mid_y + 1, max(1, sx + ts - joint_b - 1), max(1, sy + ts - mid_y - 1))
+            )
+
+        # Crisp 1px flagstone mortar joints + warm sunlit stone bevels
+        pygame.draw.line(target_surf, mortar_col, (sx, mid_y), (sx + ts - 1, mid_y), 1)
+        if mid_y + 1 < sy + ts:
+            pygame.draw.line(target_surf, bevel_hi, (sx, mid_y + 1), (sx + ts - 1, mid_y + 1), 1)
+        pygame.draw.line(target_surf, mortar_col, (joint_a, sy), (joint_a, mid_y), 1)
+        pygame.draw.line(target_surf, mortar_col, (joint_b, mid_y), (joint_b, sy + ts - 1), 1)
+
+        # Fine weathered sandstone speckles & grit
+        for p_idx in range(7):
+            ph = ((h >> (p_idx * 2)) ^ (p_idx * 2654435761)) & 0xFFFF
+            px_s = sx + 2 + (ph % max(1, ts - 4))
+            py_s = sy + 2 + ((ph >> 6) % max(1, ts - 4))
+            target_surf.fill(pal["wall_hi"] if p_idx % 3 == 0 else mortar_col, (px_s, py_s, 1, 1))
+
+        # Delicate hairline cracks along flagstone joints
+        if ((h >> 12) % 5) < 2:
+            cx_k = joint_a if ((h >> 14) & 1) else joint_b
+            dx_k = 5 if ((h >> 15) & 1) else -5
+            dy_k = -4 if ((h >> 16) & 1) else 4
+            pygame.draw.line(target_surf, mortar_col, (cx_k, mid_y), (cx_k + dx_k, mid_y + dy_k), 1)
+
+        # Timber-edged terrace trim & parapet borders along outer edges
+        if not wall_n:
+            target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 2))
+            target_surf.fill(timber_dark, (sx, sy + 2, ts, 3))
+            target_surf.fill(timber_hi, (sx, sy + 2, ts, 1))
+        if not wall_w:
+            target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
+            target_surf.fill(timber_hi, (sx + 2, sy, 2, ts))
+        if not wall_e:
+            target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
+            target_surf.fill(timber_dark, (sx + ts - 4, sy, 2, ts))
+
+        # Small sunlit grass & wildflower tufts tucked along exposed plateau edges or stone joints
+        if not wall_n or not wall_w or ((h >> 17) % 3 == 0):
+            tx_g = sx + 5 + ((h >> 18) % max(1, ts - 10))
+            ty_g = (sy + 6) if not wall_n else max(sy + 5, min(sy + ts - 5, mid_y))
+            pygame.draw.line(target_surf, grass_dark, (tx_g, ty_g), (tx_g - 1, ty_g - 3), 1)
+            pygame.draw.line(target_surf, grass_hi, (tx_g + 1, ty_g), (tx_g + 2, ty_g - 4), 1)
+            if (h >> 20) % 3 == 0:
+                target_surf.fill((248, 224, 96), (tx_g + 1, ty_g - 4, 2, 1))
 
     def _draw_sunlit_aqueducts_grass_tile(self, target_surf, pal, geom):
         """Render fine deterministic organic meadow grass tufts, moss flecks, and wildflowers."""
@@ -2155,20 +2240,20 @@ class Renderer:
 
     @staticmethod
     def _draw_pastoral_valley_floor_details(target_surf, pal, s_idx, tile_geom, pat):
-        """Render pastoral_valley floor motifs: tar stepping stones, meadow wildflowers, and tan pathways."""
+        """Render pastoral_valley floor motifs: organic meadow grass, worn dirt paths, and tar mire."""
         x, y, sx, sy, ts = tile_geom
         ax = sx - (x % 2) * ts
         ay = sy - (y % 2) * ts
+        h = ((x * 73856093) ^ (y * 19349663) ^ (s_idx * 2654435761)) & 0x7FFFFFFF
 
         if s_idx == 0:
-            # Recessed Tar / Poison Swamp: multi-tile currents, vortex rings, and weathered stepping stones/planks
+            # Recessed Tar / Poison Swamp: dark currents, stepping stones/planks, & organic edge stippling
             pygame.draw.ellipse(target_surf, (46, 20, 68), (ax + 8, ay + 12, 64, 56))
             pygame.draw.ellipse(target_surf, (28, 12, 42), (ax + 16, ay + 20, 48, 40))
             if pat == 0:
                 pygame.draw.ellipse(target_surf, (148, 56, 182), (ax + 18, ay + 22, 44, 34), 2)
                 pygame.draw.ellipse(target_surf, (195, 95, 225), (ax + 28, ay + 30, 24, 18), 1)
             elif pat == 1:
-                # Weathered pale-parchment stepping stones bridged over the dark-plum tar sink
                 pygame.draw.ellipse(target_surf, (186, 166, 134), (ax + 12, ay + 22, 22, 16))
                 pygame.draw.ellipse(target_surf, (218, 202, 168), (ax + 15, ay + 24, 15, 10))
                 pygame.draw.ellipse(target_surf, (88, 66, 52), (ax + 12, ay + 22, 22, 16), 1)
@@ -2182,72 +2267,105 @@ class Renderer:
                         target_surf, (96, 42, 134), (ax + 18, ay + ry_off - 8, 44, 20), 0.3, 2.8, 2
                     )
             else:
-                # Sunken wooden causeway planks partially gripped by tar
                 for py_off in (22, 34, 48):
                     pygame.draw.rect(target_surf, (124, 92, 62), (ax + 16, ay + py_off, 48, 8), border_radius=2)
                     pygame.draw.line(
                         target_surf, (174, 138, 96), (ax + 18, ay + py_off + 2), (ax + 61, ay + py_off + 2), 1
                     )
                     pygame.draw.rect(target_surf, (52, 30, 48), (ax + 16, ay + py_off, 48, 8), 1, border_radius=2)
+            # Organic edge stippling along tar mire tile borders
+            for st_i in range(5):
+                sh = ((h >> (st_i * 3)) ^ (st_i * 1597334677)) & 0xFFFF
+                ex = sx + 2 + (sh % max(1, ts - 4))
+                ey = sy + 2 + ((sh >> 6) % max(1, ts - 4))
+                target_surf.fill((72, 30, 104) if st_i % 2 == 0 else (18, 8, 28), (ex, ey, 2, 2))
         elif s_idx == 2:
-            # Warm Tan Pathway: sandstone slabs, cart tracks, and plaza rings
-            if pat == 0:
-                pygame.draw.rect(target_surf, (224, 192, 134), (ax + 10, ay + 10, 58, 28), border_radius=8)
-                pygame.draw.rect(target_surf, (164, 124, 74), (ax + 10, ay + 10, 58, 28), 2, border_radius=8)
-                pygame.draw.rect(target_surf, (216, 182, 124), (ax + 14, ay + 44, 52, 26), border_radius=8)
-            elif pat == 1:
-                pygame.draw.rect(target_surf, (168, 128, 76), (ax, ay + 22, 80, 6))
-                pygame.draw.rect(target_surf, (168, 128, 76), (ax, ay + 52, 80, 6))
-                pygame.draw.rect(target_surf, (228, 198, 142), (ax, ay + 32, 80, 14))
-            elif pat == 2:
-                pygame.draw.circle(target_surf, (224, 192, 134), (ax + 40, ay + 40), 26)
-                pygame.draw.circle(target_surf, (164, 124, 74), (ax + 40, ay + 40), 26, 2)
-                pygame.draw.circle(target_surf, (198, 162, 106), (ax + 40, ay + 40), 14)
+            # Natural worn-dirt pastoral footpath: pebble specks, tonal soil, & subtle broken wheel-rut dashes
+            dirt_shade = (166, 128, 76)
+            dirt_warm = (206, 170, 112)
+            pebble_hi = (228, 202, 152)
+            pebble_lo = (128, 94, 54)
+            # Soft irregular soil patches
+            for p_i in range(3):
+                ph = ((h >> (p_i * 4)) ^ (p_i * 1597334677)) & 0xFFFF
+                px_d = sx + 3 + (ph % max(1, ts - 10))
+                py_d = sy + 3 + ((ph >> 6) % max(1, ts - 8))
+                target_surf.fill(dirt_warm if p_i % 2 == 0 else dirt_shade, (px_d, py_d, 6, 3))
+            # Subtle broken wheel-rut dashes along footpath
+            if (h & 1) == 0:
+                rut_y = sy + 9 + ((h >> 3) % 8)
+                pygame.draw.line(target_surf, dirt_shade, (sx + 4, rut_y), (sx + 18, rut_y), 1)
+                pygame.draw.line(target_surf, dirt_shade, (sx + 22, rut_y + 16), (sx + 36, rut_y + 16), 1)
             else:
-                pygame.draw.ellipse(target_surf, (224, 192, 134), (ax + 14, ay + 18, 52, 42))
-                pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 26, ay + 32, 26, 14))
+                rut_x = sx + 9 + ((h >> 3) % 8)
+                pygame.draw.line(target_surf, dirt_shade, (rut_x, sy + 5), (rut_x, sy + 19), 1)
+                pygame.draw.line(target_surf, dirt_shade, (rut_x + 15, sy + 20), (rut_x + 15, sy + 35), 1)
+            # Scattered footpath pebbles & sandstone grit specks
+            for g_i in range(8):
+                gh = ((h >> (g_i * 2)) ^ ((g_i + 1) * 2246822519)) & 0xFFFF
+                gx = sx + 2 + (gh % max(1, ts - 5))
+                gy = sy + 2 + ((gh >> 6) % max(1, ts - 5))
+                p_col = pebble_hi if g_i % 3 == 0 else pebble_lo
+                target_surf.fill(p_col, (gx, gy, 2 if g_i % 4 == 0 else 1, 2 if g_i % 5 == 0 else 1))
+            # Occasional stray meadow blade encroaching on path margin
+            if ((h >> 12) % 3) == 0:
+                ex_g = sx + 3 + ((h >> 14) % max(1, ts - 6))
+                ey_g = sy + 4 + ((h >> 18) % max(1, ts - 7))
+                pygame.draw.line(target_surf, pal["floor_accent"], (ex_g, ey_g), (ex_g + 1, ey_g - 3), 1)
         else:
-            # Sunlit Lime/Mint Meadow: connected tuft groves, fairy rings, sweeping turf swells & wildflowers
-            if pat == 0:
-                pygame.draw.ellipse(target_surf, pal["floor_accent"], (ax + 12, ay + 22, 56, 32))
-                pygame.draw.ellipse(target_surf, (144, 244, 152), (ax + 18, ay + 18, 44, 22))
-                pygame.draw.rect(target_surf, (162, 250, 168), (ax + 24, ay + 24, 32, 6), border_radius=3)
-            elif pat == 1:
-                for ang in range(0, 360, 60):
-                    rad_a = math.radians(ang)
-                    cx_r = int(ax + 40 + math.cos(rad_a) * 22)
-                    cy_r = int(ay + 40 + math.sin(rad_a) * 20)
-                    pygame.draw.circle(target_surf, pal["floor_accent"], (cx_r, cy_r), 9)
-                    pygame.draw.circle(target_surf, (144, 244, 152), (cx_r - 1, cy_r - 2), 6)
-            elif pat == 2:
-                pygame.draw.rect(target_surf, (64, 178, 78), (ax + 6, ay + 16, 68, 10), border_radius=5)
-                pygame.draw.rect(target_surf, (144, 244, 152), (ax + 10, ay + 14, 58, 5), border_radius=2)
-                pygame.draw.rect(target_surf, (64, 178, 78), (ax + 12, ay + 52, 58, 10), border_radius=5)
-                pygame.draw.rect(target_surf, (144, 244, 152), (ax + 16, ay + 50, 48, 5), border_radius=2)
-            else:
-                pygame.draw.ellipse(target_surf, (186, 152, 98), (ax + 20, ay + 28, 40, 22))
-                pygame.draw.ellipse(target_surf, (218, 186, 128), (ax + 26, ay + 31, 28, 14))
-                pygame.draw.circle(target_surf, pal["floor_accent"], (ax + 20, ay + 28), 8)
-                pygame.draw.circle(target_surf, (144, 244, 152), (ax + 20, ay + 26), 5)
+            # Fine Organic Meadow: layered grass-blade tufts, shaded clover patches, & wildflower specks
+            shade_green = pal["floor_accent"]
+            deep_blade = (44, 146, 66)
+            mid_blade = (84, 206, 104)
+            sun_blade = (138, 236, 142)
 
-            # Small wildflower clusters (gold, cream-white, and pale lavender petals) scattered across meadow tiles
+            # Soft shaded meadow clover patches (small organic 5x3 clusters, no giant ovals/bars)
+            for m_i in range(3):
+                mh = ((h >> (m_i * 4)) ^ (m_i * 1597334677)) & 0xFFFF
+                mx_p = sx + 3 + (mh % max(1, ts - 10))
+                my_p = sy + 3 + ((mh >> 6) % max(1, ts - 8))
+                p_col = shade_green if m_i % 2 == 0 else mid_blade
+                target_surf.fill(p_col, (mx_p, my_p, 5, 3))
+                target_surf.fill(p_col, (mx_p + 1, my_p - 1, 3, 1))
+
+            # Layered meadow grass-blade tufts (7 crisp 2-to-3 blade clusters per tile)
+            for b_i in range(7):
+                bh = ((h >> (b_i * 3)) ^ ((b_i + 1) * 3266489917)) & 0xFFFF
+                bx_t = sx + 4 + (bh % max(1, ts - 8))
+                by_t = sy + 6 + ((bh >> 7) % max(1, ts - 9))
+                b_len = 3 + (bh & 1)
+                lean = -1 if ((bh >> 2) & 1) else 1
+                pygame.draw.line(target_surf, deep_blade, (bx_t, by_t), (bx_t + lean, by_t - b_len), 1)
+                pygame.draw.line(target_surf, sun_blade, (bx_t + 1, by_t), (bx_t + 1 - lean, by_t - (b_len + 1)), 1)
+                if (bh >> 3) & 1:
+                    pygame.draw.line(target_surf, mid_blade, (bx_t + 2, by_t), (bx_t + 3, by_t - max(2, b_len - 1)), 1)
+
+            # Scattered multi-color wildflower specks (buttercup gold, daisy cream, pale lavender)
+            petals = (
+                (248, 224, 96),   # sunlit buttercup gold
+                (248, 244, 228),  # daisy cream
+                (214, 184, 242),  # pale meadow lavender
+            )
             flower_hash = ((x * 53 + y * 97) & 0x7FFFFFFF) % 5
-            if flower_hash in (0, 2):
-                petals = (
-                    (248, 224, 96),   # sunlit buttercup gold
-                    (248, 244, 228),  # daisy white
-                    (214, 184, 242),  # pale meadow lavender
+            if flower_hash == 0:
+                flower_pts = ((10, 12), (17, 15), (27, 29))
+            elif flower_hash == 2:
+                flower_pts = ((25, 11), (31, 16), (14, 30))
+            else:
+                f_cnt = 2 if (h % 2 == 0) else 1
+                flower_pts = tuple(
+                    (
+                        4 + ((((h >> (i * 5 + 4)) ^ ((i + 1) * 2654435761)) & 0xFFFF) % max(1, ts - 8)),
+                        4 + (((((h >> (i * 5 + 4)) ^ ((i + 1) * 2654435761)) & 0xFFFF) >> 6) % max(1, ts - 8)),
+                    )
+                    for i in range(f_cnt)
                 )
-                cluster = (
-                    ((10, 12), (17, 15), (12, 22), (27, 29))
-                    if flower_hash == 0
-                    else ((25, 11), (31, 16), (14, 30))
-                )
-                for f_idx, (fx_o, fy_o) in enumerate(cluster):
-                    pcol = petals[(f_idx + x + y) % len(petals)]
-                    fx_p, fy_p = sx + fx_o, sy + fy_o
-                    pygame.draw.circle(target_surf, pcol, (fx_p, fy_p), 2)
-                    target_surf.set_at((fx_p, fy_p), (132, 106, 36))
+            for f_idx, (fx_o, fy_o) in enumerate(flower_pts):
+                fx_p, fy_p = sx + fx_o, sy + fy_o
+                pcol = petals[(f_idx + x + y) % len(petals)]
+                target_surf.fill(deep_blade, (fx_p - 1, fy_p + 1, 3, 1))
+                target_surf.fill(pcol, (fx_p, fy_p, 2, 2))
+                target_surf.set_at((fx_p, fy_p), (144, 114, 40))
 
     def _draw_connected_floor_patterns(self, target_surf, biome_info, coords, dr):
         """Draw multi-tile connected shapes across same-surface tiles (restoring 70ed514 legacy)."""
@@ -4417,9 +4535,25 @@ class Renderer:
             seg_x = 2 + (bar_w * seg_idx) // 4
             pygame.draw.line(bar_surf, (14, 10, 16, 175), (seg_x, 3), (seg_x, bar_h), 1)
 
+        border_col = constants.BOSS_HUD_BORDER_COLOR
+        if 0.0 < hp_ratio < float(constants.LOW_HP_WOUNDED_RATIO):
+            pulse = 0.5 + 0.5 * math.sin(time.time() * 7.5)
+            border_col = constants.blend_rgb(
+                constants.BOSS_HUD_BORDER_COLOR,
+                constants.BOSS_HUD_LOW_HP_BORDER_COLOR,
+                0.40 + 0.60 * pulse,
+            )
+            pygame.draw.rect(
+                bar_surf,
+                (*constants.BOSS_HUD_LOW_HP_BORDER_COLOR, int(round(75 + 95 * pulse))),
+                (0, 0, bar_w + 4, bar_h + 4),
+                2,
+                border_radius=5,
+            )
+
         pygame.draw.rect(
             bar_surf,
-            (*constants.BOSS_HUD_BORDER_COLOR, 240),
+            (*border_col, 240),
             (2, 2, bar_w, bar_h),
             2,
             border_radius=4,
@@ -4608,17 +4742,73 @@ class Renderer:
 
         self._draw_actor_ghost_content(actor, ox, oy, state)
 
+    def _draw_wounded_ember_aura(self, target_rect, actor):
+        """Render a subtle pulsing crimson/ember base aura and rising fracture sparks for WOUNDED enemies/bosses."""
+        w = max(24, int(target_rect.width))
+        h = max(24, int(target_rect.height))
+        t_now = float(getattr(actor, "animation_timer", 0.0) or 0.0) + time.time()
+        pulse = 0.5 + 0.5 * math.sin(t_now * 7.5)
+
+        aura_w = w + 18
+        aura_h = max(14, int(round(h * 0.38)) + 8)
+        pad_top = max(14, int(round(h * 0.65)))
+        surf_w = aura_w + 8
+        surf_h = pad_top + aura_h + 6
+        fx_surf = pygame.Surface((surf_w, surf_h), pygame.SRCALPHA)
+
+        # Pulsing crimson/ember ellipse rim beneath actor's base
+        base_rect = pygame.Rect(4, pad_top, aura_w, aura_h)
+        pygame.draw.ellipse(fx_surf, (196, 36, 44, int(round(48 + 44 * pulse))), base_rect)
+        pygame.draw.ellipse(fx_surf, (248, 128, 52, int(round(120 + 90 * pulse))), base_rect.inflate(-4, -2), 2)
+
+        # Occasional rising crimson/ember fracture sparks drifting upward from the rim
+        seed_off = (id(actor) & 0xFF) * 0.13
+        for sp_i in range(3):
+            u = ((t_now * (0.85 + sp_i * 0.18)) + seed_off + sp_i * 0.33) % 1.0
+            sx_s = int(round(surf_w * (0.25 + 0.25 * sp_i) + math.sin(t_now * 4.5 + sp_i * 2.1) * 4.0))
+            sy_s = int(round(pad_top + aura_h * 0.45 - u * (pad_top * 0.92)))
+            sp_alpha = max(0, min(255, int(round(220 * (1.0 - u)))))
+            sp_col = (255, 162, 68, sp_alpha) if sp_i % 2 == 0 else (232, 54, 62, sp_alpha)
+            pygame.draw.circle(fx_surf, sp_col, (sx_s, sy_s), 2 if u < 0.5 else 1)
+
+        dest_x = int(round(target_rect.centerx - surf_w * 0.5))
+        dest_y = int(round(target_rect.bottom - aura_h * 0.65 - pad_top))
+        self.screen.blit(fx_surf, (dest_x, dest_y))
+
+    def _draw_enemy_micro_hp_bar(self, target_rect, cur_hp, max_hp):
+        """Render a crisp floating micro HP bar (26x3 fill + 1px dark border) above a damaged non-boss enemy."""
+        bar_w = int(constants.ENEMY_MICRO_HP_BAR_WIDTH)
+        bar_h = int(constants.ENEMY_MICRO_HP_BAR_HEIGHT)
+        ratio = max(0.0, min(1.0, float(cur_hp) / max(1e-6, float(max_hp))))
+
+        bar_surf = pygame.Surface((bar_w + 2, bar_h + 2), pygame.SRCALPHA)
+        pygame.draw.rect(bar_surf, (*constants.ENEMY_MICRO_HP_BAR_BG, 225), (0, 0, bar_w + 2, bar_h + 2))
+        fill_w = max(1, int(round(bar_w * ratio))) if ratio > 0.0 else 0
+        if fill_w > 0:
+            fill_col = (
+                constants.ENEMY_MICRO_HP_BAR_LOW_FILL
+                if ratio < float(constants.LOW_HP_WOUNDED_RATIO)
+                else constants.ENEMY_MICRO_HP_BAR_FILL
+            )
+            pygame.draw.rect(bar_surf, (*fill_col, 245), (1, 1, fill_w, bar_h))
+
+        bx = int(round(target_rect.centerx - (bar_w + 2) * 0.5))
+        by = int(round(target_rect.top - int(constants.ENEMY_MICRO_HP_BAR_OFFSET_Y) - (bar_h + 2)))
+        self.screen.blit(bar_surf, (bx, by))
+
     def _draw_actor_ghost_content(self, actor, ox, oy, state):
         """Internal routine rendering actor graphics directly to the active screen target."""
         packet = actor.get_visual_packet()
         rect = pygame.Rect(actor.x - ox, actor.y - oy, actor.width, actor.height)
         
-        from engine.enemy import BatEnemy, SentryEnemy, SlugBoss, SlugEnemy
+        from engine.enemy import BatEnemy, Boss, SentryEnemy, SlugBoss, SlugEnemy
         actor_tag = actor.name.lower()
         is_slug_boss = bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss)
         is_slug = (not is_slug_boss) and (isinstance(actor, SlugEnemy) or "slug" in actor_tag)
         is_bat = isinstance(actor, BatEnemy) or "bat" in actor_tag
         is_sentry = bool(getattr(actor, "is_sentry", False)) or isinstance(actor, SentryEnemy) or "sentry" in actor_tag
+        is_player_actor = hasattr(actor, "weapons")
+        is_boss_actor = bool(getattr(actor, "is_miniboss", False)) or isinstance(actor, Boss)
 
         # --- Boss Attack Hitbox / Warning Telegraph Overlay ---
         if (
@@ -4673,16 +4863,15 @@ class Renderer:
                     or self.image_cache.get(f"slug_{suffix}.png")
                 )
 
+        # Diegetic WOUNDED pulsing crimson/ember base aura (preserves full sprite proportions; no shrinking)
+        if not is_player_actor and packet.get("posture") == "WOUNDED":
+            self._draw_wounded_ember_aura(rect, actor)
+
         # --- DRAWING ---
         used_procedural = False
         if sprite:
-            # Center sprite on actor rect
+            # Center sprite on actor rect (retain full proportions even when WOUNDED)
             s_rect = sprite.get_rect(center=rect.center)
-            # Posture: Squashing if wounded
-            if packet["posture"] == "WOUNDED":
-                h = int(s_rect.height * 0.7)
-                sprite = pygame.transform.scale(sprite, (s_rect.width, h))
-                s_rect = sprite.get_rect(midbottom=rect.midbottom)
 
             if is_slug:
                 self._draw_dark_enemy_ground_shadow(s_rect)
@@ -4694,14 +4883,9 @@ class Renderer:
             if packet["posture"] == "STAGGERED" and getattr(state, "debug_text_enabled", False):
                 pygame.draw.rect(self.screen, constants.COLOR_WHITE, rect, 2)
         else:
-            # 1. Posture Modifiers (Transformation)
+            # 1. Posture Modifiers (Transformation: vibrate on STAGGERED; preserve full height on WOUNDED)
             draw_rect = rect.copy()
-            if packet["posture"] == "WOUNDED":
-                # Standing not as tall (Squashed)
-                original_h = draw_rect.height
-                draw_rect.height *= 0.7
-                draw_rect.y += (original_h - draw_rect.height)
-            elif packet["posture"] == "STAGGERED":
+            if packet["posture"] == "STAGGERED":
                 # Vibrating
                 draw_rect.x += random.randint(-2, 2)
                 draw_rect.y += random.randint(-2, 2)
@@ -4719,10 +4903,10 @@ class Renderer:
 
             # Special coloring for local Player if no hint provided
             if not packet.get("color_hint"):
-                if hasattr(actor, 'weapons'): color = constants.COLOR_BLUE
+                if is_player_actor: color = constants.COLOR_BLUE
 
             used_procedural = False
-            if hasattr(actor, 'weapons'):
+            if is_player_actor:
                 used_procedural = self.draw_procedural_player(
                     actor, draw_rect, packet, color, debug_text_enabled=debug_mode
                 )
@@ -4748,6 +4932,13 @@ class Renderer:
         # 4. Overlays (Applied to both sprites and ghosts)
         # Use draw_rect if available, otherwise rect
         overlay_rect = draw_rect if not sprite else rect
+
+        # 4b. Diegetic floating micro HP bar for damaged non-boss enemies
+        if not is_player_actor and not is_boss_actor:
+            cur_hp = float(getattr(actor, "hp", 0.0) or 0.0)
+            max_hp = float(getattr(actor, "max_hp", 0.0) or 0.0)
+            if 0.0 < cur_hp < max_hp:
+                self._draw_enemy_micro_hp_bar(overlay_rect, cur_hp, max_hp)
         
         for overlay in packet["overlays"]:
             if overlay == "BIND":
@@ -7055,22 +7246,45 @@ class Renderer:
             if ring_a > 0:
                 outer_r = max(2, int(round(pulse.ring_radius)))
                 inner_r = max(2, int(round(pulse.inner_ring_radius)))
-                surf_r = outer_r + 6
+                gold_r = max(2, int(round(inner_r * 0.68)))
+                surf_r = outer_r + 10
                 ring_surf = pygame.Surface((surf_r * 2, surf_r * 2), pygame.SRCALPHA)
                 halo_a = int(pulse.halo_alpha)
                 if halo_a > 0:
+                    gr_c, gg_c, gb_c = constants.RESPITE_PULSE_RING_COLOR_GOLD
+                    gold_halo_a = int(round(halo_a * 0.55))
+                    pygame.draw.circle(ring_surf, (gr_c, gg_c, gb_c, gold_halo_a), (surf_r, surf_r), outer_r)
                     ir, ig, ib = constants.RESPITE_PULSE_RING_COLOR_INNER
-                    pygame.draw.circle(ring_surf, (ir, ig, ib, halo_a), (surf_r, surf_r), outer_r)
+                    pygame.draw.circle(ring_surf, (ir, ig, ib, halo_a), (surf_r, surf_r), inner_r)
                 dr, dg, db = constants.RESPITE_PULSE_DARK_INK_COLOR
                 backing_outer_a = max(0, min(255, int(round(ring_a * 0.9))))
-                pygame.draw.circle(ring_surf, (dr, dg, db, backing_outer_a), (surf_r, surf_r), outer_r + 1, 5)
+                pygame.draw.circle(ring_surf, (dr, dg, db, backing_outer_a), (surf_r, surf_r), outer_r + 1, 8)
                 or_c, og_c, ob_c = constants.RESPITE_PULSE_RING_COLOR_OUTER
-                pygame.draw.circle(ring_surf, (or_c, og_c, ob_c, ring_a), (surf_r, surf_r), outer_r, 3)
+                pygame.draw.circle(ring_surf, (or_c, og_c, ob_c, ring_a), (surf_r, surf_r), outer_r, 5)
                 ir_c, ig_c, ib_c = constants.RESPITE_PULSE_RING_COLOR_INNER
-                inner_a = max(0, min(255, int(round(ring_a * 0.85))))
+                inner_a = max(0, min(255, int(round(ring_a * 0.88))))
                 backing_inner_a = max(0, min(255, int(round(inner_a * 0.9))))
-                pygame.draw.circle(ring_surf, (dr, dg, db, backing_inner_a), (surf_r, surf_r), inner_r + 1, 4)
-                pygame.draw.circle(ring_surf, (ir_c, ig_c, ib_c, inner_a), (surf_r, surf_r), inner_r, 2)
+                pygame.draw.circle(ring_surf, (dr, dg, db, backing_inner_a), (surf_r, surf_r), inner_r + 1, 6)
+                pygame.draw.circle(ring_surf, (ir_c, ig_c, ib_c, inner_a), (surf_r, surf_r), inner_r, 3)
+                gr_c, gg_c, gb_c = constants.RESPITE_PULSE_RING_COLOR_GOLD
+                gold_a = max(0, min(255, int(round(ring_a * 0.72))))
+                pygame.draw.circle(ring_surf, (gr_c, gg_c, gb_c, gold_a), (surf_r, surf_r), gold_r, 2)
+
+                # Rising vertical sanctuary light rays & glowing motes within the expanding wave
+                prog = float(getattr(pulse, "progress", 0.0) or 0.0)
+                ray_count = int(constants.RESPITE_PULSE_LIGHT_RAY_COUNT)
+                for ray_i in range(ray_count):
+                    ang = (2.0 * math.pi * ray_i) / max(1, ray_count) + 0.28
+                    rad_pos = inner_r * (0.38 + 0.44 * ((ray_i % 3) / 2.0))
+                    rx = int(round(surf_r + math.cos(ang) * rad_pos))
+                    ry_base = int(round(surf_r + math.sin(ang) * (rad_pos * 0.65)))
+                    ray_len = int(round(26 + 44 * (1.0 - prog * 0.55)))
+                    ray_a = max(0, min(255, int(round(ring_a * 0.52))))
+                    r_col = (gr_c, gg_c, gb_c, ray_a) if ray_i % 2 == 0 else (or_c, og_c, ob_c, ray_a)
+                    pygame.draw.line(ring_surf, r_col, (rx, ry_base), (rx, ry_base - ray_len), 2)
+                    mote_y = ry_base - int(round(ray_len * (0.35 + 0.65 * prog)))
+                    pygame.draw.circle(ring_surf, (255, 248, 214, min(255, ray_a + 48)), (rx, mote_y), 2)
+
                 self.screen.blit(ring_surf, (sx - surf_r, sy - surf_r))
 
             for g_part in pulse.glyphs:

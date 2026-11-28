@@ -540,13 +540,14 @@ class WeaponPickup(GameObject):
         self.is_solid = False
 
     def execute_interaction(self, game_state):
-        """Pick up or swap with current active weapon."""
+        """Pick up or swap with current active weapon, celebrating first Anomalous weapon discovery."""
         player = game_state.player
         current_idx = player.active_weapon_idx
-        
+        acquired_weapon = self.weapon_data
+
         if len(player.weapons) < 2:
             # Slot available: simple pickup
-            player.weapons.append(self.weapon_data)
+            player.weapons.append(acquired_weapon)
             player.active_weapon_idx = len(player.weapons) - 1
             print(f"[PLAYER] Picked up {self.name} into Slot B")
             if self in game_state.world.interactables:
@@ -554,13 +555,30 @@ class WeaponPickup(GameObject):
         else:
             # Both slots full: perform a swap
             old_weapon = player.weapons[current_idx]
-            player.weapons[current_idx] = self.weapon_data
-            
+            player.weapons[current_idx] = acquired_weapon
+
             # Put the old weapon into this pickup object
             self.weapon_data = old_weapon
             self.name = old_weapon.get("name", "Unknown Quill")
             print(f"[PLAYER] Swapped {self.name} onto floor, picked up {player.weapons[current_idx]['name']}")
             # NOTE: self is NOT removed from interactables in this case
+
+        is_anomalous = isinstance(acquired_weapon, dict) and (
+            "anomalous" in str(acquired_weapon.get("name", "")).lower() or bool(acquired_weapon.get("modifiers"))
+        )
+        if is_anomalous:
+            stats = getattr(game_state, "stats", None)
+            story_flags = stats.data.setdefault("story_flags", {}) if stats is not None else {}
+            if not story_flags.get("anomalous_weapon_discovered", False):
+                story_flags["anomalous_weapon_discovered"] = True
+                if stats is not None and hasattr(game_state, "save_stats"):
+                    game_state.save_stats()
+                from constants import ANOMALOUS_WEAPON_DISCOVERY_BANNER, ANOMALOUS_WEAPON_DISCOVERY_SFX
+                audio = getattr(game_state, "audio_manager", None)
+                if audio is not None and hasattr(audio, "play_sfx"):
+                    audio.play_sfx(ANOMALOUS_WEAPON_DISCOVERY_SFX)
+                if hasattr(game_state, "trigger_bloom"):
+                    game_state.trigger_bloom(ANOMALOUS_WEAPON_DISCOVERY_BANNER, priority=2)
 
 
 class SlugBossCrown(GameObject):

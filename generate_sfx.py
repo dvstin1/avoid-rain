@@ -992,6 +992,47 @@ def preset_locked_door_rattle(rng: random.Random, p: Dict):
     )
 
 
+def preset_respite_hearth(rng: random.Random, p: Dict):
+    """Warm, tranquil acoustic hearth-and-celesta rest chord with soft shimmer (no doorbell jump)."""
+    n = n_samples(p["duration"])
+    root = float(p["root_hz"])
+    # Simultaneous warm acoustic triad + soft add9 (D4, F#4, A4, E5) with gentle bloom attack
+    ratios = (0.5, 1.0, 1.2599, 1.4983, 2.0, 2.2449)
+    weights = (0.38, 0.72, 0.50, 0.56, 0.24, 0.16)
+    chord_layers = []
+    for idx, (ratio, weight) in enumerate(zip(ratios, weights)):
+        freq = jitter(rng, root * ratio, 0.004)
+        wave_kind = "triangle" if idx < 4 else "sine"
+        tone = oscillator(constant(freq, n), wave_kind, rng.uniform(0.0, TAU))
+        decay = float(p["chord_decay"]) * (1.05 if idx < 3 else 0.75)
+        env = exp_decay(n, decay, attack=0.065 + idx * 0.012)
+        chord_layers.append((multiply(tone, env), weight))
+
+    warm_pad = biquad(normalize(mix(*chord_layers)), "lowpass", float(p["warm_lp_hz"]))
+
+    # Gentle crystalline celesta shimmer bloom softly breathing over the chord
+    celesta_tone = mix(
+        (oscillator(constant(root * 2.0, n), "sine", rng.uniform(0.0, TAU)), 0.60),
+        (oscillator(constant(root * 3.0, n), "sine", rng.uniform(0.0, TAU)), 0.35),
+    )
+    celesta = multiply(
+        normalize(biquad(celesta_tone, "lowpass", 2800.0)),
+        multiply(exp_decay(n, float(p["shimmer_decay"]), attack=0.14), lfo(n, 3.8, 0.16)),
+    )
+
+    # Soft comforting hearth-breath warmth bed
+    hearth_bed = multiply(
+        normalize(biquad(brown_noise(n, rng), "lowpass", 320.0)),
+        exp_decay(n, float(p["hearth_decay"]), attack=0.12),
+    )
+
+    return mix(
+        (warm_pad, p["chord_level"], 0.0),
+        (celesta, p["shimmer_level"], 0.04),
+        (hearth_bed, p["hearth_level"], 0.0),
+    )
+
+
 def preset_mumble(rng: random.Random, p: Dict):
     """Closed-mouth vocal mumble: low-passed vocal buzz formants modulated by syllabic cadence."""
     n = n_samples(p["duration"])
@@ -1551,6 +1592,12 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "thud_end_hz": 58.0, "thud_decay": 0.042, "thud_level": 0.52,
         "jiggle_offset": 0.085, "peak": 0.34,
     }, "Subtle brass padlock latch rattle + damped wooden door thud"),
+    "respite_hearth": (preset_respite_hearth, {
+        "duration": 1.85, "root_hz": 293.66, "warm_lp_hz": 1350.0,
+        "chord_decay": 0.72, "chord_level": 0.85, "shimmer_decay": 0.62,
+        "shimmer_level": 0.34, "hearth_decay": 0.68, "hearth_level": 0.26,
+        "peak": 0.68,
+    }, "Warm tranquil acoustic hearth-and-celesta rest chord"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1578,8 +1625,9 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "player_hurt_rain.ogg": ("hiss", {}),
     "rain_loop.ogg": ("rain", {}),
     "bleed_start.ogg": ("rumble", {}),
-    "respite_rest.ogg": ("level_up", {"duration": 2.0, "root_hz": 392.0, "warm": True, "exhale": True,
-                                      "note_decay": 0.7}),
+    "respite_rest.ogg": ("respite_hearth", {}),
+    "anomalous_weapon_discovery.ogg": ("level_up", {"duration": 2.0, "root_hz": 392.0, "warm": True, "exhale": True,
+                                                    "note_decay": 0.7}),
     "player_dash.ogg": ("whoosh", {"duration": 0.16, "low_hz": 520.0, "high_hz": 3600.0, "q": 1.2,
                                    "peak_pos": 0.22, "air_hp_hz": 4200.0, "air_level": 0.65, "peak": 0.82}),
     "chronicle_open.ogg": ("arcane", {"duration": 0.65, "carrier_hz": 293.66, "fm_ratio": 2.0,
