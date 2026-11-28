@@ -754,6 +754,7 @@ class Respite(GameObject):
                 or getattr(e, "is_gale_raptor", False)
                 or getattr(e, "is_typesetter_boss", False)
                 or getattr(e, "is_glass_basilisk", False)
+                or getattr(e, "is_sluice_leviathan", False)
                 or e.__class__.__name__ in (
                     "NightBoss",
                     "SlugBoss",
@@ -762,6 +763,7 @@ class Respite(GameObject):
                     "GaleVaneRaptorBoss",
                     "TypesetterAutomatonBoss",
                     "GlassKilnBasiliskBoss",
+                    "SluiceGateLeviathanBoss",
                 )
             )
         ]
@@ -1571,6 +1573,7 @@ class World:
                 or getattr(enemy, "is_gale_raptor", False)
                 or getattr(enemy, "is_typesetter_boss", False)
                 or getattr(enemy, "is_glass_basilisk", False)
+                or getattr(enemy, "is_sluice_leviathan", False)
             ):
                 continue
             spawns.append(

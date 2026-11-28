@@ -3588,6 +3588,555 @@ class GlassKilnBasiliskBoss(NightBoss):
         return packet
 
 
+class SluiceGateLeviathanBoss(NightBoss):
+    """The Sunlit Aqueducts Night Boss: asymmetrical sluice-shield guardian with Tidal Surge & Siphon Breach."""
+
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import (
+            NIGHT_BOSS_MAX_HP,
+            SLUICE_LEVIATHAN_ARMOR_DAMAGE_MULT,
+            SLUICE_LEVIATHAN_GUARD_DURATION,
+            SLUICE_LEVIATHAN_SHIELD_GUARD_DEG,
+            SLUICE_LEVIATHAN_SIZE,
+            SLUICE_LEVIATHAN_SPEED,
+            SLUICE_LEVIATHAN_VOLLEY_INTERVAL,
+            SLUICE_LEVIATHAN_WEAKPOINT_DAMAGE_MULT,
+        )
+        initial_hp = hp if hp is not None else NIGHT_BOSS_MAX_HP
+        super().__init__(x, y, hp=initial_hp, id=id)
+        self.width = int(SLUICE_LEVIATHAN_SIZE)
+        self.height = int(SLUICE_LEVIATHAN_SIZE)
+        self.name = "Night Boss"
+        self.display_name = "The Sluice-Gate Leviathan"
+        self.is_sluice_leviathan = True
+        self.speed = float(SLUICE_LEVIATHAN_SPEED)
+        self.detect_radius = 1200.0
+        self.persistent_pursuit = True
+
+        # Frontal bronze sluice-gate shield armor & unarmored Siphon Breach weak-point tuning
+        self.armor_front_only = True
+        self.armor_active = True
+        self.armor_damage_mult = float(SLUICE_LEVIATHAN_ARMOR_DAMAGE_MULT)
+        self.weakpoint_damage_mult = float(SLUICE_LEVIATHAN_WEAKPOINT_DAMAGE_MULT)
+        self.weakpoint_exposed_timer = 0.0
+
+        # 3-state asymmetrical shield-claw gimmick loop + Phase 2 escalation
+        self.phase = 1
+        self.attack_mode = "sluice_guard"
+        self.surge_substate = "telegraph"
+        self.slam_count = 0
+        self.mode_timer = float(SLUICE_LEVIATHAN_GUARD_DURATION)
+        self.volley_timer = float(SLUICE_LEVIATHAN_VOLLEY_INTERVAL) * 0.6
+        self.strafe_dir = 1.0
+        self.shield_angle_deg = float(SLUICE_LEVIATHAN_SHIELD_GUARD_DEG)
+        self.leg_phase = 0.0
+        self.surge_dir = (0.0, 1.0)
+        self.wave_arcs = []
+        self.water_sparks = []
+        self._breach_spark_accum = 0.0
+        self.hit_flash_timer = 0.0
+
+    def _enter_sluice_guard(self):
+        """Transition into sideways/diagonal Sluice Guard advance with raised bronze shield claw."""
+        from constants import (
+            SLUICE_LEVIATHAN_GUARD_DURATION,
+            SLUICE_LEVIATHAN_SHIELD_GUARD_DEG,
+            SLUICE_LEVIATHAN_VOLLEY_INTERVAL,
+        )
+        self.attack_mode = "sluice_guard"
+        self.surge_substate = "telegraph"
+        self.slam_count = 0
+        self.armor_active = True
+        self.weakpoint_exposed_timer = 0.0
+        self.state = ActorState.CHASE
+        self.strafe_dir = -self.strafe_dir
+        cd_scale = 0.85 if self.phase >= 2 else 1.0
+        self.mode_timer = float(SLUICE_LEVIATHAN_GUARD_DURATION) * cd_scale
+        self.volley_timer = float(SLUICE_LEVIATHAN_VOLLEY_INTERVAL) * 0.65 * cd_scale
+        self.shield_angle_deg = float(SLUICE_LEVIATHAN_SHIELD_GUARD_DEG)
+
+    def _enter_tidal_surge(self, state):
+        """Transition into 2-slam (P1) / 3-slam (P2) advancing hydraulic claw surge combo."""
+        from constants import (
+            SLUICE_LEVIATHAN_SHIELD_RAISE_DEG,
+            SLUICE_LEVIATHAN_SLAM_TELEGRAPH_P1,
+            SLUICE_LEVIATHAN_SLAM_TELEGRAPH_P2,
+        )
+        self.attack_mode = "tidal_surge"
+        self.surge_substate = "telegraph"
+        self.slam_count = 0
+        self.armor_active = True
+        self.weakpoint_exposed_timer = 0.0
+        self.state = ActorState.WIND_UP
+        self.vx = 0.0
+        self.vy = 0.0
+        self.shield_angle_deg = float(SLUICE_LEVIATHAN_SHIELD_RAISE_DEG) * 0.6
+        tele_dur = SLUICE_LEVIATHAN_SLAM_TELEGRAPH_P2 if self.phase >= 2 else SLUICE_LEVIATHAN_SLAM_TELEGRAPH_P1
+        self.mode_timer = float(tele_dur)
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("enemy_telegraph.ogg")
+            except Exception:
+                pass
+
+    def _enter_siphon_breach(self, state):
+        """Embed the heavy sluice-gate shield into stone, exposing the turquoise siphon core for 1.50s."""
+        from constants import SLUICE_LEVIATHAN_BREACH_DURATION, SLUICE_LEVIATHAN_SHIELD_EMBED_DEG
+        self.attack_mode = "siphon_breach"
+        self.surge_substate = "telegraph"
+        self.armor_active = False
+        self.state = ActorState.RECOVERY
+        self.vx = 0.0
+        self.vy = 0.0
+        self.shield_angle_deg = float(SLUICE_LEVIATHAN_SHIELD_EMBED_DEG)
+        self.mode_timer = float(SLUICE_LEVIATHAN_BREACH_DURATION)
+        self._breach_spark_accum = 0.0
+        self.expose_weakpoint(
+            float(SLUICE_LEVIATHAN_BREACH_DURATION),
+            state=state,
+            audio_manager=getattr(state, "audio_manager", None),
+        )
+        self._emit_water_sparks(count=8)
+
+    def _emit_water_sparks(self, count=10):
+        """Spawn pressurized turquoise water and bronze sparks bursting from the siphon core."""
+        from constants import SLUICE_LEVIATHAN_SPARK_LIFE
+        cx, cy = self.get_center()
+        fx, fy = self.facing
+        f_mag = math.hypot(fx, fy)
+        ux, uy = (fx / f_mag, fy / f_mag) if f_mag > 1e-4 else (0.0, 1.0)
+        # Unarmored right/flank siphon housing offset
+        sx_base = cx - uy * (self.width * 0.26)
+        sy_base = cy + ux * (self.height * 0.26)
+        total = max(1, int(count))
+        for idx in range(total):
+            ang = (2.0 * math.pi * idx) / total + (idx % 3) * 0.19
+            spd = 62.0 + (idx % 4) * 26.0
+            self.water_sparks.append({
+                "x": float(sx_base),
+                "y": float(sy_base),
+                "vx": math.cos(ang) * spd,
+                "vy": math.sin(ang) * spd - 14.0,
+                "life": float(SLUICE_LEVIATHAN_SPARK_LIFE),
+                "max_life": float(SLUICE_LEVIATHAN_SPARK_LIFE),
+                "bronze": (idx % 3 == 0),
+            })
+
+    def _update_water_sparks(self, dt):
+        """Advance and decay pressurized water/bronze sparks."""
+        if not self.water_sparks:
+            return
+        kept = []
+        for sp in self.water_sparks:
+            sp["life"] = float(sp.get("life", 0.0)) - dt
+            if sp["life"] <= 0.0:
+                continue
+            sp["x"] = float(sp["x"]) + float(sp["vx"]) * dt
+            sp["y"] = float(sp["y"]) + float(sp["vy"]) * dt
+            sp["vx"] *= max(0.0, 1.0 - 2.5 * dt)
+            sp["vy"] *= max(0.0, 1.0 - 2.5 * dt)
+            kept.append(sp)
+        self.water_sparks = kept
+
+    def _fire_water_jet_volley(self, target_x, target_y, state):
+        """Fire pressurized turquoise water-ink jet bursts (3 fan bolts in P1, 5 cascading bolts in P2)."""
+        from constants import (
+            BOSS_BOLT_DAMAGE,
+            BOSS_BOLT_MAX_LIFETIME,
+            BOSS_BOLT_RADIUS,
+            BOSS_BOLT_SPEED,
+            SLUICE_LEVIATHAN_BOLT_COUNT_P1,
+            SLUICE_LEVIATHAN_BOLT_COUNT_P2,
+            SLUICE_LEVIATHAN_BOLT_SPREAD_DEG,
+        )
+        net = getattr(state, "network_manager", None)
+        if getattr(net, "network_mode", "OFFLINE") == "CLIENT":
+            return
+        cx, cy = self.get_center()
+        base_angle = math.atan2(target_y - cy, target_x - cx)
+        count = int(SLUICE_LEVIATHAN_BOLT_COUNT_P2 if self.phase >= 2 else SLUICE_LEVIATHAN_BOLT_COUNT_P1)
+        spread_rad = math.radians(float(SLUICE_LEVIATHAN_BOLT_SPREAD_DEG))
+        half = (count - 1) * 0.5
+        dmg = float(BOSS_BOLT_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+        bolt_speed = float(BOSS_BOLT_SPEED) * (1.12 if self.phase >= 2 else 1.0)
+        pattern = "cascade" if self.phase >= 2 else "fan"
+        for idx in range(count):
+            ang = base_angle + (idx - half) * spread_rad
+            # Phase 2 cascading pressure step along the fan
+            cascade_scale = (0.88 + 0.08 * idx) if self.phase >= 2 else 1.0
+            self.ink_bolts.append({
+                "x": float(cx + math.cos(ang) * 32.0),
+                "y": float(cy + math.sin(ang) * 32.0),
+                "vx": math.cos(ang) * bolt_speed * cascade_scale,
+                "vy": math.sin(ang) * bolt_speed * cascade_scale,
+                "damage": dmg,
+                "life": float(BOSS_BOLT_MAX_LIFETIME),
+                "radius": int(BOSS_BOLT_RADIUS),
+                "style": "water_jet",
+                "pattern": pattern,
+            })
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("enemy_telegraph.ogg")
+            except Exception:
+                pass
+
+    def _execute_tidal_slam_impact(self, state):
+        """Slam the bronze sluice-gate shield down, emitting a high-pressure wave arc + radial water spray."""
+        from constants import (
+            BOSS_BOLT_DAMAGE,
+            BOSS_BOLT_MAX_LIFETIME,
+            BOSS_BOLT_RADIUS,
+            BOSS_BOLT_SPEED,
+            SLUICE_LEVIATHAN_RADIAL_BOLTS_P1,
+            SLUICE_LEVIATHAN_RADIAL_BOLTS_P2,
+            SLUICE_LEVIATHAN_SHIELD_SLAM_DEG,
+            SLUICE_LEVIATHAN_WAVE_DURATION,
+            SLUICE_LEVIATHAN_WAVE_RADIUS_P1,
+            SLUICE_LEVIATHAN_WAVE_RADIUS_P2,
+        )
+        self.slam_count += 1
+        self.shield_angle_deg = float(SLUICE_LEVIATHAN_SHIELD_SLAM_DEG)
+        cx, cy = self.get_center()
+        aim_angle = math.atan2(self.surge_dir[1], self.surge_dir[0])
+        max_r = float(SLUICE_LEVIATHAN_WAVE_RADIUS_P2 if self.phase >= 2 else SLUICE_LEVIATHAN_WAVE_RADIUS_P1)
+        self.wave_arcs.append({
+            "x": float(cx),
+            "y": float(cy),
+            "angle": float(aim_angle),
+            "radius": 26.0,
+            "max_radius": max_r,
+            "life": float(SLUICE_LEVIATHAN_WAVE_DURATION),
+            "max_life": float(SLUICE_LEVIATHAN_WAVE_DURATION),
+            "hit_player": False,
+            "slam_index": int(self.slam_count),
+        })
+
+        net = getattr(state, "network_manager", None)
+        if getattr(net, "network_mode", "OFFLINE") != "CLIENT":
+            radial_n = int(
+                SLUICE_LEVIATHAN_RADIAL_BOLTS_P2 if self.phase >= 2 else SLUICE_LEVIATHAN_RADIAL_BOLTS_P1
+            )
+            dmg = float(BOSS_BOLT_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+            bolt_speed = float(BOSS_BOLT_SPEED) * (1.02 if self.phase < 2 else 1.14)
+            for idx in range(radial_n):
+                ang = aim_angle + (idx - (radial_n - 1) * 0.5) * (math.pi * 1.15 / max(1, radial_n - 1))
+                self.ink_bolts.append({
+                    "x": float(cx + math.cos(ang) * 32.0),
+                    "y": float(cy + math.sin(ang) * 32.0),
+                    "vx": math.cos(ang) * bolt_speed,
+                    "vy": math.sin(ang) * bolt_speed,
+                    "damage": dmg,
+                    "life": float(BOSS_BOLT_MAX_LIFETIME),
+                    "radius": int(BOSS_BOLT_RADIUS),
+                    "style": "tidal_spray",
+                })
+
+        self._emit_water_sparks(count=6)
+        if hasattr(state, "trigger_shake"):
+            try:
+                state.trigger_shake(0.14)
+            except Exception:
+                pass
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("combat_parry.ogg")
+            except Exception:
+                pass
+
+    def _update_wave_arcs(self, dt, state):
+        """Expand active hydraulic wave arcs and resolve wave-band damage against the local player."""
+        from constants import SLUICE_LEVIATHAN_WAVE_BAND, SLUICE_LEVIATHAN_WAVE_DAMAGE
+        net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+        player = getattr(state, "player", None)
+        can_hit_local = (
+            net_mode != "CLIENT"
+            and player is not None
+            and hasattr(player, "take_damage")
+            and getattr(state, "active_respite", None) is None
+            and getattr(player, "hp", 0.0) > 0.0
+            and float(getattr(state, "death_timer", 0.0) or 0.0) <= 0.0
+        )
+        half_band = float(SLUICE_LEVIATHAN_WAVE_BAND) * 0.5
+        audio_mgr = getattr(state, "audio_manager", None)
+
+        kept = []
+        for wave in self.wave_arcs:
+            wave["life"] = float(wave.get("life", 0.0)) - dt
+            if wave["life"] <= 0.0:
+                continue
+            max_life = max(0.01, float(wave.get("max_life", 0.50)))
+            progress = max(0.0, min(1.0, 1.0 - (wave["life"] / max_life)))
+            wave["radius"] = 26.0 + (float(wave["max_radius"]) - 26.0) * progress
+
+            if can_hit_local and not wave.get("hit_player", False):
+                px, py = player.get_center()
+                dx = px - float(wave["x"])
+                dy = py - float(wave["y"])
+                dist = math.hypot(dx, dy)
+                if abs(dist - float(wave["radius"])) <= half_band:
+                    ang_diff = math.atan2(
+                        math.sin(math.atan2(dy, dx) - float(wave.get("angle", 0.0))),
+                        math.cos(math.atan2(dy, dx) - float(wave.get("angle", 0.0))),
+                    )
+                    if abs(ang_diff) <= 1.25:
+                        wave["hit_player"] = True
+                        dmg = float(SLUICE_LEVIATHAN_WAVE_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+                        try:
+                            player.take_damage(dmg, audio_manager=audio_mgr, game_state=state)
+                        except TypeError:
+                            player.take_damage(dmg)
+            kept.append(wave)
+        self.wave_arcs = kept
+
+    def _resolve_target_point(self, state):
+        """Return nearest active runner center or None when resting/dead."""
+        if getattr(state, "active_respite", None) is not None or getattr(state, "in_sanctuary", False):
+            return None
+        player = getattr(state, "player", None)
+        if (
+            player is not None
+            and getattr(player, "hp", 0.0) > 0.0
+            and float(getattr(state, "death_timer", 0.0) or 0.0) <= 0.0
+        ):
+            return player.get_center()
+        return None
+
+    def _move_with_walls(self, dx, dy, state):
+        """Translate Leviathan by (dx, dy) and resolve against nearby world walls."""
+        self.x += dx
+        self.y += dy
+        world = getattr(state, "world", None)
+        if world is not None and hasattr(world, "get_nearby_walls"):
+            walls = world.get_nearby_walls(self.get_rect())
+            self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+
+    def _check_phase2_transition(self, state=None):
+        """Promote Leviathan to Phase 2 once HP drops to or below 50%."""
+        from constants import SLUICE_LEVIATHAN_PHASE2_HP_RATIO
+        if (
+            self.phase < 2
+            and self.hp > 0.0
+            and self.max_hp > 0.0
+            and self.hp <= self.max_hp * float(SLUICE_LEVIATHAN_PHASE2_HP_RATIO)
+        ):
+            self.phase = 2
+            audio = getattr(state, "audio_manager", None) if state is not None else None
+            if audio is not None:
+                try:
+                    audio.play_sfx("bleed_start.ogg")
+                except Exception:
+                    pass
+
+    def take_damage(self, amount, bypass_stagger=False):
+        """Apply damage; striking the exposed siphon core during siphon_breach bursts sparks, stuns & resets."""
+        from constants import SLUICE_LEVIATHAN_BREACH_STUN_DURATION
+        was_breached = self.attack_mode == "siphon_breach" and float(amount) > 0.0
+        super().take_damage(amount, bypass_stagger=bypass_stagger)
+        if self.is_dead():
+            self.weakpoint_exposed_timer = 0.0
+            self.armor_active = False
+            return
+        self._check_phase2_transition()
+        if was_breached:
+            self._emit_water_sparks(count=14)
+            self.stagger_timer = max(float(self.stagger_timer), float(SLUICE_LEVIATHAN_BREACH_STUN_DURATION))
+            self._enter_sluice_guard()
+
+    def update(self, dt, state):
+        """Run The Sluice-Gate Leviathan 3-state loop (sluice_guard -> tidal_surge -> siphon_breach)."""
+        from constants import (
+            SLUICE_LEVIATHAN_SHIELD_EMBED_DEG,
+            SLUICE_LEVIATHAN_SHIELD_GUARD_DEG,
+            SLUICE_LEVIATHAN_SHIELD_RAISE_DEG,
+            SLUICE_LEVIATHAN_SHIELD_SLAM_DEG,
+            SLUICE_LEVIATHAN_SLAM_COUNT_P1,
+            SLUICE_LEVIATHAN_SLAM_COUNT_P2,
+            SLUICE_LEVIATHAN_SLAM_IMPACT_HOLD_P1,
+            SLUICE_LEVIATHAN_SLAM_IMPACT_HOLD_P2,
+            SLUICE_LEVIATHAN_SLAM_LUNGE_SPEED,
+            SLUICE_LEVIATHAN_SLAM_TELEGRAPH_P1,
+            SLUICE_LEVIATHAN_SLAM_TELEGRAPH_P2,
+            SLUICE_LEVIATHAN_VOLLEY_INTERVAL,
+        )
+        if self.is_summoning_or_dormant():
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
+        dt = max(0.0, float(dt))
+        self.animation_timer += dt
+        if getattr(self, "hit_flash_timer", 0.0) > 0.0:
+            self.hit_flash_timer = max(0.0, float(self.hit_flash_timer) - dt)
+        if self.bleed_timer > 0.0 and not self.is_dead():
+            self.bleed_timer = max(0.0, self.bleed_timer - dt)
+            self.hp = max(0.0, self.hp - float(getattr(self, "bleed_damage", 0.0)) * dt)
+        if self.weakpoint_exposed_timer > 0.0:
+            self.weakpoint_exposed_timer = max(0.0, self.weakpoint_exposed_timer - dt)
+        if self.ink_bolts:
+            self._update_ink_bolts(dt, state)
+        if self.wave_arcs:
+            self._update_wave_arcs(dt, state)
+        if self.water_sparks:
+            self._update_water_sparks(dt)
+
+        if self.is_dead():
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
+        self._check_phase2_transition(state)
+
+        net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+        if net_mode == "CLIENT":
+            if self.attack_mode == "sluice_guard":
+                self.leg_phase += dt * 7.2
+                self.shield_angle_deg = float(SLUICE_LEVIATHAN_SHIELD_GUARD_DEG) + math.sin(self.leg_phase) * 4.0
+            elif self.attack_mode == "siphon_breach":
+                self.shield_angle_deg = float(SLUICE_LEVIATHAN_SHIELD_EMBED_DEG)
+            return
+
+        if self.stagger_timer > 0.0:
+            self.stagger_timer = max(0.0, self.stagger_timer - dt)
+            self.vx = 0.0
+            self.vy = 0.0
+            return
+
+        target = self._resolve_target_point(state)
+        self.active_target = target
+        if target is None:
+            self.vx = 0.0
+            self.vy = 0.0
+            self.state = ActorState.IDLE
+            return
+
+        tx, ty = target
+        cx, cy = self.get_center()
+        dx, dy = tx - cx, ty - cy
+        dist = math.hypot(dx, dy)
+        ux, uy = (dx / dist, dy / dist) if dist > 1e-3 else (self.facing[0], self.facing[1])
+
+        if self.attack_mode == "sluice_guard":
+            self.armor_active = True
+            self.weakpoint_exposed_timer = 0.0
+            self.state = ActorState.CHASE
+            self.facing = (ux, uy)
+
+            stride_rate = 8.4 if self.phase >= 2 else 6.8
+            self.leg_phase += dt * stride_rate
+            self.shield_angle_deg = float(SLUICE_LEVIATHAN_SHIELD_GUARD_DEG) + math.sin(self.leg_phase) * 4.0
+
+            # Asymmetrical sideways/diagonal crab advance
+            spd = float(self.speed) * (1.15 if self.phase >= 2 else 1.0)
+            fwd_w = 0.65 if dist > 150.0 else (0.20 if dist > 95.0 else -0.10)
+            px_perp, py_perp = -uy * self.strafe_dir, ux * self.strafe_dir
+            mv_x = ux * fwd_w + px_perp * 0.72
+            mv_y = uy * fwd_w + py_perp * 0.72
+            mv_mag = math.hypot(mv_x, mv_y)
+            if mv_mag > 1e-4:
+                self.vx = (mv_x / mv_mag) * spd
+                self.vy = (mv_y / mv_mag) * spd
+            else:
+                self.vx = 0.0
+                self.vy = 0.0
+            self._move_with_walls(self.vx * dt, self.vy * dt, state)
+
+            self.volley_timer -= dt
+            if self.volley_timer <= 0.0:
+                self._fire_water_jet_volley(tx, ty, state)
+                self.volley_timer = float(SLUICE_LEVIATHAN_VOLLEY_INTERVAL) * (0.82 if self.phase >= 2 else 1.0)
+
+            self.mode_timer -= dt
+            if self.mode_timer <= 0.0:
+                self._enter_tidal_surge(state)
+
+        elif self.attack_mode == "tidal_surge":
+            self.armor_active = True
+            self.weakpoint_exposed_timer = 0.0
+            tele_dur = float(
+                SLUICE_LEVIATHAN_SLAM_TELEGRAPH_P2 if self.phase >= 2 else SLUICE_LEVIATHAN_SLAM_TELEGRAPH_P1
+            )
+            hold_dur = float(
+                SLUICE_LEVIATHAN_SLAM_IMPACT_HOLD_P2 if self.phase >= 2 else SLUICE_LEVIATHAN_SLAM_IMPACT_HOLD_P1
+            )
+            max_slams = int(SLUICE_LEVIATHAN_SLAM_COUNT_P2 if self.phase >= 2 else SLUICE_LEVIATHAN_SLAM_COUNT_P1)
+
+            if self.surge_substate == "telegraph":
+                self.state = ActorState.WIND_UP
+                self.facing = (ux, uy)
+                self.surge_dir = (ux, uy)
+                self.vx = 0.0
+                self.vy = 0.0
+                self.mode_timer -= dt
+                prog = max(0.0, min(1.0, 1.0 - (self.mode_timer / max(0.01, tele_dur))))
+                self.shield_angle_deg = (
+                    float(SLUICE_LEVIATHAN_SHIELD_GUARD_DEG) * (1.0 - prog)
+                    + float(SLUICE_LEVIATHAN_SHIELD_RAISE_DEG) * prog
+                )
+                if self.mode_timer <= 0.0:
+                    self.surge_substate = "impact"
+                    self.state = ActorState.STRIKE
+                    self.mode_timer = hold_dur
+                    self._execute_tidal_slam_impact(state)
+            else:
+                self.state = ActorState.STRIKE
+                self.shield_angle_deg = float(SLUICE_LEVIATHAN_SHIELD_SLAM_DEG)
+                self.leg_phase += dt * 11.0
+                # Advancing hydraulic lunge during impact window
+                lunge_spd = float(SLUICE_LEVIATHAN_SLAM_LUNGE_SPEED) * (1.12 if self.phase >= 2 else 1.0)
+                self.vx = self.surge_dir[0] * lunge_spd
+                self.vy = self.surge_dir[1] * lunge_spd
+                self._move_with_walls(self.vx * dt, self.vy * dt, state)
+                self.mode_timer -= dt
+                if self.mode_timer <= 0.0:
+                    if self.slam_count < max_slams:
+                        self.surge_substate = "telegraph"
+                        self.state = ActorState.WIND_UP
+                        self.mode_timer = tele_dur
+                        audio = getattr(state, "audio_manager", None)
+                        if audio is not None:
+                            try:
+                                audio.play_sfx("enemy_telegraph.ogg")
+                            except Exception:
+                                pass
+                    else:
+                        self._enter_siphon_breach(state)
+
+        else:  # siphon_breach
+            self.armor_active = False
+            self.state = ActorState.RECOVERY
+            self.vx = 0.0
+            self.vy = 0.0
+            self.shield_angle_deg = (
+                float(SLUICE_LEVIATHAN_SHIELD_EMBED_DEG) + math.sin(self.animation_timer * 28.0) * 2.0
+            )
+            self._breach_spark_accum += dt
+            if self._breach_spark_accum >= 0.20:
+                self._breach_spark_accum = 0.0
+                self._emit_water_sparks(count=3)
+            self.mode_timer -= dt
+            if self.mode_timer <= 0.0 or self.weakpoint_exposed_timer <= 0.0:
+                self._enter_sluice_guard()
+
+    def get_visual_packet(self):
+        """Expose Sluice-Gate Leviathan articulation, shield angle & siphon breach state to the renderer."""
+        packet = super().get_visual_packet()
+        packet["attack_mode"] = self.attack_mode
+        packet["surge_substate"] = self.surge_substate
+        packet["phase"] = int(self.phase)
+        packet["slam_count"] = int(self.slam_count)
+        packet["shield_angle_deg"] = float(self.shield_angle_deg)
+        packet["leg_phase"] = float(self.leg_phase)
+        packet["armor_active"] = bool(self.armor_active)
+        packet["weakpoint_exposed_timer"] = float(self.weakpoint_exposed_timer)
+        packet["wave_arcs"] = list(self.wave_arcs)
+        packet["water_sparks"] = list(self.water_sparks)
+        return packet
+
+
 class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
@@ -3610,6 +4159,7 @@ ENEMY_REGISTRY = {
     "NightBoss": NightBoss, "SlugBoss": SlugBoss, "MeadowCensorBoss": MeadowCensorBoss,
     "RimecrestArbiterBoss": RimecrestArbiterBoss, "GaleVaneRaptorBoss": GaleVaneRaptorBoss,
     "TypesetterAutomatonBoss": TypesetterAutomatonBoss, "GlassKilnBasiliskBoss": GlassKilnBasiliskBoss,
+    "SluiceGateLeviathanBoss": SluiceGateLeviathanBoss,
     "FinalAuthor": FinalAuthor,
 }
 

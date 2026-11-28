@@ -1226,12 +1226,13 @@ class GameState:
                     SlugEnemy, BatEnemy, NightBoss, MarginWarden, MinibossM2, MinibossM3, SentryEnemy,
                     PunctuationWolfEnemy, BindlingEnemy, SmearEnemy,
                     SlugBoss, MeadowCensorBoss, RimecrestArbiterBoss, GaleVaneRaptorBoss,
-                    TypesetterAutomatonBoss, GlassKilnBasiliskBoss,
+                    TypesetterAutomatonBoss, GlassKilnBasiliskBoss, SluiceGateLeviathanBoss,
                 )
                 biome_night_boss_cls = {
                     "windy_ridge": GaleVaneRaptorBoss,
                     "tech_tower": TypesetterAutomatonBoss,
                     "vitreous_basin": GlassKilnBasiliskBoss,
+                    "sunlit_aqueducts": SluiceGateLeviathanBoss,
                     "swamp_mire": SlugBoss,
                     "pastoral_valley": MeadowCensorBoss,
                     "frozen_peaks": RimecrestArbiterBoss,
@@ -1993,6 +1994,7 @@ class GameState:
                 or getattr(enemy, "is_gale_raptor", False)
                 or getattr(enemy, "is_typesetter_boss", False)
                 or getattr(enemy, "is_glass_basilisk", False)
+                or getattr(enemy, "is_sluice_leviathan", False)
             )
             ex, ey = enemy.get_center()
             dist_sq = (ex - px) ** 2 + (ey - py) ** 2
@@ -2069,6 +2071,7 @@ class GameState:
                     NightBoss,
                     RimecrestArbiterBoss,
                     SlugBoss,
+                    SluiceGateLeviathanBoss,
                     TypesetterAutomatonBoss,
                 )
                 idx = self.weather_manager.current_boss_idx
@@ -2095,6 +2098,8 @@ class GameState:
                         new_boss = TypesetterAutomatonBoss(bx, by)
                     elif active_biome == "vitreous_basin":
                         new_boss = GlassKilnBasiliskBoss(bx, by)
+                    elif active_biome == "sunlit_aqueducts":
+                        new_boss = SluiceGateLeviathanBoss(bx, by)
                     else:
                         new_boss = NightBoss(bx, by)
                     if hasattr(self.world, "find_nearest_walkable_spawn"):
@@ -4308,6 +4313,7 @@ class GameState:
             SLUG_BOSS_PHASE1_MUSIC,
             SLUG_BOSS_PHASE2_HP_RATIO,
             SLUG_BOSS_PHASE2_MUSIC,
+            SLUICE_LEVIATHAN_MUSIC,
             TYPESETTER_MUSIC,
         )
         world_name = getattr(self.world, 'name', 'sanctuary')
@@ -4376,6 +4382,8 @@ class GameState:
                         near_biome_boss_track = TYPESETTER_MUSIC
                     elif getattr(enemy, "is_glass_basilisk", False):
                         near_biome_boss_track = GLASS_BASILISK_MUSIC
+                    elif getattr(enemy, "is_sluice_leviathan", False):
+                        near_biome_boss_track = SLUICE_LEVIATHAN_MUSIC
                     elif ename == "Night Boss":
                         near_night_boss = True
                     else:

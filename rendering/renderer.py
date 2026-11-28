@@ -176,6 +176,8 @@ class Renderer:
             "gale_raptor_torso", "gale_raptor_head", "gale_raptor_wing", "gale_raptor_tail",
             "typesetter_chassis", "typesetter_turret", "typesetter_leg", "typesetter_platen",
             "glass_basilisk_head", "glass_basilisk_segment", "glass_basilisk_tail",
+            "sluice_leviathan_shell", "sluice_leviathan_shield_claw",
+            "sluice_leviathan_pincer", "sluice_leviathan_leg",
         ):
             name = f"{kind}.png"
             path = os.path.join(base_path, name)
@@ -4654,6 +4656,7 @@ class Renderer:
             and not bool(getattr(actor, "is_gale_raptor", False))
             and not bool(getattr(actor, "is_typesetter_boss", False))
             and not bool(getattr(actor, "is_glass_basilisk", False))
+            and not bool(getattr(actor, "is_sluice_leviathan", False))
             and hasattr(actor, 'get_attack_hitbox')
         ):
             self.draw_boss_weapon(actor, ox, oy)
@@ -5462,13 +5465,244 @@ class Renderer:
             pygame.draw.circle(self.screen, salt, (int(cx + head_ox), int(cy + head_oy)), max(14, w // 5))
             pygame.draw.circle(self.screen, kiln, (int(cx + head_ox), int(cy + head_oy)), 7)
 
+    def _draw_sluice_gate_leviathan_boss(self, actor, draw_rect, packet):
+        """Render The Sluice-Gate Leviathan via the articulated multi-part rig with aqueduct eddies & fallback."""
+        cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
+        w, h = max(1, int(draw_rect.width)), max(1, int(draw_rect.height))
+        fx, fy = packet.get("facing", getattr(actor, "facing", (0.0, 1.0)))
+        f_mag = math.hypot(fx, fy)
+        ux, uy = (fx / f_mag, fy / f_mag) if f_mag > 1e-4 else (0.0, 1.0)
+        anim_t = float(packet.get("anim_timer", getattr(actor, "animation_timer", 0.0)) or 0.0)
+        attack_mode = str(packet.get("attack_mode", getattr(actor, "attack_mode", "sluice_guard")))
+        surge_sub = str(packet.get("surge_substate", getattr(actor, "surge_substate", "telegraph")))
+        phase = int(packet.get("phase", getattr(actor, "phase", 1)) or 1)
+        shield_deg = float(packet.get("shield_angle_deg", getattr(actor, "shield_angle_deg", -18.0)) or 0.0)
+        leg_phase = float(packet.get("leg_phase", getattr(actor, "leg_phase", 0.0)) or 0.0)
+        armor_active = bool(packet.get("armor_active", getattr(actor, "armor_active", False)))
+        weak_t = float(packet.get("weakpoint_exposed_timer", getattr(actor, "weakpoint_exposed_timer", 0.0)) or 0.0)
+
+        face_rad = math.atan2(uy, ux)
+        body_deg = math.degrees(face_rad) - 90.0
+        cos_b = math.cos(math.radians(body_deg))
+        sin_b = math.sin(math.radians(body_deg))
+
+        def _rot_off(lx, ly):
+            return (lx * cos_b - ly * sin_b, lx * sin_b + ly * cos_b)
+
+        def _under_shapes(screen, rect, act, pkt):
+            rcx, rcy = int(rect.centerx), int(rect.centery)
+            eddy_r = max(26, int(round(max(rect.width, rect.height) * 0.45)))
+
+            # 1. Swirling turquoise aqueduct eddy rings underneath the carapace
+            spin = anim_t * (2.4 if phase >= 2 else 1.45)
+            pygame.draw.circle(screen, (36, 104, 122), (rcx, rcy), eddy_r, 3)
+            pygame.draw.circle(screen, (66, 206, 218), (rcx, rcy), max(12, eddy_r - 7), 1)
+            eddy_rect = pygame.Rect(rcx - (eddy_r - 2), rcy - (eddy_r - 2), (eddy_r - 2) * 2, (eddy_r - 2) * 2)
+            for idx_e in range(3):
+                a_start = spin + idx_e * (2.0 * math.pi / 3.0)
+                pygame.draw.arc(screen, (92, 232, 238), eddy_rect, a_start, a_start + 1.05, 2)
+
+            # 2. Raised bronze sluice-gate deflection arc during sluice_guard
+            if attack_mode == "sluice_guard" and armor_active:
+                arc_r = eddy_r + 8
+                arc_rect = pygame.Rect(rcx - arc_r, rcy - arc_r, arc_r * 2, arc_r * 2)
+                pygame.draw.arc(screen, (212, 178, 114), arc_rect, -face_rad - 1.15, -face_rad + 1.15, 4)
+                pygame.draw.arc(screen, (72, 168, 148), arc_rect.inflate(-6, -6), -face_rad - 1.0, -face_rad + 1.0, 2)
+
+            # 3. Hydraulic wave-slam telegraph & expanding turquoise wave arcs during tidal_surge
+            if attack_mode == "tidal_surge":
+                if surge_sub == "telegraph":
+                    pulse = 0.5 + 0.5 * math.sin(anim_t * 24.0)
+                    tel_r = eddy_r + 12 + int(round(pulse * 10))
+                    tel_rect = pygame.Rect(rcx - tel_r, rcy - tel_r, tel_r * 2, tel_r * 2)
+                    pygame.draw.arc(screen, (74, 232, 240), tel_rect, -face_rad - 1.2, -face_rad + 1.2, 3)
+                    tip = (int(rcx + ux * (tel_r + 18)), int(rcy + uy * (tel_r + 18)))
+                    pygame.draw.line(screen, (214, 180, 118), (rcx, rcy), tip, 3)
+                else:
+                    pygame.draw.circle(screen, (72, 230, 238), (rcx, rcy), eddy_r + 14, 4)
+
+            acx, acy = act.get_center() if hasattr(act, "get_center") else (0.0, 0.0)
+            for wave in pkt.get("wave_arcs", ()):
+                wx = int(rcx + (float(wave.get("x", acx)) - acx))
+                wy = int(rcy + (float(wave.get("y", acy)) - acy))
+                wr = max(10, int(round(float(wave.get("radius", 26.0)))))
+                w_ang = float(wave.get("angle", face_rad))
+                ratio = max(0.0, min(1.0, float(wave.get("life", 0.0)) / max(0.01, float(wave.get("max_life", 0.5)))))
+                w_rect = pygame.Rect(wx - wr, wy - wr, wr * 2, wr * 2)
+                pygame.draw.arc(
+                    screen, (52, 214, 228), w_rect, -w_ang - 1.25, -w_ang + 1.25, max(2, int(round(6 * ratio)))
+                )
+                pygame.draw.arc(
+                    screen, (196, 250, 255), w_rect.inflate(-6, -6), -w_ang - 1.05, -w_ang + 1.05, 2
+                )
+
+            # 4. Siphon Breach glowing turquoise/gold target arc on the unarmored right flank
+            if attack_mode == "siphon_breach" or weak_t > 0.0:
+                pulse = 0.5 + 0.5 * math.sin(anim_t * 18.0)
+                s_r = eddy_r + 10 + int(round(pulse * 5))
+                s_rect = pygame.Rect(rcx - s_r, rcy - s_r, s_r * 2, s_r * 2)
+                flank_a = -(face_rad + math.pi * 0.5)
+                pygame.draw.arc(screen, (255, 206, 86), s_rect, flank_a - 1.10, flank_a + 1.10, 4)
+                pygame.draw.arc(screen, (66, 236, 242), s_rect.inflate(-8, -8), flank_a - 0.95, flank_a + 0.95, 3)
+                sx_dot = int(rcx - uy * (eddy_r * 0.68))
+                sy_dot = int(rcy + ux * (eddy_r * 0.68))
+                pygame.draw.circle(screen, (255, 214, 96), (sx_dot, sy_dot), 7 + int(round(pulse * 2)), 2)
+                pygame.draw.circle(screen, (186, 252, 255), (sx_dot, sy_dot), 4)
+
+            for sp in pkt.get("water_sparks", ()):
+                sx = int(rcx + (float(sp.get("x", acx)) - acx))
+                sy = int(rcy + (float(sp.get("y", acy)) - acy))
+                s_ratio = max(0.0, min(1.0, float(sp.get("life", 0.0)) / max(0.01, float(sp.get("max_life", 0.55)))))
+                s_col = (224, 186, 110) if sp.get("bronze") else (112, 244, 250)
+                pygame.draw.circle(screen, s_col, (sx, sy), max(2, int(round(4 * s_ratio))))
+
+        # 4 independently striding bronze crab leg angles
+        if attack_mode == "sluice_guard":
+            stride_a = math.sin(leg_phase) * 20.0
+            stride_b = -stride_a
+            fl_ang = -22.0 + stride_a
+            fr_ang = 22.0 + stride_b
+            rl_ang = 26.0 + stride_b
+            rr_ang = -26.0 + stride_a
+        elif attack_mode == "tidal_surge":
+            brace = 12.0 if surge_sub == "impact" else -8.0
+            fl_ang = -28.0 - brace
+            fr_ang = 28.0 + brace
+            rl_ang = 34.0 + brace
+            rr_ang = -34.0 - brace
+        else:  # siphon_breach: pinned forward & trembling
+            tremble = math.sin(anim_t * 32.0) * 5.5
+            fl_ang = -12.0 + tremble
+            fr_ang = 12.0 - tremble
+            rl_ang = 16.0 - tremble
+            rr_ang = -16.0 + tremble
+
+        shell_shake_x = (
+            math.sin(anim_t * 42.0) * 2.0
+            if (attack_mode == "siphon_breach" or (attack_mode == "tidal_surge" and surge_sub == "impact"))
+            else 0.0
+        )
+
+        # Shield claw pose offsets (front-left guard -> raised high -> slammed/embedded)
+        if attack_mode == "sluice_guard":
+            sh_local = (-18.0, 22.0)
+        elif attack_mode == "tidal_surge":
+            sh_local = (-26.0, 12.0) if surge_sub == "telegraph" else (-14.0, 32.0)
+        else:  # siphon_breach: wedged downward into stone floor
+            sh_local = (-16.0, 36.0)
+
+        pincer_sway = math.sin(anim_t * 6.5) * 10.0
+        fl_ox, fl_oy = _rot_off(-20.0, 10.0)
+        fr_ox, fr_oy = _rot_off(20.0, 10.0)
+        rl_ox, rl_oy = _rot_off(-20.0, -14.0)
+        rr_ox, rr_oy = _rot_off(20.0, -14.0)
+        sh_ox, sh_oy = _rot_off(sh_local[0], sh_local[1])
+        pin_ox, pin_oy = _rot_off(24.0, 16.0)
+
+        parts_spec = [
+            {
+                "sprite_key": "sluice_leviathan_leg.png",
+                "offset_x": rl_ox,
+                "offset_y": rl_oy,
+                "pivot_x": 15.0,
+                "pivot_y": 1.0,
+                "angle_deg": body_deg + rl_ang,
+                "flip_x": True,
+                "scale": 1.08,
+                "z_order": 1,
+            },
+            {
+                "sprite_key": "sluice_leviathan_leg.png",
+                "offset_x": rr_ox,
+                "offset_y": rr_oy,
+                "pivot_x": -15.0,
+                "pivot_y": 1.0,
+                "angle_deg": body_deg + rr_ang,
+                "flip_x": False,
+                "scale": 1.08,
+                "z_order": 1,
+            },
+            {
+                "sprite_key": "sluice_leviathan_leg.png",
+                "offset_x": fl_ox,
+                "offset_y": fl_oy,
+                "pivot_x": 15.0,
+                "pivot_y": 1.0,
+                "angle_deg": body_deg + fl_ang,
+                "flip_x": True,
+                "scale": 1.08,
+                "z_order": 1,
+            },
+            {
+                "sprite_key": "sluice_leviathan_leg.png",
+                "offset_x": fr_ox,
+                "offset_y": fr_oy,
+                "pivot_x": -15.0,
+                "pivot_y": 1.0,
+                "angle_deg": body_deg + fr_ang,
+                "flip_x": False,
+                "scale": 1.08,
+                "z_order": 1,
+            },
+            {
+                "sprite_key": "sluice_leviathan_shell.png",
+                "offset_x": shell_shake_x,
+                "offset_y": 0.0,
+                "angle_deg": body_deg,
+                "scale": 1.08,
+                "z_order": 2,
+            },
+            {
+                "sprite_key": "sluice_leviathan_pincer.png",
+                "offset_x": pin_ox + shell_shake_x,
+                "offset_y": pin_oy,
+                "angle_deg": body_deg + 16.0 + pincer_sway,
+                "scale": 1.04,
+                "z_order": 3,
+            },
+            {
+                "sprite_key": "sluice_leviathan_shield_claw.png",
+                "offset_x": sh_ox + shell_shake_x,
+                "offset_y": sh_oy,
+                "angle_deg": body_deg + shield_deg,
+                "scale": 1.12,
+                "z_order": 4,
+            },
+        ]
+
+        rendered = self._draw_articulated_boss_rig(
+            actor,
+            draw_rect,
+            packet,
+            parts_spec,
+            under_shapes_fn=_under_shapes,
+        )
+
+        # Procedural fallback silhouette if modular PNG parts are absent (e.g., stripped headless test)
+        if len(rendered) < len(parts_spec):
+            terra = (194, 122, 82)
+            bronze = (152, 118, 68)
+            turq = (66, 224, 232)
+            for lx, ly in ((fl_ox, fl_oy), (fr_ox, fr_oy), (rl_ox, rl_oy), (rr_ox, rr_oy)):
+                foot = (int(cx + lx * 2.0), int(cy + ly * 2.0))
+                pygame.draw.line(self.screen, bronze, (cx, cy), foot, 4)
+            pygame.draw.ellipse(self.screen, terra, (cx - w // 4, cy - h // 4, w // 2, h // 2))
+            pygame.draw.ellipse(self.screen, bronze, (cx - w // 4, cy - h // 4, w // 2, h // 2), 3)
+            pygame.draw.rect(
+                self.screen,
+                bronze,
+                (int(cx + sh_ox - 14), int(cy + sh_oy - 16), 28, 32),
+                border_radius=4,
+            )
+            pygame.draw.circle(self.screen, turq, (int(cx + pin_ox), int(cy + pin_oy)), 9)
+
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
         """Draw image sprites or procedural basic-shape graphics for enemies and bosses."""
         from engine.enemy import (
             BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy, GaleVaneRaptorBoss,
             GlassKilnBasiliskBoss, MarginWarden, MeadowCensorBoss, Miniboss, MinibossM2, MinibossM3,
-            NightBoss, PunctuationWolfEnemy, RimecrestArbiterBoss, SentryEnemy, SlugBoss, SmearEnemy,
-            TypesetterAutomatonBoss,
+            NightBoss, PunctuationWolfEnemy, RimecrestArbiterBoss, SentryEnemy, SlugBoss,
+            SluiceGateLeviathanBoss, SmearEnemy, TypesetterAutomatonBoss,
         )
         if bool(getattr(actor, "is_gale_raptor", False)) or isinstance(actor, GaleVaneRaptorBoss):
             self._draw_gale_vane_raptor_boss(actor, draw_rect, packet)
@@ -5478,6 +5712,9 @@ class Renderer:
             return True
         if bool(getattr(actor, "is_glass_basilisk", False)) or isinstance(actor, GlassKilnBasiliskBoss):
             self._draw_glass_kiln_basilisk_boss(actor, draw_rect, packet)
+            return True
+        if bool(getattr(actor, "is_sluice_leviathan", False)) or isinstance(actor, SluiceGateLeviathanBoss):
+            self._draw_sluice_gate_leviathan_boss(actor, draw_rect, packet)
             return True
         if bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss):
             self._draw_slug_boss(actor, draw_rect, packet)
@@ -6244,6 +6481,7 @@ class Renderer:
             RimecrestArbiterBoss,
             SlugBoss,
             SlugEnemy,
+            SluiceGateLeviathanBoss,
             TypesetterAutomatonBoss,
         )
         actor_tag = str(getattr(actor, 'name', '')).lower()
@@ -6254,6 +6492,7 @@ class Renderer:
             or bool(getattr(actor, "is_gale_raptor", False))
             or bool(getattr(actor, "is_typesetter_boss", False))
             or bool(getattr(actor, "is_glass_basilisk", False))
+            or bool(getattr(actor, "is_sluice_leviathan", False))
             or isinstance(
                 actor,
                 (
@@ -6264,6 +6503,7 @@ class Renderer:
                     GaleVaneRaptorBoss,
                     TypesetterAutomatonBoss,
                     GlassKilnBasiliskBoss,
+                    SluiceGateLeviathanBoss,
                 ),
             )
             or "slug" in actor_tag

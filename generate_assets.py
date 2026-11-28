@@ -7136,6 +7136,20 @@ def generate_all_assets(
         out_path = os.path.join("assets", "graphics", f"{gb_key}.png")
         _emit(gb_key, out_path, gb_surf)
 
+    # Pipeline 21: Modular Articulated Boss Rig Parts (The Sluice-Gate Leviathan — Sunlit Aqueducts Night Boss)
+    sluice_leviathan_parts = (
+        ("sluice_leviathan_shell", generate_sluice_leviathan_shell(64, 56, rng=_rng("sluice_leviathan_shell"))),
+        (
+            "sluice_leviathan_shield_claw",
+            generate_sluice_leviathan_shield_claw(44, 48, rng=_rng("sluice_leviathan_shield_claw")),
+        ),
+        ("sluice_leviathan_pincer", generate_sluice_leviathan_pincer(36, 36, rng=_rng("sluice_leviathan_pincer"))),
+        ("sluice_leviathan_leg", generate_sluice_leviathan_leg(40, 22, rng=_rng("sluice_leviathan_leg"))),
+    )
+    for sl_key, sl_surf in sluice_leviathan_parts:
+        out_path = os.path.join("assets", "graphics", f"{sl_key}.png")
+        _emit(sl_key, out_path, sl_surf)
+
     if stats_out is not None:
         stats_out["updated"] = updated_count
         stats_out["unchanged"] = unchanged_count
@@ -7811,6 +7825,219 @@ def generate_glass_basilisk_tail(width: int = 44, height: int = 32, rng: random.
     pygame.draw.line(surf, kiln_glow, (cx, 6), (cx, height - 7), 3)
     pygame.draw.line(surf, kiln_core if rng.random() >= 0.0 else salt_hi, (cx, 7), (cx, 18), 1)
     pygame.draw.line(surf, salt_hi, (cx - 1, 4), (cx - 5, 16), 1)
+    return surf
+
+
+def generate_sluice_leviathan_shell(width: int = 64, height: int = 56, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Sluice-Gate Leviathan moss-draped terracotta & bronze carapace (64x56, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7401)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    ink = (20, 24, 28, 255)
+    terra_dark = (146, 84, 54, 255)
+    terra_mid = (194, 122, 82, 255)
+    terra_hi = (228, 166, 118, 255)
+    bronze_dark = (88, 68, 42, 255)
+    bronze_mid = (146, 114, 66, 255)
+    bronze_hi = (204, 170, 108, 255)
+    verdigris = (66, 152, 134, 255)
+    moss_dark = (52, 106, 62, 255)
+    moss_hi = (98, 162, 86, 255)
+    turq_dark = (26, 98, 118, 255)
+    turq_glow = (66, 224, 232, 255)
+    turq_core = (196, 252, 255, 255)
+
+    # Broad domed aqueduct-arch guardian carapace (forward=+Y)
+    shell_pts = [
+        (16, 6), (width - 17, 6),
+        (width - 6, 16), (width - 5, height - 16),
+        (width - 15, height - 6), (15, height - 6),
+        (5, height - 16), (6, 16),
+    ]
+    pygame.draw.polygon(surf, terra_dark, shell_pts)
+    pygame.draw.polygon(surf, ink, shell_pts, 2)
+
+    # Sunlit terracotta upper dome plates
+    dome_pts = [
+        (19, 10), (width - 20, 10),
+        (width - 10, 19), (width - 10, height - 19),
+        (width - 19, height - 10), (19, height - 10),
+        (10, height - 19), (10, 19),
+    ]
+    pygame.draw.polygon(surf, terra_mid, dome_pts)
+    pygame.draw.line(surf, terra_hi, (19, 11), (width - 20, 11), 2)
+    pygame.draw.line(surf, terra_hi, (11, 19), (11, height - 20), 1)
+
+    # Verdigris-bronze aqueduct rib arches crossing carapace
+    for ry in (17, cy, height - 17):
+        pygame.draw.line(surf, bronze_dark, (11, ry), (width - 12, ry), 4)
+        pygame.draw.line(surf, bronze_mid, (12, ry - 1), (width - 13, ry - 1), 2)
+        pygame.draw.line(surf, verdigris, (16, ry + 1), (width - 18, ry + 1), 1)
+
+    # Central bronze keystone spine crest
+    spine_rect = pygame.Rect(cx - 5, 9, 10, height - 18)
+    pygame.draw.rect(surf, bronze_dark, spine_rect, border_radius=3)
+    pygame.draw.rect(surf, bronze_hi, (cx - 2, 11, 4, height - 22), border_radius=2)
+    pygame.draw.rect(surf, ink, spine_rect, 1, border_radius=3)
+
+    # Moss-draped patches along left & rear terracotta shoulder
+    moss_blobs = ((15, 16, 6), (22, 13, 5), (14, 24, 5), (20, 38, 5))
+    for mx, my, mr in moss_blobs:
+        pygame.draw.circle(surf, moss_dark, (mx, my), mr)
+        pygame.draw.circle(surf, moss_hi, (mx - 1, my - 1), max(2, mr - 2))
+
+    # Recessed glowing turquoise siphon core housing on unarmored right flank (+X side)
+    siphon_rect = pygame.Rect(width - 21, cy - 11, 14, 22)
+    pygame.draw.rect(surf, ink, siphon_rect, border_radius=4)
+    pygame.draw.rect(surf, turq_dark, siphon_rect.inflate(-4, -4), border_radius=3)
+    pygame.draw.rect(surf, turq_glow, siphon_rect.inflate(-8, -8), border_radius=2)
+    pygame.draw.circle(surf, turq_core if rng.random() >= 0.0 else bronze_hi, (width - 14, cy), 3)
+    pygame.draw.rect(surf, bronze_hi, siphon_rect, 1, border_radius=4)
+
+    # Twin recessed bronze optical slits at front (+Y edge)
+    for ex in (cx - 10, cx + 10):
+        pygame.draw.rect(surf, ink, (ex - 4, height - 13, 8, 5), border_radius=2)
+        pygame.draw.rect(surf, turq_glow, (ex - 3, height - 12, 6, 3), border_radius=1)
+    return surf
+
+
+def generate_sluice_leviathan_shield_claw(
+    width: int = 44, height: int = 48, rng: random.Random = None
+) -> pygame.Surface:
+    """Generate The Sluice-Gate Leviathan oversized bronze sluice-gate shield pincer (44x48, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7402)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    ink = (20, 24, 28, 255)
+    bronze_dark = (84, 64, 38, 255)
+    bronze_mid = (148, 116, 66, 255)
+    bronze_hi = (212, 178, 114, 255)
+    verdigris = (64, 154, 136, 255)
+    terra_mid = (188, 118, 78, 255)
+    turq_glow = (66, 224, 232, 255)
+
+    # Heavy beveled sluice-gate tower-shield slab forming the outer claw plate
+    slab_pts = [
+        (10, 4), (width - 10, 4),
+        (width - 4, 12), (width - 4, height - 14),
+        (width - 12, height - 4), (12, height - 4),
+        (4, height - 14), (4, 12),
+    ]
+    pygame.draw.polygon(surf, bronze_dark, slab_pts)
+    pygame.draw.polygon(surf, ink, slab_pts, 2)
+
+    # Inner cast-bronze face with sunlit terracotta trim border
+    inner_pts = [
+        (12, 8), (width - 12, 8),
+        (width - 8, 14), (width - 8, height - 16),
+        (width - 14, height - 8), (14, height - 8),
+        (8, height - 16), (8, 14),
+    ]
+    pygame.draw.polygon(surf, bronze_mid, inner_pts)
+    pygame.draw.line(surf, bronze_hi, (12, 9), (width - 13, 9), 2)
+    pygame.draw.line(surf, bronze_hi, (9, 14), (9, height - 17), 2)
+
+    # Engraved vertical aqueduct channel relief grooves + verdigris patina
+    for gx in (13, cx, width - 14):
+        pygame.draw.line(surf, ink, (gx, 12), (gx, height - 12), 2)
+        pygame.draw.line(surf, verdigris, (gx + 1, 13), (gx + 1, height - 13), 1)
+
+    # Horizontal sluice crossbar & bronze lock rivets
+    bar = pygame.Rect(7, 20, width - 14, 8)
+    pygame.draw.rect(surf, terra_mid, bar, border_radius=2)
+    pygame.draw.rect(surf, ink, bar, 1, border_radius=2)
+    for rx in (11, cx, width - 12):
+        pygame.draw.circle(surf, bronze_hi, (rx, 24), 2)
+
+    # Lower serrated bronze pincer teeth + turquoise pressure vent slit
+    for tx in (12, 20, 28):
+        tooth = [(tx, height - 9), (tx + 3, height - 2), (tx + 6, height - 9)]
+        pygame.draw.polygon(surf, bronze_hi, tooth)
+        pygame.draw.polygon(surf, ink, tooth, 1)
+    pygame.draw.rect(surf, turq_glow if rng.random() >= 0.0 else verdigris, (cx - 5, 12, 10, 4), border_radius=1)
+    return surf
+
+
+def generate_sluice_leviathan_pincer(width: int = 36, height: int = 36, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Sluice-Gate Leviathan lighter bronze water-valve pincer claw (36x36, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7403)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    ink = (20, 24, 28, 255)
+    bronze_dark = (86, 66, 40, 255)
+    bronze_mid = (152, 118, 68, 255)
+    bronze_hi = (214, 180, 118, 255)
+    verdigris = (66, 156, 138, 255)
+    turq_glow = (72, 230, 238, 255)
+    turq_core = (204, 252, 255, 255)
+
+    # Wrist valve collar at top (-Y)
+    pygame.draw.rect(surf, bronze_dark, (cx - 8, 4, 16, 10), border_radius=3)
+    pygame.draw.rect(surf, bronze_mid, (cx - 6, 5, 12, 7), border_radius=2)
+    pygame.draw.rect(surf, ink, (cx - 8, 4, 16, 10), 1, border_radius=3)
+
+    # Curved left & right bronze pincer jaws opening toward +Y
+    left_jaw = [(cx - 8, 12), (6, 22), (10, 32), (15, 29), (12, 21), (cx - 3, 14)]
+    right_jaw = [(cx + 8, 12), (width - 7, 22), (width - 11, 32), (width - 16, 29), (width - 13, 21), (cx + 3, 14)]
+    for jaw in (left_jaw, right_jaw):
+        pygame.draw.polygon(surf, bronze_mid, jaw)
+        pygame.draw.polygon(surf, ink, jaw, 2)
+    pygame.draw.line(surf, bronze_hi, (9, 22), (12, 29), 2)
+    pygame.draw.line(surf, verdigris, (width - 10, 22), (width - 13, 29), 2)
+
+    # Pressurized turquoise water-valve nozzle nestled between the pincer jaws
+    pygame.draw.circle(surf, ink, (cx, 17), 5)
+    pygame.draw.circle(surf, turq_glow, (cx, 17), 4)
+    pygame.draw.circle(surf, turq_core if rng.random() >= 0.0 else bronze_hi, (cx, 17), 2)
+    return surf
+
+
+def generate_sluice_leviathan_leg(width: int = 40, height: int = 22, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Sluice-Gate Leviathan multi-jointed bronze crab leg (40x22, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7404)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+
+    ink = (20, 24, 28, 255)
+    bronze_dark = (84, 64, 38, 255)
+    bronze_mid = (150, 118, 68, 255)
+    bronze_hi = (212, 178, 116, 255)
+    verdigris = (66, 154, 136, 255)
+    turq_pip = (72, 228, 236, 255)
+
+    # Upper femur bar from socket (left) to raised bronze knee
+    femur = [(4, 9), (20, 4), (21, 10), (6, 15)]
+    pygame.draw.polygon(surf, bronze_mid, femur)
+    pygame.draw.polygon(surf, ink, femur, 2)
+    pygame.draw.line(surf, bronze_hi, (6, 10), (19, 6), 1)
+
+    # Lower tibia strut descending from knee to pointed bronze claw foot
+    tibia = [(19, 5), (36, 14), (33, 19), (17, 10)]
+    pygame.draw.polygon(surf, bronze_dark, tibia)
+    pygame.draw.polygon(surf, ink, tibia, 2)
+    pygame.draw.line(surf, verdigris, (20, 7), (33, 14), 2)
+
+    # Shoulder & knee bronze rivet joints
+    pygame.draw.circle(surf, ink, (6, 12), 4)
+    pygame.draw.circle(surf, bronze_hi, (6, 12), 3)
+    pygame.draw.circle(surf, ink, (20, 7), 4)
+    pygame.draw.circle(surf, bronze_mid, (20, 7), 3)
+    pygame.draw.circle(surf, turq_pip if rng.random() >= 0.0 else bronze_hi, (20, 7), 1)
+
+    # Aqueduct grip-spike claw tip
+    claw = [(33, 14), (39, 18), (32, 20)]
+    pygame.draw.polygon(surf, bronze_hi, claw)
+    pygame.draw.polygon(surf, ink, claw, 1)
     return surf
 
 

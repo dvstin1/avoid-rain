@@ -131,6 +131,7 @@ class Actor:
             "GaleVaneRaptorBoss",
             "TypesetterAutomatonBoss",
             "GlassKilnBasiliskBoss",
+            "SluiceGateLeviathanBoss",
             "FinalAuthor",
         ):
             return True

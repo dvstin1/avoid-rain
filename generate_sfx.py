@@ -3043,6 +3043,147 @@ def generate_glass_basilisk_music(seed: int = DEFAULT_SEED):
     return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
 
 
+def _synth_flute_square_arp(n: int, freq_hz: float):
+    """Synthesize a cascading aquatic flute-square water-terrace arpeggio note."""
+    if n <= 0:
+        return silence(1)
+    if np is not None:
+        t = np.arange(n, dtype=np.float64) / SAMPLE_RATE
+        sq = np.where(((freq_hz * t) % 1.0) < 0.50, 1.0, -1.0)
+        flute = np.sin(TAU * freq_hz * t) + 0.25 * np.sin(TAU * (freq_hz * 2.0) * t)
+        raw = 0.48 * sq + 0.52 * flute
+        atk = max(1, min(n // 5, int(0.004 * SAMPLE_RATE)))
+        rel = max(1, min(n // 2, int(0.020 * SAMPLE_RATE)))
+        env = 0.45 + 0.55 * np.exp(-t / max(0.05, (n / SAMPLE_RATE) * 0.80))
+        env[:atk] *= np.linspace(0.0, 1.0, atk, endpoint=False)
+        env[n - rel:] *= np.linspace(1.0, 0.0, rel)
+        return raw * env
+    out = []
+    atk = max(1, min(n // 5, int(0.004 * SAMPLE_RATE)))
+    rel = max(1, min(n // 2, int(0.020 * SAMPLE_RATE)))
+    dur = max(0.05, (n / SAMPLE_RATE) * 0.80)
+    for i in range(n):
+        t_cur = i / SAMPLE_RATE
+        sq = 1.0 if ((freq_hz * t_cur) % 1.0) < 0.50 else -1.0
+        flute = math.sin(TAU * freq_hz * t_cur) + 0.25 * math.sin(TAU * (freq_hz * 2.0) * t_cur)
+        env = 0.45 + 0.55 * math.exp(-t_cur / dur)
+        if i < atk:
+            env *= i / atk
+        if i >= n - rel:
+            env *= (n - 1 - i) / max(1, rel)
+        out.append((0.48 * sq + 0.52 * flute) * env)
+    return out
+
+
+def generate_sluice_leviathan_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~14.12s loopable 136 BPM C Minor/Dorian Mega Man-style aquatic chiptune boss theme."""
+    rng = random.Random(seed ^ 0x51C1E1E7)
+    bpm = 136.0
+    step_s = 60.0 / bpm / 4.0  # 16th note (~0.11029s) -> 1.7647s/bar
+    total_bars = 8  # 8 bars = ~14.12s exact seamless loop
+    total_samples = n_samples(total_bars * 16 * step_s)
+
+    lead_buf = silence(total_samples)
+    arp_buf = silence(total_samples)
+    bass_buf = silence(total_samples)
+    drum_buf = silence(total_samples)
+
+    # C Minor / C Dorian (C, D, Eb, F, G, A/Ab, Bb) heroic aquatic progression:
+    # (4-note cascading water-terrace arp cells, driving bass root MIDI)
+    prog = (
+        ((60, 63, 67, 72), 36),  # Cm
+        ((62, 65, 69, 74), 38),  # Dm (Dorian sunlit lift)
+        ((63, 67, 70, 75), 39),  # Eb major surge
+        ((65, 69, 72, 77), 41),  # F major (Dorian IV shimmer)
+        ((56, 60, 63, 68), 32),  # Ab major deep swell
+        ((58, 62, 65, 70), 34),  # Bb major heroic climb
+        ((65, 68, 72, 77), 41),  # Fm hydraulic tension
+        ((55, 59, 62, 67), 31),  # G7 sluice turnaround -> Cm
+    )
+
+    # Heroic syncopated 25% square lead phrases in C Minor/Dorian: (step_offset, midi_note, duration_in_16ths)
+    lead_phrases = (
+        ((0, 72, 3), (3, 74, 1), (4, 75, 2), (6, 79, 2), (8, 77, 3), (11, 75, 2), (13, 74, 3)),
+        ((0, 74, 2), (2, 77, 2), (4, 81, 3), (7, 79, 1), (8, 77, 2), (10, 74, 2), (12, 72, 4)),
+        ((0, 75, 3), (3, 77, 1), (4, 79, 2), (6, 82, 2), (8, 84, 3), (11, 82, 2), (13, 79, 3)),
+        ((0, 81, 2), (2, 79, 2), (4, 77, 2), (6, 74, 2), (8, 77, 3), (11, 79, 2), (13, 81, 3)),
+        ((0, 80, 3), (3, 79, 1), (4, 75, 2), (6, 72, 2), (8, 75, 2), (10, 79, 2), (12, 80, 4)),
+        ((0, 82, 2), (2, 80, 2), (4, 77, 2), (6, 74, 2), (8, 77, 2), (10, 80, 2), (12, 82, 4)),
+        ((0, 84, 2), (2, 82, 2), (4, 80, 2), (6, 77, 2), (8, 75, 2), (10, 77, 2), (12, 80, 4)),
+        ((0, 79, 2), (2, 77, 1), (3, 74, 1), (4, 79, 2), (6, 83, 2), (8, 86, 3), (11, 83, 2), (13, 79, 3)),
+    )
+
+    # Heavy low-noise hydraulic sluice percussion
+    kick_sig = _synth_music_kick(n_samples(0.145), 138.0, 38.0, 0.036, drive=2.10)
+    sluice_snare = _synth_music_noise_hit(n_samples(0.135), rng, 340.0, 2600.0, 0.044, bits=4, hold=3)
+    spray_hat = _synth_music_noise_hit(n_samples(0.036), rng, 2800.0, 8400.0, 0.011, bits=5, hold=1)
+    valve_thud = _synth_music_noise_hit(n_samples(0.085), rng, 180.0, 920.0, 0.028, bits=4, hold=4)
+
+    for bar_idx, (arp_notes, bass_root) in enumerate(prog):
+        bar_step = bar_idx * 16
+
+        # Ch 1: Heroic syncopated 25% square lead melody
+        for s_off, midi_n, dur_steps in lead_phrases[bar_idx]:
+            pos = offset_samples((bar_step + s_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.90)
+            sq = _synth_pulse_note(
+                dur_n,
+                _midi_to_hz(midi_n),
+                duty=0.25,
+                vibrato_hz=5.8,
+                vibrato_depth=0.008 if dur_steps >= 3 else 0.0,
+            )
+            _ring_add(lead_buf, sq, pos, 0.64)
+
+        # Ch 2: Cascading flute-square water-terrace arpeggios (descending & rising ripples)
+        cascade_order = (3, 2, 1, 0, 1, 2, 3, 2)
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            n_idx = cascade_order[s_i % len(cascade_order)]
+            oct_shift = 12 if (s_i >= 8 and s_i % 4 == 0) else 0
+            arp_n = _synth_flute_square_arp(n_samples(step_s * 0.84), _midi_to_hz(arp_notes[n_idx] + oct_shift))
+            _ring_add(arp_buf, arp_n, pos, 0.42 if s_i % 4 == 0 else 0.30)
+
+        # Ch 3: Driving sub-triangle bassline (pumping octaves + fifths with sub weight)
+        bass_pattern = (
+            (0, 0, 2), (2, 12, 1), (3, 7, 1),
+            (4, 0, 2), (6, 12, 1), (7, 10, 1),
+            (8, 0, 2), (10, 7, 2),
+            (12, 12, 2), (14, 7, 1), (15, 10, 1),
+        )
+        for s_off, semi_off, dur_steps in bass_pattern:
+            pos = offset_samples((bar_step + s_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.92)
+            freq_b = _midi_to_hz(bass_root + semi_off)
+            tri = _synth_nes_triangle_note(dur_n, freq_b)
+            _ring_add(bass_buf, tri, pos, 0.80)
+            if semi_off == 0:
+                sub = _synth_sub_note(dur_n, freq_b)
+                _ring_add(bass_buf, sub, pos, 0.34)
+
+        # Ch 4: Heavy low-noise hydraulic sluice percussion
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            if s_i in (0, 6, 8, 14) or (s_i == 3 and bar_idx % 2 == 1):
+                _ring_add(drum_buf, kick_sig, pos, 0.90 if s_i in (0, 8) else 0.72)
+            if s_i in (4, 12) or (bar_idx in (3, 7) and s_i in (13, 14, 15)):
+                _ring_add(drum_buf, sluice_snare, pos, 0.78 if s_i in (4, 12) else 0.60)
+            if s_i in (2, 10):
+                _ring_add(drum_buf, valve_thud, pos, 0.50)
+            _ring_add(drum_buf, spray_hat, pos, 0.30 if s_i % 2 == 0 else 0.16)
+
+    lead_clean = biquad(lead_buf, "lowpass", 8200.0)
+    arp_clean = biquad(arp_buf, "lowpass", 7400.0)
+    bass_clean = biquad(bass_buf, "lowpass", 1500.0)
+    combined = mix(
+        (lead_clean, 0.60),
+        (arp_clean, 0.46),
+        (bass_clean, 0.72),
+        (drum_buf, 0.58),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
 MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "slug_boss_phase1.ogg": generate_slug_boss_phase1_music,
     "slug_boss_phase2.ogg": generate_slug_boss_phase2_music,
@@ -3053,6 +3194,7 @@ MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "boss_gale_raptor.ogg": generate_gale_raptor_music,
     "boss_typesetter.ogg": generate_typesetter_music,
     "boss_glass_basilisk.ogg": generate_glass_basilisk_music,
+    "boss_sluice_leviathan.ogg": generate_sluice_leviathan_music,
 }
 
 
