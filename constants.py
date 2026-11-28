@@ -1473,6 +1473,7 @@ DEATH_SCREEN_DURATION = 5.5  # Full playback duration covering 5.38s death_theme
 
 # Dynamic Rain Ambient Audio Constants
 RAIN_LOOP_SFX = "rain_loop.ogg"
+LOCKED_DOOR_RATTLE_SFX = "locked_door_rattle.ogg"
 
 # Environment Audio (Section 2: Directional Stereo Ambient Loops)
 AMBIENT_FLAME_SFX = "ambient_flame.ogg"
@@ -1486,6 +1487,7 @@ ENV_AUDIO_MAX_PAN_BIAS = 0.85                   # Keeps opposite ear subtly audi
 ENV_AUDIO_FLAME_MAX_DIST = 420.0                # Audible radius for Candelabras & Vitreous Fire Chalices
 ENV_AUDIO_FLAME_FULL_DIST = 72.0
 ENV_AUDIO_FLAME_BASE_VOL = 0.34
+ENV_AUDIO_CANDELABRA_VOL_MULT = 0.2             # Subtle ambient crackle for standard Candelabras
 ENV_AUDIO_CHALICE_VOL_MULT = 1.25               # Larger 80x80 Vitreous Fire Chalices burn slightly louder
 ENV_AUDIO_WATER_MAX_DIST = 460.0                # Audible radius for Wellsprings, Sanctuary pond, & Aqueduct channels
 ENV_AUDIO_WATER_FULL_DIST = 80.0

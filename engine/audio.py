@@ -12,6 +12,7 @@ from constants import (
     AMBIENT_AUTHOR_RUMBLE_SFX,
     AMBIENT_FLAME_SFX,
     AMBIENT_WATER_SFX,
+    ENV_AUDIO_CANDELABRA_VOL_MULT,
     ENV_AUDIO_CHALICE_VOL_MULT,
     ENV_AUDIO_FADE_RATE,
     ENV_AUDIO_FLAME_BASE_VOL,
@@ -166,7 +167,7 @@ class AudioManager:
             dx, dy = ox - px, oy - py
 
             if obj_name in ("Candelabra", "Fire Chalice"):
-                mult = ENV_AUDIO_CHALICE_VOL_MULT if obj_name == "Fire Chalice" else 1.0
+                mult = ENV_AUDIO_CHALICE_VOL_MULT if obj_name == "Fire Chalice" else ENV_AUDIO_CANDELABRA_VOL_MULT
                 cand = self.calculate_stereo_volumes(
                     dx,
                     dy,

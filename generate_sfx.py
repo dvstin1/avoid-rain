@@ -957,6 +957,41 @@ def preset_weakpoint_crit(rng: random.Random, p: Dict):
     return soft_clip(normalize(out), 1.8)
 
 
+def preset_locked_door_rattle(rng: random.Random, p: Dict):
+    """Subtle brass padlock latch rattle + damped wooden shed door thud (~0.24s)."""
+    n = n_samples(p["duration"])
+    jiggle_t = float(p["jiggle_offset"])
+    m = max(16, n - offset_samples(jiggle_t))
+
+    # First quiet brass padlock clink & metallic latch click
+    ring_a = normalize(metallic_ring(n, jitter(rng, p["ring_hz"], 0.03), RING_RATIOS_ARMOR, p["ring_decay"], rng))
+    ring_a = normalize(biquad(ring_a, "bandpass", p["ring_hz"] * 1.15, 1.4))
+    click_a = multiply(
+        normalize(biquad(white_noise(n, rng), "highpass", p["click_hp_hz"], order=2)),
+        exp_decay(n, 0.008, attack=0.0003),
+    )
+
+    # Second softer rebound rattle as the padlock settles against the hasp
+    ring_b = normalize(
+        metallic_ring(m, jitter(rng, p["ring_hz"] * 1.12, 0.03), RING_RATIOS_ARMOR, p["ring_decay"] * 0.78, rng)
+    )
+    ring_b = normalize(biquad(ring_b, "bandpass", p["ring_hz"] * 1.25, 1.5))
+
+    # Damped wooden door thud when the locked latch stops
+    thud = multiply(
+        oscillator(pitch_drop(n, p["thud_start_hz"], p["thud_end_hz"], 0.025)),
+        exp_decay(n, p["thud_decay"], attack=0.002),
+    )
+    thud = normalize(biquad(thud, "lowpass", 340.0))
+
+    return mix(
+        (ring_a, p["ring_level"], 0.0),
+        (click_a, p["click_level"], 0.0),
+        (thud, p["thud_level"], 0.006),
+        (ring_b, p["ring_level"] * 0.62, jiggle_t),
+    )
+
+
 def preset_mumble(rng: random.Random, p: Dict):
     """Closed-mouth vocal mumble: low-passed vocal buzz formants modulated by syllabic cadence."""
     n = n_samples(p["duration"])
@@ -1510,6 +1545,12 @@ PRESETS: Dict[str, Tuple[PresetFn, Dict, str]] = {
         "crunch_level": 0.78, "crit_hz": 880.0, "crit_level": 0.70,
         "peak": 0.86,
     }, "Heavy sub-impact + harmonic weak-point critical burst"),
+    "locked_door_rattle": (preset_locked_door_rattle, {
+        "duration": 0.24, "ring_hz": 1240.0, "ring_decay": 0.048, "ring_level": 0.68,
+        "click_hp_hz": 2600.0, "click_level": 0.36, "thud_start_hz": 135.0,
+        "thud_end_hz": 58.0, "thud_decay": 0.042, "thud_level": 0.52,
+        "jiggle_offset": 0.085, "peak": 0.34,
+    }, "Subtle brass padlock latch rattle + damped wooden door thud"),
 }
 
 # Game SFX manifest: file name -> (preset, parameter overrides). Mirrors docs/visual_style_and_assets.md Section 6.
@@ -1584,6 +1625,7 @@ SOUND_RECIPES: Dict[str, Tuple[str, Dict]] = {
     "armor_deflect.ogg": ("armor_deflect", {}),
     "boss_expose.ogg": ("boss_expose", {}),
     "weakpoint_crit.ogg": ("weakpoint_crit", {}),
+    "locked_door_rattle.ogg": ("locked_door_rattle", {}),
 }
 
 # Keyword heuristics for unknown missing references (first match wins)

@@ -1718,6 +1718,11 @@ class Renderer:
             self._draw_tech_tower_wall_tile(target_surf, coords, dr, pal, (wall_n, wall_s, wall_w, wall_e))
             return
 
+        # 2c. Sunlit Aqueducts Biome: Weathered limestone/terracotta plateau rooftops (south facade uses AqueductMossWall)
+        if biome == "sunlit_aqueducts" and wall_s:
+            self._draw_sunlit_aqueducts_plateau_rooftop(target_surf, (x, y, sx, sy, ts), pal, (wall_n, wall_w, wall_e))
+            return
+
         # 3. All other biomes: Restore exact legacy procedural geometric wall rendering (matching 70ed514)
         if wall_s:
             # Connected Plateau / Wall Rooftop: seamless across adjacent wall tiles
@@ -1789,6 +1794,150 @@ class Renderer:
                 target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
             if not wall_e:
                 target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
+
+    def _draw_sunlit_aqueducts_plateau_rooftop(self, target_surf, geom, pal, wall_adj):
+        """Render natural weathered limestone/terracotta flagstone rooftops with moss tufts for sunlit_aqueducts."""
+        x, y, sx, sy, ts = geom
+        wall_n, wall_w, wall_e = wall_adj
+        h = ((x * 73856093) ^ (y * 19349663) ^ 0x3C6EF35F) & 0x7FFFFFFF
+
+        # Subtle per-tile stone tint shift for natural sunlit terracotta/limestone masonry variation
+        tone_shift = ((h % 5) - 2) * 3
+        base_col = self._shift_rgb_clamped(pal["wall_top"], tone_shift, tone_shift - 1, tone_shift - 2)
+        target_surf.fill(base_col, (sx, sy, ts, ts))
+
+        slab_warm = constants.blend_rgb(base_col, pal["wall_hi"], 0.32)
+        slab_cool = constants.blend_rgb(base_col, pal["wall_face"], 0.24)
+        mortar_col = constants.blend_rgb(base_col, pal["wall_mortar"], 0.48)
+        bevel_hi = constants.blend_rgb(base_col, pal["wall_hi"], 0.52)
+        speck_light = pal["wall_hi"]
+        speck_dark = constants.blend_rgb(base_col, pal["wall_mortar"], 0.62)
+        moss_dark = (62, 118, 64)
+        moss_hi = (108, 174, 90)
+
+        # Running-bond weathered flagstone courses (two staggered horizontal courses per 40px tile)
+        mid_y = sy + (ts // 2) + (((h >> 2) % 3) - 1)
+        joint_top = sx + 8 + ((h >> 5) % 24)
+        joint_bot = sx + 8 + (((h >> 9) + 13) % 24)
+
+        # Subtle tonal blocks per flagstone slab
+        if (h >> 3) & 1:
+            target_surf.fill(slab_warm, (sx + 1, sy + 1, max(1, joint_top - sx - 1), max(1, mid_y - sy - 1)))
+        else:
+            target_surf.fill(
+                slab_cool, (joint_top + 1, sy + 1, max(1, sx + ts - joint_top - 1), max(1, mid_y - sy - 1))
+            )
+        if (h >> 7) & 1:
+            target_surf.fill(slab_cool, (sx + 1, mid_y + 1, max(1, joint_bot - sx - 1), max(1, sy + ts - mid_y - 1)))
+        else:
+            target_surf.fill(
+                slab_warm, (joint_bot + 1, mid_y + 1, max(1, sx + ts - joint_bot - 1), max(1, sy + ts - mid_y - 1))
+            )
+
+        # Crisp 1px recessed mortar seams + sunlit upper-left bevel catch-light
+        pygame.draw.line(target_surf, mortar_col, (sx, mid_y), (sx + ts - 1, mid_y), 1)
+        if mid_y + 1 < sy + ts:
+            pygame.draw.line(target_surf, bevel_hi, (sx, mid_y + 1), (sx + ts - 1, mid_y + 1), 1)
+        pygame.draw.line(target_surf, mortar_col, (joint_top, sy), (joint_top, mid_y), 1)
+        pygame.draw.line(target_surf, mortar_col, (joint_bot, mid_y), (joint_bot, sy + ts - 1), 1)
+        if joint_top + 1 < sx + ts:
+            pygame.draw.line(target_surf, bevel_hi, (joint_top + 1, sy + 1), (joint_top + 1, mid_y - 1), 1)
+        if joint_bot + 1 < sx + ts:
+            pygame.draw.line(target_surf, bevel_hi, (joint_bot + 1, mid_y + 2), (joint_bot + 1, sy + ts - 2), 1)
+
+        # Fine limestone/terracotta stone-grain pitting & sunlit mineral speckles
+        for idx_p in range(8):
+            ph = ((h >> (idx_p * 2)) ^ (idx_p * 2654435761)) & 0xFFFF
+            px_s = sx + 2 + (ph % max(1, ts - 4))
+            py_s = sy + 2 + ((ph >> 6) % max(1, ts - 4))
+            p_col = speck_light if (idx_p % 3 == 0) else speck_dark
+            target_surf.fill(p_col, (px_s, py_s, 2 if idx_p % 4 == 0 else 1, 1))
+
+        # Subtle branching hairline mortar cracks on ~40% of tiles
+        if ((h >> 11) % 5) < 2:
+            cx_k = joint_top if ((h >> 13) & 1) else joint_bot
+            cy_k = mid_y
+            dx_k = 6 if ((h >> 14) & 1) else -6
+            dy_k = -5 if ((h >> 15) & 1) else 5
+            pygame.draw.line(target_surf, mortar_col, (cx_k, cy_k), (cx_k + dx_k, cy_k + dy_k), 1)
+            crack_end = (cx_k + dx_k + (dx_k // 2), cy_k + dy_k)
+            pygame.draw.line(target_surf, mortar_col, (cx_k + dx_k, cy_k + dy_k), crack_end, 1)
+
+        # Small organic moss tufts tucked naturally along stone joints
+        if ((h >> 16) % 3) != 0:
+            mx = max(sx + 3, min(sx + ts - 5, joint_top - 1))
+            my = max(sy + 3, min(sy + ts - 5, mid_y - 1))
+            target_surf.fill(moss_dark, (mx, my, 4, 3))
+            target_surf.fill(moss_hi, (mx + 1, my, 2, 2))
+            target_surf.fill(moss_dark, (mx - 1, my + 2, 2, 1))
+        if ((h >> 18) % 4) == 0:
+            mx2 = max(sx + 3, min(sx + ts - 5, joint_bot))
+            my2 = max(sy + 3, min(sy + ts - 5, mid_y + 2))
+            target_surf.fill(moss_dark, (mx2, my2, 3, 2))
+            target_surf.fill(moss_hi, (mx2 + 1, my2, 1, 1))
+
+        # Outer-edge-only weathered stone parapet borders against lower floor tiles
+        if not wall_n:
+            target_surf.fill(pal["wall_mortar"], (sx, sy, ts, 2))
+            target_surf.fill(pal["wall_hi"], (sx, sy + 2, ts, 3))
+        if not wall_w:
+            target_surf.fill(pal["wall_mortar"], (sx, sy, 2, ts))
+            target_surf.fill(pal["wall_hi"], (sx + 2, sy, 2, ts))
+        if not wall_e:
+            target_surf.fill(pal["wall_mortar"], (sx + ts - 2, sy, 2, ts))
+
+    def _draw_sunlit_aqueducts_grass_tile(self, target_surf, pal, geom):
+        """Render fine deterministic organic meadow grass tufts, moss flecks, and wildflowers."""
+        x, y, sx, sy, ts = geom
+        h = ((x * 73856093) ^ (y * 19349663) ^ 0x5A17D3) & 0x7FFFFFFF
+
+        s_base, s_alt = pal["strata"][2]
+        shade_moss = self._shift_rgb_clamped(s_base, -18, -24, -14)
+        deep_blade = self._shift_rgb_clamped(s_base, -10, -14, -8)
+        mid_blade = self._shift_rgb_clamped(s_base, 8, 12, 6)
+        sun_blade = self._shift_rgb_clamped(s_alt, 14, 16, 8)
+        clover_gold = pal["floor_speck"]
+        wildflower_cream = (242, 234, 198)
+
+        # 1. Soft dappled shaded moss patches (small 4x3 / 5x3 irregular ground variations)
+        for p_idx in range(3):
+            ph = ((h >> (p_idx * 4)) ^ (p_idx * 1597334677)) & 0xFFFF
+            px_m = sx + 3 + (ph % max(1, ts - 10))
+            py_m = sy + 3 + ((ph >> 6) % max(1, ts - 8))
+            patch_col = shade_moss if (p_idx % 2 == 0) else mid_blade
+            target_surf.fill(patch_col, (px_m, py_m, 5, 3))
+            target_surf.fill(patch_col, (px_m + 1, py_m - 1, 3, 1))
+
+        # 2. Delicate edge-blending grass stipples along tile margins
+        for edge_i in range(4):
+            eh = ((h >> (edge_i * 3 + 2)) ^ (edge_i * 2246822519)) & 0xFFFF
+            ex = sx + 2 + (eh % max(1, ts - 4))
+            ey = sy + (1 if edge_i % 2 == 0 else ts - 3)
+            target_surf.fill(deep_blade if edge_i < 2 else mid_blade, (ex, ey, 2, 2))
+
+        # 3. Varied meadow-green pixel blade tufts (6 crisp 2-to-3 blade fan clusters per tile)
+        for b_idx in range(6):
+            bh = ((h >> (b_idx * 3)) ^ ((b_idx + 1) * 3266489917)) & 0xFFFF
+            bx = sx + 4 + (bh % max(1, ts - 8))
+            by = sy + 6 + ((bh >> 7) % max(1, ts - 9))
+            b_h = 3 + (bh & 1)
+            lean = -1 if ((bh >> 2) & 1) else 1
+            pygame.draw.line(target_surf, deep_blade, (bx, by), (bx + lean, by - b_h), 1)
+            pygame.draw.line(target_surf, sun_blade, (bx + 1, by), (bx + 1 - lean, by - (b_h + 1)), 1)
+            if (bh >> 3) & 1:
+                pygame.draw.line(target_surf, mid_blade, (bx + 2, by), (bx + 3, by - max(2, b_h - 1)), 1)
+
+        # 4. Tiny sunlit clover & wildflower flecks sprinkled organically across the terrace
+        if (h % 3) != 0:
+            fx = sx + 5 + ((h >> 12) % max(1, ts - 10))
+            fy = sy + 5 + ((h >> 17) % max(1, ts - 10))
+            target_surf.fill(shade_moss, (fx - 1, fy + 1, 3, 1))
+            target_surf.fill(clover_gold, (fx, fy, 2, 1))
+        if ((h >> 4) % 5) == 0:
+            fx2 = sx + 6 + ((h >> 19) % max(1, ts - 12))
+            fy2 = sy + 6 + ((h >> 23) % max(1, ts - 12))
+            target_surf.fill(wildflower_cream, (fx2, fy2, 2, 2))
+            target_surf.fill(clover_gold, (fx2, fy2, 1, 1))
 
     def _draw_swamp_mire_wall_tile(self, target_surf, geom, pal, wall_adj):
         """Render organic peat/chitin wall plateaus and root-overhang south facades for swamp_mire."""
@@ -2244,10 +2393,8 @@ class Renderer:
                 # _draw_sunlit_aqueducts_water_tile() to avoid repeating 2x2 pill seams.
                 pass
             elif s_idx == 2:
-                # Lush overgrown moss viaduct bridge
-                pygame.draw.ellipse(target_surf, pal["wall_glow"], (ax + 10, ay + 12, 60, 54))
-                pygame.draw.circle(target_surf, (164, 244, 146), (ax + 28, ay + 28), 6)
-                pygame.draw.circle(target_surf, (164, 244, 146), (ax + 50, ay + 46), 5)
+                # Organic meadow grass tufts, shaded moss patches, and tiny sunlit clover flecks
+                self._draw_sunlit_aqueducts_grass_tile(target_surf, pal, (x, y, sx, sy, ts))
             else:
                 # Sun-baked terracotta flagstone seams with moss tufts
                 terracotta_seam = self._shift_rgb_clamped(pal["strata"][1][0], -28, -20, -14)

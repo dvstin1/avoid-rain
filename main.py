@@ -141,6 +141,7 @@ def handle_title_events(
 ):
     """Handle events during the title screen with Auto Input Mode and Ratcheted Navigation."""
     in_controls = getattr(title_menu.state, 'name', '') == 'CONTROLS'
+    revealed_this_frame = False
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             return False, False, False
@@ -155,6 +156,7 @@ def handle_title_events(
         if not getattr(title_menu, "menu_revealed", True):
             if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.JOYBUTTONDOWN):
                 title_menu.reveal_menu()
+                revealed_this_frame = True
                 if audio_manager:
                     audio_manager.play_sfx("menu_confirm.ogg")
             continue
@@ -222,7 +224,7 @@ def handle_title_events(
                 title_menu.confirm()
 
     # --- Unified Navigation Polling (Title) ---
-    if not getattr(title_menu, "menu_revealed", True):
+    if revealed_this_frame or not getattr(title_menu, "menu_revealed", True):
         return True, True, False
     if getattr(state, 'lobby_editing_name', False):
         return True, True, False

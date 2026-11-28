@@ -399,6 +399,11 @@ class FlavorProp(GameObject):
 
     def execute_interaction(self, game_state):
         """Display non-reward atmospheric flavor text in active_dialogue."""
+        if self.prop_type == "locked_shed_door":
+            from constants import LOCKED_DOOR_RATTLE_SFX
+            audio = getattr(game_state, "audio_manager", None)
+            if audio is not None and hasattr(audio, "play_sfx"):
+                audio.play_sfx(LOCKED_DOOR_RATTLE_SFX)
         game_state.active_dialogue = {
             "speaker": self.name,
             "text": self.dialogue_text,
