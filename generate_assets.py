@@ -7126,6 +7126,16 @@ def generate_all_assets(
         out_path = os.path.join("assets", "graphics", f"{ts_key}.png")
         _emit(ts_key, out_path, ts_surf)
 
+    # Pipeline 20: Modular Articulated Boss Rig Parts (The Glass-Kiln Basilisk — Vitreous Basin Night Boss)
+    glass_basilisk_parts = (
+        ("glass_basilisk_head", generate_glass_basilisk_head(48, 44, rng=_rng("glass_basilisk_head"))),
+        ("glass_basilisk_segment", generate_glass_basilisk_segment(44, 40, rng=_rng("glass_basilisk_segment"))),
+        ("glass_basilisk_tail", generate_glass_basilisk_tail(44, 32, rng=_rng("glass_basilisk_tail"))),
+    )
+    for gb_key, gb_surf in glass_basilisk_parts:
+        out_path = os.path.join("assets", "graphics", f"{gb_key}.png")
+        _emit(gb_key, out_path, gb_surf)
+
     if stats_out is not None:
         stats_out["updated"] = updated_count
         stats_out["unchanged"] = unchanged_count
@@ -7595,6 +7605,212 @@ def generate_typesetter_platen(width: int = 48, height: int = 32, rng: random.Ra
     # Central press emblem
     pygame.draw.rect(surf, brass_dark, (cx - 6, 12, 12, 8), border_radius=2)
     pygame.draw.rect(surf, ember_hi, (cx - 4, 14, 8, 4), border_radius=1)
+    return surf
+
+
+def generate_glass_basilisk_head(width: int = 48, height: int = 44, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Glass-Kiln Basilisk horned crystalline wyrm skull (48x44, SRCALPHA, forward=+Y)."""
+    if rng is None:
+        rng = random.Random(7301)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    ink = (26, 18, 28, 255)
+    salt_dark = (182, 164, 136, 255)
+    salt_mid = (224, 210, 184, 255)
+    salt_hi = (248, 240, 222, 255)
+    cobalt_dark = (32, 62, 118, 255)
+    cobalt_mid = (62, 112, 188, 255)
+    cobalt_hi = (132, 192, 244, 255)
+    amber_dark = (176, 86, 22, 255)
+    amber_mid = (232, 146, 44, 255)
+    kiln_glow = (255, 118, 30, 255)
+    kiln_core = (255, 226, 134, 255)
+
+    # Twin swept-back salt-crystal & cobalt glass horns
+    left_horn = [(cx - 11, 16), (5, 4), (11, 3), (cx - 6, 11)]
+    right_horn = [(cx + 11, 16), (width - 6, 4), (width - 12, 3), (cx + 6, 11)]
+    for horn in (left_horn, right_horn):
+        pygame.draw.polygon(surf, cobalt_dark, horn)
+        pygame.draw.polygon(surf, ink, horn, 2)
+    pygame.draw.line(surf, cobalt_hi, (8, 5), (cx - 8, 12), 2)
+    pygame.draw.line(surf, cobalt_hi, (width - 9, 5), (cx + 8, 12), 2)
+
+    # Central crystalline prism crest at brow
+    crest = [(cx, 2), (cx + 6, 13), (cx, 19), (cx - 6, 13)]
+    pygame.draw.polygon(surf, cobalt_mid, crest)
+    pygame.draw.polygon(surf, cobalt_hi, [(cx, 4), (cx + 3, 12), (cx, 15)])
+    pygame.draw.polygon(surf, ink, crest, 1)
+
+    # Faceted bleached salt-crystal wyrm cranium (pointing +Y)
+    skull_pts = [
+        (cx - 12, 12), (cx + 12, 12),
+        (cx + 18, 22), (cx + 13, 33),
+        (cx + 7, 40), (cx, 42), (cx - 7, 40),
+        (cx - 13, 33), (cx - 18, 22),
+    ]
+    pygame.draw.polygon(surf, salt_dark, skull_pts)
+    pygame.draw.polygon(surf, ink, skull_pts, 2)
+
+    # Upper cranial salt facet highlight plates
+    crown_pts = [
+        (cx - 10, 14), (cx + 10, 14),
+        (cx + 14, 23), (cx + 8, 30),
+        (cx - 8, 30), (cx - 14, 23),
+    ]
+    pygame.draw.polygon(surf, salt_mid, crown_pts)
+    pygame.draw.line(surf, salt_hi, (cx - 9, 15), (cx + 9, 15), 2)
+
+    # Molten-amber glowing jaws & furnace throat maw at snout tip (+Y)
+    jaw_pts = [(cx - 9, 29), (cx + 9, 29), (cx + 6, 39), (cx, 41), (cx - 6, 39)]
+    pygame.draw.polygon(surf, amber_dark, jaw_pts)
+    pygame.draw.polygon(surf, kiln_glow, [(cx - 6, 31), (cx + 6, 31), (cx + 4, 38), (cx, 40), (cx - 4, 38)])
+    pygame.draw.polygon(surf, kiln_core, [(cx - 3, 32), (cx + 3, 32), (cx, 38)])
+    pygame.draw.polygon(surf, ink, jaw_pts, 1)
+
+    # Crystalline salt fangs flanking molten jaw
+    for fx_off in (-8, 8):
+        fang = [(cx + fx_off, 32), (cx + fx_off - (2 if fx_off > 0 else -2), 38), (cx + fx_off, 39)]
+        pygame.draw.polygon(surf, salt_hi, fang)
+        pygame.draw.polygon(surf, ink, fang, 1)
+
+    # Glowing amber/cobalt basilisk slit eyes
+    for side in (-1, 1):
+        ex = cx + side * 9
+        ey = 23
+        eye_poly = [(ex - 4 * side, ey - 2), (ex + 3 * side, ey), (ex - 1 * side, ey + 3)]
+        pygame.draw.polygon(surf, kiln_glow, eye_poly)
+        pygame.draw.circle(surf, kiln_core if rng.random() >= 0.0 else amber_mid, (ex, ey), 2)
+        pygame.draw.polygon(surf, ink, eye_poly, 1)
+
+    # Fused amber nasal ridge line
+    pygame.draw.line(surf, amber_mid, (cx, 18), (cx, 30), 2)
+    pygame.draw.line(surf, kiln_core, (cx, 20), (cx, 27), 1)
+    return surf
+
+
+def generate_glass_basilisk_segment(width: int = 44, height: int = 40, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Glass-Kiln Basilisk fused salt-and-amber ribbed torso segment (44x40, SRCALPHA)."""
+    if rng is None:
+        rng = random.Random(7302)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx, cy = width // 2, height // 2
+
+    ink = (26, 18, 28, 255)
+    salt_dark = (176, 158, 130, 255)
+    salt_mid = (226, 212, 186, 255)
+    salt_hi = (248, 240, 224, 255)
+    cobalt_dark = (34, 66, 124, 255)
+    cobalt_mid = (66, 120, 198, 255)
+    cobalt_hi = (146, 204, 248, 255)
+    amber_dark = (180, 92, 24, 255)
+    amber_mid = (238, 154, 48, 255)
+    kiln_glow = (255, 122, 32, 255)
+    kiln_core = (255, 224, 130, 255)
+
+    # Lateral salt-crystal armor ribs jutting outward
+    for side in (-1, 1):
+        rib_top = [
+            (cx + side * 12, 9),
+            (cx + side * 20, 14),
+            (cx + side * 18, 21),
+            (cx + side * 11, 19),
+        ]
+        rib_bot = [
+            (cx + side * 12, 21),
+            (cx + side * 20, 26),
+            (cx + side * 16, 33),
+            (cx + side * 10, 30),
+        ]
+        for rib in (rib_top, rib_bot):
+            pygame.draw.polygon(surf, salt_mid, rib)
+            pygame.draw.polygon(surf, ink, rib, 1)
+        pygame.draw.line(surf, salt_hi, (cx + side * 13, 11), (cx + side * 19, 15), 1)
+        pygame.draw.line(surf, salt_hi, (cx + side * 13, 23), (cx + side * 19, 27), 1)
+
+    # Core hexagonal fused-glass carapace body
+    hull_pts = [
+        (cx - 10, 4), (cx + 10, 4),
+        (cx + 15, 13), (cx + 15, height - 13),
+        (cx + 10, height - 4), (cx - 10, height - 4),
+        (cx - 15, height - 13), (cx - 15, 13),
+    ]
+    pygame.draw.polygon(surf, cobalt_dark, hull_pts)
+    pygame.draw.polygon(surf, ink, hull_pts, 2)
+
+    # Inner bleached salt & fused amber dorsal scale plates
+    inner_pts = [
+        (cx - 8, 7), (cx + 8, 7),
+        (cx + 12, 15), (cx + 12, height - 15),
+        (cx + 8, height - 7), (cx - 8, height - 7),
+        (cx - 12, height - 15), (cx - 12, 15),
+    ]
+    pygame.draw.polygon(surf, salt_dark, inner_pts)
+    pygame.draw.polygon(surf, amber_dark, [(cx - 7, 10), (cx + 7, 10), (cx + 9, cy), (cx + 7, height - 10),
+                                           (cx - 7, height - 10), (cx - 9, cy)])
+    pygame.draw.polygon(surf, amber_mid, [(cx - 5, 12), (cx + 5, 12), (cx + 7, cy), (cx + 5, height - 12),
+                                          (cx - 5, height - 12), (cx - 7, cy)])
+
+    # Glowing molten-kiln spine vein & prism dorsal nodes
+    pygame.draw.line(surf, kiln_glow, (cx, 6), (cx, height - 6), 4)
+    pygame.draw.line(surf, kiln_core, (cx, 8), (cx, height - 8), 2)
+    for ny in (12, cy, height - 12):
+        diamond = [(cx, ny - 4), (cx + 4, ny), (cx, ny + 4), (cx - 4, ny)]
+        pygame.draw.polygon(surf, cobalt_mid, diamond)
+        pygame.draw.circle(surf, cobalt_hi if rng.random() >= 0.0 else salt_hi, (cx, ny), 1)
+        pygame.draw.polygon(surf, ink, diamond, 1)
+    return surf
+
+
+def generate_glass_basilisk_tail(width: int = 44, height: int = 32, rng: random.Random = None) -> pygame.Surface:
+    """Generate The Glass-Kiln Basilisk whipping prism-tipped tail spike (44x32, SRCALPHA, tip toward -Y)."""
+    if rng is None:
+        rng = random.Random(7303)
+    surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    surf.fill((0, 0, 0, 0))
+    cx = width // 2
+
+    ink = (26, 18, 28, 255)
+    salt_mid = (224, 210, 184, 255)
+    salt_hi = (248, 240, 224, 255)
+    cobalt_dark = (34, 66, 124, 255)
+    cobalt_mid = (68, 124, 202, 255)
+    cobalt_hi = (152, 212, 250, 255)
+    amber_mid = (238, 152, 46, 255)
+    kiln_glow = (255, 120, 32, 255)
+    kiln_core = (255, 228, 138, 255)
+
+    # Sweeping crystalline side prism fins along tail shaft
+    left_fin = [(cx - 6, 22), (4, 15), (9, 10), (cx - 4, 14)]
+    right_fin = [(cx + 6, 22), (width - 5, 15), (width - 10, 10), (cx + 4, 14)]
+    for fin in (left_fin, right_fin):
+        pygame.draw.polygon(surf, cobalt_mid, fin)
+        pygame.draw.polygon(surf, ink, fin, 1)
+    pygame.draw.line(surf, cobalt_hi, (7, 14), (cx - 5, 16), 2)
+    pygame.draw.line(surf, cobalt_hi, (width - 8, 14), (cx + 5, 16), 2)
+
+    # Tapered salt-and-cobalt tail spike (base at bottom +Y, razor prism tip at top -Y)
+    spike_pts = [
+        (cx, 2),
+        (cx + 8, 15),
+        (cx + 11, height - 4),
+        (cx, height - 2),
+        (cx - 11, height - 4),
+        (cx - 8, 15),
+    ]
+    pygame.draw.polygon(surf, cobalt_dark, spike_pts)
+    pygame.draw.polygon(surf, ink, spike_pts, 2)
+
+    # Inner bleached salt bevel & molten amber refraction core
+    inner_spike = [(cx, 5), (cx + 6, 17), (cx + 7, height - 6), (cx - 7, height - 6), (cx - 6, 17)]
+    pygame.draw.polygon(surf, salt_mid, inner_spike)
+    pygame.draw.polygon(surf, amber_mid, [(cx, 7), (cx + 4, 18), (cx + 4, height - 8), (cx - 4, height - 8),
+                                          (cx - 4, 18)])
+    pygame.draw.line(surf, kiln_glow, (cx, 6), (cx, height - 7), 3)
+    pygame.draw.line(surf, kiln_core if rng.random() >= 0.0 else salt_hi, (cx, 7), (cx, 18), 1)
+    pygame.draw.line(surf, salt_hi, (cx - 1, 4), (cx - 5, 16), 1)
     return surf
 
 

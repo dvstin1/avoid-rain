@@ -3090,6 +3090,504 @@ class TypesetterAutomatonBoss(NightBoss):
         return packet
 
 
+class GlassKilnBasiliskBoss(NightBoss):
+    """The Vitreous Basin Night Boss: articulated crystalline wyrm with fused-salt armor & thermal shock."""
+
+    def __init__(self, x, y, hp=None, id=None):
+        from constants import (
+            GLASS_BASILISK_ARMOR_DAMAGE_MULT,
+            GLASS_BASILISK_SIZE,
+            GLASS_BASILISK_SLITHER_DURATION,
+            GLASS_BASILISK_SPEED,
+            GLASS_BASILISK_VOLLEY_INTERVAL,
+            GLASS_BASILISK_WEAKPOINT_DAMAGE_MULT,
+            NIGHT_BOSS_MAX_HP,
+        )
+        initial_hp = hp if hp is not None else NIGHT_BOSS_MAX_HP
+        super().__init__(x, y, hp=initial_hp, id=id)
+        self.width = int(GLASS_BASILISK_SIZE)
+        self.height = int(GLASS_BASILISK_SIZE)
+        self.name = "Night Boss"
+        self.display_name = "The Glass-Kiln Basilisk"
+        self.is_glass_basilisk = True
+        self.speed = float(GLASS_BASILISK_SPEED)
+        self.detect_radius = 1200.0
+        self.persistent_pursuit = True
+
+        # Full-body fused-salt armor & Kiln Crack weak-point tuning
+        self.armor_front_only = False
+        self.armor_active = True
+        self.armor_damage_mult = float(GLASS_BASILISK_ARMOR_DAMAGE_MULT)
+        self.weakpoint_damage_mult = float(GLASS_BASILISK_WEAKPOINT_DAMAGE_MULT)
+        self.weakpoint_exposed_timer = 0.0
+
+        # 3-state thermal-shock gimmick loop + Phase 2 escalation
+        self.phase = 1
+        self.attack_mode = "salt_slither"
+        self.refraction_substate = "charge"
+        self.mode_timer = float(GLASS_BASILISK_SLITHER_DURATION)
+        self.volley_timer = float(GLASS_BASILISK_VOLLEY_INTERVAL) * 0.65
+        self.volley_alt = 0
+        self.slither_phase = 0.0
+        self.beam_angle_rad = 0.0
+        self.beam_start_rad = 0.0
+        self.beam_sweep_dir = 1.0
+        self.beam_active = False
+        self.beam_hit_cooldown = 0.0
+        self.glass_sparks = []
+        self._crack_spark_accum = 0.0
+        self.hit_flash_timer = 0.0
+
+    def get_active_beam_angles(self):
+        """Return active solar refraction ray angles (1 wide ray in Phase 1, 3 fan rays in Phase 2)."""
+        from constants import (
+            GLASS_BASILISK_BEAM_FAN_COUNT_P1,
+            GLASS_BASILISK_BEAM_FAN_COUNT_P2,
+            GLASS_BASILISK_BEAM_FAN_SPREAD_RAD,
+        )
+        count = int(GLASS_BASILISK_BEAM_FAN_COUNT_P2 if self.phase >= 2 else GLASS_BASILISK_BEAM_FAN_COUNT_P1)
+        if count <= 1:
+            return (float(self.beam_angle_rad),)
+        half = (count - 1) * 0.5
+        spread = float(GLASS_BASILISK_BEAM_FAN_SPREAD_RAD)
+        return tuple(float(self.beam_angle_rad + (idx - half) * spread) for idx in range(count))
+
+    def _enter_salt_slither(self):
+        """Transition into full-body fused-salt armored serpentine slither & prism bolt volleys."""
+        from constants import GLASS_BASILISK_SLITHER_DURATION, GLASS_BASILISK_VOLLEY_INTERVAL
+        self.attack_mode = "salt_slither"
+        self.refraction_substate = "charge"
+        self.armor_active = True
+        self.weakpoint_exposed_timer = 0.0
+        self.beam_active = False
+        self.state = ActorState.CHASE
+        cd_scale = 0.85 if self.phase >= 2 else 1.0
+        self.mode_timer = float(GLASS_BASILISK_SLITHER_DURATION) * cd_scale
+        self.volley_timer = float(GLASS_BASILISK_VOLLEY_INTERVAL) * 0.65 * cd_scale
+
+    def _enter_solar_refraction(self, target_x, target_y, state):
+        """Coil in place and charge a telegraphed sweeping amber solar refraction beam volley."""
+        from constants import (
+            GLASS_BASILISK_BEAM_SWEEP_ARC_RAD,
+            GLASS_BASILISK_REFRACTION_CHARGE_P1,
+            GLASS_BASILISK_REFRACTION_CHARGE_P2,
+        )
+        self.attack_mode = "solar_refraction"
+        self.refraction_substate = "charge"
+        self.armor_active = True
+        self.weakpoint_exposed_timer = 0.0
+        self.beam_active = False
+        self.state = ActorState.WIND_UP
+        self.vx = 0.0
+        self.vy = 0.0
+
+        cx, cy = self.get_center()
+        target_angle = math.atan2(target_y - cy, target_x - cx)
+        self.beam_sweep_dir = 1.0 if (self.volley_alt % 2 == 0) else -1.0
+        self.volley_alt += 1
+        self.beam_start_rad = target_angle - (float(GLASS_BASILISK_BEAM_SWEEP_ARC_RAD) * 0.5) * self.beam_sweep_dir
+        self.beam_angle_rad = float(self.beam_start_rad)
+        self.facing = (math.cos(self.beam_angle_rad), math.sin(self.beam_angle_rad))
+
+        charge_dur = GLASS_BASILISK_REFRACTION_CHARGE_P2 if self.phase >= 2 else GLASS_BASILISK_REFRACTION_CHARGE_P1
+        self.mode_timer = float(charge_dur)
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("enemy_telegraph.ogg")
+            except Exception:
+                pass
+
+    def _enter_kiln_crack(self, state):
+        """Fracture superheated fused-salt shell from thermal shock for a 1.55s critical vulnerability window."""
+        from constants import GLASS_BASILISK_KILN_CRACK_DURATION
+        self.attack_mode = "kiln_crack"
+        self.refraction_substate = "charge"
+        self.armor_active = False
+        self.beam_active = False
+        self.state = ActorState.RECOVERY
+        self.vx = 0.0
+        self.vy = 0.0
+        self.mode_timer = float(GLASS_BASILISK_KILN_CRACK_DURATION)
+        self._crack_spark_accum = 0.0
+        self.expose_weakpoint(
+            float(GLASS_BASILISK_KILN_CRACK_DURATION),
+            state=state,
+            audio_manager=getattr(state, "audio_manager", None),
+        )
+        self._emit_glass_sparks(count=8)
+
+    def _emit_glass_sparks(self, count=10):
+        """Spawn glowing amber glass shard sparks bursting from the fractured kiln core."""
+        from constants import GLASS_BASILISK_SPARK_LIFE
+        cx, cy = self.get_center()
+        total = max(1, int(count))
+        for idx in range(total):
+            ang = (2.0 * math.pi * idx) / total + (idx % 3) * 0.17
+            spd = 68.0 + (idx % 4) * 28.0
+            self.glass_sparks.append({
+                "x": float(cx + math.cos(ang) * 16.0),
+                "y": float(cy + math.sin(ang) * 16.0),
+                "vx": math.cos(ang) * spd,
+                "vy": math.sin(ang) * spd - 12.0,
+                "life": float(GLASS_BASILISK_SPARK_LIFE),
+                "max_life": float(GLASS_BASILISK_SPARK_LIFE),
+            })
+
+    def _update_glass_sparks(self, dt):
+        """Advance and decay molten amber glass sparks."""
+        if not self.glass_sparks:
+            return
+        kept = []
+        for sp in self.glass_sparks:
+            sp["life"] = float(sp.get("life", 0.0)) - dt
+            if sp["life"] <= 0.0:
+                continue
+            sp["x"] = float(sp["x"]) + float(sp["vx"]) * dt
+            sp["y"] = float(sp["y"]) + float(sp["vy"]) * dt
+            sp["vx"] *= max(0.0, 1.0 - 2.6 * dt)
+            sp["vy"] *= max(0.0, 1.0 - 2.6 * dt)
+            kept.append(sp)
+        self.glass_sparks = kept
+
+    def _fire_prism_bolt_volley(self, target_x, target_y, state):
+        """Fire refracted prism ink bolts (3 spread in Phase 1, 5 alternating in Phase 2)."""
+        from constants import (
+            BOSS_BOLT_DAMAGE,
+            BOSS_BOLT_MAX_LIFETIME,
+            BOSS_BOLT_RADIUS,
+            BOSS_BOLT_SPEED,
+            GLASS_BASILISK_BOLT_COUNT_P1,
+            GLASS_BASILISK_BOLT_COUNT_P2,
+            GLASS_BASILISK_BOLT_SPREAD_DEG,
+        )
+        net = getattr(state, "network_manager", None)
+        if getattr(net, "network_mode", "OFFLINE") == "CLIENT":
+            return
+        cx, cy = self.get_center()
+        base_angle = math.atan2(target_y - cy, target_x - cx)
+        count = int(GLASS_BASILISK_BOLT_COUNT_P2 if self.phase >= 2 else GLASS_BASILISK_BOLT_COUNT_P1)
+        spread_rad = math.radians(float(GLASS_BASILISK_BOLT_SPREAD_DEG))
+        alt_shift = 0.0
+        pattern = "spread"
+        if self.phase >= 2:
+            alt_parity = self.volley_alt % 2
+            alt_shift = (spread_rad * 0.45) if alt_parity == 1 else (-spread_rad * 0.45)
+            pattern = "alternating_odd" if alt_parity == 1 else "alternating_even"
+        self.volley_alt += 1
+
+        half = (count - 1) * 0.5
+        dmg = float(BOSS_BOLT_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+        bolt_speed = float(BOSS_BOLT_SPEED) * (1.14 if self.phase >= 2 else 1.02)
+        for idx in range(count):
+            ang = base_angle + alt_shift + (idx - half) * spread_rad
+            spd_scale = (1.06 if (idx % 2 == 0) else 0.94) if self.phase >= 2 else 1.0
+            self.ink_bolts.append({
+                "x": float(cx + math.cos(ang) * 34.0),
+                "y": float(cy + math.sin(ang) * 34.0),
+                "vx": math.cos(ang) * bolt_speed * spd_scale,
+                "vy": math.sin(ang) * bolt_speed * spd_scale,
+                "damage": dmg,
+                "life": float(BOSS_BOLT_MAX_LIFETIME),
+                "radius": int(BOSS_BOLT_RADIUS),
+                "style": "prism_bolt",
+                "pattern": pattern,
+            })
+        audio = getattr(state, "audio_manager", None)
+        if audio is not None:
+            try:
+                audio.play_sfx("enemy_telegraph.ogg")
+            except Exception:
+                pass
+
+    def _point_hits_ray(self, px, py, ray_angle_rad, pad_radius):
+        """Return True if point (px, py) lies within the active solar refraction ray corridor."""
+        from constants import GLASS_BASILISK_BEAM_HALF_WIDTH, GLASS_BASILISK_BEAM_RANGE
+        cx, cy = self.get_center()
+        ux, uy = math.cos(ray_angle_rad), math.sin(ray_angle_rad)
+        start_off = 22.0
+        sx, sy = cx + ux * start_off, cy + uy * start_off
+        beam_len = float(GLASS_BASILISK_BEAM_RANGE)
+        vx, vy = ux * beam_len, uy * beam_len
+        seg_len_sq = beam_len * beam_len
+        t = max(0.0, min(1.0, ((px - sx) * vx + (py - sy) * vy) / seg_len_sq))
+        closest_x = sx + vx * t
+        closest_y = sy + vy * t
+        half_w = float(GLASS_BASILISK_BEAM_HALF_WIDTH) + float(pad_radius)
+        return (px - closest_x) ** 2 + (py - closest_y) ** 2 <= half_w * half_w
+
+    def _check_refraction_beam_damage(self, state):
+        """Apply sweeping solar refraction beam damage to any active runner standing inside a ray."""
+        from constants import GLASS_BASILISK_BEAM_DAMAGE, GLASS_BASILISK_BEAM_HIT_COOLDOWN
+        if not self.beam_active or self.beam_hit_cooldown > 0.0:
+            return
+        net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+        if net_mode == "CLIENT":
+            return
+        if getattr(state, "in_sanctuary", False) or getattr(state, "active_respite", None) is not None:
+            return
+
+        dmg = float(GLASS_BASILISK_BEAM_DAMAGE) * float(getattr(self, "damage_multiplier", 1.0))
+        audio_mgr = getattr(state, "audio_manager", None)
+        beam_angles = self.get_active_beam_angles()
+
+        player = getattr(state, "player", None)
+        if (
+            player is not None
+            and hasattr(player, "take_damage")
+            and getattr(player, "hp", 0.0) > 0.0
+            and float(getattr(state, "death_timer", 0.0) or 0.0) <= 0.0
+        ):
+            px, py = player.get_center()
+            p_rad = min(float(getattr(player, "width", 40.0)), float(getattr(player, "height", 40.0))) * 0.42
+            if any(self._point_hits_ray(px, py, ang, p_rad) for ang in beam_angles):
+                self.beam_hit_cooldown = float(GLASS_BASILISK_BEAM_HIT_COOLDOWN)
+                try:
+                    player.take_damage(dmg, audio_manager=audio_mgr, game_state=state)
+                except TypeError:
+                    player.take_damage(dmg)
+                return
+
+        remote_players = getattr(getattr(state, "network_manager", None), "remote_players", {}) or {}
+        for p_data in remote_players.values():
+            if p_data.get("in_sanctuary", False) or p_data.get("hp", 0.0) <= 0.0:
+                continue
+            rx = float(p_data.get("x", 0.0)) + 20.0
+            ry = float(p_data.get("y", 0.0)) + 20.0
+            if any(self._point_hits_ray(rx, ry, ang, 16.0) for ang in beam_angles):
+                self.beam_hit_cooldown = float(GLASS_BASILISK_BEAM_HIT_COOLDOWN)
+                p_data["hp"] = max(0.0, float(p_data.get("hp", 100.0)) - dmg)
+                return
+
+    def _resolve_target_point(self, state):
+        """Return nearest active runner center or None when resting/dead."""
+        if getattr(state, "active_respite", None) is not None or getattr(state, "in_sanctuary", False):
+            return None
+        player = getattr(state, "player", None)
+        if (
+            player is not None
+            and getattr(player, "hp", 0.0) > 0.0
+            and float(getattr(state, "death_timer", 0.0) or 0.0) <= 0.0
+        ):
+            return player.get_center()
+        return None
+
+    def _move_with_walls(self, dx, dy, state):
+        """Translate wyrm by (dx, dy) and resolve against nearby world walls."""
+        self.x += dx
+        self.y += dy
+        world = getattr(state, "world", None)
+        if world is not None and hasattr(world, "get_nearby_walls"):
+            walls = world.get_nearby_walls(self.get_rect())
+            self.x, self.y = resolve_wall_collision(self.get_rect(), walls)
+
+    def _check_phase2_transition(self, state=None):
+        """Promote wyrm to Phase 2 once HP drops to or below 50%."""
+        from constants import GLASS_BASILISK_PHASE2_HP_RATIO
+        if (
+            self.phase < 2
+            and self.hp > 0.0
+            and self.max_hp > 0.0
+            and self.hp <= self.max_hp * float(GLASS_BASILISK_PHASE2_HP_RATIO)
+        ):
+            self.phase = 2
+            audio = getattr(state, "audio_manager", None) if state is not None else None
+            if audio is not None:
+                try:
+                    audio.play_sfx("bleed_start.ogg")
+                except Exception:
+                    pass
+
+    def take_damage(self, amount, bypass_stagger=False):
+        """Apply damage; striking the fractured molten core during kiln_crack bursts sparks, stuns & resets."""
+        from constants import GLASS_BASILISK_CRACK_STUN_DURATION
+        was_cracked = self.attack_mode == "kiln_crack" and float(amount) > 0.0
+        super().take_damage(amount, bypass_stagger=bypass_stagger)
+        if self.is_dead():
+            self.weakpoint_exposed_timer = 0.0
+            self.armor_active = False
+            self.beam_active = False
+            return
+        self._check_phase2_transition()
+        if was_cracked:
+            self._emit_glass_sparks(count=14)
+            self.stagger_timer = max(float(self.stagger_timer), float(GLASS_BASILISK_CRACK_STUN_DURATION))
+            self._enter_salt_slither()
+
+    def update(self, dt, state):
+        """Run The Glass-Kiln Basilisk 3-state thermal-shock loop (salt_slither -> solar_refraction -> kiln_crack)."""
+        from constants import (
+            GLASS_BASILISK_BEAM_SWEEP_ARC_RAD,
+            GLASS_BASILISK_REFRACTION_SWEEP_P1,
+            GLASS_BASILISK_REFRACTION_SWEEP_P2,
+            GLASS_BASILISK_SLITHER_LATERAL_WEIGHT,
+            GLASS_BASILISK_SLITHER_SWAY_RATE,
+            GLASS_BASILISK_VOLLEY_INTERVAL,
+        )
+        if self.is_summoning_or_dormant():
+            self.vx = 0.0
+            self.vy = 0.0
+            self.beam_active = False
+            return
+
+        dt = max(0.0, float(dt))
+        self.animation_timer += dt
+        if getattr(self, "hit_flash_timer", 0.0) > 0.0:
+            self.hit_flash_timer = max(0.0, float(self.hit_flash_timer) - dt)
+        if self.beam_hit_cooldown > 0.0:
+            self.beam_hit_cooldown = max(0.0, float(self.beam_hit_cooldown) - dt)
+        if self.bleed_timer > 0.0 and not self.is_dead():
+            self.bleed_timer = max(0.0, self.bleed_timer - dt)
+            self.hp = max(0.0, self.hp - float(getattr(self, "bleed_damage", 0.0)) * dt)
+        if self.weakpoint_exposed_timer > 0.0:
+            self.weakpoint_exposed_timer = max(0.0, self.weakpoint_exposed_timer - dt)
+        if self.ink_bolts:
+            self._update_ink_bolts(dt, state)
+        if self.glass_sparks:
+            self._update_glass_sparks(dt)
+
+        if self.is_dead():
+            self.vx = 0.0
+            self.vy = 0.0
+            self.beam_active = False
+            return
+
+        self._check_phase2_transition(state)
+
+        net_mode = getattr(getattr(state, "network_manager", None), "network_mode", "OFFLINE")
+        if net_mode == "CLIENT":
+            rate = float(GLASS_BASILISK_SLITHER_SWAY_RATE) * (1.25 if self.phase >= 2 else 1.0)
+            self.slither_phase += dt * (rate if self.attack_mode == "salt_slither" else rate * 0.45)
+            return
+
+        if self.stagger_timer > 0.0:
+            self.stagger_timer = max(0.0, self.stagger_timer - dt)
+            self.vx = 0.0
+            self.vy = 0.0
+            self.beam_active = False
+            return
+
+        target = self._resolve_target_point(state)
+        self.active_target = target
+        if target is None:
+            self.vx = 0.0
+            self.vy = 0.0
+            self.beam_active = False
+            self.state = ActorState.IDLE
+            return
+
+        tx, ty = target
+        cx, cy = self.get_center()
+        dx, dy = tx - cx, ty - cy
+        dist = math.hypot(dx, dy)
+        ux, uy = (dx / dist, dy / dist) if dist > 1e-3 else (self.facing[0], self.facing[1])
+
+        if self.attack_mode == "salt_slither":
+            self.armor_active = True
+            self.weakpoint_exposed_timer = 0.0
+            self.beam_active = False
+            self.state = ActorState.CHASE
+
+            sway_rate = float(GLASS_BASILISK_SLITHER_SWAY_RATE) * (1.22 if self.phase >= 2 else 1.0)
+            self.slither_phase += dt * sway_rate
+
+            spd = float(self.speed) * (1.16 if self.phase >= 2 else 1.0)
+            fwd_w = 0.78 if dist > 160.0 else (0.28 if dist > 95.0 else -0.15)
+            lat_w = math.sin(self.slither_phase) * float(GLASS_BASILISK_SLITHER_LATERAL_WEIGHT)
+            px_perp, py_perp = -uy, ux
+            mv_x = ux * fwd_w + px_perp * lat_w
+            mv_y = uy * fwd_w + py_perp * lat_w
+            mv_mag = math.hypot(mv_x, mv_y)
+            if mv_mag > 1e-4:
+                self.vx = (mv_x / mv_mag) * spd
+                self.vy = (mv_y / mv_mag) * spd
+                self.facing = (mv_x / mv_mag, mv_y / mv_mag)
+            else:
+                self.vx = 0.0
+                self.vy = 0.0
+                self.facing = (ux, uy)
+            self._move_with_walls(self.vx * dt, self.vy * dt, state)
+
+            self.volley_timer -= dt
+            if self.volley_timer <= 0.0:
+                self._fire_prism_bolt_volley(tx, ty, state)
+                self.volley_timer = float(GLASS_BASILISK_VOLLEY_INTERVAL) * (0.82 if self.phase >= 2 else 1.0)
+
+            self.mode_timer -= dt
+            if self.mode_timer <= 0.0:
+                self._enter_solar_refraction(tx, ty, state)
+
+        elif self.attack_mode == "solar_refraction":
+            self.armor_active = True
+            self.weakpoint_exposed_timer = 0.0
+            self.vx = 0.0
+            self.vy = 0.0
+            self.slither_phase += dt * 2.4
+
+            sweep_dur = float(
+                GLASS_BASILISK_REFRACTION_SWEEP_P2 if self.phase >= 2 else GLASS_BASILISK_REFRACTION_SWEEP_P1
+            )
+            if self.refraction_substate == "charge":
+                self.beam_active = False
+                self.state = ActorState.WIND_UP
+                self.facing = (math.cos(self.beam_angle_rad), math.sin(self.beam_angle_rad))
+                self.mode_timer -= dt
+                if self.mode_timer <= 0.0:
+                    self.refraction_substate = "sweep"
+                    self.beam_active = True
+                    self.state = ActorState.STRIKE
+                    self.mode_timer = sweep_dur
+                    audio = getattr(state, "audio_manager", None)
+                    if audio is not None:
+                        try:
+                            audio.play_sfx("combat_parry.ogg")
+                        except Exception:
+                            pass
+            else:
+                self.beam_active = True
+                self.state = ActorState.STRIKE
+                self.mode_timer -= dt
+                progress = max(0.0, min(1.0, 1.0 - (self.mode_timer / max(0.01, sweep_dur))))
+                self.beam_angle_rad = (
+                    float(self.beam_start_rad)
+                    + float(GLASS_BASILISK_BEAM_SWEEP_ARC_RAD) * self.beam_sweep_dir * progress
+                )
+                self.facing = (math.cos(self.beam_angle_rad), math.sin(self.beam_angle_rad))
+                self._check_refraction_beam_damage(state)
+                if self.mode_timer <= 0.0:
+                    self._enter_kiln_crack(state)
+
+        else:  # kiln_crack
+            self.armor_active = False
+            self.beam_active = False
+            self.state = ActorState.RECOVERY
+            self.vx = 0.0
+            self.vy = 0.0
+            self.slither_phase += dt * 1.4
+            self._crack_spark_accum += dt
+            if self._crack_spark_accum >= 0.22:
+                self._crack_spark_accum = 0.0
+                self._emit_glass_sparks(count=3)
+            self.mode_timer -= dt
+            if self.mode_timer <= 0.0 or self.weakpoint_exposed_timer <= 0.0:
+                self._enter_salt_slither()
+
+    def get_visual_packet(self):
+        """Expose Glass-Kiln Basilisk serpentine articulation, beam sweep & kiln-crack state to the renderer."""
+        packet = super().get_visual_packet()
+        packet["attack_mode"] = self.attack_mode
+        packet["refraction_substate"] = self.refraction_substate
+        packet["phase"] = int(self.phase)
+        packet["slither_phase"] = float(self.slither_phase)
+        packet["beam_angle_rad"] = float(self.beam_angle_rad)
+        packet["beam_active"] = bool(self.beam_active)
+        packet["beam_angles"] = list(self.get_active_beam_angles())
+        packet["armor_active"] = bool(self.armor_active)
+        packet["weakpoint_exposed_timer"] = float(self.weakpoint_exposed_timer)
+        packet["glass_sparks"] = list(self.glass_sparks)
+        return packet
+
+
 class FinalAuthor(Boss):
     """The Final Author."""
     def __init__(self, x, y, hp=None, id=None):
@@ -3111,7 +3609,7 @@ ENEMY_REGISTRY = {
     "SentryEnemy": SentryEnemy, "PunctuationWolfEnemy": PunctuationWolfEnemy,
     "NightBoss": NightBoss, "SlugBoss": SlugBoss, "MeadowCensorBoss": MeadowCensorBoss,
     "RimecrestArbiterBoss": RimecrestArbiterBoss, "GaleVaneRaptorBoss": GaleVaneRaptorBoss,
-    "TypesetterAutomatonBoss": TypesetterAutomatonBoss,
+    "TypesetterAutomatonBoss": TypesetterAutomatonBoss, "GlassKilnBasiliskBoss": GlassKilnBasiliskBoss,
     "FinalAuthor": FinalAuthor,
 }
 

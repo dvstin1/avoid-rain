@@ -175,6 +175,7 @@ class Renderer:
             "event_champion", "miniboss", "night_boss", "final_author",
             "gale_raptor_torso", "gale_raptor_head", "gale_raptor_wing", "gale_raptor_tail",
             "typesetter_chassis", "typesetter_turret", "typesetter_leg", "typesetter_platen",
+            "glass_basilisk_head", "glass_basilisk_segment", "glass_basilisk_tail",
         ):
             name = f"{kind}.png"
             path = os.path.join(base_path, name)
@@ -4652,6 +4653,7 @@ class Renderer:
             and not is_slug_boss
             and not bool(getattr(actor, "is_gale_raptor", False))
             and not bool(getattr(actor, "is_typesetter_boss", False))
+            and not bool(getattr(actor, "is_glass_basilisk", False))
             and hasattr(actor, 'get_attack_hitbox')
         ):
             self.draw_boss_weapon(actor, ox, oy)
@@ -5269,12 +5271,203 @@ class Renderer:
                 border_radius=3,
             )
 
+    def _draw_glass_kiln_basilisk_boss(self, actor, draw_rect, packet):
+        """Render The Glass-Kiln Basilisk via the articulated multi-part serpentine rig & procedural fallback."""
+        cx, cy = int(draw_rect.centerx), int(draw_rect.centery)
+        w, h = max(1, int(draw_rect.width)), max(1, int(draw_rect.height))
+        fx, fy = packet.get("facing", getattr(actor, "facing", (0.0, 1.0)))
+        f_mag = math.hypot(fx, fy)
+        ux, uy = (fx / f_mag, fy / f_mag) if f_mag > 1e-4 else (0.0, 1.0)
+        anim_t = float(packet.get("anim_timer", getattr(actor, "animation_timer", 0.0)) or 0.0)
+        attack_mode = str(packet.get("attack_mode", getattr(actor, "attack_mode", "salt_slither")))
+        refract_sub = str(packet.get("refraction_substate", getattr(actor, "refraction_substate", "charge")))
+        phase = int(packet.get("phase", getattr(actor, "phase", 1)) or 1)
+        slither_phase = float(packet.get("slither_phase", getattr(actor, "slither_phase", 0.0)) or 0.0)
+        beam_angle_rad = float(packet.get("beam_angle_rad", getattr(actor, "beam_angle_rad", 0.0)) or 0.0)
+        beam_active = bool(packet.get("beam_active", getattr(actor, "beam_active", False)))
+        armor_active = bool(packet.get("armor_active", getattr(actor, "armor_active", False)))
+        weak_t = float(packet.get("weakpoint_exposed_timer", getattr(actor, "weakpoint_exposed_timer", 0.0)) or 0.0)
+        beam_angles = packet.get("beam_angles")
+        if not beam_angles:
+            if hasattr(actor, "get_active_beam_angles"):
+                beam_angles = list(actor.get_active_beam_angles())
+            else:
+                beam_angles = [beam_angle_rad]
+
+        face_rad = beam_angle_rad if attack_mode == "solar_refraction" else math.atan2(uy, ux)
+        body_deg = math.degrees(face_rad) - 90.0
+        cos_b = math.cos(math.radians(body_deg))
+        sin_b = math.sin(math.radians(body_deg))
+
+        def _rot_off(lx, ly):
+            return (lx * cos_b - ly * sin_b, lx * sin_b + ly * cos_b)
+
+        # Compute serpentine spine positions (head -> seg1 -> seg2 -> seg3 -> tail)
+        sway_amp = 15.0 if attack_mode == "salt_slither" else (6.0 if attack_mode == "solar_refraction" else 4.0)
+        shudder_x = math.sin(anim_t * 42.0) * 2.5 if attack_mode == "kiln_crack" else 0.0
+        head_local = (math.sin(slither_phase) * (sway_amp * 0.45) + shudder_x, 26.0)
+        seg_specs = (
+            (math.sin(slither_phase - 0.85) * sway_amp, 6.0, 1.06, 4),
+            (math.sin(slither_phase - 1.75) * (sway_amp * 1.15), -14.0, 0.96, 3),
+            (math.sin(slither_phase - 2.65) * (sway_amp * 1.25), -32.0, 0.84, 2),
+        )
+        tail_sway = math.sin(slither_phase - 3.55) * (sway_amp * 1.35)
+        tail_local = (tail_sway, -48.0)
+
+        head_ox, head_oy = _rot_off(head_local[0], head_local[1])
+        tail_ox, tail_oy = _rot_off(tail_local[0], tail_local[1])
+
+        def _under_shapes(screen, rect, act, pkt):
+            rcx, rcy = int(rect.centerx), int(rect.centery)
+            glow_r = max(26, int(round(max(rect.width, rect.height) * 0.46)))
+
+            # 1. Molten-amber / fused-cobalt kiln under-glow beneath the serpentine coils
+            pulse = 0.5 + 0.5 * math.sin(anim_t * (10.0 if phase >= 2 else 6.0))
+            outer_r = glow_r + int(round(pulse * 5))
+            pygame.draw.circle(screen, (186, 86, 22), (rcx, rcy), outer_r, 3)
+            pygame.draw.circle(screen, (62, 118, 198), (rcx, rcy), max(12, glow_r - 6), 2)
+            for idx_s in range(3):
+                sx_l, sy_l, _sc, _z = seg_specs[idx_s]
+                sox, soy = _rot_off(sx_l, sy_l)
+                pygame.draw.circle(screen, (242, 148, 44), (int(rcx + sox), int(rcy + soy)), 12 + int(pulse * 2), 2)
+
+            # 2. Crystalline hex-armor shimmer when fused-salt armor is active
+            if armor_active:
+                hex_r = glow_r + 9
+                hex_rot = anim_t * (0.9 if phase >= 2 else 0.55)
+                hex_pts = [
+                    (
+                        int(rcx + math.cos(hex_rot + i * (math.pi / 3.0)) * hex_r),
+                        int(rcy + math.sin(hex_rot + i * (math.pi / 3.0)) * hex_r),
+                    )
+                    for i in range(6)
+                ]
+                pygame.draw.polygon(screen, (238, 228, 206), hex_pts, 2)
+                inner_hex = [
+                    (
+                        int(rcx + math.cos(-hex_rot * 0.7 + i * (math.pi / 3.0)) * (hex_r - 6)),
+                        int(rcy + math.sin(-hex_rot * 0.7 + i * (math.pi / 3.0)) * (hex_r - 6)),
+                    )
+                    for i in range(6)
+                ]
+                pygame.draw.polygon(screen, (124, 190, 246), inner_hex, 1)
+                for h_pt in hex_pts[::2]:
+                    pygame.draw.circle(screen, (255, 246, 224), h_pt, 2)
+
+            # 3. Solar Refraction sweeping amber/white telegraph & active laser beams
+            if attack_mode == "solar_refraction":
+                jaw_x = int(rcx + head_ox)
+                jaw_y = int(rcy + head_oy)
+                beam_len = float(constants.GLASS_BASILISK_BEAM_RANGE)
+                if beam_active or refract_sub == "sweep":
+                    for ray_a in beam_angles:
+                        end_x = int(jaw_x + math.cos(ray_a) * beam_len)
+                        end_y = int(jaw_y + math.sin(ray_a) * beam_len)
+                        pygame.draw.line(screen, (255, 118, 28), (jaw_x, jaw_y), (end_x, end_y), 14)
+                        pygame.draw.line(screen, (255, 198, 76), (jaw_x, jaw_y), (end_x, end_y), 8)
+                        pygame.draw.line(screen, (255, 250, 232), (jaw_x, jaw_y), (end_x, end_y), 3)
+                    pygame.draw.circle(screen, (255, 168, 48), (jaw_x, jaw_y), 13 + int(pulse * 3))
+                    pygame.draw.circle(screen, (255, 252, 238), (jaw_x, jaw_y), 7)
+                else:
+                    tel_pulse = 0.5 + 0.5 * math.sin(anim_t * 24.0)
+                    pygame.draw.circle(screen, (255, 174, 58), (jaw_x, jaw_y), 9 + int(tel_pulse * 6), 2)
+                    for ray_a in beam_angles:
+                        end_x = int(jaw_x + math.cos(ray_a) * (beam_len * 0.72))
+                        end_y = int(jaw_y + math.sin(ray_a) * (beam_len * 0.72))
+                        pygame.draw.line(screen, (255, 192, 84), (jaw_x, jaw_y), (end_x, end_y), 2)
+                        pygame.draw.line(screen, (255, 244, 210), (jaw_x, jaw_y), (end_x, end_y), 1)
+
+            # 4. Kiln Crack fractured glowing magma core fissures & bursting amber glass sparks
+            if attack_mode == "kiln_crack" or weak_t > 0.0:
+                c_pulse = 0.5 + 0.5 * math.sin(anim_t * 20.0)
+                c_r = glow_r + 8 + int(round(c_pulse * 5))
+                pygame.draw.circle(screen, (255, 128, 32), (rcx, rcy), c_r, 3)
+                pygame.draw.circle(screen, (255, 232, 136), (rcx, rcy), max(10, c_r - 8), 2)
+                for crack_i in range(6):
+                    c_ang = crack_i * (math.pi / 3.0) + 0.25
+                    mid_x = int(rcx + math.cos(c_ang + 0.14) * (glow_r * 0.55))
+                    mid_y = int(rcy + math.sin(c_ang + 0.14) * (glow_r * 0.55))
+                    tip_x = int(rcx + math.cos(c_ang) * (glow_r + 12))
+                    tip_y = int(rcy + math.sin(c_ang) * (glow_r + 12))
+                    pygame.draw.line(screen, (255, 114, 24), (rcx, rcy), (mid_x, mid_y), 3)
+                    pygame.draw.line(screen, (255, 236, 152), (mid_x, mid_y), (tip_x, tip_y), 2)
+
+            acx, acy = act.get_center() if hasattr(act, "get_center") else (0.0, 0.0)
+            for sp in pkt.get("glass_sparks", ()):
+                sx = int(rcx + (float(sp.get("x", acx)) - acx))
+                sy = int(rcy + (float(sp.get("y", acy)) - acy))
+                s_ratio = max(0.0, min(1.0, float(sp.get("life", 0.0)) / max(0.01, float(sp.get("max_life", 0.55)))))
+                s_col = (255, 238, 168) if s_ratio > 0.5 else (255, 132, 36)
+                pygame.draw.circle(screen, s_col, (sx, sy), max(2, int(round(4 * s_ratio))))
+
+        tail_whip_deg = math.cos(slither_phase - 3.55) * (28.0 if attack_mode == "salt_slither" else 14.0)
+        head_sway_deg = math.cos(slither_phase) * (10.0 if attack_mode == "salt_slither" else 4.0)
+
+        parts_spec = [
+            {
+                "sprite_key": "glass_basilisk_tail.png",
+                "offset_x": tail_ox,
+                "offset_y": tail_oy,
+                "angle_deg": body_deg + tail_whip_deg,
+                "scale": 0.96,
+                "z_order": 1,
+            },
+        ]
+        seg_sway_gain = 16.0 if attack_mode == "salt_slither" else 7.0
+        for idx_s, (slx, sly, s_scale, z_ord) in enumerate(seg_specs):
+            sox, soy = _rot_off(slx, sly)
+            seg_angle = body_deg + math.cos(slither_phase - 0.85 * (idx_s + 1)) * seg_sway_gain
+            parts_spec.append(
+                {
+                    "sprite_key": "glass_basilisk_segment.png",
+                    "offset_x": sox,
+                    "offset_y": soy,
+                    "angle_deg": seg_angle,
+                    "scale": s_scale,
+                    "z_order": z_ord,
+                }
+            )
+        parts_spec.append(
+            {
+                "sprite_key": "glass_basilisk_head.png",
+                "offset_x": head_ox,
+                "offset_y": head_oy,
+                "angle_deg": body_deg + head_sway_deg,
+                "scale": 1.12,
+                "z_order": 5,
+            }
+        )
+
+        rendered = self._draw_articulated_boss_rig(
+            actor,
+            draw_rect,
+            packet,
+            parts_spec,
+            under_shapes_fn=_under_shapes,
+        )
+
+        # Procedural fallback silhouette if modular PNG parts are absent (e.g., stripped headless test)
+        if len(rendered) < len(parts_spec):
+            salt = (228, 214, 188)
+            cobalt = (66, 122, 198)
+            amber = (242, 152, 46)
+            kiln = (255, 224, 130)
+            pygame.draw.circle(self.screen, cobalt, (int(cx + tail_ox), int(cy + tail_oy)), 10)
+            for slx, sly, s_scale, _z in reversed(seg_specs):
+                sox, soy = _rot_off(slx, sly)
+                rad = max(10, int(round(16 * s_scale)))
+                pygame.draw.circle(self.screen, salt, (int(cx + sox), int(cy + soy)), rad)
+                pygame.draw.circle(self.screen, cobalt, (int(cx + sox), int(cy + soy)), rad, 2)
+                pygame.draw.circle(self.screen, amber, (int(cx + sox), int(cy + soy)), max(4, rad // 2))
+            pygame.draw.circle(self.screen, salt, (int(cx + head_ox), int(cy + head_oy)), max(14, w // 5))
+            pygame.draw.circle(self.screen, kiln, (int(cx + head_ox), int(cy + head_oy)), 7)
+
     def draw_procedural_enemy(self, actor, draw_rect, packet, state_color):
         """Draw image sprites or procedural basic-shape graphics for enemies and bosses."""
         from engine.enemy import (
-            BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy, GaleVaneRaptorBoss, MarginWarden,
-            MeadowCensorBoss, Miniboss, MinibossM2, MinibossM3, NightBoss,
-            PunctuationWolfEnemy, RimecrestArbiterBoss, SentryEnemy, SlugBoss, SmearEnemy,
+            BatEnemy, BindlingEnemy, Boss, FinalAuthor, FlutterEnemy, GaleVaneRaptorBoss,
+            GlassKilnBasiliskBoss, MarginWarden, MeadowCensorBoss, Miniboss, MinibossM2, MinibossM3,
+            NightBoss, PunctuationWolfEnemy, RimecrestArbiterBoss, SentryEnemy, SlugBoss, SmearEnemy,
             TypesetterAutomatonBoss,
         )
         if bool(getattr(actor, "is_gale_raptor", False)) or isinstance(actor, GaleVaneRaptorBoss):
@@ -5282,6 +5475,9 @@ class Renderer:
             return True
         if bool(getattr(actor, "is_typesetter_boss", False)) or isinstance(actor, TypesetterAutomatonBoss):
             self._draw_typesetter_automaton_boss(actor, draw_rect, packet)
+            return True
+        if bool(getattr(actor, "is_glass_basilisk", False)) or isinstance(actor, GlassKilnBasiliskBoss):
+            self._draw_glass_kiln_basilisk_boss(actor, draw_rect, packet)
             return True
         if bool(getattr(actor, "is_slug_boss", False)) or isinstance(actor, SlugBoss):
             self._draw_slug_boss(actor, draw_rect, packet)
@@ -6043,6 +6239,7 @@ class Renderer:
         from engine.enemy import (
             BatEnemy,
             GaleVaneRaptorBoss,
+            GlassKilnBasiliskBoss,
             MeadowCensorBoss,
             RimecrestArbiterBoss,
             SlugBoss,
@@ -6056,6 +6253,7 @@ class Renderer:
             or bool(getattr(actor, "is_rimecrest_arbiter", False))
             or bool(getattr(actor, "is_gale_raptor", False))
             or bool(getattr(actor, "is_typesetter_boss", False))
+            or bool(getattr(actor, "is_glass_basilisk", False))
             or isinstance(
                 actor,
                 (
@@ -6065,6 +6263,7 @@ class Renderer:
                     RimecrestArbiterBoss,
                     GaleVaneRaptorBoss,
                     TypesetterAutomatonBoss,
+                    GlassKilnBasiliskBoss,
                 ),
             )
             or "slug" in actor_tag

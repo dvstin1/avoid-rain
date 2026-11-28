@@ -130,6 +130,7 @@ class Actor:
             "RimecrestArbiterBoss",
             "GaleVaneRaptorBoss",
             "TypesetterAutomatonBoss",
+            "GlassKilnBasiliskBoss",
             "FinalAuthor",
         ):
             return True

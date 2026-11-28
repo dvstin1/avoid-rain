@@ -1225,11 +1225,13 @@ class GameState:
                 from engine.enemy import (
                     SlugEnemy, BatEnemy, NightBoss, MarginWarden, MinibossM2, MinibossM3, SentryEnemy,
                     PunctuationWolfEnemy, BindlingEnemy, SmearEnemy,
-                    SlugBoss, MeadowCensorBoss, RimecrestArbiterBoss, GaleVaneRaptorBoss, TypesetterAutomatonBoss,
+                    SlugBoss, MeadowCensorBoss, RimecrestArbiterBoss, GaleVaneRaptorBoss,
+                    TypesetterAutomatonBoss, GlassKilnBasiliskBoss,
                 )
                 biome_night_boss_cls = {
                     "windy_ridge": GaleVaneRaptorBoss,
                     "tech_tower": TypesetterAutomatonBoss,
+                    "vitreous_basin": GlassKilnBasiliskBoss,
                     "swamp_mire": SlugBoss,
                     "pastoral_valley": MeadowCensorBoss,
                     "frozen_peaks": RimecrestArbiterBoss,
@@ -1990,6 +1992,7 @@ class GameState:
                 or getattr(enemy, "is_rimecrest_arbiter", False)
                 or getattr(enemy, "is_gale_raptor", False)
                 or getattr(enemy, "is_typesetter_boss", False)
+                or getattr(enemy, "is_glass_basilisk", False)
             )
             ex, ey = enemy.get_center()
             dist_sq = (ex - px) ** 2 + (ey - py) ** 2
@@ -2061,6 +2064,7 @@ class GameState:
             if not boss_alive and self.weather_manager.bleed_state == "CLAMPED":
                 from engine.enemy import (
                     GaleVaneRaptorBoss,
+                    GlassKilnBasiliskBoss,
                     MeadowCensorBoss,
                     NightBoss,
                     RimecrestArbiterBoss,
@@ -2089,6 +2093,8 @@ class GameState:
                         new_boss = GaleVaneRaptorBoss(bx, by)
                     elif active_biome == "tech_tower":
                         new_boss = TypesetterAutomatonBoss(bx, by)
+                    elif active_biome == "vitreous_basin":
+                        new_boss = GlassKilnBasiliskBoss(bx, by)
                     else:
                         new_boss = NightBoss(bx, by)
                     if hasattr(self.world, "find_nearest_walkable_spawn"):
@@ -4292,6 +4298,7 @@ class GameState:
     def _update_audio_track(self, dt):
         from constants import (
             GALE_RAPTOR_MUSIC,
+            GLASS_BASILISK_MUSIC,
             MEADOW_CENSOR_PHASE1_MUSIC,
             MEADOW_CENSOR_PHASE2_HP_RATIO,
             MEADOW_CENSOR_PHASE2_MUSIC,
@@ -4367,6 +4374,8 @@ class GameState:
                         near_biome_boss_track = GALE_RAPTOR_MUSIC
                     elif getattr(enemy, "is_typesetter_boss", False):
                         near_biome_boss_track = TYPESETTER_MUSIC
+                    elif getattr(enemy, "is_glass_basilisk", False):
+                        near_biome_boss_track = GLASS_BASILISK_MUSIC
                     elif ename == "Night Boss":
                         near_night_boss = True
                     else:

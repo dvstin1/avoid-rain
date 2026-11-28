@@ -2895,6 +2895,154 @@ def generate_typesetter_music(seed: int = DEFAULT_SEED):
     return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
 
 
+def _synth_crystalline_bell_lead(n: int, freq_hz: float, detune_ratio: float = 1.0055):
+    """Synthesize a detuned dual-square crystalline bell lead with rapid pitch-envelope shimmer."""
+    if n <= 0:
+        return silence(1)
+    if np is not None:
+        t = np.arange(n, dtype=np.float64) / SAMPLE_RATE
+        # Rapid glassy pitch-envelope shimmer at attack + subtle crystalline sparkle vibrato
+        pitch_env = 1.0 + 0.042 * np.exp(-t / 0.016) + 0.004 * np.sin(TAU * 13.5 * t)
+        cyc1 = np.cumsum(freq_hz * pitch_env) / SAMPLE_RATE
+        cyc2 = np.cumsum((freq_hz * detune_ratio) * pitch_env) / SAMPLE_RATE
+        sq1 = np.where((cyc1 % 1.0) < 0.25, 1.0, -1.0)
+        sq2 = np.where((cyc2 % 1.0) < 0.125, 1.0, -1.0)
+        # High crystalline octave chime transient
+        chime = np.sin(TAU * (freq_hz * 2.0) * t) * np.exp(-t / 0.045)
+        raw = 0.56 * sq1 + 0.44 * sq2 + 0.30 * chime
+        atk = max(1, min(n // 6, int(0.002 * SAMPLE_RATE)))
+        rel = max(1, min(n // 3, int(0.018 * SAMPLE_RATE)))
+        dur = max(0.06, (n / SAMPLE_RATE) * 0.85)
+        env = 0.38 + 0.62 * np.exp(-t / dur)
+        env[:atk] *= np.linspace(0.0, 1.0, atk, endpoint=False)
+        env[n - rel:] *= np.linspace(1.0, 0.0, rel)
+        return raw * env
+    out = []
+    p1 = 0.0
+    p2 = 0.0
+    atk = max(1, min(n // 6, int(0.002 * SAMPLE_RATE)))
+    rel = max(1, min(n // 3, int(0.018 * SAMPLE_RATE)))
+    dur = max(0.06, (n / SAMPLE_RATE) * 0.85)
+    for i in range(n):
+        t_cur = i / SAMPLE_RATE
+        p_env = 1.0 + 0.042 * math.exp(-t_cur / 0.016) + 0.004 * math.sin(TAU * 13.5 * t_cur)
+        p1 = (p1 + (freq_hz * p_env) / SAMPLE_RATE) % 1.0
+        p2 = (p2 + (freq_hz * detune_ratio * p_env) / SAMPLE_RATE) % 1.0
+        sq1 = 1.0 if p1 < 0.25 else -1.0
+        sq2 = 1.0 if p2 < 0.125 else -1.0
+        chime = math.sin(TAU * (freq_hz * 2.0) * t_cur) * math.exp(-t_cur / 0.045)
+        env = 0.38 + 0.62 * math.exp(-t_cur / dur)
+        if i < atk:
+            env *= i / atk
+        if i >= n - rel:
+            env *= (n - 1 - i) / max(1, rel)
+        out.append((0.56 * sq1 + 0.44 * sq2 + 0.30 * chime) * env)
+    return out
+
+
+def generate_glass_basilisk_music(seed: int = DEFAULT_SEED):
+    """Synthesize ~12.97s loopable 148 BPM D Harmonic Minor Mega Man-style crystalline chiptune boss theme."""
+    rng = random.Random(seed ^ 0xBA51115C)
+    bpm = 148.0
+    step_s = 60.0 / bpm / 4.0  # 16th note (~0.10135s) -> 1.6216s/bar
+    total_bars = 8  # 8 bars = ~12.97s exact seamless loop
+    total_samples = n_samples(total_bars * 16 * step_s)
+
+    lead_buf = silence(total_samples)
+    arp_buf = silence(total_samples)
+    bass_buf = silence(total_samples)
+    drum_buf = silence(total_samples)
+
+    # D Harmonic Minor (D, E, F, G, A, Bb, C#) refractive progression:
+    # (4-note crystalline arp cells, slithering chromatic triangle bass sequence of 8 eighth-notes)
+    prog = (
+        ((62, 65, 69, 74), (38, 38, 41, 40, 38, 45, 44, 41)),  # Dm
+        ((61, 64, 67, 73), (37, 38, 40, 41, 43, 45, 46, 45)),  # A7/C# chromatic weave
+        ((58, 62, 65, 70), (46, 46, 45, 43, 41, 40, 38, 37)),  # Bb major descending coil
+        ((57, 61, 64, 69), (45, 44, 45, 48, 49, 45, 43, 40)),  # A7 harmonic minor sting
+        ((62, 65, 69, 73), (38, 39, 40, 41, 43, 44, 45, 46)),  # Dm(maj7) rising chromatic coil
+        ((67, 70, 74, 79), (43, 43, 46, 45, 43, 41, 40, 38)),  # Gm refractive pivot
+        ((64, 67, 70, 73), (40, 41, 43, 44, 45, 46, 48, 49)),  # Edim7 shimmering climb
+        ((69, 73, 76, 81), (45, 43, 41, 40, 38, 37, 45, 37)),  # A7 -> Dm turnaround
+    )
+
+    # Crystalline dual-square bell lead phrases in D Harmonic Minor: (step_offset, midi_note, duration_in_16ths)
+    lead_phrases = (
+        ((0, 74, 2), (2, 77, 1), (3, 76, 1), (4, 74, 2), (6, 73, 2), (8, 74, 2), (10, 81, 3), (13, 79, 3)),
+        ((0, 77, 2), (2, 76, 1), (3, 73, 1), (4, 76, 2), (6, 79, 2), (8, 81, 3), (11, 82, 2), (13, 81, 3)),
+        ((0, 82, 2), (2, 81, 2), (4, 77, 2), (6, 74, 2), (8, 77, 2), (10, 79, 2), (12, 81, 4)),
+        ((0, 81, 2), (2, 79, 1), (3, 77, 1), (4, 76, 2), (6, 73, 2), (8, 76, 2), (10, 79, 2), (12, 85, 4)),
+        ((0, 86, 2), (2, 85, 2), (4, 81, 2), (6, 77, 2), (8, 81, 2), (10, 82, 2), (12, 85, 2), (14, 86, 2)),
+        ((0, 82, 2), (2, 79, 2), (4, 74, 2), (6, 79, 2), (8, 82, 3), (11, 81, 2), (13, 79, 3)),
+        ((0, 79, 2), (2, 76, 1), (3, 79, 1), (4, 82, 2), (6, 85, 2), (8, 86, 3), (11, 85, 2), (13, 81, 3)),
+        ((0, 85, 2), (2, 81, 2), (4, 79, 2), (6, 76, 2), (8, 77, 2), (10, 76, 2), (12, 73, 2), (14, 76, 2)),
+    )
+
+    kick_sig = _synth_music_kick(n_samples(0.115), 162.0, 46.0, 0.028, drive=1.85)
+    snare_sig = _synth_music_noise_hit(n_samples(0.095), rng, 2100.0, 8200.0, 0.028, bits=4, hold=1)
+    shimmer_hat = _synth_music_noise_hit(n_samples(0.030), rng, 6200.0, 12400.0, 0.008, bits=5, hold=1)
+    prism_ping = _synth_crystalline_bell_lead(n_samples(0.085), _midi_to_hz(93), detune_ratio=1.008)  # A6 glass ping
+
+    for bar_idx, (arp_notes, bass_seq) in enumerate(prog):
+        bar_step = bar_idx * 16
+
+        # Ch 1: Detuned dual-square crystalline bell lead with rapid pitch-envelope shimmer
+        for s_off, midi_n, dur_steps in lead_phrases[bar_idx]:
+            pos = offset_samples((bar_step + s_off) * step_s)
+            dur_n = n_samples(dur_steps * step_s * 0.90)
+            bell = _synth_crystalline_bell_lead(dur_n, _midi_to_hz(midi_n))
+            _ring_add(lead_buf, bell, pos, 0.62)
+
+        # Ch 2: Shimmering 16th-note 12.5% pulse glass-prism arpeggios
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            arp_idx = (s_i + (bar_idx % 2)) % len(arp_notes)
+            oct_boost = 12 if (s_i % 4 == 3) else 0
+            arp_n = _synth_pulse_note(
+                n_samples(step_s * 0.72),
+                _midi_to_hz(arp_notes[arp_idx] + oct_boost),
+                duty=0.125,
+                release_s=0.012,
+            )
+            _ring_add(arp_buf, arp_n, pos, 0.36 if s_i % 2 == 0 else 0.25)
+
+        # Ch 3: Slithering chromatic NES triangle bassline (driving 16th-note serpentine pulse)
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            base_m = bass_seq[s_i // 2]
+            if s_i % 2 == 0:
+                midi_b = base_m
+                amp = 0.90 if s_i % 4 == 0 else 0.78
+            else:
+                # Chromatic upper-octave flicker for slithering motion
+                midi_b = base_m + (12 if (s_i % 4 == 1) else 7)
+                amp = 0.66
+            tri = _synth_nes_triangle_note(n_samples(step_s * 0.88), _midi_to_hz(midi_b))
+            _ring_add(bass_buf, tri, pos, amp)
+
+        # Ch 4: Crisp metallic LFSR percussion (snappy kick/snare, glassy hi-hats, crystalline ping accents)
+        for s_i in range(16):
+            pos = offset_samples((bar_step + s_i) * step_s)
+            if s_i in (0, 3, 6, 8, 11, 14):
+                _ring_add(drum_buf, kick_sig, pos, 0.84 if s_i in (0, 8) else 0.68)
+            if s_i in (4, 12) or (bar_idx in (3, 7) and s_i in (13, 14, 15)):
+                _ring_add(drum_buf, snare_sig, pos, 0.72 if s_i in (4, 12) else 0.56)
+            _ring_add(drum_buf, shimmer_hat, pos, 0.36 if s_i % 2 == 0 else 0.20)
+            if s_i in (2, 10) and bar_idx % 2 == 0:
+                _ring_add(drum_buf, prism_ping, pos, 0.22)
+
+    lead_clean = biquad(lead_buf, "lowpass", 9600.0)
+    arp_clean = biquad(arp_buf, "lowpass", 8800.0)
+    bass_clean = biquad(bass_buf, "lowpass", 1700.0)
+    combined = mix(
+        (lead_clean, 0.60),
+        (arp_clean, 0.44),
+        (bass_clean, 0.70),
+        (drum_buf, 0.56),
+    )
+    return finalize(combined[:total_samples], peak_target=PEAK_TARGET, loopable=True)
+
+
 MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "slug_boss_phase1.ogg": generate_slug_boss_phase1_music,
     "slug_boss_phase2.ogg": generate_slug_boss_phase2_music,
@@ -2904,6 +3052,7 @@ MUSIC_GENERATORS: Dict[str, Callable[[int], object]] = {
     "frozen_boss_phase2.ogg": generate_frozen_boss_phase2_music,
     "boss_gale_raptor.ogg": generate_gale_raptor_music,
     "boss_typesetter.ogg": generate_typesetter_music,
+    "boss_glass_basilisk.ogg": generate_glass_basilisk_music,
 }
 
 

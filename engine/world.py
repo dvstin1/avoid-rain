@@ -753,6 +753,7 @@ class Respite(GameObject):
                 or getattr(e, "is_rimecrest_arbiter", False)
                 or getattr(e, "is_gale_raptor", False)
                 or getattr(e, "is_typesetter_boss", False)
+                or getattr(e, "is_glass_basilisk", False)
                 or e.__class__.__name__ in (
                     "NightBoss",
                     "SlugBoss",
@@ -760,6 +761,7 @@ class Respite(GameObject):
                     "RimecrestArbiterBoss",
                     "GaleVaneRaptorBoss",
                     "TypesetterAutomatonBoss",
+                    "GlassKilnBasiliskBoss",
                 )
             )
         ]
@@ -1568,6 +1570,7 @@ class World:
                 or getattr(enemy, "is_rimecrest_arbiter", False)
                 or getattr(enemy, "is_gale_raptor", False)
                 or getattr(enemy, "is_typesetter_boss", False)
+                or getattr(enemy, "is_glass_basilisk", False)
             ):
                 continue
             spawns.append(
